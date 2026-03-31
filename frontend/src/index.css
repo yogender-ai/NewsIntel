@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════════
-   News Intelligence — Premium Design System
-   Ultra-dark theme · Glassmorphism · Micro-animations
+   News Intelligence v4.0 — Premium Design System
+   Ultra-dark theme · Glassmorphism · Micro-animations · News Channel Feel
    ═══════════════════════════════════════════════════════════════════ */
 
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
@@ -42,8 +42,8 @@
   --positive-bg: rgba(52, 211, 153, 0.1);
   --negative: #f43f5e;
   --negative-bg: rgba(244, 63, 94, 0.1);
-  --neutral: #fbbf24;
-  --neutral-bg: rgba(251, 191, 36, 0.1);
+  --neutral: #a78bfa;
+  --neutral-bg: rgba(167, 139, 250, 0.1);
 
   /* Risk */
   --risk-low: #34d399;
@@ -92,18 +92,37 @@ body {
   overflow-x: hidden;
 }
 
-/* Ambient gradient mesh */
+/* ── ALIVE Animated Background — Multi-layer Aurora Mesh ── */
 body::before {
   content: '';
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
   background:
-    radial-gradient(ellipse 80% 50% at 5% 15%, rgba(99, 102, 241, 0.07) 0%, transparent 50%),
-    radial-gradient(ellipse 60% 40% at 95% 85%, rgba(168, 85, 247, 0.05) 0%, transparent 50%),
-    radial-gradient(ellipse 50% 30% at 50% 50%, rgba(34, 211, 238, 0.03) 0%, transparent 50%);
+    radial-gradient(ellipse 600px 400px at 15% 20%, rgba(99, 102, 241, 0.12) 0%, transparent 60%),
+    radial-gradient(ellipse 500px 350px at 85% 80%, rgba(168, 85, 247, 0.10) 0%, transparent 60%),
+    radial-gradient(ellipse 400px 300px at 50% 50%, rgba(34, 211, 238, 0.06) 0%, transparent 60%),
+    radial-gradient(ellipse 700px 500px at 80% 15%, rgba(244, 63, 94, 0.05) 0%, transparent 50%),
+    radial-gradient(ellipse 500px 400px at 20% 70%, rgba(52, 211, 153, 0.06) 0%, transparent 50%);
+  animation: auroraShift 18s ease-in-out infinite alternate;
+  pointer-events: none;
+  z-index: 0;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  top: -30%;
+  left: -30%;
+  width: 160%;
+  height: 160%;
+  background:
+    radial-gradient(ellipse 350px 250px at 30% 85%, rgba(52, 211, 153, 0.07) 0%, transparent 60%),
+    radial-gradient(ellipse 450px 300px at 70% 25%, rgba(251, 191, 36, 0.05) 0%, transparent 60%),
+    radial-gradient(ellipse 300px 300px at 45% 45%, rgba(99, 102, 241, 0.04) 0%, transparent 60%);
+  animation: auroraShift2 22s ease-in-out infinite alternate-reverse;
   pointer-events: none;
   z-index: 0;
 }
@@ -128,7 +147,7 @@ button {
 }
 
 /* ── Scrollbar ─────────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.08);
@@ -151,6 +170,11 @@ button {
 
 @keyframes slideInRight {
   from { opacity: 0; transform: translateX(30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slideInLeft {
+  from { opacity: 0; transform: translateX(-20px); }
   to   { opacity: 1; transform: translateX(0); }
 }
 
@@ -185,6 +209,23 @@ button {
   100% { background-position: 0% 50%; }
 }
 
+/* ALIVE aurora animations — much more movement */
+@keyframes auroraShift {
+  0%   { transform: translate(0, 0) rotate(0deg) scale(1); }
+  25%  { transform: translate(3%, -2%) rotate(1deg) scale(1.02); }
+  50%  { transform: translate(-2%, 3%) rotate(-0.5deg) scale(1.05); }
+  75%  { transform: translate(4%, 1%) rotate(0.5deg) scale(1.01); }
+  100% { transform: translate(-1%, -3%) rotate(-1deg) scale(1.03); }
+}
+
+@keyframes auroraShift2 {
+  0%   { transform: translate(0, 0) rotate(0deg) scale(1); }
+  25%  { transform: translate(-3%, 2%) rotate(-1deg) scale(1.04); }
+  50%  { transform: translate(2%, -4%) rotate(0.5deg) scale(0.98); }
+  75%  { transform: translate(-4%, -1%) rotate(-0.5deg) scale(1.02); }
+  100% { transform: translate(1%, 3%) rotate(1deg) scale(1); }
+}
+
 @keyframes orbFloat1 {
   0%   { transform: translate(0, 0) scale(1); }
   33%  { transform: translate(30px, -40px) scale(1.1); }
@@ -206,6 +247,13 @@ button {
   100% { transform: translate(0, 0) scale(1); }
 }
 
+@keyframes particleFloat {
+  0%   { transform: translateY(100vh) scale(0); opacity: 0; }
+  10%  { opacity: 0.6; }
+  90%  { opacity: 0.6; }
+  100% { transform: translateY(-10vh) scale(1); opacity: 0; }
+}
+
 @keyframes riskPulse {
   0%, 100% { box-shadow: 0 0 0 0 currentColor; }
   50%      { box-shadow: 0 0 12px 2px currentColor; }
@@ -214,6 +262,41 @@ button {
 @keyframes tickerScroll {
   from { transform: translateX(0); }
   to   { transform: translateX(-50%); }
+}
+
+@keyframes breakingPulse {
+  0%, 100% { border-color: rgba(244, 63, 94, 0.15); }
+  50%      { border-color: rgba(244, 63, 94, 0.4); }
+}
+
+@keyframes breakingBgPulse {
+  0%, 100% { background: rgba(244, 63, 94, 0.02); }
+  50%      { background: rgba(244, 63, 94, 0.06); }
+}
+
+@keyframes waveAnimation {
+  0%, 100% { transform: scaleY(0.4); }
+  50%      { transform: scaleY(1); }
+}
+
+@keyframes skeletonShimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes confidenceRingDraw {
+  from { stroke-dasharray: 0 201; }
+}
+
+@keyframes slideInFromRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+
+@keyframes pulseRing {
+  0%   { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
+  70%  { box-shadow: 0 0 0 8px rgba(99, 102, 241, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
 }
 
 .spin {
@@ -243,3 +326,15 @@ button {
 .stagger-8  { animation-delay: 0.4s; }
 .stagger-9  { animation-delay: 0.45s; }
 .stagger-10 { animation-delay: 0.5s; }
+
+/* ── Print Styles ─────────────────────────────────────────────── */
+@media print {
+  body { background: white; color: black; }
+  body::before, body::after { display: none; }
+  .app-header, .app-footer, .news-ticker, .stock-ticker,
+  .refresh-btn, .new-search-btn, .countdown-wrapper,
+  .pdf-export-btn, .tts-controls, .header-bookmark-btn,
+  .header-badge, .bookmark-btn, .sentiment-filter { display: none !important; }
+  .glass { background: white; border: 1px solid #eee; backdrop-filter: none; }
+  .scroll-reveal { opacity: 1; transform: none; }
+}

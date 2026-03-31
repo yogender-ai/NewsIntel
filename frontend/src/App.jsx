@@ -1,24 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
-  Zap,
-  Newspaper,
-  RotateCcw,
-  Search,
-  Database,
-  Brain,
-  Sparkles,
-  CheckCircle,
-  Loader,
-  AlertTriangle,
-  Globe,
-  Clock,
-  RefreshCw,
-  BarChart3,
-  Filter,
-  ArrowUpRight,
-  ExternalLink,
-  Shield,
-  TrendingUp,
+  Zap, Newspaper, RotateCcw, Search, Database, Brain, Sparkles,
+  CheckCircle, Loader, AlertTriangle, Globe, Clock, RefreshCw,
+  BarChart3, Filter, ArrowUpRight, ExternalLink, Shield, TrendingUp,
+  Bookmark, Timer,
 } from 'lucide-react';
 
 import './App.css';
@@ -29,6 +14,11 @@ import ArticleCard from './components/ArticleCard';
 import EntityChart from './components/EntityChart';
 import SentimentPie from './components/SentimentPie';
 import SourceChart from './components/SourceChart';
+import StockTicker from './components/StockTicker';
+import ReadingList, { useReadingList } from './components/ReadingList';
+import NewsTimeline from './components/NewsTimeline';
+import PDFExport from './components/PDFExport';
+import TextToSpeech from './components/TextToSpeech';
 
 const VIEW = {
   SEARCH: 'search',
@@ -38,11 +28,13 @@ const VIEW = {
 };
 
 const PIPELINE_STEPS = [
-  { label: 'Scanning live news feeds', icon: Search, detail: 'Google News RSS · Trusted Sources' },
-  { label: 'Extracting article content', icon: Database, detail: 'Full-text parsing · URL resolution' },
-  { label: 'Running NLP analysis', icon: Brain, detail: 'Summarization · Sentiment · NER' },
-  { label: 'Generating intelligence brief', icon: Sparkles, detail: 'Gemini 2.0 Flash' },
+  { label: 'Scanning live news feeds', icon: Search, detail: 'Google News RSS · 14 Regions · Trusted Sources' },
+  { label: 'Extracting article content & images', icon: Database, detail: 'Full-text parsing · Image extraction · URL resolution' },
+  { label: 'Running NLP analysis', icon: Brain, detail: 'Summarization · Sentiment · NER · distilBART · RoBERTa' },
+  { label: 'Generating intelligence brief', icon: Sparkles, detail: 'Gemini 2.0 Flash · Deep Analysis' },
 ];
+
+const AUTO_REFRESH_SECONDS = 45;
 
 export default function App() {
   const [view, setView] = useState(VIEW.SEARCH);
@@ -54,9 +46,16 @@ export default function App() {
   const [lastUpdated, setLastUpdated] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [sentimentFilter, setSentimentFilter] = useState('all');
+  const [showReadingList, setShowReadingList] = useState(false);
+  const [countdown, setCountdown] = useState(AUTO_REFRESH_SECONDS);
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
+  const countdownRef = useRef(null);
+
+  const { list: readingList, addArticle, removeArticle, isBookmarked, clearAll } = useReadingList();
 
   useEffect(() => { pingHealth(); }, []);
 
+  // Loading step animation
   useEffect(() => {
     if (view !== VIEW.LOADING) return;
     setActiveStep(0);
@@ -79,12 +78,36 @@ export default function App() {
           }
         });
       },
-      { threshold: 0.1, rootMargin: '0px 0px -50px 0px' }
+      { threshold: 0.08, rootMargin: '0px 0px -40px 0px' }
     );
     const els = document.querySelectorAll('.scroll-reveal');
     els.forEach((el) => observer.observe(el));
     return () => els.forEach((el) => observer.unobserve(el));
   }, [view, results]);
+
+  // Auto-refresh countdown
+  useEffect(() => {
+    if (view !== VIEW.RESULTS || !autoRefreshEnabled) {
+      setCountdown(AUTO_REFRESH_SECONDS);
+      return;
+    }
+
+    setCountdown(AUTO_REFRESH_SECONDS);
+    countdownRef.current = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          // Trigger refresh
+          handleRefresh();
+          return AUTO_REFRESH_SECONDS;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (countdownRef.current) clearInterval(countdownRef.current);
+    };
+  }, [view, autoRefreshEnabled, currentTopic, currentRegion]);
 
   const handleSearch = useCallback(async (topic, region = 'global') => {
     setCurrentTopic(topic);
@@ -111,6 +134,7 @@ export default function App() {
       const data = await analyzeTopic(currentTopic, currentRegion);
       setResults(data);
       setLastUpdated(new Date());
+      setCountdown(AUTO_REFRESH_SECONDS);
     } catch { /* silent */ }
     setIsRefreshing(false);
   }, [currentTopic, currentRegion, isRefreshing]);
@@ -123,6 +147,19 @@ export default function App() {
     setCurrentRegion('global');
     setLastUpdated(null);
     setSentimentFilter('all');
+    setCountdown(AUTO_REFRESH_SECONDS);
+  };
+
+  const handleThemeSearch = (theme) => {
+    handleSearch(theme, currentRegion);
+  };
+
+  const handleToggleBookmark = (article) => {
+    if (isBookmarked(article.title)) {
+      removeArticle(article.title);
+    } else {
+      addArticle(article);
+    }
   };
 
   const filteredArticles = results?.articles?.filter((a) => {
@@ -137,28 +174,76 @@ export default function App() {
 
   const headline = results?.headline;
   const tickerHeadlines = results?.ticker_headlines || [];
+  const allArticles = results?.all_articles || [];
+  const sidebarArticles = filteredArticles.slice(0, 3);
+  const compactArticles = filteredArticles.slice(3);
+
+  // Countdown progress for SVG ring
+  const countdownProgress = ((AUTO_REFRESH_SECONDS - countdown) / AUTO_REFRESH_SECONDS) * 100;
 
   return (
-    <div className="app">
+    <div className={`app ${results?.ai_analysis?.breaking ? 'breaking-mode' : ''}`}>
       {/* ── Header ──────────────────── */}
       <header className="app-header">
         <div className="app-logo" onClick={handleReset}>
           <div className="app-logo-icon"><Zap size={16} color="white" /></div>
           <div>
             <h1>NewsIntel</h1>
-            <span>AI Intelligence</span>
+            <span>AI Intelligence v4.0</span>
           </div>
         </div>
         <div className="header-right">
           {view === VIEW.RESULTS && (
-            <button className={`refresh-btn ${isRefreshing ? 'spinning' : ''}`} onClick={handleRefresh} disabled={isRefreshing}>
-              <RefreshCw size={13} />
-              {isRefreshing ? 'Updating...' : 'Refresh'}
-            </button>
+            <>
+              {/* Auto-Refresh Countdown */}
+              <div className="countdown-wrapper" title={`Auto-refresh in ${countdown}s`}>
+                <svg viewBox="0 0 36 36" className="countdown-ring">
+                  <circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="2" />
+                  <circle
+                    cx="18" cy="18" r="15.5"
+                    fill="none"
+                    stroke="var(--accent-emerald)"
+                    strokeWidth="2"
+                    strokeDasharray={`${countdownProgress * 0.975} 97.5`}
+                    strokeLinecap="round"
+                    transform="rotate(-90 18 18)"
+                    className="countdown-ring-fill"
+                  />
+                </svg>
+                <span className="countdown-number">{countdown}</span>
+              </div>
+
+              <button
+                className={`refresh-btn ${isRefreshing ? 'spinning' : ''}`}
+                onClick={handleRefresh}
+                disabled={isRefreshing}
+              >
+                <RefreshCw size={13} />
+                {isRefreshing ? 'Updating...' : 'Refresh'}
+              </button>
+
+              <PDFExport results={results} />
+
+              <TextToSpeech headlines={allArticles} />
+            </>
           )}
+
+          {/* Reading List Toggle */}
+          <button
+            className={`header-bookmark-btn ${readingList.length > 0 ? 'has-items' : ''}`}
+            onClick={() => setShowReadingList(true)}
+            title="Reading List"
+          >
+            <Bookmark size={14} />
+            {readingList.length > 0 && <span className="bookmark-count">{readingList.length}</span>}
+          </button>
+
           <div className="header-badge"><span className="dot" />Live</div>
         </div>
       </header>
+
+      {/* ── Stock Ticker ──────── */}
+      <StockTicker />
 
       {/* ── Scrolling Headline Ticker ──────── */}
       {view === VIEW.RESULTS && tickerHeadlines.length > 0 && (
@@ -241,6 +326,11 @@ export default function App() {
                   <span>{results.article_count} Sources Analyzed</span>
                   <span className="masthead-sep">|</span>
                   <span>{lastUpdated ? formatTime() : 'Live'}</span>
+                  <span className="masthead-sep">|</span>
+                  <span className="auto-refresh-indicator">
+                    <Timer size={10} />
+                    Next update in {countdown}s
+                  </span>
                 </div>
                 <div className="masthead-line" />
               </div>
@@ -249,58 +339,27 @@ export default function App() {
               </div>
             </div>
 
-            {/* ── HERO HEADLINE ── */}
+            {/* ── HERO HEADLINE (magazine style) ── */}
             {headline && (
-              <section className="hero-headline scroll-reveal">
-                <div className="hero-content">
-                  <div className="hero-main">
-                    {headline.is_trusted && (
-                      <div className="hero-source-badge">
-                        <Shield size={10} />
-                        {headline.source}
-                      </div>
-                    )}
-                    <h2 className="hero-title">
-                      <a href={headline.link} target="_blank" rel="noopener noreferrer">
-                        {headline.title}
-                      </a>
-                    </h2>
-                    <p className="hero-summary">{headline.summary || headline.full_text_preview}</p>
-                    <div className="hero-meta">
-                      <span className={`hero-sentiment ${headline.sentiment?.label || 'neutral'}`}>
-                        {headline.sentiment?.label || 'neutral'}
-                        {headline.sentiment?.score && headline.sentiment.score !== 0.5 && (
-                          <span className="hero-score"> {Math.round(headline.sentiment.score * 100)}%</span>
-                        )}
-                      </span>
-                      <span className="hero-time">
-                        <Clock size={12} /> {headline.time_ago}
-                      </span>
-                      {!headline.is_trusted && (
-                        <span className="hero-source-text">{headline.source}</span>
-                      )}
-                    </div>
-                    <a href={headline.link} target="_blank" rel="noopener noreferrer" className="hero-read-btn">
-                      Read Full Article <ArrowUpRight size={14} />
-                    </a>
-                  </div>
-                  <div className="hero-aside">
-                    {headline.entities?.length > 0 && (
-                      <div className="hero-entities">
-                        <span className="hero-entities-label">Key Entities</span>
-                        {headline.entities.map((e, i) => (
-                          <span key={i} className="hero-entity">{e.word}</span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
+              <section className="magazine-hero scroll-reveal">
+                <ArticleCard
+                  article={headline}
+                  index={0}
+                  variant="hero"
+                  isBookmarked={isBookmarked(headline.title)}
+                  onToggleBookmark={handleToggleBookmark}
+                />
               </section>
             )}
 
             {/* ── AI INTELLIGENCE BRIEF ── */}
             <div className="scroll-reveal">
-              <TopicOverview analysis={results.ai_analysis} />
+              <TopicOverview analysis={results.ai_analysis} onThemeSearch={handleThemeSearch} />
+            </div>
+
+            {/* ── NEWS TIMELINE ── */}
+            <div className="scroll-reveal">
+              <NewsTimeline articles={allArticles} />
             </div>
 
             {/* ── ANALYTICS ── */}
@@ -318,7 +377,7 @@ export default function App() {
               </section>
             )}
 
-            {/* ── ARTICLES GRID ── */}
+            {/* ── ARTICLES — Magazine Layout ── */}
             <section className="articles-section scroll-reveal">
               <div className="articles-header">
                 <h3 className="section-title">
@@ -329,27 +388,59 @@ export default function App() {
                 <div className="sentiment-filter">
                   <Filter size={11} />
                   {['all', 'positive', 'negative', 'neutral'].map((f) => (
-                    <button key={f} className={`filter-chip ${sentimentFilter === f ? 'active' : ''} ${f}`} onClick={() => setSentimentFilter(f)}>
+                    <button
+                      key={f}
+                      className={`filter-chip ${sentimentFilter === f ? 'active' : ''} ${f}`}
+                      onClick={() => setSentimentFilter(f)}
+                    >
                       {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
                     </button>
                   ))}
                 </div>
               </div>
-              <div className="articles-grid">
-                {filteredArticles.map((article, i) => (
-                  <ArticleCard key={i} article={article} index={i} />
-                ))}
-                {filteredArticles.length === 0 && (
-                  <div className="no-articles"><p>No articles match the selected filter.</p></div>
-                )}
-              </div>
+
+              {/* Sidebar cards (articles 1-3) */}
+              {sidebarArticles.length > 0 && (
+                <div className="articles-sidebar-grid">
+                  {sidebarArticles.map((article, i) => (
+                    <ArticleCard
+                      key={i}
+                      article={article}
+                      index={i}
+                      variant="sidebar"
+                      isBookmarked={isBookmarked(article.title)}
+                      onToggleBookmark={handleToggleBookmark}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {/* Compact articles (rest) */}
+              {compactArticles.length > 0 && (
+                <div className="articles-compact-list">
+                  {compactArticles.map((article, i) => (
+                    <ArticleCard
+                      key={i}
+                      article={article}
+                      index={i + 3}
+                      variant="compact"
+                      isBookmarked={isBookmarked(article.title)}
+                      onToggleBookmark={handleToggleBookmark}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {filteredArticles.length === 0 && (
+                <div className="no-articles"><p>No articles match the selected filter.</p></div>
+              )}
             </section>
 
             {/* ── NLP PIPELINE INFO ── */}
             <section className="nlp-info scroll-reveal">
               <div className="nlp-badge">
                 <Brain size={14} />
-                <span>NLP Pipeline</span>
+                <span>NLP Pipeline v4.0</span>
               </div>
               <div className="nlp-tags">
                 <span className="nlp-tag">Summarization <span className="nlp-model">distilBART</span></span>
@@ -362,9 +453,18 @@ export default function App() {
         )}
       </main>
 
+      {/* Reading List Panel */}
+      <ReadingList
+        isOpen={showReadingList}
+        onClose={() => setShowReadingList(false)}
+        list={readingList}
+        onRemove={removeArticle}
+        onClearAll={clearAll}
+      />
+
       <footer className="app-footer">
         <div className="footer-content">
-          <span>NewsIntel v3.0 — AI-Powered News Intelligence Platform</span>
+          <span>NewsIntel v4.0 — AI-Powered News Intelligence Platform</span>
           <span className="footer-tech">FastAPI · HuggingFace NLP · Google Gemini · React</span>
         </div>
       </footer>
