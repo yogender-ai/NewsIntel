@@ -32,7 +32,7 @@ load_dotenv()
 HF_TOKEN = os.getenv("HF_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-HF_API_URL = "https://api-inference.huggingface.co/models"
+HF_API_URL = "https://router.huggingface.co/hf-inference/models"
 HF_HEADERS = {"Authorization": f"Bearer {HF_TOKEN}"}
 
 SUMMARIZATION_MODEL = "sshleifer/distilbart-cnn-12-6"
@@ -635,6 +635,31 @@ async def analyze(
         for label, count in sentiment_dist.items()
     ]
 
+    # Build article list
+    def format_article(a):
+        return {
+            "title": clean_text(a["title"]),
+            "link": a["link"],
+            "source": clean_text(a["source"]),
+            "published": a["published"],
+            "time_ago": a.get("time_ago", "recently"),
+            "region": a.get("region", region.upper()),
+            "is_trusted": a.get("is_trusted", False),
+            "summary": clean_text(a.get("summary", a.get("description", ""))),
+            "full_text_preview": clean_text(a.get("full_text", ""))[:500],
+            "sentiment": a["sentiment"],
+            "entities": a.get("entities", [])[:5],
+        }
+
+    all_formatted = [format_article(a) for a in processed_articles]
+
+    # Headline = first article (top quality/most recent)
+    headline = all_formatted[0] if all_formatted else None
+    remaining = all_formatted[1:] if len(all_formatted) > 1 else []
+
+    # Ticker headlines for scrolling banner
+    ticker_headlines = [a["title"] + " — " + a["source"] for a in all_formatted]
+
     # Build response
     now_iso = datetime.now(timezone.utc).isoformat()
     response = {
@@ -645,21 +670,9 @@ async def analyze(
         "article_count": len(processed_articles),
         "analyzed_at": now_iso,
         "ai_analysis": ai_analysis,
-        "articles": [
-            {
-                "title": clean_text(a["title"]),
-                "link": a["link"],
-                "source": clean_text(a["source"]),
-                "published": a["published"],
-                "time_ago": a.get("time_ago", "recently"),
-                "region": a.get("region", region.upper()),
-                "is_trusted": a.get("is_trusted", False),
-                "summary": clean_text(a.get("summary", a.get("description", ""))),
-                "sentiment": a["sentiment"],
-                "entities": a.get("entities", [])[:5],
-            }
-            for a in processed_articles
-        ],
+        "headline": headline,
+        "articles": remaining,
+        "ticker_headlines": ticker_headlines,
         "entity_chart": entity_counts,
         "sentiment_chart": sentiment_data,
         "source_chart": source_data,
