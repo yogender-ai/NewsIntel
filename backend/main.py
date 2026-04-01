@@ -392,6 +392,20 @@ async def fetch_rss(topic: str, region: str = "global") -> list[dict]:
     return selected
 
 
+def _is_valid_image_url(url: str) -> bool:
+    """Check if an image URL is valid (not a Google/proxy thumbnail)."""
+    if not url or len(url) < 20:
+        return False
+    blocked = [
+        "news.google.com", "lh3.googleusercontent.com", "encrypted-tbn",
+        "gstatic.com", "google.com/img", "feedburner.com",
+        "pixel.quantserve.com", "doubleclick.net", "facebook.com/tr",
+        "1x1.gif", "blank.gif", "spacer.gif",
+    ]
+    lower = url.lower()
+    return not any(b in lower for b in blocked)
+
+
 def _extract_text(url: str, fallback_desc: str) -> dict:
     """Blocking call — run inside executor. Extract full text + image from URL."""
     image_url = ""
@@ -401,7 +415,21 @@ def _extract_text(url: str, fallback_desc: str) -> dict:
         art.download()
         art.parse()
         text = art.text.strip()
-        image_url = art.top_image or ""
+
+        # Try top_image first
+        if _is_valid_image_url(art.top_image):
+            image_url = art.top_image
+        else:
+            # Try meta_img (og:image)
+            if hasattr(art, 'meta_img') and _is_valid_image_url(art.meta_img):
+                image_url = art.meta_img
+            # Try images list
+            if not image_url and hasattr(art, 'images'):
+                for img in art.images:
+                    if _is_valid_image_url(img) and (img.endswith('.jpg') or img.endswith('.jpeg') or img.endswith('.png') or img.endswith('.webp') or '.jpg' in img or '.jpeg' in img or '.png' in img):
+                        image_url = img
+                        break
+
         if len(text) > 100:
             return {
                 "text": clean_text(text[:3000]),
@@ -415,6 +443,7 @@ def _extract_text(url: str, fallback_desc: str) -> dict:
         "text": cleaned[:3000] if cleaned else "No content available.",
         "image": image_url
     }
+
 
 
 async def enrich_articles(articles: list[dict]) -> list[dict]:
@@ -772,6 +801,113 @@ async def get_weather(city: str = Query("Delhi", min_length=1, max_length=100)):
         raise HTTPException(status_code=502, detail=f"Failed to fetch weather for {city}")
 
 
+@app.get("/weather-forecast")
+async def get_weather_forecast(city: str = Query("Delhi", min_length=1, max_length=100)):
+    """Fetch full weather forecast with hourly, 3-day, and astronomy data."""
+    city = city.strip()
+    cache_key = f"forecast_{city.lower()}"
+
+    if cache_key in weather_cache:
+        return weather_cache[cache_key]
+
+    try:
+        async with httpx.AsyncClient(timeout=12) as client:
+            resp = await client.get(
+                f"https://wttr.in/{quote_plus(city)}?format=j1",
+                headers={"User-Agent": "curl/7.68.0"},
+            )
+            if resp.status_code != 200:
+                raise HTTPException(status_code=502, detail="Weather service unavailable")
+
+            data = resp.json()
+            weather_data = data.get("weather", [])
+
+            # Hourly forecast (next 24 hours from today)
+            hourly = []
+            if weather_data:
+                for hour_data in weather_data[0].get("hourly", []):
+                    time_val = hour_data.get("time", "0")
+                    # wttr.in returns time as "0", "300", "600" etc (minutes from midnight)
+                    time_minutes = int(time_val) if time_val.isdigit() else 0
+                    hour = time_minutes // 100
+                    time_str = f"{hour:02d}:00"
+                    hourly.append({
+                        "time": time_str,
+                        "temp_c": hour_data.get("tempC", "N/A"),
+                        "temp_f": hour_data.get("tempF", "N/A"),
+                        "condition": hour_data.get("weatherDesc", [{}])[0].get("value", "Unknown") if hour_data.get("weatherDesc") else "Unknown",
+                        "chance_of_rain": hour_data.get("chanceofrain", "0"),
+                        "humidity": hour_data.get("humidity", "N/A"),
+                        "wind_kmph": hour_data.get("windspeedKmph", "N/A"),
+                        "feels_like_c": hour_data.get("FeelsLikeC", "N/A"),
+                    })
+
+            # Daily forecast (3 days)
+            daily = []
+            day_names = ["Today", "Tomorrow"]
+            for i, day_data in enumerate(weather_data[:3]):
+                date_str = day_data.get("date", "")
+                if i < len(day_names):
+                    day_name = day_names[i]
+                else:
+                    try:
+                        dt = datetime.strptime(date_str, "%Y-%m-%d")
+                        day_name = dt.strftime("%A")
+                    except ValueError:
+                        day_name = f"Day {i + 1}"
+
+                hourly_list = day_data.get("hourly", [])
+                # Pick the midday condition as the day's condition
+                midday = hourly_list[4] if len(hourly_list) > 4 else hourly_list[0] if hourly_list else {}
+                condition = midday.get("weatherDesc", [{}])[0].get("value", "Unknown") if midday.get("weatherDesc") else "Unknown"
+
+                # Avg chance of rain across hours
+                rain_chances = [int(h.get("chanceofrain", 0)) for h in hourly_list]
+                avg_rain = round(sum(rain_chances) / len(rain_chances)) if rain_chances else 0
+
+                daily.append({
+                    "day": day_name,
+                    "date": date_str,
+                    "max_c": day_data.get("maxtempC", "N/A"),
+                    "min_c": day_data.get("mintempC", "N/A"),
+                    "max_f": day_data.get("maxtempF", "N/A"),
+                    "min_f": day_data.get("mintempF", "N/A"),
+                    "condition": condition,
+                    "chance_of_rain": avg_rain,
+                    "avg_humidity": day_data.get("avgtempC", "N/A"),
+                })
+
+            # Astronomy
+            astronomy = {}
+            if weather_data:
+                astro = weather_data[0].get("astronomy", [{}])
+                if astro:
+                    a = astro[0]
+                    astronomy = {
+                        "sunrise": a.get("sunrise", ""),
+                        "sunset": a.get("sunset", ""),
+                        "moonrise": a.get("moonrise", ""),
+                        "moonset": a.get("moonset", ""),
+                        "moon_phase": a.get("moon_phase", ""),
+                        "moon_illumination": a.get("moon_illumination", ""),
+                    }
+
+            response = {
+                "hourly": hourly,
+                "daily": daily,
+                "astronomy": astronomy,
+            }
+
+            weather_cache[cache_key] = response
+            return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.warning(f"Weather forecast fetch failed for {city}: {e}")
+        raise HTTPException(status_code=502, detail=f"Failed to fetch forecast for {city}")
+
+
 @app.get("/stocks")
 async def get_stocks():
     """Return major stock index data. Uses a lightweight approach."""
@@ -938,6 +1074,7 @@ async def detect_location(request: Request):
 async def analyze(
     topic: str = Query(..., min_length=1, max_length=200),
     region: str = Query("global", max_length=10),
+    force: bool = Query(False),
 ):
     """Main analysis endpoint — premium NLP pipeline."""
     region = region.lower().strip()
@@ -946,8 +1083,8 @@ async def analyze(
 
     cache_key = f"{topic.lower().strip()}|{region}"
 
-    # Check cache
-    if cache_key in cache:
+    # Check cache (skip if force refresh)
+    if not force and cache_key in cache:
         logger.info(f"Cache hit for: {cache_key}")
         return cache[cache_key]
 

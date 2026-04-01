@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { TrendingUp, TrendingDown, Minus, BarChart3 } from 'lucide-react';
 import { fetchStocks } from '../api';
 
 export default function StockTicker() {
   const [stocks, setStocks] = useState([]);
+  const [paused, setPaused] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -11,7 +12,6 @@ export default function StockTicker() {
       if (data?.stocks) setStocks(data.stocks);
     })();
 
-    // Refresh every 5 minutes
     const interval = setInterval(async () => {
       const data = await fetchStocks();
       if (data?.stocks) setStocks(data.stocks);
@@ -22,17 +22,23 @@ export default function StockTicker() {
 
   if (!stocks.length) return null;
 
-  const doubled = [...stocks, ...stocks]; // For seamless scrolling
+  // Triple for truly seamless infinite scroll
+  const tripled = [...stocks, ...stocks, ...stocks];
 
   return (
-    <div className="stock-ticker" id="stock-ticker">
+    <div
+      className="stock-ticker"
+      id="stock-ticker"
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+    >
       <div className="stock-ticker-label">
         <BarChart3 size={10} />
         MARKETS
       </div>
       <div className="stock-ticker-track">
-        <div className="stock-ticker-scroll">
-          {doubled.map((stock, i) => (
+        <div className={`stock-ticker-scroll ${paused ? 'paused' : ''}`}>
+          {tripled.map((stock, i) => (
             <div key={i} className={`stock-item ${stock.direction}`}>
               <span className="stock-flag">{stock.flag}</span>
               <span className="stock-name">{stock.name}</span>

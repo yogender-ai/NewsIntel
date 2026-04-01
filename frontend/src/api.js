@@ -1,5 +1,5 @@
 /**
- * API client for the News Intelligence backend v4.0
+ * API client for News Intelligence v5.0
  */
 
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
@@ -7,8 +7,9 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
 /**
  * Analyze a topic — hits the backend /analyze endpoint
  */
-export async function analyzeTopic(topic, region = 'global') {
-  const url = `${API_BASE}/analyze?topic=${encodeURIComponent(topic)}&region=${encodeURIComponent(region)}`;
+export async function analyzeTopic(topic, region = 'global', forceRefresh = false) {
+  let url = `${API_BASE}/analyze?topic=${encodeURIComponent(topic)}&region=${encodeURIComponent(region)}`;
+  if (forceRefresh) url += '&force=true';
   const response = await fetch(url, {
     method: 'GET',
     headers: { 'Accept': 'application/json' },
@@ -44,6 +45,24 @@ export async function fetchTrending() {
 export async function fetchWeather(city = 'Delhi') {
   try {
     const response = await fetch(`${API_BASE}/weather?city=${encodeURIComponent(city)}`, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+    });
+    if (response.ok) {
+      return response.json();
+    }
+  } catch {
+    // Silently fail
+  }
+  return null;
+}
+
+/**
+ * Fetch full weather forecast (hourly + 3 day)
+ */
+export async function fetchWeatherForecast(city = 'Delhi') {
+  try {
+    const response = await fetch(`${API_BASE}/weather-forecast?city=${encodeURIComponent(city)}`, {
       method: 'GET',
       headers: { 'Accept': 'application/json' },
     });
@@ -118,12 +137,12 @@ export async function fetchRegions() {
 }
 
 /**
- * Ping the backend health endpoint to warm up Render
+ * Ping the backend health endpoint to warm up
  */
 export async function pingHealth() {
   try {
     await fetch(`${API_BASE}/health`, { method: 'GET' });
   } catch {
-    // Silently fail — it's just a warm-up
+    // Silently fail
   }
 }

@@ -1,49 +1,55 @@
 /* ═══════════════════════════════════════════════════════════════════
-   News Intelligence v4.0 — Premium Design System
-   Ultra-dark theme · Glassmorphism · Micro-animations · News Channel Feel
+   News Intelligence v5.0 — Premium Gold Edition
+   Pure dark theme · Yellow/Gold accents · No background · Large type
    ═══════════════════════════════════════════════════════════════════ */
 
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&family=Outfit:wght@400;500;600;700;800;900&display=swap');
 
 /* ── CSS Variables ─────────────────────────────────────────────── */
 :root {
-  /* Backgrounds */
-  --bg-primary: #06060b;
-  --bg-secondary: #0c0c14;
-  --bg-card: rgba(255, 255, 255, 0.025);
-  --bg-card-hover: rgba(255, 255, 255, 0.05);
-  --bg-glass: rgba(255, 255, 255, 0.035);
-  --bg-elevated: rgba(255, 255, 255, 0.06);
-  --border-glass: rgba(255, 255, 255, 0.07);
-  --border-hover: rgba(255, 255, 255, 0.14);
-  --border-active: rgba(99, 102, 241, 0.4);
+  /* Backgrounds — pure, clean, no animated blobs */
+  --bg-primary: #0a0a0f;
+  --bg-secondary: #0f0f18;
+  --bg-card: rgba(255, 255, 255, 0.03);
+  --bg-card-hover: rgba(255, 255, 255, 0.06);
+  --bg-glass: rgba(255, 255, 255, 0.04);
+  --bg-elevated: rgba(255, 255, 255, 0.07);
+  --border-glass: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(255, 255, 255, 0.16);
+  --border-active: rgba(250, 204, 21, 0.5);
 
   /* Text */
-  --text-primary: #f0f0f5;
-  --text-secondary: #9494a8;
-  --text-muted: #55556a;
+  --text-primary: #f5f5f5;
+  --text-secondary: #a0a0b8;
+  --text-muted: #5a5a74;
   --text-dim: #3a3a4c;
 
-  /* Accent palette */
+  /* ── YELLOW / GOLD ACCENT PALETTE ── */
+  --accent-yellow: #facc15;
+  --accent-gold: #eab308;
+  --accent-gold-glow: rgba(234, 179, 8, 0.25);
+  --accent-amber: #f59e0b;
+  --accent-warm: #fbbf24;
+
+  /* Supporting accents (muted to let gold dominate) */
   --accent-blue: #6366f1;
-  --accent-blue-glow: rgba(99, 102, 241, 0.25);
+  --accent-blue-glow: rgba(99, 102, 241, 0.2);
   --accent-purple: #a855f7;
-  --accent-purple-glow: rgba(168, 85, 247, 0.2);
+  --accent-purple-glow: rgba(168, 85, 247, 0.15);
   --accent-cyan: #22d3ee;
-  --accent-cyan-glow: rgba(34, 211, 238, 0.15);
+  --accent-cyan-glow: rgba(34, 211, 238, 0.1);
   --accent-emerald: #34d399;
-  --accent-emerald-glow: rgba(52, 211, 153, 0.15);
+  --accent-emerald-glow: rgba(52, 211, 153, 0.1);
   --accent-rose: #f43f5e;
-  --accent-amber: #fbbf24;
   --accent-orange: #f97316;
 
   /* Sentiment */
   --positive: #34d399;
-  --positive-bg: rgba(52, 211, 153, 0.1);
+  --positive-bg: rgba(52, 211, 153, 0.08);
   --negative: #f43f5e;
-  --negative-bg: rgba(244, 63, 94, 0.1);
+  --negative-bg: rgba(244, 63, 94, 0.08);
   --neutral: #a78bfa;
-  --neutral-bg: rgba(167, 139, 250, 0.1);
+  --neutral-bg: rgba(167, 139, 250, 0.08);
 
   /* Risk */
   --risk-low: #34d399;
@@ -51,23 +57,23 @@
   --risk-high: #f43f5e;
 
   /* Typography */
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-sans: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 
   /* Spacing */
   --radius-xs: 6px;
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 24px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 28px;
   --radius-full: 9999px;
 
-  /* Shadows */
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
-  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.4);
-  --shadow-elevated: 0 8px 40px rgba(0, 0, 0, 0.5);
-  --shadow-glow-blue: 0 0 40px rgba(99, 102, 241, 0.12);
-  --shadow-glow-purple: 0 0 40px rgba(168, 85, 247, 0.1);
+  /* Shadows with gold tint */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-card: 0 4px 24px rgba(0, 0, 0, 0.5);
+  --shadow-elevated: 0 8px 40px rgba(0, 0, 0, 0.6);
+  --shadow-glow-gold: 0 0 40px rgba(234, 179, 8, 0.1);
+  --shadow-glow-yellow: 0 0 50px rgba(250, 204, 21, 0.08);
 }
 
 /* ── Reset ─────────────────────────────────────────────────────── */
@@ -92,52 +98,15 @@ body {
   overflow-x: hidden;
 }
 
-/* ── ALIVE Animated Background — Multi-layer Aurora Mesh ── */
-body::before {
-  content: '';
-  position: fixed;
-  top: -50%;
-  left: -50%;
-  width: 200%;
-  height: 200%;
-  background:
-    radial-gradient(ellipse 600px 400px at 15% 20%, rgba(99, 102, 241, 0.12) 0%, transparent 60%),
-    radial-gradient(ellipse 500px 350px at 85% 80%, rgba(168, 85, 247, 0.10) 0%, transparent 60%),
-    radial-gradient(ellipse 400px 300px at 50% 50%, rgba(34, 211, 238, 0.06) 0%, transparent 60%),
-    radial-gradient(ellipse 700px 500px at 80% 15%, rgba(244, 63, 94, 0.05) 0%, transparent 50%),
-    radial-gradient(ellipse 500px 400px at 20% 70%, rgba(52, 211, 153, 0.06) 0%, transparent 50%);
-  animation: auroraShift 18s ease-in-out infinite alternate;
-  pointer-events: none;
-  z-index: 0;
-}
-
-body::after {
-  content: '';
-  position: fixed;
-  top: -30%;
-  left: -30%;
-  width: 160%;
-  height: 160%;
-  background:
-    radial-gradient(ellipse 350px 250px at 30% 85%, rgba(52, 211, 153, 0.07) 0%, transparent 60%),
-    radial-gradient(ellipse 450px 300px at 70% 25%, rgba(251, 191, 36, 0.05) 0%, transparent 60%),
-    radial-gradient(ellipse 300px 300px at 45% 45%, rgba(99, 102, 241, 0.04) 0%, transparent 60%);
-  animation: auroraShift2 22s ease-in-out infinite alternate-reverse;
-  pointer-events: none;
-  z-index: 0;
-}
+/* ── NO animated background — pure clean dark ── */
+/* body::before and body::after removed entirely */
 
 #root {
   position: relative;
   z-index: 1;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
-  transition: color 0.2s ease;
-}
-
+a { color: inherit; text-decoration: none; transition: color 0.2s ease; }
 button {
   font-family: var(--font-sans);
   cursor: pointer;
@@ -146,100 +115,142 @@ button {
   color: inherit;
 }
 
-/* ── Scrollbar ─────────────────────────────────────────────────── */
-::-webkit-scrollbar { width: 5px; height: 5px; }
+/* ── Scrollbar (gold accent) ──────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 3px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.15);
-}
+::-webkit-scrollbar-thumb { background: rgba(250, 204, 21, 0.15); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(250, 204, 21, 0.3); }
 
-/* ── Keyframe Animations ──────────────────────────────────────── */
+/* ═══════════════════════════════════════════════════════════════════
+   KEYFRAME ANIMATIONS
+   ═══════════════════════════════════════════════════════════════════ */
 @keyframes fadeInUp {
-  from { opacity: 0; transform: translateY(24px); }
+  from { opacity: 0; transform: translateY(30px); }
   to   { opacity: 1; transform: translateY(0); }
 }
-
 @keyframes fadeIn {
   from { opacity: 0; }
   to   { opacity: 1; }
 }
-
 @keyframes slideInRight {
   from { opacity: 0; transform: translateX(30px); }
   to   { opacity: 1; transform: translateX(0); }
 }
-
 @keyframes slideInLeft {
   from { opacity: 0; transform: translateX(-20px); }
   to   { opacity: 1; transform: translateX(0); }
 }
-
 @keyframes pulseGlow {
   0%, 100% { opacity: 1; }
   50%      { opacity: 0.5; }
 }
-
 @keyframes pulseDot {
   0%, 100% { transform: scale(1); opacity: 1; }
-  50%      { transform: scale(1.5); opacity: 0.6; }
+  50%      { transform: scale(1.6); opacity: 0.5; }
 }
-
 @keyframes shimmer {
   0%   { background-position: -200% 0; }
   100% { background-position: 200% 0; }
 }
-
 @keyframes float {
   0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(-8px); }
+  50%      { transform: translateY(-10px); }
 }
-
 @keyframes spinSlow {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
-
 @keyframes gradientShift {
   0%   { background-position: 0% 50%; }
   50%  { background-position: 100% 50%; }
   100% { background-position: 0% 50%; }
 }
-
-/* ALIVE aurora animations — much more movement */
-@keyframes auroraShift {
-  0%   { transform: translate(0, 0) rotate(0deg) scale(1); }
-  25%  { transform: translate(3%, -2%) rotate(1deg) scale(1.02); }
-  50%  { transform: translate(-2%, 3%) rotate(-0.5deg) scale(1.05); }
-  75%  { transform: translate(4%, 1%) rotate(0.5deg) scale(1.01); }
-  100% { transform: translate(-1%, -3%) rotate(-1deg) scale(1.03); }
+@keyframes goldPulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.4); }
+  50%      { box-shadow: 0 0 20px 4px rgba(250, 204, 21, 0.15); }
+}
+@keyframes goldGlow {
+  0%, 100% { text-shadow: 0 0 10px rgba(250, 204, 21, 0.3); }
+  50%      { text-shadow: 0 0 25px rgba(250, 204, 21, 0.6); }
+}
+@keyframes tickerScroll {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-33.333%); }
+}
+@keyframes breakingPulse {
+  0%, 100% { border-color: rgba(250, 204, 21, 0.15); }
+  50%      { border-color: rgba(250, 204, 21, 0.4); }
+}
+@keyframes waveAnimation {
+  0%, 100% { transform: scaleY(0.4); }
+  50%      { transform: scaleY(1); }
+}
+@keyframes skeletonShimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes confidenceRingDraw {
+  from { stroke-dasharray: 0 201; }
+}
+@keyframes slideInFromRight {
+  from { transform: translateX(100%); opacity: 0; }
+  to   { transform: translateX(0); opacity: 1; }
+}
+@keyframes pulseRing {
+  0%   { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.4); }
+  70%  { box-shadow: 0 0 0 10px rgba(250, 204, 21, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0); }
 }
 
-@keyframes auroraShift2 {
-  0%   { transform: translate(0, 0) rotate(0deg) scale(1); }
-  25%  { transform: translate(-3%, 2%) rotate(-1deg) scale(1.04); }
-  50%  { transform: translate(2%, -4%) rotate(0.5deg) scale(0.98); }
-  75%  { transform: translate(-4%, -1%) rotate(-0.5deg) scale(1.02); }
-  100% { transform: translate(1%, 3%) rotate(1deg) scale(1); }
+/* ── Split-Flap Animations ─── */
+@keyframes flapFlip {
+  0%   { transform: rotateX(0deg); }
+  50%  { transform: rotateX(-90deg); }
+  100% { transform: rotateX(0deg); }
 }
 
+/* ── Weather Animations ─── */
+@keyframes rainFall {
+  0%   { transform: translateY(-20px); opacity: 0; }
+  10%  { opacity: 0.7; }
+  100% { transform: translateY(100vh); opacity: 0; }
+}
+@keyframes snowFall {
+  0%   { transform: translateY(-20px) rotate(0deg); opacity: 0; }
+  10%  { opacity: 0.8; }
+  90%  { opacity: 0.8; }
+  100% { transform: translateY(100vh) rotate(360deg); opacity: 0; }
+}
+@keyframes weatherPulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.08); }
+}
+@keyframes riskPulse {
+  0%, 100% { box-shadow: 0 0 0 0 currentColor; }
+  50%      { box-shadow: 0 0 12px 2px currentColor; }
+}
+@keyframes particleFloat {
+  0%   { transform: translateY(100vh) scale(0); opacity: 0; }
+  10%  { opacity: 0.6; }
+  90%  { opacity: 0.6; }
+  100% { transform: translateY(-10vh) scale(1); opacity: 0; }
+}
+@keyframes breakingBgPulse {
+  0%, 100% { background: rgba(250, 204, 21, 0.02); }
+  50%      { background: rgba(250, 204, 21, 0.06); }
+}
 @keyframes orbFloat1 {
   0%   { transform: translate(0, 0) scale(1); }
   33%  { transform: translate(30px, -40px) scale(1.1); }
   66%  { transform: translate(-20px, 20px) scale(0.9); }
   100% { transform: translate(0, 0) scale(1); }
 }
-
 @keyframes orbFloat2 {
   0%   { transform: translate(0, 0) scale(1); }
   33%  { transform: translate(-40px, 30px) scale(1.15); }
   66%  { transform: translate(25px, -25px) scale(0.95); }
   100% { transform: translate(0, 0) scale(1); }
 }
-
 @keyframes orbFloat3 {
   0%   { transform: translate(0, 0) scale(1); }
   33%  { transform: translate(20px, 35px) scale(0.9); }
@@ -247,61 +258,7 @@ button {
   100% { transform: translate(0, 0) scale(1); }
 }
 
-@keyframes particleFloat {
-  0%   { transform: translateY(100vh) scale(0); opacity: 0; }
-  10%  { opacity: 0.6; }
-  90%  { opacity: 0.6; }
-  100% { transform: translateY(-10vh) scale(1); opacity: 0; }
-}
-
-@keyframes riskPulse {
-  0%, 100% { box-shadow: 0 0 0 0 currentColor; }
-  50%      { box-shadow: 0 0 12px 2px currentColor; }
-}
-
-@keyframes tickerScroll {
-  from { transform: translateX(0); }
-  to   { transform: translateX(-50%); }
-}
-
-@keyframes breakingPulse {
-  0%, 100% { border-color: rgba(244, 63, 94, 0.15); }
-  50%      { border-color: rgba(244, 63, 94, 0.4); }
-}
-
-@keyframes breakingBgPulse {
-  0%, 100% { background: rgba(244, 63, 94, 0.02); }
-  50%      { background: rgba(244, 63, 94, 0.06); }
-}
-
-@keyframes waveAnimation {
-  0%, 100% { transform: scaleY(0.4); }
-  50%      { transform: scaleY(1); }
-}
-
-@keyframes skeletonShimmer {
-  0% { background-position: -200% 0; }
-  100% { background-position: 200% 0; }
-}
-
-@keyframes confidenceRingDraw {
-  from { stroke-dasharray: 0 201; }
-}
-
-@keyframes slideInFromRight {
-  from { transform: translateX(100%); opacity: 0; }
-  to   { transform: translateX(0); opacity: 1; }
-}
-
-@keyframes pulseRing {
-  0%   { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.4); }
-  70%  { box-shadow: 0 0 0 8px rgba(99, 102, 241, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
-}
-
-.spin {
-  animation: spinSlow 1s linear infinite;
-}
+.spin { animation: spinSlow 1s linear infinite; }
 
 /* ── Utility Classes ──────────────────────────────────────────── */
 .glass {
@@ -310,10 +267,7 @@ button {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
 }
-
-.glass:hover {
-  border-color: var(--border-hover);
-}
+.glass:hover { border-color: var(--border-hover); }
 
 /* Stagger animations */
 .stagger-1  { animation-delay: 0.05s; }
@@ -326,6 +280,17 @@ button {
 .stagger-8  { animation-delay: 0.4s; }
 .stagger-9  { animation-delay: 0.45s; }
 .stagger-10 { animation-delay: 0.5s; }
+
+/* ── Scroll Reveal ────────────────────────────────────────────── */
+.scroll-reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.scroll-reveal.revealed {
+  opacity: 1;
+  transform: translateY(0);
+}
 
 /* ── Print Styles ─────────────────────────────────────────────── */
 @media print {
