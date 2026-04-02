@@ -19,6 +19,7 @@ from urllib.parse import quote_plus
 import feedparser
 import httpx
 from newspaper import Article
+from googlenewsdecoder import gnewsdecoder
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from cachetools import TTLCache
@@ -246,15 +247,14 @@ def source_quality_score(source: str) -> int:
 # RSS Fetching — multi-region with quality filtering
 # ---------------------------------------------------------------------------
 
-async def resolve_article_url(url: str, client: httpx.AsyncClient) -> str:
-    """Follow Google News redirect to get the actual article URL."""
+def _resolve_gnews_url(url: str) -> str:
+    """Decode Google News URL to actual article URL using gnewsdecoder."""
     if not url or "news.google.com" not in url:
         return url
     try:
-        resp = await client.head(url, follow_redirects=True, timeout=8)
-        resolved = str(resp.url)
-        if resolved and len(resolved) > 10:
-            return resolved
+        result = gnewsdecoder(url)
+        if result.get("status") and result.get("decoded_url"):
+            return result["decoded_url"]
     except Exception:
         pass
     return url
@@ -390,13 +390,16 @@ async def fetch_rss(topic: str, region: str = "global") -> list[dict]:
     # Take top articles
     selected = unique_articles[:MAX_ARTICLES]
 
-    # Resolve Google News redirect URLs to actual article URLs
-    async with httpx.AsyncClient(timeout=15, follow_redirects=True, headers=headers) as client:
-        resolve_tasks = [resolve_article_url(a["link"], client) for a in selected]
-        resolved_urls = await asyncio.gather(*resolve_tasks, return_exceptions=True)
-        for art, resolved in zip(selected, resolved_urls):
-            if isinstance(resolved, str) and len(resolved) > 10:
-                art["link"] = resolved
+    # Resolve Google News redirect URLs to actual article URLs using gnewsdecoder
+    loop = asyncio.get_event_loop()
+    resolve_tasks = [
+        loop.run_in_executor(executor, _resolve_gnews_url, a["link"])
+        for a in selected
+    ]
+    resolved_urls = await asyncio.gather(*resolve_tasks, return_exceptions=True)
+    for art, resolved in zip(selected, resolved_urls):
+        if isinstance(resolved, str) and len(resolved) > 10:
+            art["link"] = resolved
 
     return selected
 
