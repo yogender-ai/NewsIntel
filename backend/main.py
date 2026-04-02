@@ -1278,7 +1278,13 @@ async def analyze(
 async def health():
     return {"status": "ok", "version": "4.0.0", "cache_size": len(cache)}
 
+from fastapi.responses import RedirectResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 @app.get("/")
 async def root():
-    return {"message": "News Intelligence API", "version": "4.0.0", "docs": "/docs"}
+    return RedirectResponse(url="https://newsintel.yogender1.me")
+
+@app.exception_handler(404)
+async def custom_404_handler(request: Request, exc: StarletteHTTPException):
+    return RedirectResponse(url="https://newsintel.yogender1.me")
