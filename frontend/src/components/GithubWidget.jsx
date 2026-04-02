@@ -7,15 +7,13 @@ const REPO_URL = 'https://github.com/yogender-ai/News-Intel-Feedback';
 export default function GithubWidget() {
   const [stars, setStars] = useState(null);
   const [stats, setStats] = useState(null);
-  const [isOpen, setIsOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('feedback'); // 'feedback' or 'wall'
+  const [activeTab, setActiveTab] = useState('feedback'); // Mobile view still uses tabs
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
   const [feedbackList, setFeedbackList] = useState([]);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [starPulse, setStarPulse] = useState(false);
-  const [widgetExpanded, setWidgetExpanded] = useState(false);
   const prevStars = useRef(null);
 
   const [formData, setFormData] = useState({
@@ -47,12 +45,10 @@ export default function GithubWidget() {
     return () => clearInterval(interval);
   }, []);
 
-  // Fetch feedback wall when switching to wall tab
+  // Fetch feedback wall on mount
   useEffect(() => {
-    if (activeTab === 'wall' && isOpen) {
-      loadFeedback();
-    }
-  }, [activeTab, isOpen]);
+    loadFeedback();
+  }, []);
 
   const loadFeedback = async () => {
     setFeedbackLoading(true);
@@ -102,52 +98,19 @@ export default function GithubWidget() {
   };
 
   return (
-    <>
-      {/* ── Premium Floating Widget ── */}
-      <div className={`github-floating-widget ${widgetExpanded ? 'expanded' : ''}`}
-        onMouseEnter={() => setWidgetExpanded(true)}
-        onMouseLeave={() => setWidgetExpanded(false)}
-      >
-        {/* GitHub Stars Button */}
-        <button className="github-stars-btn" onClick={handleOpenRepo} aria-label="View on GitHub" id="github-repo-btn">
-          <div className="github-btn-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/>
-            </svg>
+    <section className="premium-feedback-section" id="feedback-section">
+      <div className="feedback-section-inner">
+        {/* ── Section Header ── */}
+        <div className="feedback-header">
+          <div className="feedback-title-group">
+            <div className="feedback-title-icon heartbeat">
+              <Heart size={24} color="#ec4899" />
+            </div>
+            <div>
+              <h2>Community Hub</h2>
+              <p className="feedback-subtitle">Your voice shapes NewsIntel v5.0</p>
+            </div>
           </div>
-          <span className="github-btn-label">GitHub</span>
-          <span className={`star-count ${starPulse ? 'pulse-glow' : ''}`}>
-            <Star size={13} className={stars > 0 ? "filled-star" : ""} />
-            <span className="star-number">{stars !== null ? stars : '—'}</span>
-          </span>
-        </button>
-
-        {/* Feedback Button */}
-        <button className="feedback-trigger-btn" onClick={() => { setIsOpen(true); setActiveTab('feedback'); }} aria-label="Give Feedback" id="feedback-btn">
-          <div className="feedback-btn-glow" />
-          <MessageSquare size={16} />
-          <span>Feedback</span>
-          <Sparkles size={12} className="sparkle-icon" />
-        </button>
-      </div>
-
-      {/* ── Premium Feedback Modal ── */}
-      {isOpen && (
-        <div className="feedback-modal-overlay" onClick={(e) => { if (e.target === e.currentTarget) setIsOpen(false); }}>
-          <div className="feedback-modal" id="feedback-modal">
-            <button className="feedback-close" onClick={() => setIsOpen(false)}><X size={18} /></button>
-            
-            {/* Modal Header with Tabs */}
-            <div className="feedback-modal-header">
-              <div className="feedback-modal-title">
-                <div className="feedback-title-icon">
-                  <Sparkles size={20} />
-                </div>
-                <div>
-                  <h3>Community Hub</h3>
-                  <p className="feedback-subtitle">Your voice shapes NewsIntel</p>
-                </div>
-              </div>
 
               {/* GitHub Stats Bar */}
               <div className="github-stats-bar">
@@ -172,35 +135,25 @@ export default function GithubWidget() {
                   <span>{stats?.watchers ?? '—'}</span>
                 </div>
               </div>
+        </div>
 
-              {/* Tabs */}
-              <div className="feedback-tabs">
-                <button 
-                  className={`feedback-tab ${activeTab === 'feedback' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('feedback')}
-                  id="tab-send-feedback"
-                >
-                  <Send size={13} />
-                  Send Feedback
-                </button>
-                <button 
-                  className={`feedback-tab ${activeTab === 'wall' ? 'active' : ''}`}
-                  onClick={() => setActiveTab('wall')}
-                  id="tab-feedback-wall"
-                >
-                  <MessageSquare size={13} />
-                  Live Wall
-                  {feedbackList.length > 0 && (
-                    <span className="wall-count">{feedbackList.length}</span>
-                  )}
-                </button>
-              </div>
-            </div>
+        {/* Mobile Tabs */}
+        <div className="feedback-mobile-tabs">
+          <button className={`feedback-tab ${activeTab === 'feedback' ? 'active' : ''}`} onClick={() => setActiveTab('feedback')}>
+            <Send size={14} /> Send Feedback
+          </button>
+          <button className={`feedback-tab ${activeTab === 'wall' ? 'active' : ''}`} onClick={() => setActiveTab('wall')}>
+            <MessageSquare size={14} /> Live Wall
+            {feedbackList.length > 0 && <span className="wall-count">{feedbackList.length}</span>}
+          </button>
+        </div>
 
-            {/* Tab Content */}
-            <div className="feedback-tab-content">
-              {activeTab === 'feedback' ? (
-                success ? (
+        {/* ── Split Content Area ── */}
+        <div className="feedback-split-content">
+          
+          {/* Left: Feedback Form */}
+          <div className={`feedback-form-container ${activeTab === 'feedback' ? 'active-mobile' : ''}`}>
+              { success ? (
                   <div className="feedback-success">
                     <div className="success-animation">
                       <CheckCircle size={48} className="success-icon" />
@@ -284,7 +237,6 @@ export default function GithubWidget() {
                     </div>
 
                     <div className="form-actions">
-                      <button type="button" className="cancel-btn" onClick={() => setIsOpen(false)}>Cancel</button>
                       <button type="submit" className="submit-feedback-btn" disabled={isSubmitting || !formData.text.trim() || !formData.author.trim()} id="submit-feedback">
                         {isSubmitting ? (
                           <span className="submitting-spinner">
@@ -301,11 +253,12 @@ export default function GithubWidget() {
                       </button>
                     </div>
                   </form>
-                )
-              ) : (
-                /* Live Feedback Wall */
-                <div className="feedback-wall" id="feedback-wall">
-                  {feedbackLoading ? (
+                )}
+          </div>
+
+          {/* Right: Live Wall */}
+          <div className={`feedback-wall-container ${activeTab === 'wall' ? 'active-mobile' : ''}`} id="feedback-wall">
+             {feedbackLoading ? (
                     <div className="wall-loading">
                       <div className="wall-loading-spinner" />
                       <p>Loading live feedback...</p>
@@ -360,21 +313,18 @@ export default function GithubWidget() {
                       </div>
                     </>
                   )}
-                </div>
-              )}
-            </div>
-
-            {/* Star CTA Footer */}
-            <div className="feedback-modal-footer">
-              <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className="star-cta-btn" id="star-repo-btn">
-                <Star size={14} className="cta-star" />
-                Star this project on GitHub
-                <ExternalLink size={12} />
-              </a>
-            </div>
           </div>
         </div>
-      )}
-    </>
+
+        {/* ── Footer CTA ── */}
+        <div className="feedback-section-footer">
+          <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className="star-cta-btn" id="star-repo-btn">
+            <Star size={16} className="cta-star" />
+            <span className="cta-text">Star the Feedback Repository on GitHub</span>
+            <ExternalLink size={14} className="cta-external" />
+          </a>
+        </div>
+      </div>
+    </section>
   );
 }

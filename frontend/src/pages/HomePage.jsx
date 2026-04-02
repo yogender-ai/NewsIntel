@@ -4,6 +4,7 @@ import { Zap, TrendingUp, Flame, Clock, ArrowUpRight, Shield, Loader, MapPin, Sp
 import { fetchTrending } from '../api';
 import SplitFlapDisplay from '../components/SplitFlapDisplay';
 import WeatherWidget from '../components/WeatherWidget';
+import GithubWidget from '../components/GithubWidget';
 
 const QUICK_TOPICS = [
   { label: 'Artificial Intelligence', emoji: '🤖' },
@@ -268,6 +269,9 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+      
+      {/* ── Premium Embedded Feedback Section ── */}
+      <GithubWidget />
     </div>
   );
 }

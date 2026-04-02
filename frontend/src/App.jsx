@@ -9,8 +9,6 @@ import ReadingList, { useReadingList } from './components/ReadingList';
 import HomePage from './pages/HomePage';
 import ResultsPage from './pages/ResultsPage';
 import WeatherPage from './pages/WeatherPage';
-import GithubWidget from './components/GithubWidget';
-
 function AppShell() {
   const [showReadingList, setShowReadingList] = useState(false);
   const { list: readingList, removeArticle, clearAll } = useReadingList();
@@ -100,7 +98,6 @@ function AppShell() {
           </div>
         </footer>
       </div>
-      <GithubWidget />
     </>
   );
 }
