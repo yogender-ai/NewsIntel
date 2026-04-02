@@ -2101,3 +2101,85 @@
   .weather-details-grid { grid-template-columns: repeat(2, 1fr); }
   .weather-cities-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   PREMIUM LOADING & POLISH
+   ═══════════════════════════════════════════════════════════════════ */
+.premium-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 50vh;
+  gap: 40px;
+}
+.loading-content-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  background: var(--bg-glass);
+  border: 1px solid var(--border-glass);
+  padding: 40px 60px;
+  border-radius: var(--radius-xl);
+  backdrop-filter: blur(20px);
+  box-shadow: var(--shadow-glow-blue);
+  animation: fadeIn 0.5s ease-out;
+}
+.loading-extras {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  max-width: 500px;
+  text-align: center;
+}
+.loading-quote-container {
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.loading-quote {
+  font-size: 15px;
+  font-style: italic;
+  color: var(--text-secondary);
+  animation: fadeInOut 4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  text-align: center;
+}
+.slow-message {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  opacity: 0;
+  transform: translateY(10px);
+  transition: all 1s ease-in-out;
+}
+.slow-message.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+.spin-slow {
+  animation: spin 3s linear infinite;
+}
+
+@keyframes fadeInOut {
+  0% { opacity: 0; transform: translateY(5px); }
+  10% { opacity: 1; transform: translateY(0); }
+  90% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-5px); }
+}
+
+/* Enhancing existing buttons for premium feel */
+.primary-btn, button, .suggestion-chip {
+  transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+}
+.primary-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(99, 102, 241, 0.4);
+}
+.suggestion-chip:hover {
+  transform: translateY(-1px);
+}

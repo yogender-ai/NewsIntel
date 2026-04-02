@@ -25,6 +25,17 @@ const PIPELINE_STEPS = [
   { label: 'Generating intelligence brief', icon: Sparkles, detail: 'Gemini 2.0 Flash · Deep Analysis' },
 ];
 
+const PREMIUM_QUOTES = [
+  "Information is the oil of the 21st century, and analytics is the combustion engine.",
+  "The news is a conversation, not a broadcast.",
+  "AI will not replace humans, but humans using AI will replace those who don't.",
+  "An investment in knowledge pays the best interest.",
+  "We are drowning in information but starved for wisdom.",
+  "The function of journalism is to hold a mirror up to society.",
+  "Intelligence is the ability to adapt to change.",
+  "Future belongs to those who learn more skills and combine them in creative ways."
+];
+
 const AUTO_REFRESH_SECONDS = 45;
 
 export default function ResultsPage() {
@@ -43,20 +54,44 @@ export default function ResultsPage() {
   const [showReadingList, setShowReadingList] = useState(false);
   const [countdown, setCountdown] = useState(AUTO_REFRESH_SECONDS);
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
+  const [quoteIndex, setQuoteIndex] = useState(0);
+  const [showSlowMessage, setShowSlowMessage] = useState(false);
   const countdownRef = useRef(null);
 
   const { list: readingList, addArticle, removeArticle, isBookmarked, clearAll } = useReadingList();
 
-  // Loading animation
+  // Loading animation & Quotes
   useEffect(() => {
-    if (view !== 'loading') return;
+    if (view !== 'loading') {
+      setShowSlowMessage(false);
+      return;
+    }
     setActiveStep(0);
+    setQuoteIndex(0);
+    setShowSlowMessage(false);
+    
+    // Animate pipeline steps down
     const timers = [
       setTimeout(() => setActiveStep(1), 2000),
       setTimeout(() => setActiveStep(2), 5000),
       setTimeout(() => setActiveStep(3), 8000),
     ];
-    return () => timers.forEach(clearTimeout);
+    
+    // Rotate quotes every 4 seconds
+    const quoteInterval = setInterval(() => {
+      setQuoteIndex((prev) => (prev + 1) % PREMIUM_QUOTES.length);
+    }, 4000);
+    
+    // Show polite timeout message after 12 seconds
+    const slowTimer = setTimeout(() => {
+      setShowSlowMessage(true);
+    }, 12000);
+
+    return () => {
+      timers.forEach(clearTimeout);
+      clearInterval(quoteInterval);
+      clearTimeout(slowTimer);
+    };
   }, [view]);
 
   // Scroll reveal
@@ -170,32 +205,49 @@ export default function ResultsPage() {
   if (view === 'loading') {
     return (
       <div className="results-page">
-        <div className="loading-screen">
-          <div className="loading-spinner">
-            <div className="ring" /><div className="ring" /><div className="ring" />
-          </div>
-          <div className="loading-text">
-            <h3>Analyzing "{decodedTopic}"</h3>
-            <p>Curating top articles from trusted sources...</p>
-          </div>
-          <div className="loading-steps">
-            {PIPELINE_STEPS.map((step, i) => {
-              const Icon = step.icon;
-              let status = 'pending';
-              if (i < activeStep) status = 'done';
-              else if (i === activeStep) status = 'active';
-              return (
-                <div key={i} className={`loading-step ${status}`}>
-                  <div className={`step-icon ${status}`}>
-                    {status === 'done' ? <CheckCircle size={13} /> : status === 'active' ? <Loader size={13} className="spin" /> : <Icon size={13} />}
+        <div className="loading-screen premium-loading">
+          <div className="loading-content-wrapper">
+            <div className="loading-spinner">
+              <div className="ring" /><div className="ring" /><div className="ring" />
+            </div>
+            
+            <div className="loading-text">
+              <h3>Analyzing "{decodedTopic}"</h3>
+              <p>Curating top articles from trusted sources...</p>
+            </div>
+            
+            <div className="loading-steps">
+              {PIPELINE_STEPS.map((step, i) => {
+                const Icon = step.icon;
+                let status = 'pending';
+                if (i < activeStep) status = 'done';
+                else if (i === activeStep) status = 'active';
+                return (
+                  <div key={i} className={`loading-step ${status}`}>
+                    <div className={`step-icon ${status}`}>
+                      {status === 'done' ? <CheckCircle size={13} /> : status === 'active' ? <Loader size={13} className="spin" /> : <Icon size={13} />}
+                    </div>
+                    <div className="step-info">
+                      <span className="step-label">{step.label}</span>
+                      <span className="step-detail">{step.detail}</span>
+                    </div>
                   </div>
-                  <div className="step-info">
-                    <span className="step-label">{step.label}</span>
-                    <span className="step-detail">{step.detail}</span>
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
+          </div>
+          
+          <div className="loading-extras">
+            <div className="loading-quote-container">
+              <p key={quoteIndex} className="loading-quote">
+                "{PREMIUM_QUOTES[quoteIndex]}"
+              </p>
+            </div>
+            
+            <div className={`slow-message ${showSlowMessage ? 'visible' : ''}`}>
+              <Clock size={14} className="spin-slow" />
+              <span>Deep analysis may take up to 60 seconds... have a wonderful day!</span>
+            </div>
           </div>
         </div>
       </div>
