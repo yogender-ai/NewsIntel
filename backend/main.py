@@ -1291,41 +1291,244 @@ async def custom_404_handler(request: Request, exc: StarletteHTTPException):
 
 from pydantic import BaseModel
 
+# GitHub integration config
+FEEDBACK_REPO = "yogender-ai/News-Intel-Feedback"
+github_cache: TTLCache = TTLCache(maxsize=10, ttl=120)  # 2 min cache for GitHub data
+
 class FeedbackRequest(BaseModel):
     author: str
     text: str
     emotion: str = "neutral"
+    rating: int = 5  # 1-5 star rating
+
 
 @app.post("/api/feedback")
 async def receive_feedback(feedback: FeedbackRequest):
-    """Receive feedback from frontend and post to GitHub Issues."""
+    """Receive feedback from frontend and post to GitHub Issues on News-Intel-Feedback repo."""
     pat = os.getenv("GITHUB_PAT")
-    repo = "yogender-ai/NewsIntel"
     
     if not pat:
         logger.warning(f"Feedback received from {feedback.author} but no GITHUB_PAT set. Text: {feedback.text}")
         return {"status": "saved_locally", "message": "Feedback received!"}
-        
+
+    # Emoji mapping for emotions
+    emotion_emoji = {
+        "positive": "💚",
+        "idea": "💡",
+        "negative": "🔴",
+        "neutral": "💬"
+    }
+    emoji = emotion_emoji.get(feedback.emotion, "💬")
+    stars_display = "⭐" * feedback.rating
+
+    # Build a rich issue body
+    body = f"""## {emoji} User Feedback
+
+| Field | Value |
+|-------|-------|
+| **Author** | {feedback.author} |
+| **Type** | {feedback.emotion.capitalize()} |
+| **Rating** | {stars_display} ({feedback.rating}/5) |
+| **Timestamp** | {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')} |
+
+### Message
+{feedback.text}
+
+---
+_Submitted live from the [NewsIntel Platform](https://newsintel.yogender1.me) · AI-Powered News Intelligence_"""
+
+    # Label mapping
+    label_map = {
+        "positive": ["feedback", "praise", "user-feedback"],
+        "idea": ["feedback", "enhancement", "user-feedback"],
+        "negative": ["feedback", "bug", "user-feedback"],
+        "neutral": ["feedback", "user-feedback"],
+    }
+    labels = label_map.get(feedback.emotion, ["feedback", "user-feedback"])
+
     try:
         async with httpx.AsyncClient() as client:
             resp = await client.post(
-                f"https://api.github.com/repos/{repo}/issues",
+                f"https://api.github.com/repos/{FEEDBACK_REPO}/issues",
                 headers={
                     "Authorization": f"token {pat}",
                     "Accept": "application/vnd.github.v3+json"
                 },
                 json={
-                    "title": f"Live Feedback from {feedback.author} ({feedback.emotion})",
-                    "body": f"**Author:** {feedback.author}\n**Emotion/Type:** {feedback.emotion}\n\n**Feedback:**\n{feedback.text}\n\n_Submitted live from the NewsIntel App._",
-                    "labels": ["user-feedback"]
+                    "title": f"{emoji} {feedback.emotion.capitalize()} Feedback from {feedback.author} — {'⭐' * feedback.rating}",
+                    "body": body,
+                    "labels": labels
                 },
                 timeout=10
             )
             if resp.status_code == 201:
-                return {"status": "success", "url": resp.json().get("html_url")}
+                issue_data = resp.json()
+                # Invalidate feedback cache so new feedback shows immediately
+                github_cache.pop("feedback_list", None)
+                return {
+                    "status": "success",
+                    "url": issue_data.get("html_url"),
+                    "issue_number": issue_data.get("number")
+                }
             else:
                 logger.error(f"GitHub Issue failed: {resp.status_code} {resp.text}")
                 return {"status": "fallback", "message": "Feedback logged."}
     except Exception as e:
         logger.error(f"GitHub API Error: {e}")
         return {"status": "error", "message": str(e)}
+
+
+@app.get("/api/feedback")
+async def get_feedback_list():
+    """Fetch live feedback from GitHub Issues on News-Intel-Feedback repo."""
+    cache_key = "feedback_list"
+    if cache_key in github_cache:
+        return github_cache[cache_key]
+
+    pat = os.getenv("GITHUB_PAT")
+    headers = {"Accept": "application/vnd.github.v3+json"}
+    if pat:
+        headers["Authorization"] = f"token {pat}"
+
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                f"https://api.github.com/repos/{FEEDBACK_REPO}/issues",
+                headers=headers,
+                params={
+                    "state": "all",
+                    "labels": "user-feedback",
+                    "per_page": 20,
+                    "sort": "created",
+                    "direction": "desc"
+                }
+            )
+            if resp.status_code == 200:
+                issues = resp.json()
+                feedback_items = []
+                for issue in issues:
+                    # Parse emotion from labels
+                    labels = [l["name"] for l in issue.get("labels", [])]
+                    emotion = "neutral"
+                    if "praise" in labels:
+                        emotion = "positive"
+                    elif "enhancement" in labels:
+                        emotion = "idea"
+                    elif "bug" in labels:
+                        emotion = "negative"
+
+                    # Extract rating from title (count ⭐)
+                    title = issue.get("title", "")
+                    rating = title.count("⭐")
+                    if rating == 0:
+                        rating = 5  # Default for old format
+
+                    # Parse author from title or body
+                    body = issue.get("body", "")
+                    author = "Anonymous"
+                    # Try to extract from table in body
+                    import re as _re
+                    author_match = _re.search(r'\*\*Author\*\*\s*\|\s*(.+?)\s*\|', body)
+                    if author_match:
+                        author = author_match.group(1).strip()
+                    else:
+                        # Old format
+                        author_match = _re.search(r'\*\*Author:\*\*\s*(.+)', body)
+                        if author_match:
+                            author = author_match.group(1).strip()
+
+                    # Extract message
+                    message = ""
+                    msg_match = _re.search(r'### Message\n(.+?)\n---', body, _re.DOTALL)
+                    if msg_match:
+                        message = msg_match.group(1).strip()
+                    else:
+                        # Old format
+                        msg_match = _re.search(r'\*\*Feedback:\*\*\n(.+?)\n\n_', body, _re.DOTALL)
+                        if msg_match:
+                            message = msg_match.group(1).strip()
+                        else:
+                            message = body[:200] if body else title
+
+                    created_at = issue.get("created_at", "")
+                    parsed_dt = None
+                    if created_at:
+                        try:
+                            parsed_dt = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                        except:
+                            pass
+
+                    feedback_items.append({
+                        "id": issue.get("number"),
+                        "author": author,
+                        "message": message,
+                        "emotion": emotion,
+                        "rating": rating,
+                        "created_at": created_at,
+                        "time_ago": time_ago(parsed_dt) if parsed_dt else "recently",
+                        "url": issue.get("html_url"),
+                        "state": issue.get("state", "open"),
+                        "reactions": issue.get("reactions", {}).get("total_count", 0)
+                    })
+
+                response = {
+                    "feedback": feedback_items,
+                    "total": len(feedback_items),
+                    "fetched_at": datetime.now(timezone.utc).isoformat()
+                }
+                github_cache[cache_key] = response
+                return response
+            else:
+                logger.warning(f"GitHub feedback fetch failed: {resp.status_code}")
+                return {"feedback": [], "total": 0}
+    except Exception as e:
+        logger.error(f"Feedback list fetch error: {e}")
+        return {"feedback": [], "total": 0}
+
+
+@app.get("/api/github-stats")
+async def get_github_stats():
+    """Fetch live GitHub stats (stars, forks, watchers) for the feedback repo."""
+    cache_key = "github_stats"
+    if cache_key in github_cache:
+        return github_cache[cache_key]
+
+    pat = os.getenv("GITHUB_PAT")
+    headers = {"Accept": "application/vnd.github.v3+json"}
+    if pat:
+        headers["Authorization"] = f"token {pat}"
+
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            resp = await client.get(
+                f"https://api.github.com/repos/{FEEDBACK_REPO}",
+                headers=headers
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                stats = {
+                    "stars": data.get("stargazers_count", 0),
+                    "forks": data.get("forks_count", 0),
+                    "watchers": data.get("subscribers_count", 0),
+                    "open_issues": data.get("open_issues_count", 0),
+                    "description": data.get("description", ""),
+                    "language": data.get("language", ""),
+                    "updated_at": data.get("updated_at", ""),
+                    "repo_url": data.get("html_url", f"https://github.com/{FEEDBACK_REPO}"),
+                    "fetched_at": datetime.now(timezone.utc).isoformat()
+                }
+                github_cache[cache_key] = stats
+                return stats
+            else:
+                logger.warning(f"GitHub stats fetch failed: {resp.status_code}")
+    except Exception as e:
+        logger.error(f"GitHub stats error: {e}")
+
+    return {
+        "stars": 0,
+        "forks": 0,
+        "watchers": 0,
+        "open_issues": 0,
+        "repo_url": f"https://github.com/{FEEDBACK_REPO}",
+        "fetched_at": datetime.now(timezone.utc).isoformat()
+    }

@@ -151,9 +151,9 @@ export async function pingHealth() {
 }
 
 /**
- * Submit feedback to the backend
+ * Submit feedback to the backend → GitHub Issues
  */
-export async function submitFeedback(author, text, emotion = 'neutral') {
+export async function submitFeedback(author, text, emotion = 'neutral', rating = 5) {
   try {
     const response = await fetch(`${API_BASE}/api/feedback`, {
       method: 'POST',
@@ -161,7 +161,7 @@ export async function submitFeedback(author, text, emotion = 'neutral') {
         'Content-Type': 'application/json',
         'Accept': 'application/json'
       },
-      body: JSON.stringify({ author, text, emotion })
+      body: JSON.stringify({ author, text, emotion, rating })
     });
     if (response.ok) {
       return response.json();
@@ -174,19 +174,57 @@ export async function submitFeedback(author, text, emotion = 'neutral') {
 }
 
 /**
- * Fetch GitHub Stars for the repository
+ * Fetch live feedback from GitHub Issues via backend proxy
+ */
+export async function fetchFeedbackList() {
+  try {
+    const response = await fetch(`${API_BASE}/api/feedback`, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' }
+    });
+    if (response.ok) {
+      return response.json();
+    }
+  } catch (err) {
+    console.error("Failed to fetch feedback list:", err);
+  }
+  return { feedback: [], total: 0 };
+}
+
+/**
+ * Fetch GitHub Stats (stars, forks, watchers) via backend proxy
+ * Uses backend to avoid CORS and rate-limiting issues with private repos
  */
 export async function fetchGitHubStars() {
   try {
-    const response = await fetch('https://api.github.com/repos/yogender-ai/NewsIntel', {
-      method: 'GET'
+    const response = await fetch(`${API_BASE}/api/github-stats`, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' }
     });
     if (response.ok) {
       const data = await response.json();
-      return data.stargazers_count;
+      return data.stars;
     }
   } catch (err) {
     console.error("Failed to fetch github stars:", err);
   }
   return null;
+}
+
+/**
+ * Fetch full GitHub Stats object
+ */
+export async function fetchGitHubStats() {
+  try {
+    const response = await fetch(`${API_BASE}/api/github-stats`, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' }
+    });
+    if (response.ok) {
+      return response.json();
+    }
+  } catch (err) {
+    console.error("Failed to fetch github stats:", err);
+  }
+  return { stars: 0, forks: 0, watchers: 0, open_issues: 0 };
 }
