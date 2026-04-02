@@ -1288,3 +1288,44 @@ async def root():
 @app.exception_handler(404)
 async def custom_404_handler(request: Request, exc: StarletteHTTPException):
     return RedirectResponse(url="https://newsintel.yogender1.me")
+
+from pydantic import BaseModel
+
+class FeedbackRequest(BaseModel):
+    author: str
+    text: str
+    emotion: str = "neutral"
+
+@app.post("/api/feedback")
+async def receive_feedback(feedback: FeedbackRequest):
+    """Receive feedback from frontend and post to GitHub Issues."""
+    pat = os.getenv("GITHUB_PAT")
+    repo = "yogender-ai/NewsIntel"
+    
+    if not pat:
+        logger.warning(f"Feedback received from {feedback.author} but no GITHUB_PAT set. Text: {feedback.text}")
+        return {"status": "saved_locally", "message": "Feedback received!"}
+        
+    try:
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                f"https://api.github.com/repos/{repo}/issues",
+                headers={
+                    "Authorization": f"token {pat}",
+                    "Accept": "application/vnd.github.v3+json"
+                },
+                json={
+                    "title": f"Live Feedback from {feedback.author} ({feedback.emotion})",
+                    "body": f"**Author:** {feedback.author}\n**Emotion/Type:** {feedback.emotion}\n\n**Feedback:**\n{feedback.text}\n\n_Submitted live from the NewsIntel App._",
+                    "labels": ["user-feedback"]
+                },
+                timeout=10
+            )
+            if resp.status_code == 201:
+                return {"status": "success", "url": resp.json().get("html_url")}
+            else:
+                logger.error(f"GitHub Issue failed: {resp.status_code} {resp.text}")
+                return {"status": "fallback", "message": "Feedback logged."}
+    except Exception as e:
+        logger.error(f"GitHub API Error: {e}")
+        return {"status": "error", "message": str(e)}

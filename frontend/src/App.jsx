@@ -9,6 +9,7 @@ import ReadingList, { useReadingList } from './components/ReadingList';
 import HomePage from './pages/HomePage';
 import ResultsPage from './pages/ResultsPage';
 import WeatherPage from './pages/WeatherPage';
+import GithubWidget from './components/GithubWidget';
 
 function AppShell() {
   const [showReadingList, setShowReadingList] = useState(false);
@@ -90,6 +91,8 @@ function AppShell() {
         onRemove={removeArticle}
         onClearAll={clearAll}
       />
+
+      <GithubWidget />
 
       <footer className="app-footer">
         <div className="footer-content">

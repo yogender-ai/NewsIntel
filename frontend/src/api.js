@@ -146,3 +146,44 @@ export async function pingHealth() {
     // Silently fail
   }
 }
+
+/**
+ * Submit feedback to the backend
+ */
+export async function submitFeedback(author, text, emotion = 'neutral') {
+  try {
+    const response = await fetch(`${API_BASE}/api/feedback`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({ author, text, emotion })
+    });
+    if (response.ok) {
+      return response.json();
+    }
+    throw new Error(`HTTP error! status: ${response.status}`);
+  } catch (error) {
+    console.error("Feedback submission failed:", error);
+    return { status: "error", message: "Failed to connect to server." };
+  }
+}
+
+/**
+ * Fetch GitHub Stars for the repository
+ */
+export async function fetchGitHubStars() {
+  try {
+    const response = await fetch('https://api.github.com/repos/yogender-ai/NewsIntel', {
+      method: 'GET'
+    });
+    if (response.ok) {
+      const data = await response.json();
+      return data.stargazers_count;
+    }
+  } catch (err) {
+    console.error("Failed to fetch github stars:", err);
+  }
+  return null;
+}
