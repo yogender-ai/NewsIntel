@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Zap, TrendingUp, Flame, Clock, ArrowUpRight, Shield, Loader, MapPin, Sparkles } from 'lucide-react';
+import { Zap, TrendingUp, Flame, Clock, ArrowUpRight, Shield, Loader, MapPin, Sparkles, Search } from 'lucide-react';
 import { fetchTrending } from '../api';
 import SplitFlapDisplay from '../components/SplitFlapDisplay';
 import WeatherWidget from '../components/WeatherWidget';
