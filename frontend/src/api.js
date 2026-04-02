@@ -2,7 +2,10 @@
  * API client for News Intelligence v5.0
  */
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE = import.meta.env.VITE_API_URL || 
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' 
+    ? 'http://localhost:8000' 
+    : 'https://newsintel.onrender.com');
 
 /**
  * Analyze a topic — hits the backend /analyze endpoint
