@@ -91,6 +91,64 @@ export default function HomePage() {
               Analyze This Story <ArrowUpRight size={14} />
             </button>
           )}
+
+          {/* ── GLOBAL SEARCH BAR ── */}
+          <div className="search-container" style={{ marginTop: '40px' }}>
+            <div className="search-hero">
+              <div className="hero-badge"><Sparkles size={12} /> Global Discovery</div>
+              <h2>Search Anything.</h2>
+              <p>Type any topic, company, or event to instantly generate a comprehensive AI intelligence briefing.</p>
+            </div>
+            
+            <form onSubmit={(e) => {
+              e.preventDefault();
+              const input = e.target.elements.topic.value;
+              const region = e.target.elements.region.value;
+              if (input.trim()) {
+                 navigate(`/search/${encodeURIComponent(input.trim())}?region=${region}`);
+              }
+            }}>
+              <div className="region-selector-row" style={{ justifyContent: 'center', gap: '10px', marginBottom: '14px' }}>
+                <span className="live-indicator"><span className="live-dot" /> Search Region:</span>
+                <select name="region" className="region-trigger" defaultValue="global" style={{ background: 'var(--bg-glass)', outline: 'none', appearance: 'none', paddingRight: '25px', cursor: 'pointer' }}>
+                  <option value="global">🌍 Global</option>
+                  <option value="us">🇺🇸 United States</option>
+                  <option value="in">🇮🇳 India</option>
+                  <option value="gb">🇬🇧 United Kingdom</option>
+                </select>
+              </div>
+
+              <div className="search-input-wrapper">
+                <Search className="search-icon" size={18} />
+                <input 
+                  type="text" 
+                  name="topic"
+                  className="search-input" 
+                  placeholder="e.g. OpenAI scaling, European markets, Global warming..." 
+                  required
+                />
+                <button type="submit" className="search-btn">
+                  Analyze <ArrowUpRight size={14} />
+                </button>
+              </div>
+            </form>
+            
+            <div className="suggestions-section">
+              <span className="suggestions-label">Trending Searches</span>
+              <div className="search-suggestions">
+                <button className="suggestion-chip" onClick={() => handleSearch('DeepSeek AI models')}>
+                  <span className="chip-emoji">🤖</span> DeepSeek AI models
+                </button>
+                <button className="suggestion-chip" onClick={() => handleSearch('Federal Reserve interest rates')}>
+                  <span className="chip-emoji">🏦</span> Federal Reserve rates
+                </button>
+                <button className="suggestion-chip" onClick={() => handleSearch('Nvidia stock earnings')}>
+                  <span className="chip-emoji">🚀</span> Nvidia earnings
+                </button>
+              </div>
+            </div>
+            
+          </div>
         </div>
       </section>
 
