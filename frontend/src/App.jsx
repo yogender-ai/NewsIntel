@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { useState, useEffect } from 'react';
-import { Zap, Bookmark, Search } from 'lucide-react';
+import { Zap, Bookmark } from 'lucide-react';
 import './App.css';
 import { pingHealth } from './api';
 import StockTicker from './components/StockTicker';
