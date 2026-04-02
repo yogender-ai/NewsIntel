@@ -31,8 +31,8 @@ from google import genai
 # ---------------------------------------------------------------------------
 load_dotenv()
 
-HF_TOKEN = os.getenv("HF_TOKEN")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+HF_TOKEN = os.getenv("HF_TOKEN").strip() if os.getenv("HF_TOKEN") else None
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY").strip() if os.getenv("GEMINI_API_KEY") else None
 
 HF_API_URL = "https://router.huggingface.co/hf-inference/models"
 HF_HEADERS = {"Authorization": f"Bearer {HF_TOKEN}"}
@@ -1306,6 +1306,8 @@ class FeedbackRequest(BaseModel):
 async def receive_feedback(feedback: FeedbackRequest):
     """Receive feedback from frontend and post to GitHub Issues on News-Intel-Feedback repo."""
     pat = os.getenv("GITHUB_PAT")
+    if pat:
+        pat = pat.strip()
     
     if not pat:
         logger.warning(f"Feedback received from {feedback.author} but no GITHUB_PAT set. Text: {feedback.text}")
@@ -1386,6 +1388,8 @@ async def get_feedback_list():
         return github_cache[cache_key]
 
     pat = os.getenv("GITHUB_PAT")
+    if pat:
+        pat = pat.strip()
     headers = {"Accept": "application/vnd.github.v3+json"}
     if pat:
         headers["Authorization"] = f"token {pat}"
@@ -1494,6 +1498,8 @@ async def get_github_stats():
         return github_cache[cache_key]
 
     pat = os.getenv("GITHUB_PAT")
+    if pat:
+        pat = pat.strip()
     headers = {"Accept": "application/vnd.github.v3+json"}
     if pat:
         headers["Authorization"] = f"token {pat}"
