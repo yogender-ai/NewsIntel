@@ -1,11 +1,15 @@
 import { ExternalLink, Clock, MapPin, Globe, Shield, ArrowUpRight, Bookmark, BookmarkCheck, Play } from 'lucide-react';
 
-// Google News image domain patterns to filter out
+// Junk image domain patterns to filter out (tracking pixels, spacers, ads)
 const BLOCKED_IMAGE_DOMAINS = [
-  'news.google.com',
-  'lh3.googleusercontent.com/proxy',
-  'encrypted-tbn',
-  'gstatic.com',
+  'pixel.quantserve.com',
+  'doubleclick.net',
+  'facebook.com/tr',
+  '1x1.gif',
+  'blank.gif',
+  'spacer.gif',
+  'feedburner.com',
+  'pagead2.googlesyndication',
 ];
 
 function isValidImage(url) {

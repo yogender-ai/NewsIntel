@@ -286,6 +286,10 @@ async def fetch_rss_region(topic: str, region_key: str, client: httpx.AsyncClien
         if not title or len(title) < 10:
             continue
 
+        # Extract image from raw RSS HTML before cleaning
+        raw_desc = entry.get("summary", entry.get("description", ""))
+        rss_image = _extract_rss_image(raw_desc)
+
         articles.append({
             "title": title,
             "link": entry.get("link", ""),
@@ -294,7 +298,8 @@ async def fetch_rss_region(topic: str, region_key: str, client: httpx.AsyncClien
             "published_dt": parsed_dt,
             "time_ago": time_ago(parsed_dt),
             "region": region_key.upper(),
-            "description": clean_text(entry.get("summary", entry.get("description", ""))),
+            "description": clean_text(raw_desc),
+            "rss_image": rss_image,
             "quality_score": source_quality_score(source_name),
             "is_trusted": is_trusted_source(source_name),
         })
@@ -327,6 +332,9 @@ async def fetch_rss_top_headlines(region_key: str, client: httpx.AsyncClient) ->
         if not title or len(title) < 10:
             continue
 
+        raw_desc = entry.get("summary", entry.get("description", ""))
+        rss_image = _extract_rss_image(raw_desc)
+
         articles.append({
             "title": title,
             "link": entry.get("link", ""),
@@ -335,7 +343,8 @@ async def fetch_rss_top_headlines(region_key: str, client: httpx.AsyncClient) ->
             "published_dt": parsed_dt,
             "time_ago": time_ago(parsed_dt),
             "region": region_key.upper(),
-            "description": clean_text(entry.get("summary", entry.get("description", ""))),
+            "description": clean_text(raw_desc),
+            "rss_image": rss_image,
             "quality_score": source_quality_score(source_name),
             "is_trusted": is_trusted_source(source_name),
         })
@@ -392,65 +401,123 @@ async def fetch_rss(topic: str, region: str = "global") -> list[dict]:
     return selected
 
 
-def _is_valid_image_url(url: str) -> bool:
-    """Check if an image URL is valid (not a Google/proxy thumbnail)."""
+def _is_junk_image(url: str) -> bool:
+    """Check if an image URL is tracking pixel / spacer / ad junk."""
     if not url or len(url) < 20:
-        return False
-    blocked = [
-        "news.google.com", "lh3.googleusercontent.com", "encrypted-tbn",
-        "gstatic.com", "google.com/img", "feedburner.com",
+        return True
+    junk = [
         "pixel.quantserve.com", "doubleclick.net", "facebook.com/tr",
-        "1x1.gif", "blank.gif", "spacer.gif",
+        "1x1.gif", "blank.gif", "spacer.gif", "feedburner.com",
+        "b.scorecardresearch.com", "sb.scorecardresearch.com",
+        "pagead2.googlesyndication", "amazon-adsystem.com",
     ]
     lower = url.lower()
-    return not any(b in lower for b in blocked)
+    return any(b in lower for b in junk)
 
 
-def _extract_text(url: str, fallback_desc: str) -> dict:
-    """Blocking call — run inside executor. Extract full text + image from URL."""
+def _extract_og_image(html_text: str) -> str:
+    """Extract og:image or twitter:image from HTML head."""
+    if not html_text:
+        return ""
+    # Try og:image first
+    patterns = [
+        r'<meta\s+property=["\']og:image["\']\s+content=["\'](https?://[^"\']+)["\']',
+        r'<meta\s+content=["\'](https?://[^"\']+)["\']\s+property=["\']og:image["\']',
+        r'<meta\s+name=["\']twitter:image["\']\s+content=["\'](https?://[^"\']+)["\']',
+        r'<meta\s+content=["\'](https?://[^"\']+)["\']\s+name=["\']twitter:image["\']',
+        r'<meta\s+property=["\']og:image:secure_url["\']\s+content=["\'](https?://[^"\']+)["\']',
+    ]
+    for pattern in patterns:
+        match = re.search(pattern, html_text[:10000], re.IGNORECASE)
+        if match:
+            img = match.group(1).strip()
+            if not _is_junk_image(img):
+                return img
+    return ""
+
+
+def _extract_rss_image(raw_html: str) -> str:
+    """Extract image URL from RSS description HTML (Google News includes thumbnails)."""
+    if not raw_html:
+        return ""
+    # Google News RSS puts img tags in description
+    match = re.search(r'<img[^>]+src=["\']([^"\']+)["\']', raw_html, re.IGNORECASE)
+    if match:
+        img = match.group(1).strip()
+        if not _is_junk_image(img) and len(img) > 30:
+            return img
+    return ""
+
+
+def _extract_text_and_image(url: str, fallback_desc: str, rss_image: str = "") -> dict:
+    """Blocking call — run in executor. Multi-strategy image + text extraction."""
+    import requests
+
     image_url = ""
     text = ""
+
+    # ─── Strategy 1: Fetch og:image directly from article URL (fastest, most reliable) ───
+    try:
+        resp = requests.get(
+            url,
+            headers={"User-Agent": HTTP_USER_AGENT},
+            timeout=10,
+            allow_redirects=True,
+        )
+        if resp.status_code == 200:
+            page_html = resp.text[:15000]  # Only need the head
+            og_img = _extract_og_image(page_html)
+            if og_img:
+                image_url = og_img
+    except Exception:
+        pass
+
+    # ─── Strategy 2: newspaper3k for text + image fallback ───
     try:
         art = Article(url)
         art.download()
         art.parse()
         text = art.text.strip()
 
-        # Try top_image first
-        if _is_valid_image_url(art.top_image):
-            image_url = art.top_image
-        else:
-            # Try meta_img (og:image)
-            if hasattr(art, 'meta_img') and _is_valid_image_url(art.meta_img):
+        # If we still don't have an image, try newspaper3k
+        if not image_url:
+            if art.top_image and not _is_junk_image(art.top_image):
+                image_url = art.top_image
+            elif hasattr(art, 'meta_img') and art.meta_img and not _is_junk_image(art.meta_img):
                 image_url = art.meta_img
-            # Try images list
-            if not image_url and hasattr(art, 'images'):
-                for img in art.images:
-                    if _is_valid_image_url(img) and (img.endswith('.jpg') or img.endswith('.jpeg') or img.endswith('.png') or img.endswith('.webp') or '.jpg' in img or '.jpeg' in img or '.png' in img):
-                        image_url = img
-                        break
-
-        if len(text) > 100:
-            return {
-                "text": clean_text(text[:3000]),
-                "image": image_url
-            }
     except Exception:
         pass
-    # Fallback to RSS description
+
+    # ─── Strategy 3: Use RSS description image (Google News thumbnail) ───
+    if not image_url and rss_image:
+        image_url = rss_image
+
+    # ─── Build result ───
+    if text and len(text) > 100:
+        return {
+            "text": clean_text(text[:3000]),
+            "image": image_url,
+        }
+
+    # Fallback text
     cleaned = clean_text(fallback_desc)
     return {
         "text": cleaned[:3000] if cleaned else "No content available.",
-        "image": image_url
+        "image": image_url,
     }
-
 
 
 async def enrich_articles(articles: list[dict]) -> list[dict]:
     """Extract full text + images from each article URL concurrently."""
     loop = asyncio.get_event_loop()
     tasks = [
-        loop.run_in_executor(executor, _extract_text, a["link"], a["description"])
+        loop.run_in_executor(
+            executor,
+            _extract_text_and_image,
+            a["link"],
+            a["description"],
+            a.get("rss_image", ""),
+        )
         for a in articles
     ]
     results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -460,7 +527,7 @@ async def enrich_articles(articles: list[dict]) -> list[dict]:
             art["image_url"] = result.get("image", "")
         else:
             art["full_text"] = clean_text(art["description"])
-            art["image_url"] = ""
+            art["image_url"] = art.get("rss_image", "")
     return articles
 
 
