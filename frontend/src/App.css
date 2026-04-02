@@ -2192,11 +2192,15 @@
 /* ── Floating Widget Container ── */
 .github-floating-widget {
   position: fixed;
-  bottom: 28px;
-  right: 28px;
+  bottom: 24px;
+  right: 24px;
   display: flex;
+  flex-direction: column;
+  align-items: flex-end;
   gap: 10px;
-  z-index: 1000;
+  z-index: 9999;
+  isolation: isolate;
+  will-change: transform;
   animation: widgetSlideIn 0.8s cubic-bezier(0.16, 1, 0.3, 1) 1s both;
 }
 
@@ -3058,8 +3062,6 @@ a.github-stat-item:hover {
   .github-floating-widget {
     bottom: 16px;
     right: 16px;
-    flex-direction: column;
-    align-items: flex-end;
     gap: 8px;
   }
   
