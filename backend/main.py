@@ -1307,7 +1307,7 @@ async def receive_feedback(feedback: FeedbackRequest):
     """Receive feedback from frontend and post to GitHub Issues on News-Intel-Feedback repo."""
     pat = os.getenv("GITHUB_PAT")
     if pat:
-        pat = pat.strip()
+        pat = re.sub(r'[^a-zA-Z0-9_]', '', pat)
     
     if not pat:
         logger.warning(f"Feedback received from {feedback.author} but no GITHUB_PAT set. Text: {feedback.text}")
@@ -1389,7 +1389,7 @@ async def get_feedback_list():
 
     pat = os.getenv("GITHUB_PAT")
     if pat:
-        pat = pat.strip()
+        pat = re.sub(r'[^a-zA-Z0-9_]', '', pat)
     headers = {"Accept": "application/vnd.github.v3+json"}
     if pat:
         headers["Authorization"] = f"token {pat}"
@@ -1499,7 +1499,7 @@ async def get_github_stats():
 
     pat = os.getenv("GITHUB_PAT")
     if pat:
-        pat = pat.strip()
+        pat = re.sub(r'[^a-zA-Z0-9_]', '', pat)
     headers = {"Accept": "application/vnd.github.v3+json"}
     if pat:
         headers["Authorization"] = f"token {pat}"
