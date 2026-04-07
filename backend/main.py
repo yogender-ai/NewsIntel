@@ -25,6 +25,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from cachetools import TTLCache
 from dotenv import load_dotenv
 from google import genai
+from fastapi.middleware.gzip import GZipMiddleware
+from db import database, init_db, log_search, update_sentiment_trends, track_entities
 
 # ---------------------------------------------------------------------------
 # Config
@@ -153,11 +155,27 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://newsintel.yogender1.me",
+        "https://newsintel.onrender.com"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+@app.on_event("startup")
+async def startup():
+    await database.connect()
+    await init_db()
+
+@app.on_event("shutdown")
+async def shutdown():
+    await database.disconnect()
 
 # ---------------------------------------------------------------------------
 # Gemini client
@@ -1268,8 +1286,11 @@ async def analyze(
         "source_chart": source_data,
     }
 
-    # Cache it
-    cache[cache_key] = response
+    # Step 5 — Persistent Logging (Fire & Forget)
+    asyncio.create_task(log_search(topic, region, len(processed_articles)))
+    asyncio.create_task(update_sentiment_trends(topic, sentiment_data))
+    asyncio.create_task(track_entities(entity_counts))
+
     logger.info(f"Analysis complete for: {topic} ({region}) — {len(processed_articles)} articles")
     return response
 
@@ -1289,22 +1310,68 @@ async def root():
 async def custom_404_handler(request: Request, exc: StarletteHTTPException):
     return RedirectResponse(url="https://newsintel.yogender1.me")
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
+import re
 
 # GitHub integration config
 FEEDBACK_REPO = "yogender-ai/News-Intel-Feedback"
 github_cache: TTLCache = TTLCache(maxsize=10, ttl=120)  # 2 min cache for GitHub data
 
+# ---------------------------------------------------------------------------
+# Feedback Logic with Hardened Security
+# ---------------------------------------------------------------------------
+
+# Simple in-memory rate limiter for feedback (IP -> last_submission_time)
+feedback_rate_limit: TTLCache = TTLCache(maxsize=1000, ttl=3600)
+
 class FeedbackRequest(BaseModel):
     author: str
     text: str
     emotion: str = "neutral"
-    rating: int = 5  # 1-5 star rating
+    rating: int = 5
+
+    @field_validator("author")
+    @classmethod
+    def validate_author(cls, v):
+        v = v.strip()
+        if len(v) < 2 or len(v) > 50:
+            raise ValueError("Name must be between 2 and 50 characters")
+        if not re.search(r'[a-zA-Z]', v):
+            raise ValueError("Name must contain letters")
+        return v
+
+    @field_validator("text")
+    @classmethod
+    def validate_text(cls, v):
+        v = v.strip()
+        if len(v) < 10 or len(v) > 1000:
+            raise ValueError("Message must be between 10 and 1000 characters")
+        
+        # Check for gibberish (e.g., "aaaaa", "11111", ".....")
+        if re.search(r'(.)\1{4,}', v):
+            raise ValueError("Gibberish detected (repeated characters)")
+            
+        # Check for minimum number of words (at least 2 words)
+        words = v.split()
+        if len(words) < 2:
+            raise ValueError("Please provide a more descriptive message")
+            
+        return v
 
 
 @app.post("/api/feedback")
-async def receive_feedback(feedback: FeedbackRequest):
+async def receive_feedback(feedback: FeedbackRequest, request: Request):
     """Receive feedback from frontend and post to GitHub Issues on News-Intel-Feedback repo."""
+    # 1. Rate Limiting check
+    client_ip = request.client.host
+    if client_ip in feedback_rate_limit:
+        submit_count = feedback_rate_limit[client_ip]
+        if submit_count >= 3: # Max 3 feedbacks per hour per IP
+            raise HTTPException(status_code=429, detail="Too many feedback submissions. Please try again later.")
+        feedback_rate_limit[client_ip] = submit_count + 1
+    else:
+        feedback_rate_limit[client_ip] = 1
+
     pat = os.getenv("GITHUB_PAT")
     if pat:
         pat = re.sub(r'[^a-zA-Z0-9_]', '', pat)
@@ -1349,6 +1416,16 @@ _Submitted live from the [NewsIntel Platform](https://newsintel.yogender1.me) ·
     labels = label_map.get(feedback.emotion, ["feedback", "user-feedback"])
 
     try:
+        # Step 1 — Local persistence
+        asyncio.create_task(database.execute(feedback_table.insert().values(
+            author=feedback.author,
+            message=feedback.text,
+            emotion=feedback.emotion,
+            rating=feedback.rating,
+            created_at=datetime.now(timezone.utc)
+        )))
+
+        # Step 2 — GitHub Issue
         async with httpx.AsyncClient() as client:
             resp = await client.post(
                 f"https://api.github.com/repos/{FEEDBACK_REPO}/issues",
@@ -1365,19 +1442,23 @@ _Submitted live from the [NewsIntel Platform](https://newsintel.yogender1.me) ·
             )
             if resp.status_code == 201:
                 issue_data = resp.json()
+                issue_url = issue_data.get("html_url")
+                # Update DB with URL (optional but helpful)
+                # asyncio.create_task(...) 
+                
                 # Invalidate feedback cache so new feedback shows immediately
                 github_cache.pop("feedback_list", None)
                 return {
                     "status": "success",
-                    "url": issue_data.get("html_url"),
+                    "url": issue_url,
                     "issue_number": issue_data.get("number")
                 }
             else:
                 logger.error(f"GitHub Issue failed: {resp.status_code} {resp.text}")
-                return {"status": "fallback", "message": "Feedback logged."}
+                return {"status": "fallback", "message": "Feedback logged locally."}
     except Exception as e:
         logger.error(f"GitHub API Error: {e}")
-        return {"status": "error", "message": str(e)}
+        return {"status": "error", "message": "Internal error. Your feedback was received."}
 
 
 @app.get("/api/feedback")
@@ -1538,3 +1619,73 @@ async def get_github_stats():
         "repo_url": f"https://github.com/{FEEDBACK_REPO}",
         "fetched_at": datetime.now(timezone.utc).isoformat()
     }
+
+
+# ---------------------------------------------------------------------------
+# Analytics API Endpoints (Neon PostgreSQL)
+# ---------------------------------------------------------------------------
+
+from db import searches as searches_table, sentiment_trends as trends_table, entities as entities_table, feedback as feedback_table
+
+@app.get("/api/analytics/popular")
+async def get_popular_topics():
+    """Get most searched topics."""
+    try:
+        query = "SELECT topic, COUNT(*) as count FROM searches GROUP BY topic ORDER BY count DESC LIMIT 10"
+        rows = await database.fetch_all(query=query)
+
+        recent_query = searches_table.select().order_by(searches_table.c.created_at.desc()).limit(5)
+        recent_rows = await database.fetch_all(query=recent_query)
+
+        return {
+            "top_topics": [{"topic": r["topic"], "count": r["count"]} for r in rows],
+            "recent_activity": [{"topic": r["topic"], "region": r["region"], "time": str(r["created_at"])} for r in recent_rows]
+        }
+    except Exception as e:
+        logger.error(f"Analytics popular error: {e}")
+        return {"top_topics": [], "recent_activity": []}
+
+
+@app.get("/api/analytics/trends")
+async def get_sentiment_trends(topic: str):
+    """Get sentiment distribution trend for a topic over time."""
+    try:
+        query = trends_table.select().where(
+            trends_table.c.topic == topic.lower().strip()
+        ).order_by(trends_table.c.created_at.asc())
+        rows = await database.fetch_all(query=query)
+
+        return {
+            "topic": topic,
+            "trends": [
+                {
+                    "date": r["created_at"].strftime("%m/%d %H:%M"),
+                    "positive": r["positive_count"],
+                    "negative": r["negative_count"],
+                    "neutral": r["neutral_count"]
+                } for r in rows
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Trends error: {e}")
+        return {"topic": topic, "trends": []}
+
+
+@app.get("/api/analytics/entity-tracking")
+async def get_entity_tracking(entity: str = ""):
+    """Get top tracked entities or a specific entity."""
+    try:
+        if entity:
+            query = entities_table.select().where(entities_table.c.entity_name == entity)
+            row = await database.fetch_one(query=query)
+            if row:
+                return {"entity": entity, "count": row["mention_count"], "type": row["entity_type"], "last_seen": str(row["last_seen"])}
+            return {"entity": entity, "count": 0}
+        else:
+            query = entities_table.select().order_by(entities_table.c.mention_count.desc()).limit(15)
+            rows = await database.fetch_all(query=query)
+            return {"entities": [{"name": r["entity_name"], "type": r["entity_type"], "count": r["mention_count"]} for r in rows]}
+    except Exception as e:
+        logger.error(f"Entity tracking error: {e}")
+        return {"entities": []}
+

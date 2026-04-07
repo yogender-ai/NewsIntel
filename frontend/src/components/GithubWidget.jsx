@@ -1,20 +1,43 @@
 import { useState, useEffect, useRef } from 'react';
-import { MessageSquare, Star, X, CheckCircle, Send, Heart, Lightbulb, Frown, GitFork, Eye, ExternalLink, Sparkles, ArrowRight } from 'lucide-react';
+import { MessageSquare, Star, X, CheckCircle, Send, Heart, Lightbulb, Frown, GitFork, Eye, ExternalLink, Sparkles, ArrowRight, Clock } from 'lucide-react';
 import { fetchGitHubStars, fetchGitHubStats, submitFeedback, fetchFeedbackList } from '../api';
 
 const REPO_URL = 'https://github.com/yogender-ai/News-Intel-Feedback';
 
+// ── Validation helpers ──
+const validateAuthor = (v) => {
+  v = v.trim();
+  if (v.length < 2) return 'Name must be at least 2 characters';
+  if (v.length > 50) return 'Name must be under 50 characters';
+  if (!/[a-zA-Z]/.test(v)) return 'Name must contain letters';
+  return '';
+};
+
+const validateMessage = (v) => {
+  v = v.trim();
+  if (v.length < 10) return `Need ${10 - v.length} more characters (min 10)`;
+  if (v.length > 1000) return 'Message too long (max 1000)';
+  if (/(.)\1{4,}/.test(v)) return 'Please avoid repeated characters';
+  const words = v.split(/\s+/).filter(w => w.length >= 3);
+  if (words.length < 2) return 'Please write a more descriptive message';
+  return '';
+};
+
 export default function GithubWidget() {
   const [stars, setStars] = useState(null);
   const [stats, setStats] = useState(null);
-  const [activeTab, setActiveTab] = useState('feedback'); // Mobile view still uses tabs
+  const [activeTab, setActiveTab] = useState('feedback');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
   const [feedbackList, setFeedbackList] = useState([]);
   const [feedbackLoading, setFeedbackLoading] = useState(false);
   const [starPulse, setStarPulse] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+  const [fieldErrors, setFieldErrors] = useState({ author: '', text: '' });
+  const [honeypot, setHoneypot] = useState('');
   const prevStars = useRef(null);
+  const cooldownRef = useRef(null);
 
   const [formData, setFormData] = useState({
     author: "",
@@ -22,6 +45,18 @@ export default function GithubWidget() {
     emotion: "positive",
     rating: 5
   });
+
+  // Cooldown timer
+  useEffect(() => {
+    if (cooldown <= 0) return;
+    cooldownRef.current = setInterval(() => {
+      setCooldown(prev => {
+        if (prev <= 1) { clearInterval(cooldownRef.current); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(cooldownRef.current);
+  }, [cooldown > 0]);
 
   // Fetch stars on mount and poll every 2 minutes
   useEffect(() => {
@@ -57,9 +92,28 @@ export default function GithubWidget() {
     setFeedbackLoading(false);
   };
 
+  const handleAuthorChange = (e) => {
+    const val = e.target.value;
+    setFormData({ ...formData, author: val });
+    if (val.trim().length > 0) setFieldErrors(prev => ({ ...prev, author: validateAuthor(val) }));
+  };
+
+  const handleTextChange = (e) => {
+    const val = e.target.value;
+    setFormData({ ...formData, text: val });
+    if (val.trim().length > 0) setFieldErrors(prev => ({ ...prev, text: validateMessage(val) }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.author || !formData.text) return;
+    // Honeypot check — bots fill hidden fields
+    if (honeypot) return;
+
+    const authorErr = validateAuthor(formData.author);
+    const textErr = validateMessage(formData.text);
+    setFieldErrors({ author: authorErr, text: textErr });
+    if (authorErr || textErr) return;
+    if (cooldown > 0) return;
     
     setIsSubmitting(true);
     setError("");
@@ -72,12 +126,13 @@ export default function GithubWidget() {
       setError(res.message);
     } else {
       setSuccess(true);
-      // Reload feedback wall
+      setCooldown(60); // 60s cooldown
       loadFeedback();
       setTimeout(() => {
         setSuccess(false);
         setActiveTab('wall');
         setFormData({ author: "", text: "", emotion: "positive", rating: 5 });
+        setFieldErrors({ author: '', text: '' });
       }, 2500);
     }
   };
@@ -171,17 +226,26 @@ export default function GithubWidget() {
                   <form onSubmit={handleSubmit} className="feedback-form" id="feedback-form">
                     {error && <div className="feedback-error">{error}</div>}
 
+                    {/* Honeypot — invisible to humans, bots will fill this */}
+                    <div style={{ position: 'absolute', left: '-9999px', opacity: 0, height: 0, overflow: 'hidden' }} aria-hidden="true">
+                      <label>Leave this empty</label>
+                      <input type="text" name="website" tabIndex={-1} autoComplete="off" value={honeypot} onChange={e => setHoneypot(e.target.value)} />
+                    </div>
+
                     <div className="form-group">
                       <label>Name / Handle</label>
                       <input 
                         type="text" 
                         placeholder="e.g. @janedoe" 
                         value={formData.author} 
-                        onChange={e => setFormData({...formData, author: e.target.value})}
+                        onChange={handleAuthorChange}
+                        onBlur={() => setFieldErrors(prev => ({ ...prev, author: validateAuthor(formData.author) }))}
                         required
                         maxLength={50}
                         id="feedback-author"
+                        className={fieldErrors.author ? 'input-error' : ''}
                       />
+                      {fieldErrors.author && <span className="field-error-msg">{fieldErrors.author}</span>}
                     </div>
 
                     <div className="form-group">
@@ -225,24 +289,34 @@ export default function GithubWidget() {
                     <div className="form-group">
                       <label>Message</label>
                       <textarea 
-                        placeholder="Share your thoughts, ideas, or report issues..." 
+                        placeholder="Share your thoughts, ideas, or report issues... (min 10 chars, 2+ words)" 
                         value={formData.text} 
-                        onChange={e => setFormData({...formData, text: e.target.value})}
+                        onChange={handleTextChange}
+                        onBlur={() => setFieldErrors(prev => ({ ...prev, text: validateMessage(formData.text) }))}
                         required
                         rows={4}
                         maxLength={1000}
                         id="feedback-message"
+                        className={fieldErrors.text ? 'input-error' : ''}
                       />
-                      <div className="char-count">{formData.text.length}/1000</div>
+                      <div className="char-count-row">
+                        {fieldErrors.text && <span className="field-error-msg">{fieldErrors.text}</span>}
+                        <span className="char-count">{formData.text.length}/1000</span>
+                      </div>
                     </div>
 
                     <div className="form-actions">
-                      <button type="submit" className="submit-feedback-btn" disabled={isSubmitting || !formData.text.trim() || !formData.author.trim()} id="submit-feedback">
+                      <button type="submit" className="submit-feedback-btn" disabled={isSubmitting || cooldown > 0 || !formData.text.trim() || !formData.author.trim()} id="submit-feedback">
                         {isSubmitting ? (
                           <span className="submitting-spinner">
                             <span className="spinner-dot" />
                             Posting to GitHub...
                           </span>
+                        ) : cooldown > 0 ? (
+                          <>
+                            <Clock size={14} />
+                            Wait {cooldown}s
+                          </>
                         ) : (
                           <>
                             <Send size={14} />

@@ -17,6 +17,7 @@ import NewsTimeline from '../components/NewsTimeline';
 import PDFExport from '../components/PDFExport';
 import TextToSpeech from '../components/TextToSpeech';
 import ReadingList, { useReadingList } from '../components/ReadingList';
+import SentimentTrend from '../components/SentimentTrend';
 
 const PIPELINE_STEPS = [
   { label: 'Scanning live news feeds', icon: Search, detail: 'Google News RSS · 14 Regions · Trusted Sources' },
@@ -358,6 +359,8 @@ export default function ResultsPage() {
             {results.entity_chart?.length > 0 && <EntityChart data={results.entity_chart} />}
             {results.source_chart?.length > 0 && <SourceChart data={results.source_chart} />}
           </div>
+          {/* Sentiment Over Time */}
+          <SentimentTrend topic={decodedTopic} />
         </section>
       )}
 

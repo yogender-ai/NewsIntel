@@ -7,22 +7,57 @@ const API_BASE = import.meta.env.VITE_API_URL ||
     ? 'http://localhost:8000' 
     : 'https://newsintel.onrender.com');
 
+const API_BASE_URL = API_BASE;
+
+// Request cache for deduplication
+const inflightRequests = new Map();
+
+/**
+ * Enhanced fetch with retry logic
+ */
+async function fetchWithRetry(url, options = {}, retries = 2, backoff = 1000) {
+    try {
+        const response = await fetch(url, options);
+        if (!response.ok) {
+            if (retries > 0 && (response.status >= 500 || response.status === 429)) {
+                await new Promise(r => setTimeout(r, backoff));
+                return fetchWithRetry(url, options, retries - 1, backoff * 2);
+            }
+            const errBody = await response.json().catch(() => ({}));
+            throw new Error(errBody.detail || `HTTP Error ${response.status}`);
+        }
+        return await response.json();
+    } catch (error) {
+        if (retries > 0) {
+            await new Promise(r => setTimeout(r, backoff));
+            return fetchWithRetry(url, options, retries - 1, backoff * 2);
+        }
+        throw error;
+    }
+}
+
 /**
  * Analyze a topic — hits the backend /analyze endpoint
  */
-export async function analyzeTopic(topic, region = 'global', forceRefresh = false) {
-  let url = `${API_BASE}/analyze?topic=${encodeURIComponent(topic)}&region=${encodeURIComponent(region)}`;
-  if (forceRefresh) url += '&force=true';
-  const response = await fetch(url, {
-    method: 'GET',
-    headers: { 'Accept': 'application/json' },
-  });
-  if (!response.ok) {
-    const errData = await response.json().catch(() => ({}));
-    throw new Error(errData.detail || `Analysis failed (${response.status})`);
+export const analyzeTopic = async (topic, region = 'global', forceRefresh = false) => {
+  const cacheKey = `${topic}-${region}`;
+  
+  if (!forceRefresh && inflightRequests.has(cacheKey)) {
+    return inflightRequests.get(cacheKey);
   }
-  return response.json();
-}
+
+  const promise = (async () => {
+    try {
+      const data = await fetchWithRetry(`${API_BASE_URL}/analyze?topic=${encodeURIComponent(topic)}&region=${encodeURIComponent(region)}${forceRefresh ? '&force=true' : ''}`);
+      return data;
+    } finally {
+      inflightRequests.delete(cacheKey);
+    }
+  })();
+
+  inflightRequests.set(cacheKey, promise);
+  return promise;
+};
 
 /**
  * Fetch trending headlines (fast, no NLP)
@@ -228,3 +263,28 @@ export async function fetchGitHubStats() {
   }
   return { stars: 0, forks: 0, watchers: 0, open_issues: 0 };
 }
+// ── Analytics API ──
+
+export const fetchPopularTopics = async () => {
+  try {
+    return await fetchWithRetry(`${API_BASE_URL}/api/analytics/popular`);
+  } catch {
+    return { topics: [] };
+  }
+};
+
+export const fetchSentimentTrends = async (topic) => {
+  try {
+    return await fetchWithRetry(`${API_BASE_URL}/api/analytics/trends?topic=${encodeURIComponent(topic)}`);
+  } catch {
+    return { trends: [] };
+  }
+};
+
+export const fetchEntityTracking = async (entity) => {
+  try {
+    return await fetchWithRetry(`${API_BASE_URL}/api/analytics/entity-tracking?entity=${encodeURIComponent(entity)}`);
+  } catch {
+    return { tracking: [] };
+  }
+};

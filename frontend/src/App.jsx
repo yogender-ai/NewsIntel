@@ -1,14 +1,17 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { useState, useEffect } from 'react';
-import { Zap, Bookmark } from 'lucide-react';
+import { lazy, Suspense, useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { Loader, Zap, Bookmark } from 'lucide-react';
 import './App.css';
 import { pingHealth } from './api';
 import StockTicker from './components/StockTicker';
 import LiveClock from './components/LiveClock';
 import ReadingList, { useReadingList } from './components/ReadingList';
-import HomePage from './pages/HomePage';
-import ResultsPage from './pages/ResultsPage';
-import WeatherPage from './pages/WeatherPage';
+
+// Lazy load pages for performance
+const HomePage = lazy(() => import('./pages/HomePage'));
+const ResultsPage = lazy(() => import('./pages/ResultsPage'));
+const WeatherPage = lazy(() => import('./pages/WeatherPage'));
+
 function AppShell() {
   const [showReadingList, setShowReadingList] = useState(false);
   const { list: readingList, removeArticle, clearAll } = useReadingList();
@@ -75,11 +78,13 @@ function AppShell() {
 
         {/* ── Main Content (Routes) ──────── */}
         <main className="app-main">
-          <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/search/:topic" element={<ResultsPage />} />
-            <Route path="/weather" element={<WeatherPage />} />
-          </Routes>
+          <Suspense fallback={<PageLoader />}>
+            <Routes>
+              <Route path="/" element={<HomePage />} />
+              <Route path="/search/:topic" element={<ResultsPage />} />
+              <Route path="/weather" element={<WeatherPage />} />
+            </Routes>
+          </Suspense>
         </main>
 
         {/* Reading List Panel */}

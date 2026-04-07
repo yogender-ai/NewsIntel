@@ -5,6 +5,7 @@ import { fetchTrending } from '../api';
 import SplitFlapDisplay from '../components/SplitFlapDisplay';
 import WeatherWidget from '../components/WeatherWidget';
 import GithubWidget from '../components/GithubWidget';
+import PopularTopics from '../components/PopularTopics';
 
 const QUICK_TOPICS = [
   { label: 'Artificial Intelligence', emoji: '🤖' },
@@ -201,6 +202,10 @@ export default function HomePage() {
                 </div>
               </form>
             </div>
+
+            {/* Popular Topics Analytics */}
+            <PopularTopics />
+
             {/* Quick Topics */}
             <div className="sidebar-section">
               <h3 className="sidebar-title">
