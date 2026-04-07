@@ -12,6 +12,38 @@ const HomePage = lazy(() => import('./pages/HomePage'));
 const ResultsPage = lazy(() => import('./pages/ResultsPage'));
 const WeatherPage = lazy(() => import('./pages/WeatherPage'));
 
+/* ── Premium Page Loader (Suspense fallback) ── */
+function PageLoader() {
+  return (
+    <div className="page-loader">
+      <div className="page-loader-spinner">
+        <div className="loader-ring" />
+        <div className="loader-ring" />
+        <div className="loader-ring" />
+      </div>
+      <div className="page-loader-text">
+        <span className="loader-dot-1">·</span>
+        <span className="loader-dot-2">·</span>
+        <span className="loader-dot-3">·</span>
+      </div>
+    </div>
+  );
+}
+
+/* ── Animated Routes — re-triggers entrance animation on location change ── */
+function AnimatedRoutes() {
+  const location = useLocation();
+  return (
+    <div className="route-transition" key={location.pathname}>
+      <Routes location={location}>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/search/:topic" element={<ResultsPage />} />
+        <Route path="/weather" element={<WeatherPage />} />
+      </Routes>
+    </div>
+  );
+}
+
 function AppShell() {
   const [showReadingList, setShowReadingList] = useState(false);
   const { list: readingList, removeArticle, clearAll } = useReadingList();
@@ -35,6 +67,28 @@ function AppShell() {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Scroll-reveal observer for homepage sections
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('revealed');
+          }
+        });
+      },
+      { threshold: 0.06, rootMargin: '0px 0px -30px 0px' }
+    );
+    const observe = () => {
+      document.querySelectorAll('.scroll-reveal').forEach((el) => observer.observe(el));
+    };
+    observe();
+    // Re-observe on route change via MutationObserver
+    const mo = new MutationObserver(() => observe());
+    mo.observe(document.getElementById('root'), { childList: true, subtree: true });
+    return () => { observer.disconnect(); mo.disconnect(); };
   }, []);
 
   return (
@@ -79,11 +133,7 @@ function AppShell() {
         {/* ── Main Content (Routes) ──────── */}
         <main className="app-main">
           <Suspense fallback={<PageLoader />}>
-            <Routes>
-              <Route path="/" element={<HomePage />} />
-              <Route path="/search/:topic" element={<ResultsPage />} />
-              <Route path="/weather" element={<WeatherPage />} />
-            </Routes>
+            <AnimatedRoutes />
           </Suspense>
         </main>
 

@@ -105,7 +105,7 @@ export default function HomePage() {
       <section className="home-content">
         <div className="home-grid">
           {/* Left: Trending Wire Feed */}
-          <div className="home-trending-feed">
+          <div className="home-trending-feed scroll-reveal">
             <div className="feed-header">
               <div className="feed-header-left">
                 <Flame size={16} className="feed-icon" />
@@ -166,7 +166,7 @@ export default function HomePage() {
           <div className="home-sidebar">
             
             {/* ── GLOBAL SEARCH BAR ── */}
-            <div className="search-container sidebar-search">
+            <div className="search-container sidebar-search scroll-reveal">
               <form onSubmit={(e) => {
                 e.preventDefault();
                 const input = e.target.elements.topic.value;
@@ -207,7 +207,7 @@ export default function HomePage() {
             <PopularTopics />
 
             {/* Quick Topics */}
-            <div className="sidebar-section">
+            <div className="sidebar-section scroll-reveal">
               <h3 className="sidebar-title">
                 <TrendingUp size={14} />
                 Quick Topics
@@ -227,7 +227,7 @@ export default function HomePage() {
             </div>
 
             {/* City News */}
-            <div className="sidebar-section">
+            <div className="sidebar-section scroll-reveal">
               <h3 className="sidebar-title">
                 <MapPin size={14} />
                 City News
@@ -250,7 +250,7 @@ export default function HomePage() {
             <WeatherWidget />
 
             {/* Stats */}
-            <div className="home-stats">
+            <div className="home-stats scroll-reveal">
               <div className="home-stat">
                 <span className="stat-value">14+</span>
                 <span className="stat-label">Countries</span>
