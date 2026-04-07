@@ -444,7 +444,7 @@ export default function GithubWidget() {
                         </div>
                         <button className="wall-refresh-btn" onClick={loadFeedback}>↻ Refresh</button>
                       </div>
-                      <div className="wall-scroll wall-scroll-fixed">
+                      <div className="wall-scroll wall-scroll-fixed" style={{ maxHeight: '280px', overflowY: 'scroll' }}>
                         {feedbackList.map((item, i) => (
                           <div key={item.id || i} className={`wall-card wall-card-${item.emotion}`} style={{ animationDelay: `${i * 0.08}s` }}>
                             <div className="wall-card-header">

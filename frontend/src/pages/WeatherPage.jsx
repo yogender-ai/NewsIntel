@@ -31,8 +31,9 @@ function getWeatherBg(condition) {
   if (c.includes('rain') || c.includes('drizzle')) return 'weather-bg-rain';
   if (c.includes('snow') || c.includes('blizzard')) return 'weather-bg-snow';
   if (c.includes('thunder') || c.includes('storm')) return 'weather-bg-storm';
-  if (c.includes('cloud') || c.includes('overcast')) return 'weather-bg-cloudy';
   if (c.includes('fog') || c.includes('mist') || c.includes('haze')) return 'weather-bg-fog';
+  if (c.includes('partly') || c.includes('cloud') || c.includes('overcast')) return 'weather-bg-cloudy';
+  if (c.includes('sunny') || c.includes('clear')) return 'weather-bg-clear';
   return 'weather-bg-clear';
 }
 
@@ -125,61 +126,90 @@ export default function WeatherPage() {
     <div className={`weather-page ${bgClass}`}>
       {/* Animated background particles */}
       <div className="weather-particles">
+        {/* SUNNY / CLEAR DAY — glowing sun + floating light orbs */}
         {bgClass === 'weather-bg-clear' && isDay && (
-          <div className="sun-effect-container">
-            <div className="virtual-sun" />
-            <div className="sun-flare" />
-            <div className="sun-flare flare-2" />
-          </div>
+          <>
+            <div className="sun-effect-container">
+              <div className="virtual-sun" />
+              <div className="sun-flare" />
+              <div className="sun-flare flare-2" />
+              <div className="sun-flare flare-3" />
+            </div>
+            {Array.from({ length: 15 }, (_, i) => (
+              <div key={`orb-${i}`} className="light-orb" style={{
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                animationDelay: `${Math.random() * 8}s`,
+                animationDuration: `${6 + Math.random() * 6}s`,
+                width: `${4 + Math.random() * 8}px`,
+                height: `${4 + Math.random() * 8}px`,
+              }} />
+            ))}
+          </>
         )}
+
+        {/* CLEAR NIGHT — twinkling stars + shooting stars */}
         {bgClass === 'weather-bg-clear' && !isDay && (
           <div className="star-field">
-            {Array.from({ length: 50 }, (_, i) => (
+            {Array.from({ length: 80 }, (_, i) => (
               <div key={i} className="star-twinkle" style={{
                 left: `${Math.random() * 100}%`,
                 top: `${Math.random() * 100}%`,
                 animationDelay: `${Math.random() * 5}s`,
                 animationDuration: `${2 + Math.random() * 3}s`,
-                width: `${1 + Math.random() * 2}px`,
-                height: `${1 + Math.random() * 2}px`,
+                width: `${1 + Math.random() * 3}px`,
+                height: `${1 + Math.random() * 3}px`,
               }} />
             ))}
+            <div className="shooting-star" style={{ top: '15%', animationDelay: '2s' }} />
+            <div className="shooting-star" style={{ top: '40%', animationDelay: '7s' }} />
           </div>
         )}
+
+        {/* CLOUDY — big drifting clouds */}
         {bgClass === 'weather-bg-cloudy' && (
           <div className="cloud-field">
-            {Array.from({ length: 5 }, (_, i) => (
+            {Array.from({ length: 8 }, (_, i) => (
               <div key={i} className="drifting-cloud" style={{
-                top: `${10 + Math.random() * 40}%`,
-                animationDelay: `-${Math.random() * 20}s`,
-                animationDuration: `${30 + Math.random() * 30}s`,
-                opacity: 0.15 + Math.random() * 0.2,
-                transform: `scale(${0.5 + Math.random() * 1.5})`
+                top: `${5 + Math.random() * 50}%`,
+                animationDelay: `-${Math.random() * 25}s`,
+                animationDuration: `${25 + Math.random() * 30}s`,
+                opacity: 0.15 + Math.random() * 0.25,
+                width: `${200 + Math.random() * 200}px`,
+                height: `${60 + Math.random() * 60}px`,
               }} />
             ))}
           </div>
         )}
+
+        {/* STORM — lightning flashes + heavy rain */}
         {bgClass === 'weather-bg-storm' && (
           <>
             <div className="lightning-flash" />
-            {Array.from({ length: 40 }, (_, i) => (
+            <div className="lightning-flash" style={{ animationDelay: '4s' }} />
+            {Array.from({ length: 60 }, (_, i) => (
               <div key={i} className="rain-drop heavy-rain" style={{
                 left: `${Math.random() * 100}%`,
                 animationDelay: `${Math.random() * 1}s`,
-                animationDuration: `${0.3 + Math.random() * 0.4}s`,
+                animationDuration: `${0.3 + Math.random() * 0.3}s`,
               }} />
             ))}
           </>
         )}
+
+        {/* FOG — floating mist layers */}
         {bgClass === 'weather-bg-fog' && (
           <div className="fog-field">
             <div className="fog-layer fog-layer-1" />
             <div className="fog-layer fog-layer-2" />
+            <div className="fog-layer fog-layer-3" />
           </div>
         )}
+
+        {/* RAIN — falling drops */}
         {bgClass === 'weather-bg-rain' && (
           <>
-            {Array.from({ length: 30 }, (_, i) => (
+            {Array.from({ length: 50 }, (_, i) => (
               <div key={i} className="rain-drop" style={{
                 left: `${Math.random() * 100}%`,
                 animationDelay: `${Math.random() * 2}s`,
@@ -188,13 +218,17 @@ export default function WeatherPage() {
             ))}
           </>
         )}
+
+        {/* SNOW — floating snowflakes */}
         {bgClass === 'weather-bg-snow' && (
           <>
-            {Array.from({ length: 30 }, (_, i) => (
+            {Array.from({ length: 50 }, (_, i) => (
               <div key={i} className="snow-flake" style={{
                 left: `${Math.random() * 100}%`,
                 animationDelay: `${Math.random() * 5}s`,
                 animationDuration: `${3 + Math.random() * 3}s`,
+                width: `${3 + Math.random() * 6}px`,
+                height: `${3 + Math.random() * 6}px`,
               }} />
             ))}
           </>
