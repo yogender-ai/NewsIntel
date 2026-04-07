@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { MessageSquare, Star, X, CheckCircle, Send, Heart, Lightbulb, Frown, GitFork, Eye, ExternalLink, Sparkles, ArrowRight, Clock, LogIn, User, LogOut } from 'lucide-react';
 import { fetchGitHubStars, fetchGitHubStats, submitFeedback, fetchFeedbackList } from '../api';
+import './GithubWidget.css';
 
 const REPO_URL = 'https://github.com/yogender-ai/News-Intel-Feedback';
 const GITHUB_CLIENT_ID = import.meta.env.VITE_GITHUB_CLIENT_ID || '';
