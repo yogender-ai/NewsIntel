@@ -69,7 +69,10 @@ export default function SplitFlapDisplay({ headlines = [], interval = 12000 }) {
   if (!headlines.length) return null;
 
   const currentHeadline = headlines[currentIndex] || {};
-  const title = (currentHeadline.title || '').toUpperCase().slice(0, DISPLAY_LENGTH);
+  const rawTitle = (currentHeadline.title || '').toUpperCase();
+  const title = rawTitle.length > DISPLAY_LENGTH 
+    ? rawTitle.slice(0, DISPLAY_LENGTH - 3) + '...' 
+    : rawTitle;
   const source = currentHeadline.source || '';
   const chars = title.padEnd(DISPLAY_LENGTH, ' ').split('');
 

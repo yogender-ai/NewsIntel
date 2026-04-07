@@ -26,7 +26,9 @@ from cachetools import TTLCache
 from dotenv import load_dotenv
 from google import genai
 from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import JSONResponse
 from db import database, init_db, log_search, update_sentiment_trends, track_entities
+import itertools
 
 # ---------------------------------------------------------------------------
 # Config
@@ -34,7 +36,17 @@ from db import database, init_db, log_search, update_sentiment_trends, track_ent
 load_dotenv()
 
 HF_TOKEN = os.getenv("HF_TOKEN").strip() if os.getenv("HF_TOKEN") else None
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY").strip() if os.getenv("GEMINI_API_KEY") else None
+
+# Multiple Gemini API keys for round-robin load balancing
+_gemini_keys = []
+for _k in ["GEMINI_API_KEY", "GEMINI_API_KEY_2", "GEMINI_API_KEY_3"]:
+    _v = os.getenv(_k)
+    if _v and _v.strip():
+        _gemini_keys.append(_v.strip())
+GEMINI_API_KEYS = _gemini_keys if _gemini_keys else [""]
+_gemini_key_cycle = itertools.cycle(GEMINI_API_KEYS)
+logger_init = logging.getLogger("news-intel")
+logger_init.info(f"Loaded {len(GEMINI_API_KEYS)} Gemini API key(s)")
 
 HF_API_URL = "https://router.huggingface.co/hf-inference/models"
 HF_HEADERS = {"Authorization": f"Bearer {HF_TOKEN}"}
@@ -43,12 +55,16 @@ SUMMARIZATION_MODEL = "sshleifer/distilbart-cnn-12-6"
 SENTIMENT_MODEL = "cardiffnlp/twitter-roberta-base-sentiment-latest"
 NER_MODEL = "dslim/bert-base-NER"
 
-MAX_ARTICLES = 12
+MAX_ARTICLES = 8
 ARTICLE_TEXT_LIMIT = 1024
 HTTP_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 )
+
+# GitHub OAuth
+GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID", "")
+GITHUB_CLIENT_SECRET = os.getenv("GITHUB_CLIENT_SECRET", "")
 
 # ---------------------------------------------------------------------------
 # Trusted / Premium Sources — prioritized in results
@@ -180,7 +196,13 @@ async def shutdown():
 # ---------------------------------------------------------------------------
 # Gemini client
 # ---------------------------------------------------------------------------
-gemini_client = genai.Client(api_key=GEMINI_API_KEY)
+# Create multiple Gemini clients for round-robin
+_gemini_clients = [genai.Client(api_key=k) for k in GEMINI_API_KEYS]
+_gemini_client_cycle = itertools.cycle(_gemini_clients)
+
+def get_gemini_client():
+    """Get next Gemini client from round-robin pool."""
+    return next(_gemini_client_cycle)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -471,36 +493,35 @@ def _extract_rss_image(raw_html: str) -> str:
 
 
 def _extract_text_and_image(url: str, fallback_desc: str, rss_image: str = "") -> dict:
-    """Blocking call — run in executor. Multi-strategy image + text extraction."""
+    """Blocking call — run in executor. FAST multi-strategy image + text extraction."""
     import requests
 
     image_url = ""
     text = ""
 
-    # ─── Strategy 1: Fetch og:image directly from article URL (fastest, most reliable) ───
+    # ─── Strategy 1: Fast HEAD-only og:image fetch (4s timeout) ───
     try:
         resp = requests.get(
             url,
             headers={"User-Agent": HTTP_USER_AGENT},
-            timeout=10,
+            timeout=4,
             allow_redirects=True,
         )
         if resp.status_code == 200:
-            page_html = resp.text[:15000]  # Only need the head
+            page_html = resp.text[:10000]
             og_img = _extract_og_image(page_html)
             if og_img:
                 image_url = og_img
     except Exception:
         pass
 
-    # ─── Strategy 2: newspaper3k for text + image fallback ───
+    # ─── Strategy 2: newspaper3k for text + image fallback (4s timeout) ───
     try:
-        art = Article(url)
+        art = Article(url, request_timeout=4)
         art.download()
         art.parse()
         text = art.text.strip()
 
-        # If we still don't have an image, try newspaper3k
         if not image_url:
             if art.top_image and not _is_junk_image(art.top_image):
                 image_url = art.top_image
@@ -509,23 +530,15 @@ def _extract_text_and_image(url: str, fallback_desc: str, rss_image: str = "") -
     except Exception:
         pass
 
-    # ─── Strategy 3: Use RSS description image (Google News thumbnail) ───
+    # ─── Strategy 3: Use RSS description image ───
     if not image_url and rss_image:
         image_url = rss_image
 
-    # ─── Build result ───
     if text and len(text) > 100:
-        return {
-            "text": clean_text(text[:3000]),
-            "image": image_url,
-        }
+        return {"text": clean_text(text[:3000]), "image": image_url}
 
-    # Fallback text
     cleaned = clean_text(fallback_desc)
-    return {
-        "text": cleaned[:3000] if cleaned else "No content available.",
-        "image": image_url,
-    }
+    return {"text": cleaned[:3000] if cleaned else "No content available.", "image": image_url}
 
 
 async def enrich_articles(articles: list[dict]) -> list[dict]:
@@ -557,7 +570,7 @@ async def enrich_articles(articles: list[dict]) -> list[dict]:
 # ---------------------------------------------------------------------------
 
 async def hf_summarize(text: str, client: httpx.AsyncClient) -> str:
-    """Summarize text using distilBART via HF Inference API."""
+    """Summarize text using distilBART via HF Inference API. FAST mode."""
     truncated = text[:ARTICLE_TEXT_LIMIT]
     if len(truncated) < 50:
         return truncated
@@ -571,7 +584,7 @@ async def hf_summarize(text: str, client: httpx.AsyncClient) -> str:
                 f"{HF_API_URL}/{SUMMARIZATION_MODEL}",
                 headers=HF_HEADERS,
                 json=payload,
-                timeout=45,
+                timeout=12,
             )
             if resp.status_code == 200:
                 data = resp.json()
@@ -580,19 +593,18 @@ async def hf_summarize(text: str, client: httpx.AsyncClient) -> str:
                     if summary:
                         return clean_text(summary)
             if resp.status_code == 503 and attempt == 0:
-                logger.info("Summarization model loading, waiting...")
-                await asyncio.sleep(15)
-                continue
+                logger.info("Summarization model loading, skipping wait...")
+                break  # Don't wait, just fallback
             break
         except Exception as e:
             logger.warning(f"Summarization attempt {attempt+1} failed: {e}")
             if attempt == 0:
-                await asyncio.sleep(5)
+                await asyncio.sleep(1)
     return clean_text(text[:200]) + "..."
 
 
 async def hf_sentiment(text: str, client: httpx.AsyncClient) -> dict:
-    """Classify sentiment using RoBERTa via HF Inference API."""
+    """Classify sentiment using RoBERTa via HF Inference API. FAST mode."""
     truncated = text[:512]
     for attempt in range(2):
         try:
@@ -600,7 +612,7 @@ async def hf_sentiment(text: str, client: httpx.AsyncClient) -> dict:
                 f"{HF_API_URL}/{SENTIMENT_MODEL}",
                 headers=HF_HEADERS,
                 json={"inputs": truncated},
-                timeout=45,
+                timeout=12,
             )
             if resp.status_code == 200:
                 data = resp.json()
@@ -616,19 +628,18 @@ async def hf_sentiment(text: str, client: httpx.AsyncClient) -> dict:
                         sentiment = "neutral"
                     return {"label": sentiment, "score": round(best["score"], 3)}
             if resp.status_code == 503 and attempt == 0:
-                logger.info("Sentiment model loading, waiting...")
-                await asyncio.sleep(15)
-                continue
+                logger.info("Sentiment model loading, skipping wait...")
+                break
             break
         except Exception as e:
             logger.warning(f"Sentiment attempt {attempt+1} failed: {e}")
             if attempt == 0:
-                await asyncio.sleep(5)
+                await asyncio.sleep(1)
     return {"label": "neutral", "score": 0.5}
 
 
 async def hf_ner(text: str, client: httpx.AsyncClient) -> list[dict]:
-    """Extract named entities using BERT-NER via HF Inference API."""
+    """Extract named entities using BERT-NER via HF Inference API. FAST mode."""
     truncated = text[:512]
     for attempt in range(2):
         try:
@@ -636,7 +647,7 @@ async def hf_ner(text: str, client: httpx.AsyncClient) -> list[dict]:
                 f"{HF_API_URL}/{NER_MODEL}",
                 headers=HF_HEADERS,
                 json={"inputs": truncated},
-                timeout=45,
+                timeout=12,
             )
             if resp.status_code == 200:
                 data = resp.json()
@@ -654,14 +665,13 @@ async def hf_ner(text: str, client: httpx.AsyncClient) -> list[dict]:
                             })
                     return entities[:15]
             if resp.status_code == 503 and attempt == 0:
-                logger.info("NER model loading, waiting...")
-                await asyncio.sleep(15)
-                continue
+                logger.info("NER model loading, skipping wait...")
+                break
             break
         except Exception as e:
             logger.warning(f"NER attempt {attempt+1} failed: {e}")
             if attempt == 0:
-                await asyncio.sleep(5)
+                await asyncio.sleep(1)
     return []
 
 
@@ -716,7 +726,8 @@ Provide a detailed JSON analysis with exactly these keys:
 Return ONLY valid JSON. No markdown, no code fences, no explanations."""
 
     try:
-        response = gemini_client.models.generate_content(
+        client = get_gemini_client()
+        response = client.models.generate_content(
             model="gemini-2.0-flash",
             contents=prompt,
         )
@@ -1158,13 +1169,74 @@ async def detect_location(request: Request):
     }
 
 
+# ---------------------------------------------------------------------------
+# FAST Gemini-Only Analysis (single call, ~5-10 seconds)
+# ---------------------------------------------------------------------------
+async def gemini_fast_analysis(topic: str, region: str, articles: list[dict]) -> dict:
+    """Use a SINGLE Gemini call to summarize, analyze sentiment, extract entities for ALL articles at once."""
+    region_name = REGIONS.get(region, REGIONS["global"])["name"]
+    
+    article_data = []
+    for i, a in enumerate(articles):
+        text_preview = a.get("full_text", a.get("description", ""))[:400]
+        article_data.append(f"{i+1}. [{a.get('source','Unknown')}] {a.get('title','')}"
+                           f"\n   Text: {text_preview}")
+    
+    prompt = f"""You are a senior news intelligence analyst. Analyze these {len(article_data)} articles about "{topic}" from {region_name}.
+
+{chr(10).join(article_data)}
+
+Return a SINGLE JSON object with:
+{{
+  "overview": "4-5 sentence analytical briefing",
+  "key_themes": ["theme1", "theme2", ...],
+  "keywords": ["keyword1", "keyword2", ...],
+  "risk_level": "low|medium|high",
+  "risk_reason": "2 sentence explanation",
+  "breaking": true/false,
+  "market_impact": "positive|negative|mixed|neutral",
+  "market_reason": "1 sentence",
+  "confidence": 0.0-1.0,
+  "confidence_reason": "1 sentence",
+  "articles": [
+    {{
+      "index": 0,
+      "summary": "2-3 sentence summary of article",
+      "sentiment": "positive|negative|neutral",
+      "sentiment_score": 0.0-1.0,
+      "entities": [{{"word": "EntityName", "entity": "PER|ORG|LOC|MISC"}}]
+    }}
+  ]
+}}
+
+For each article in the articles array, provide summary, sentiment, and top entities.
+Return ONLY valid JSON. No markdown, no code fences."""
+
+    try:
+        client = get_gemini_client()
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt,
+        )
+        text = response.text.strip()
+        text = re.sub(r"^```json\s*", "", text)
+        text = re.sub(r"\s*```$", "", text)
+        result = json.loads(text)
+        logger.info("Gemini fast analysis successful")
+        return result
+    except Exception as e:
+        logger.warning(f"Gemini fast analysis failed: {e}")
+        return None
+
+
 @app.get("/analyze")
 async def analyze(
     topic: str = Query(..., min_length=1, max_length=200),
     region: str = Query("global", max_length=10),
     force: bool = Query(False),
+    fast: bool = Query(True),
 ):
-    """Main analysis endpoint — premium NLP pipeline."""
+    """Main analysis endpoint — premium NLP pipeline. fast=True uses Gemini-only mode (~10x faster)."""
     region = region.lower().strip()
     if region not in REGIONS:
         region = "global"
@@ -1176,10 +1248,10 @@ async def analyze(
         logger.info(f"Cache hit for: {cache_key}")
         return cache[cache_key]
 
-    logger.info(f"Starting analysis for: {topic} (region: {region})")
+    logger.info(f"Starting {'FAST' if fast else 'FULL'} analysis for: {topic} (region: {region})")
     region_info = REGIONS[region]
 
-    # Step 1 — Scrape RSS (with quality filtering)
+    # Step 1 — Scrape RSS
     try:
         articles = await fetch_rss(topic, region)
     except Exception as e:
@@ -1189,30 +1261,80 @@ async def analyze(
     if not articles:
         raise HTTPException(status_code=404, detail="No articles found for this topic in the selected region.")
 
-    # Step 2 — Enrich with full text + images
+    # Step 2 — Enrich with text + images
     articles = await enrich_articles(articles)
 
-    # Step 3 — NLP all articles in parallel + Gemini
-    async with httpx.AsyncClient() as client:
-        nlp_tasks = [process_article_nlp(a, client) for a in articles]
-        gemini_task = gemini_analysis(topic, region, articles)
+    if fast:
+        # ═══ FAST MODE: Single Gemini call for everything ═══
+        gemini_result = await gemini_fast_analysis(topic, region, articles)
 
-        results = await asyncio.gather(*nlp_tasks, gemini_task, return_exceptions=True)
+        if gemini_result and "articles" in gemini_result:
+            # Apply Gemini's per-article analysis
+            gemini_articles = gemini_result.get("articles", [])
+            for gart in gemini_articles:
+                idx = gart.get("index", -1)
+                if 0 <= idx < len(articles):
+                    articles[idx]["summary"] = gart.get("summary", articles[idx].get("description", "")[:200])
+                    articles[idx]["sentiment"] = {
+                        "label": gart.get("sentiment", "neutral"),
+                        "score": gart.get("sentiment_score", 0.5)
+                    }
+                    articles[idx]["entities"] = gart.get("entities", [])
+            
+            # Fill any articles not covered by Gemini
+            for a in articles:
+                if "summary" not in a:
+                    a["summary"] = clean_text(a.get("full_text", a.get("description", "")))[:200] + "..."
+                if "sentiment" not in a:
+                    a["sentiment"] = {"label": "neutral", "score": 0.5}
+                if "entities" not in a:
+                    a["entities"] = []
+            
+            ai_analysis = {
+                "overview": gemini_result.get("overview", ""),
+                "key_themes": gemini_result.get("key_themes", [topic]),
+                "keywords": gemini_result.get("keywords", [topic]),
+                "risk_level": gemini_result.get("risk_level", "medium"),
+                "risk_reason": gemini_result.get("risk_reason", ""),
+                "breaking": gemini_result.get("breaking", False),
+                "market_impact": gemini_result.get("market_impact", "neutral"),
+                "market_reason": gemini_result.get("market_reason", ""),
+                "confidence": gemini_result.get("confidence", 0.7),
+                "confidence_reason": gemini_result.get("confidence_reason", ""),
+            }
+            processed_articles = articles
+        else:
+            # Gemini fast failed, fallback to HF pipeline
+            logger.warning("Gemini fast mode failed, falling back to HF pipeline")
+            async with httpx.AsyncClient() as client:
+                nlp_tasks = [process_article_nlp(a, client) for a in articles]
+                gemini_task = gemini_analysis(topic, region, articles)
+                results = await asyncio.gather(*nlp_tasks, gemini_task, return_exceptions=True)
+            processed_articles = [r for r in results[:-1] if isinstance(r, dict) and "title" in r]
+            ai_analysis = results[-1] if isinstance(results[-1], dict) and "overview" in results[-1] else {
+                "overview": f"Intelligence briefing for '{topic}' — analysis in progress.",
+                "key_themes": [topic], "keywords": [topic], "risk_level": "medium",
+                "risk_reason": "Automated analysis encountered limitations.",
+                "breaking": False, "market_impact": "neutral",
+                "market_reason": "Unable to determine market impact.",
+                "confidence": 0.3, "confidence_reason": "Low confidence.",
+            }
+    else:
+        # ═══ FULL MODE: HF pipeline + Gemini ═══
+        async with httpx.AsyncClient() as client:
+            nlp_tasks = [process_article_nlp(a, client) for a in articles]
+            gemini_task = gemini_analysis(topic, region, articles)
+            results = await asyncio.gather(*nlp_tasks, gemini_task, return_exceptions=True)
 
-    # Separate results
-    processed_articles = [r for r in results[:-1] if isinstance(r, dict) and "title" in r]
-    ai_analysis = results[-1] if isinstance(results[-1], dict) and "overview" in results[-1] else {
-        "overview": f"Intelligence briefing for '{topic}' — analysis in progress.",
-        "key_themes": [topic],
-        "keywords": [topic],
-        "risk_level": "medium",
-        "risk_reason": "Automated analysis encountered limitations.",
-        "breaking": False,
-        "market_impact": "neutral",
-        "market_reason": "Unable to determine market impact.",
-        "confidence": 0.3,
-        "confidence_reason": "Low confidence due to processing limitations.",
-    }
+        processed_articles = [r for r in results[:-1] if isinstance(r, dict) and "title" in r]
+        ai_analysis = results[-1] if isinstance(results[-1], dict) and "overview" in results[-1] else {
+            "overview": f"Intelligence briefing for '{topic}' — analysis in progress.",
+            "key_themes": [topic], "keywords": [topic], "risk_level": "medium",
+            "risk_reason": "Automated analysis encountered limitations.",
+            "breaking": False, "market_impact": "neutral",
+            "market_reason": "Unable to determine market impact.",
+            "confidence": 0.3, "confidence_reason": "Low confidence.",
+        }
 
     # Step 4 — Aggregate stats
     source_counts = Counter(a.get("source", "Unknown") for a in processed_articles)
@@ -1225,8 +1347,9 @@ async def analyze(
     entity_types: dict[str, str] = {}
     for art in processed_articles:
         for ent in art.get("entities", []):
-            all_entities.append(ent["word"])
-            entity_types[ent["word"]] = ent.get("entity", "MISC")
+            word = ent.get("word", ent.get("name", ""))
+            all_entities.append(word)
+            entity_types[word] = ent.get("entity", ent.get("type", "MISC"))
     entity_counts = [
         {"name": name, "count": count, "type": entity_types.get(name, "MISC")}
         for name, count in Counter(all_entities).most_common(10)
@@ -1241,7 +1364,6 @@ async def analyze(
         for label, count in sentiment_dist.items()
     ]
 
-    # Build article list
     def format_article(a):
         return {
             "title": clean_text(a["title"]),
@@ -1254,20 +1376,15 @@ async def analyze(
             "summary": clean_text(a.get("summary", a.get("description", ""))),
             "full_text_preview": clean_text(a.get("full_text", ""))[:500],
             "image_url": a.get("image_url", ""),
-            "sentiment": a["sentiment"],
+            "sentiment": a.get("sentiment", {"label": "neutral", "score": 0.5}),
             "entities": a.get("entities", [])[:5],
         }
 
     all_formatted = [format_article(a) for a in processed_articles]
-
-    # Headline = first article (top quality/most recent)
     headline = all_formatted[0] if all_formatted else None
     remaining = all_formatted[1:] if len(all_formatted) > 1 else []
-
-    # Ticker headlines for scrolling banner
     ticker_headlines = [a["title"] + " — " + a["source"] for a in all_formatted]
 
-    # Build response
     now_iso = datetime.now(timezone.utc).isoformat()
     response = {
         "topic": topic,
@@ -1284,14 +1401,18 @@ async def analyze(
         "entity_chart": entity_counts,
         "sentiment_chart": sentiment_data,
         "source_chart": source_data,
+        "mode": "fast" if fast else "full",
     }
+
+    # Cache the result
+    cache[cache_key] = response
 
     # Step 5 — Persistent Logging (Fire & Forget)
     asyncio.create_task(log_search(topic, region, len(processed_articles)))
     asyncio.create_task(update_sentiment_trends(topic, sentiment_data))
     asyncio.create_task(track_entities(entity_counts))
 
-    logger.info(f"Analysis complete for: {topic} ({region}) — {len(processed_articles)} articles")
+    logger.info(f"Analysis complete for: {topic} ({region}) — {len(processed_articles)} articles — {'FAST' if fast else 'FULL'} mode")
     return response
 
 
