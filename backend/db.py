@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL")
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./newsintel.db")
 database = databases.Database(DATABASE_URL)
 metadata = sqlalchemy.MetaData()
 

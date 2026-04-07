@@ -43,8 +43,8 @@ for _k in ["GEMINI_API_KEY", "GEMINI_API_KEY_2", "GEMINI_API_KEY_3"]:
     _v = os.getenv(_k)
     if _v and _v.strip():
         _gemini_keys.append(_v.strip())
-GEMINI_API_KEYS = _gemini_keys if _gemini_keys else [""]
-_gemini_key_cycle = itertools.cycle(GEMINI_API_KEYS)
+GEMINI_API_KEYS = _gemini_keys if _gemini_keys else []
+logger_init = logging.getLogger("news-intel")
 logger_init = logging.getLogger("news-intel")
 logger_init.info(f"Loaded {len(GEMINI_API_KEYS)} Gemini API key(s)")
 
@@ -196,13 +196,24 @@ async def shutdown():
 # ---------------------------------------------------------------------------
 # Gemini client
 # ---------------------------------------------------------------------------
-# Create multiple Gemini clients for round-robin
-_gemini_clients = [genai.Client(api_key=k) for k in GEMINI_API_KEYS]
-_gemini_client_cycle = itertools.cycle(_gemini_clients)
+_gemini_clients = []
+for _k in GEMINI_API_KEYS:
+    try:
+        _gemini_clients.append(genai.Client(api_key=_k))
+    except Exception as e:
+        logger_init.warning(f"Failed to initialize Gemini client: {e}")
+
+if not _gemini_clients:
+    _gemini_client_cycle = itertools.cycle([None])
+else:
+    _gemini_client_cycle = itertools.cycle(_gemini_clients)
 
 def get_gemini_client():
     """Get next Gemini client from round-robin pool."""
-    return next(_gemini_client_cycle)
+    client = next(_gemini_client_cycle)
+    if client is None:
+        raise ValueError("No valid Gemini API key configured.")
+    return client
 
 # ---------------------------------------------------------------------------
 # Helpers
