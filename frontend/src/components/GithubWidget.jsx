@@ -284,7 +284,7 @@ export default function GithubWidget() {
         </div>
 
         {/* ── Split Content Area ── */}
-        <div className="feedback-split-content">
+        <div className="feedback-split-content dashboard-layout">
           
           {/* Left: Feedback Form */}
           <div className={`feedback-form-container ${activeTab === 'feedback' ? 'active-mobile' : ''}`}>

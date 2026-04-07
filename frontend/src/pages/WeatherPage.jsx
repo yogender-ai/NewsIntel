@@ -114,6 +114,7 @@ export default function WeatherPage() {
   const condition = weather?.condition || '';
   const icon = getWeatherIcon(condition);
   const bgClass = getWeatherBg(condition);
+  const isDay = weather?.is_day === 1 || condition.toLowerCase().includes('sun') || (weather?.is_day !== 0 && !condition.toLowerCase().includes('night') && !condition.toLowerCase().includes('clear'));
 
   // Parse forecast data
   const hourlyData = forecast?.hourly || [];
@@ -124,6 +125,58 @@ export default function WeatherPage() {
     <div className={`weather-page ${bgClass}`}>
       {/* Animated background particles */}
       <div className="weather-particles">
+        {bgClass === 'weather-bg-clear' && isDay && (
+          <div className="sun-effect-container">
+            <div className="virtual-sun" />
+            <div className="sun-flare" />
+            <div className="sun-flare flare-2" />
+          </div>
+        )}
+        {bgClass === 'weather-bg-clear' && !isDay && (
+          <div className="star-field">
+            {Array.from({ length: 50 }, (_, i) => (
+              <div key={i} className="star-twinkle" style={{
+                left: `${Math.random() * 100}%`,
+                top: `${Math.random() * 100}%`,
+                animationDelay: `${Math.random() * 5}s`,
+                animationDuration: `${2 + Math.random() * 3}s`,
+                width: `${1 + Math.random() * 2}px`,
+                height: `${1 + Math.random() * 2}px`,
+              }} />
+            ))}
+          </div>
+        )}
+        {bgClass === 'weather-bg-cloudy' && (
+          <div className="cloud-field">
+            {Array.from({ length: 5 }, (_, i) => (
+              <div key={i} className="drifting-cloud" style={{
+                top: `${10 + Math.random() * 40}%`,
+                animationDelay: `-${Math.random() * 20}s`,
+                animationDuration: `${30 + Math.random() * 30}s`,
+                opacity: 0.15 + Math.random() * 0.2,
+                transform: `scale(${0.5 + Math.random() * 1.5})`
+              }} />
+            ))}
+          </div>
+        )}
+        {bgClass === 'weather-bg-storm' && (
+          <>
+            <div className="lightning-flash" />
+            {Array.from({ length: 40 }, (_, i) => (
+              <div key={i} className="rain-drop heavy-rain" style={{
+                left: `${Math.random() * 100}%`,
+                animationDelay: `${Math.random() * 1}s`,
+                animationDuration: `${0.3 + Math.random() * 0.4}s`,
+              }} />
+            ))}
+          </>
+        )}
+        {bgClass === 'weather-bg-fog' && (
+          <div className="fog-field">
+            <div className="fog-layer fog-layer-1" />
+            <div className="fog-layer fog-layer-2" />
+          </div>
+        )}
         {bgClass === 'weather-bg-rain' && (
           <>
             {Array.from({ length: 30 }, (_, i) => (

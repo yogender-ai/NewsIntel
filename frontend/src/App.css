@@ -3215,6 +3215,149 @@ a.github-stat-item:hover {
   border-radius: var(--radius-full);
 }
 
+/* ═══════════════════════════════════════════════════════════════════
+   ADVANCED WEATHER SEASONAL ANIMATIONS
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Sunny / Clear Day */
+.sun-effect-container {
+  position: absolute;
+  top: 10%;
+  right: 20%;
+  width: 200px;
+  height: 200px;
+  pointer-events: none;
+}
+.virtual-sun {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 60px;
+  height: 60px;
+  background: radial-gradient(circle, rgba(253, 224, 71, 0.9) 0%, rgba(250, 204, 21, 0) 70%);
+  border-radius: 50%;
+  box-shadow: 0 0 40px 20px rgba(250, 204, 21, 0.3);
+  animation: sunGlow 8s ease-in-out infinite alternate;
+}
+.sun-flare {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 150px;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(253, 224, 71, 0) 0%, rgba(253, 224, 71, 0.5) 50%, rgba(253, 224, 71, 0) 100%);
+  animation: sunSpin 20s linear infinite;
+}
+.sun-flare.flare-2 {
+  width: 100px;
+  height: 6px;
+  animation: sunSpinReverse 15s linear infinite;
+}
+
+@keyframes sunGlow {
+  0% { box-shadow: 0 0 30px 10px rgba(250, 204, 21, 0.2); transform: translate(-50%, -50%) scale(1); }
+  100% { box-shadow: 0 0 60px 25px rgba(250, 204, 21, 0.4); transform: translate(-50%, -50%) scale(1.1); }
+}
+@keyframes sunSpin {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+@keyframes sunSpinReverse {
+  from { transform: translate(-50%, -50%) rotate(360deg); }
+  to { transform: translate(-50%, -50%) rotate(0deg); }
+}
+
+/* Clear Night (Stars) */
+.star-field {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.star-twinkle {
+  position: absolute;
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 0 6px 1px rgba(255, 255, 255, 0.5);
+  animation: starTwinkle linear infinite;
+}
+@keyframes starTwinkle {
+  0% { opacity: 0.2; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.2); box-shadow: 0 0 8px 2px rgba(255, 255, 255, 0.8); }
+  100% { opacity: 0.2; transform: scale(0.8); }
+}
+
+/* Cloudy (Drifting Clouds) */
+.cloud-field {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.drifting-cloud {
+  position: absolute;
+  left: -20%;
+  width: 250px;
+  height: 80px;
+  background: radial-gradient(ellipse at center, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0) 70%);
+  border-radius: 50%;
+  filter: blur(10px);
+  animation: driftCloud linear infinite;
+}
+@keyframes driftCloud {
+  from { transform: translateX(-10vw) scale(1); }
+  to { transform: translateX(110vw) scale(1.2); }
+}
+
+/* Storm (Lightning & Heavy Rain) */
+.lightning-flash {
+  position: absolute;
+  inset: 0;
+  background: white;
+  opacity: 0;
+  pointer-events: none;
+  animation: strikeLightning 10s infinite;
+}
+.heavy-rain {
+  width: 2px !important;
+  background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0.6)) !important;
+}
+@keyframes strikeLightning {
+  0%, 95%, 98%, 100% { opacity: 0; }
+  96% { opacity: 0.8; }
+  97% { opacity: 0; }
+  99% { opacity: 0.6; }
+}
+
+/* Fog */
+.fog-field {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+.fog-layer {
+  position: absolute;
+  bottom: 0;
+  left: -50%;
+  width: 200%;
+  height: 50%;
+  background: linear-gradient(to top, rgba(200,200,220,0.15) 0%, rgba(200,200,220,0) 100%);
+  filter: blur(30px);
+  animation: driftFog 20s alternate ease-in-out infinite;
+}
+.fog-layer-2 {
+  opacity: 0.7;
+  animation-duration: 25s;
+  animation-delay: -5s;
+  animation-direction: alternate-reverse;
+}
+@keyframes driftFog {
+  0% { transform: translateX(0) scaleY(1); }
+  100% { transform: translateX(10%) scaleY(1.2); }
+}
+
 .popular-loading {
   display: flex;
   align-items: center;
