@@ -181,8 +181,7 @@ export default function WeatherPage() {
         </div>
       ) : weather ? (
         <div className="weather-content">
-          {/* ── HERO SECTION ── */}
-          <section className="weather-hero">
+          <section className="weather-hero" style={{ animation: 'fadeInUp 0.6s ease-out backwards', animationDelay: '0.1s' }}>
             <div className="weather-hero-icon">{icon}</div>
             <div className="weather-hero-temp">
               <span className="temp-value">{weather.temp_c}</span>
@@ -206,7 +205,7 @@ export default function WeatherPage() {
           </section>
 
           {/* ── DETAILS GRID ── */}
-          <section className="weather-details-grid">
+          <section className="weather-details-grid" style={{ animation: 'fadeInUp 0.6s ease-out backwards', animationDelay: '0.2s' }}>
             <div className="weather-detail-card">
               <Droplets size={18} className="detail-icon" />
               <span className="detail-label">Humidity</span>
@@ -241,7 +240,7 @@ export default function WeatherPage() {
 
           {/* ── ASTRONOMY ── */}
           {(astronomy.sunrise || astronomy.sunset) && (
-            <section className="weather-astronomy">
+            <section className="weather-astronomy" style={{ animation: 'fadeInUp 0.6s ease-out backwards', animationDelay: '0.3s' }}>
               <h3><Sun size={16} /> Sun & Moon</h3>
               <div className="astronomy-grid">
                 {astronomy.sunrise && (
@@ -278,7 +277,7 @@ export default function WeatherPage() {
 
           {/* ── HOURLY FORECAST ── */}
           {hourlyData.length > 0 && (
-            <section className="weather-hourly">
+            <section className="weather-hourly" style={{ animation: 'fadeInUp 0.6s ease-out backwards', animationDelay: '0.4s' }}>
               <h3>Hourly Forecast</h3>
               <div className="hourly-scroll">
                 {hourlyData.map((h, i) => (
@@ -297,7 +296,7 @@ export default function WeatherPage() {
 
           {/* ── 3-DAY FORECAST ── */}
           {dailyData.length > 0 && (
-            <section className="weather-daily">
+            <section className="weather-daily" style={{ animation: 'fadeInUp 0.6s ease-out backwards', animationDelay: '0.5s' }}>
               <h3>3-Day Forecast</h3>
               <div className="daily-list">
                 {dailyData.map((d, i) => (
@@ -319,7 +318,7 @@ export default function WeatherPage() {
           )}
 
           {/* ── POPULAR CITIES ── */}
-          <section className="weather-cities">
+          <section className="weather-cities" style={{ animation: 'fadeInUp 0.6s ease-out backwards', animationDelay: '0.6s' }}>
             <h3><MapPin size={16} /> Other Cities</h3>
             <div className="weather-cities-grid">
               {POPULAR_CITIES.map((c) => (

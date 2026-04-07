@@ -34,9 +34,20 @@ export default function SearchBar({ onSearch, isLoading }) {
   const [selectedRegion, setSelectedRegion] = useState({ code: 'global', name: 'Global', flag: '🌍' });
   const [showDropdown, setShowDropdown] = useState(false);
   const [inputValue, setInputValue] = useState('');
+  const [showRecommendations, setShowRecommendations] = useState(false);
   const [trending, setTrending] = useState(null);
   const [trendingLoading, setTrendingLoading] = useState(true);
   const dropdownRef = useRef(null);
+  const searchWrapperRef = useRef(null);
+
+  const ALL_SUGGESTIONS = [
+    ...SUGGESTIONS,
+    ...CITY_PICKS.map(c => ({ label: c.name + ' news', emoji: c.emoji }))
+  ];
+
+  const filteredRecommendations = inputValue.trim()
+    ? ALL_SUGGESTIONS.filter(s => s.label.toLowerCase().includes(inputValue.toLowerCase()))
+    : ALL_SUGGESTIONS.slice(0, 6);
 
   useEffect(() => {
     fetchRegions().then((data) => {
@@ -61,6 +72,9 @@ export default function SearchBar({ onSearch, isLoading }) {
     const handleClick = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
         setShowDropdown(false);
+      }
+      if (searchWrapperRef.current && !searchWrapperRef.current.contains(e.target)) {
+        setShowRecommendations(false);
       }
     };
     document.addEventListener('mousedown', handleClick);
@@ -186,7 +200,7 @@ export default function SearchBar({ onSearch, isLoading }) {
             </div>
           </div>
 
-          <div className="search-input-wrapper">
+          <div className="search-input-wrapper" ref={searchWrapperRef} style={{ position: 'relative' }}>
             <Search size={18} className="search-icon" />
             <input
               id="search-input"
@@ -195,7 +209,11 @@ export default function SearchBar({ onSearch, isLoading }) {
               className="search-input"
               placeholder={`Search news in ${selectedRegion.name}... (try "Rohtak news" or "AI")`}
               value={inputValue}
-              onChange={(e) => setInputValue(e.target.value)}
+              onChange={(e) => {
+                setInputValue(e.target.value);
+                setShowRecommendations(true);
+              }}
+              onFocus={() => setShowRecommendations(true)}
               autoFocus
               autoComplete="off"
               disabled={isLoading}
@@ -209,6 +227,60 @@ export default function SearchBar({ onSearch, isLoading }) {
               <Search size={14} />
               Analyze
             </button>
+            
+            {showRecommendations && filteredRecommendations.length > 0 && (
+              <div style={{
+                position: 'absolute',
+                top: '100%',
+                left: 0,
+                right: 0,
+                marginTop: '8px',
+                background: 'rgba(15, 15, 24, 0.95)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                backdropFilter: 'blur(16px)',
+                borderRadius: '12px',
+                zIndex: 50,
+                padding: '8px',
+                boxShadow: '0 10px 40px rgba(0, 0, 0, 0.5)',
+                animation: 'fadeInUp 0.2s ease-out backwards'
+              }}>
+                <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', padding: '4px 8px 8px', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                  Recommendations
+                </div>
+                {filteredRecommendations.map((r, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => {
+                      setInputValue(r.label);
+                      setShowRecommendations(false);
+                      onSearch(r.label, selectedRegion.code);
+                    }}
+                    style={{
+                      width: '100%',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px',
+                      padding: '10px 12px',
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#f5f5f5',
+                      fontSize: '14px',
+                      textAlign: 'left',
+                      cursor: 'pointer',
+                      borderRadius: '8px',
+                      transition: 'background 0.2s'
+                    }}
+                    onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                    onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                  >
+                    <span>{r.emoji}</span>
+                    <span>{r.label}</span>
+                    <ArrowUpRight size={14} style={{ marginLeft: 'auto', opacity: 0.3 }} />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         </form>
 
