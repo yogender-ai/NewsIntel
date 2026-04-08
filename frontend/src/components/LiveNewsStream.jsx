@@ -3,10 +3,10 @@ import { Radio, MonitorPlay } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 
 const CHANNELS = [
-  { id: 'alj', name: 'Al Jazeera', url: 'https://www.youtube.com/embed/gCNeDWCI0vo?autoplay=1&modestbranding=1' },
-  { id: 'sky', name: 'Sky News', url: 'https://www.youtube.com/embed/9Auq9mYxFEE?autoplay=1&modestbranding=1' },
-  { id: 'nbc', name: 'NBC News', url: 'https://www.youtube.com/embed/FPTAWOSw-2M?autoplay=1&modestbranding=1' },
-  { id: 'abc', name: 'ABC News', url: 'https://www.youtube.com/embed/W1ilCy6XrmI?autoplay=1&modestbranding=1' },
+  { id: 'alj', name: 'Al Jazeera', url: 'https://www.youtube.com/embed/live_stream?channel=UCNye-wNBqNL5ZzHSJj3l8Bg&autoplay=1&modestbranding=1' },
+  { id: 'sky', name: 'Sky News', url: 'https://www.youtube.com/embed/live_stream?channel=UCoMdktPbSTixAyNGwb-UYkQ&autoplay=1&modestbranding=1' },
+  { id: 'france24', name: 'France 24', url: 'https://www.youtube.com/embed/live_stream?channel=UCQfwfsi5VrQ8yKZ-UWmAEFg&autoplay=1&modestbranding=1' },
+  { id: 'dw', name: 'DW News', url: 'https://www.youtube.com/embed/live_stream?channel=UCknLrEdhRCp1aegoMqRhGGw&autoplay=1&modestbranding=1' },
 ];
 
 export default function LiveNewsStream() {

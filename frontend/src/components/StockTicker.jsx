@@ -23,15 +23,18 @@ export default function StockTicker({ mode = 'all' }) {
   if (!stocks.length) return null;
 
   const filteredStocks = stocks.filter(s => {
-    if (mode === 'up') return s.direction === 'up';
-    if (mode === 'down') return s.direction === 'down';
+    if (mode === 'up') return s.direction === 'up' || (s.change_pct != null && s.change_pct > 0);
+    if (mode === 'down') return s.direction === 'down' || (s.change_pct != null && s.change_pct < 0);
     return true;
   });
 
-  if (!filteredStocks.length) return null;
+  // If filtering produces nothing, show all (API may not separate well)
+  const displayStocks = filteredStocks.length > 0 ? filteredStocks : stocks;
 
   // Triple for truly seamless infinite scroll
-  const tripled = [...filteredStocks, ...filteredStocks, ...filteredStocks];
+  const tripled = [...displayStocks, ...displayStocks, ...displayStocks];
+
+  const tickerLabel = mode === 'up' ? '📈 GAINERS' : mode === 'down' ? '📉 LOSERS' : '📊 MARKETS';
 
   return (
     <div
@@ -42,7 +45,7 @@ export default function StockTicker({ mode = 'all' }) {
     >
       <div className="stock-ticker-label">
         <BarChart3 size={10} />
-        MARKETS
+        {tickerLabel}
       </div>
       <div className="stock-ticker-track">
         <div className={`stock-ticker-scroll ${paused ? 'paused' : ''}`}>

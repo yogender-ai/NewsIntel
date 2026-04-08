@@ -205,52 +205,140 @@ export default function ResultsPage() {
   // ── LOADING ──
   if (view === 'loading') {
     return (
-      <div className="results-page">
-        <div className="loading-screen premium-loading">
-          <div className="loading-content-wrapper">
-            <div className="loading-spinner">
-              <div className="ring" /><div className="ring" /><div className="ring" />
-            </div>
-            
-            <div className="loading-text">
-              <h3>Analyzing "{decodedTopic}"</h3>
-              <p>Curating top articles from trusted sources...</p>
-            </div>
-            
-            <div className="loading-steps">
-              {PIPELINE_STEPS.map((step, i) => {
-                const Icon = step.icon;
-                let status = 'pending';
-                if (i < activeStep) status = 'done';
-                else if (i === activeStep) status = 'active';
-                return (
-                  <div key={i} className={`loading-step ${status}`}>
-                    <div className={`step-icon ${status}`}>
-                      {status === 'done' ? <CheckCircle size={13} /> : status === 'active' ? <Loader size={13} className="spin" /> : <Icon size={13} />}
-                    </div>
-                    <div className="step-info">
-                      <span className="step-label">{step.label}</span>
-                      <span className="step-detail">{step.detail}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-          
-          <div className="loading-extras">
-            <div className="loading-quote-container">
-              <p key={quoteIndex} className="loading-quote">
-                "{PREMIUM_QUOTES[quoteIndex]}"
-              </p>
-            </div>
-            
-            <div className={`slow-message ${showSlowMessage ? 'visible' : ''}`}>
-              <Clock size={14} className="spin-slow" />
-              <span>Deep analysis may take up to 60 seconds... have a wonderful day!</span>
-            </div>
-          </div>
+      <div className="results-page" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}>
+        {/* Animated Background */}
+        <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
+          {Array.from({ length: 40 }, (_, i) => (
+            <div key={i} style={{
+              position: 'absolute',
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              width: `${2 + Math.random() * 4}px`,
+              height: `${2 + Math.random() * 4}px`,
+              borderRadius: '50%',
+              background: `rgba(99, 102, 241, ${0.1 + Math.random() * 0.2})`,
+              animation: `loadParticle ${6 + Math.random() * 10}s ease-in-out infinite`,
+              animationDelay: `${Math.random() * 8}s`,
+            }} />
+          ))}
+          {/* Orbital ring */}
+          <div style={{
+            position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+            width: '500px', height: '500px', borderRadius: '50%',
+            border: '1px solid rgba(99, 102, 241, 0.08)',
+            animation: 'spinSlow 30s linear infinite',
+          }} />
+          <div style={{
+            position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+            width: '350px', height: '350px', borderRadius: '50%',
+            border: '1px solid rgba(139, 92, 246, 0.06)',
+            animation: 'spinSlow 20s linear infinite reverse',
+          }} />
         </div>
+
+        <div style={{ textAlign: 'center', position: 'relative', zIndex: 1, maxWidth: '480px' }}>
+          {/* Premium Spinner */}
+          <div style={{ position: 'relative', width: '80px', height: '80px', margin: '0 auto 32px' }}>
+            <div style={{
+              position: 'absolute', inset: 0, borderRadius: '50%',
+              border: '2px solid transparent', borderTopColor: '#6366f1',
+              animation: 'spin 1s linear infinite',
+            }} />
+            <div style={{
+              position: 'absolute', inset: '8px', borderRadius: '50%',
+              border: '2px solid transparent', borderRightColor: '#8b5cf6',
+              animation: 'spin 1.5s linear infinite reverse',
+            }} />
+            <div style={{
+              position: 'absolute', inset: '16px', borderRadius: '50%',
+              border: '2px solid transparent', borderBottomColor: '#06b6d4',
+              animation: 'spin 2s linear infinite',
+            }} />
+            <div style={{
+              position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}>
+              <Sparkles size={20} color="#8b5cf6" style={{ animation: 'pulse 2s ease-in-out infinite' }} />
+            </div>
+          </div>
+
+          <h3 style={{ fontSize: '22px', fontWeight: 800, marginBottom: '8px', letterSpacing: '-0.5px' }}>
+            Analyzing "{decodedTopic}"
+          </h3>
+          <p style={{ fontSize: '14px', color: '#94a3b8', marginBottom: '32px' }}>
+            Curating top articles from trusted sources...
+          </p>
+
+          {/* Pipeline Steps */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', textAlign: 'left' }}>
+            {PIPELINE_STEPS.map((step, i) => {
+              const Icon = step.icon;
+              let status = 'pending';
+              if (i < activeStep) status = 'done';
+              else if (i === activeStep) status = 'active';
+
+              return (
+                <div key={i} style={{
+                  display: 'flex', alignItems: 'center', gap: '14px',
+                  padding: '12px 16px', borderRadius: '12px',
+                  background: status === 'active' ? 'rgba(99, 102, 241, 0.08)' : 'transparent',
+                  transition: 'all 0.4s',
+                  opacity: status === 'done' ? 0.5 : 1,
+                }}>
+                  <div style={{
+                    width: '36px', height: '36px', borderRadius: '50%',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: status === 'done' ? 'rgba(52,211,153,0.15)' : status === 'active' ? 'rgba(99,102,241,0.15)' : 'rgba(255,255,255,0.04)',
+                    border: `1px solid ${status === 'done' ? 'rgba(52,211,153,0.4)' : status === 'active' ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.06)'}`,
+                    color: status === 'done' ? '#34d399' : status === 'active' ? '#818cf8' : '#64748b',
+                    transition: 'all 0.4s',
+                  }}>
+                    {status === 'done' ? <CheckCircle size={16} /> : status === 'active' ? <Loader size={16} className="spin" /> : <Icon size={16} />}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '13px', fontWeight: 600 }}>{step.label}</div>
+                    <div style={{ fontSize: '11px', color: '#64748b' }}>{step.detail}</div>
+                  </div>
+                  {status === 'active' && (
+                    <div style={{ marginLeft: 'auto', width: '100px', height: '4px', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', overflow: 'hidden' }}>
+                      <div style={{ height: '100%', borderRadius: '4px', background: 'linear-gradient(90deg, #6366f1, #8b5cf6)', animation: 'progressSlide 2s ease-in-out infinite' }} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Quote */}
+          <div style={{ marginTop: '40px', padding: '0 20px' }}>
+            <p key={quoteIndex} style={{
+              fontSize: '14px', color: '#64748b', fontStyle: 'italic', lineHeight: 1.6,
+              animation: 'fadeIn 0.6s ease',
+            }}>
+              "{PREMIUM_QUOTES[quoteIndex]}"
+            </p>
+          </div>
+
+          {showSlowMessage && (
+            <div style={{ marginTop: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px', color: '#94a3b8', fontSize: '12px' }}>
+              <Clock size={14} className="spin-slow" />
+              <span>Deep analysis may take up to 60 seconds...</span>
+            </div>
+          )}
+        </div>
+
+        <style>{`
+          @keyframes loadParticle {
+            0%, 100% { transform: translateY(0) translateX(0); opacity: 0.15; }
+            50% { transform: translateY(-20px) translateX(10px); opacity: 0.4; }
+          }
+          @keyframes progressSlide {
+            0% { width: 0%; }
+            50% { width: 80%; }
+            100% { width: 30%; }
+          }
+          @keyframes spin { 100% { transform: rotate(360deg); } }
+          @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        `}</style>
       </div>
     );
   }
