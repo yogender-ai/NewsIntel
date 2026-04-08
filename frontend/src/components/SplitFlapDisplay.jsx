@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 
 const CHARS = ' ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:.-\'",!?&()';
-const FLIP_DURATION = 40; // ms per character flip step (faster = snappier)
-const STAGGER_DELAY = 15; // ms between each character starting
-const DISPLAY_LENGTH = 56; // fewer chars = bigger each char
+const FLIP_DURATION = 35; // ms per character flip step (faster = snappier)
+const STAGGER_DELAY = 12; // ms between each character starting
+const DISPLAY_LENGTH = 44; // fewer chars = compact display
 
 function FlapChar({ targetChar, delay = 0, isActive }) {
   const [displayChar, setDisplayChar] = useState(' ');

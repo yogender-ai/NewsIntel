@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Zap, TrendingUp, Flame, Clock, ArrowUpRight, Shield, Loader, MapPin, Sparkles, Search } from 'lucide-react';
 import { fetchTrending } from '../api';
 import SplitFlapDisplay from '../components/SplitFlapDisplay';
+import WorldMap from '../components/WorldMap';
 import WeatherWidget from '../components/WeatherWidget';
 import GithubWidget from '../components/GithubWidget';
 import PopularTopics from '../components/PopularTopics';
@@ -97,6 +98,8 @@ export default function HomePage() {
             </button>
           )}
 
+          {/* ── INTERACTIVE WORLD MAP ── */}
+          <WorldMap />
 
         </div>
       </section>
