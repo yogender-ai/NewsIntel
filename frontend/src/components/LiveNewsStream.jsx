@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import ReactPlayer from 'react-player/youtube';
+import ReactPlayer from 'react-player';
 import { Radio, MonitorPlay, Maximize, Loader } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 
