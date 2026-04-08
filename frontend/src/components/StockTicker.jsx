@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { TrendingUp, TrendingDown, Minus, BarChart3 } from 'lucide-react';
 import { fetchStocks } from '../api';
 
-export default function StockTicker() {
+export default function StockTicker({ mode = 'all' }) {
   const [stocks, setStocks] = useState([]);
   const [paused, setPaused] = useState(false);
 
@@ -22,8 +22,16 @@ export default function StockTicker() {
 
   if (!stocks.length) return null;
 
+  const filteredStocks = stocks.filter(s => {
+    if (mode === 'up') return s.direction === 'up';
+    if (mode === 'down') return s.direction === 'down';
+    return true;
+  });
+
+  if (!filteredStocks.length) return null;
+
   // Triple for truly seamless infinite scroll
-  const tripled = [...stocks, ...stocks, ...stocks];
+  const tripled = [...filteredStocks, ...filteredStocks, ...filteredStocks];
 
   return (
     <div

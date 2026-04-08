@@ -7,19 +7,8 @@ import HolographicStream from '../components/HolographicStream';
 import SplitFlapDisplay from '../components/SplitFlapDisplay';
 import StockTicker from '../components/StockTicker';
 import { useLanguage } from '../context/LanguageContext';
-import { Network, Search, CloudLightning, ShieldAlert, Cpu, Flame, Trophy, Globe, Activity, Stethoscope } from 'lucide-react';
+import { Network, Search, CloudLightning, ShieldAlert, Cpu, Flame, Trophy, Globe, Activity, Stethoscope, Play } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-
-const ALL_SEARCH_SUGGESTIONS = [
-  'Middle East Tensions',
-  'AI Market Regulations',
-  'Quantum Computing Breakthroughs',
-  'Global Election Interference',
-  'Semiconductor Supply Chain',
-  'Climate Summits 2026',
-  'Space Exploration Updates',
-  'Cybersecurity Threats'
-];
 
 export default function HomePage() {
   const [trending, setTrending] = useState(null);
@@ -46,9 +35,31 @@ export default function HomePage() {
     if (searchQuery.trim()) navigate(`/search/${encodeURIComponent(searchQuery)}`);
   };
 
-  const filteredSuggestions = ALL_SEARCH_SUGGESTIONS.filter(s => 
-    s.toLowerCase().includes(searchQuery.toLowerCase())
-  ).slice(0, 4);
+  // Dynamically extract real suggestions from headlines
+  const filteredSuggestions = headlines
+    .map(h => h.title)
+    .filter(title => title.toLowerCase().includes(searchQuery.toLowerCase()))
+    .slice(0, 4);
+
+  // Fallback if no specific headlines match
+  if (searchQuery && filteredSuggestions.length === 0) {
+      filteredSuggestions.push(`Search global database for "${searchQuery}"...`);
+  }
+
+  const playAudioHeadline = (text, e) => {
+    e.stopPropagation();
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    const voices = window.speechSynthesis.getVoices();
+    const prefVoice = voices.find(v => v.name.includes('UK English Male') || v.name.includes('Samantha')) || voices[0];
+    if (prefVoice) utterance.voice = prefVoice;
+    window.speechSynthesis.speak(utterance);
+  };
+
+  const forceSwitchChannel = () => {
+     window.dispatchEvent(new CustomEvent('SWITCH_LIVE_CHANNEL', { detail: 'sky' }));
+  };
 
   return (
     <div className="command-center-layout" style={{
@@ -67,7 +78,9 @@ export default function HomePage() {
           padding: '12px 24px', zIndex: 100, gap: '20px', flexShrink: 0
       }}>
           {/* Weather / Local Intel */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#fff', fontSize: '13px', background: 'rgba(255,255,255,0.03)', padding: '6px 12px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)', flexShrink: 0 }}>
+          <div 
+             onClick={() => navigate('/weather')}
+             style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#fff', fontSize: '13px', background: 'rgba(255,255,255,0.03)', padding: '6px 12px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)', flexShrink: 0, cursor: 'pointer' }}>
             <CloudLightning size={14} color="#3b82f6" />
             <span style={{ fontWeight: 600 }}>72°F</span>
             <span style={{ color: '#64748b' }}>Clear</span>
@@ -92,17 +105,21 @@ export default function HomePage() {
                         boxShadow: searchFocused ? '0 0 15px rgba(59, 130, 246, 0.2)' : 'none'
                     }}
                   />
-                  {searchFocused && filteredSuggestions.length > 0 && (
+                  {searchFocused && searchQuery && filteredSuggestions.length > 0 && (
                       <div style={{
                           position: 'absolute', top: 'calc(100% + 8px)', left: 0, right: 0,
                           background: 'rgba(10, 15, 30, 0.95)', backdropFilter: 'blur(10px)',
                           border: '1px solid rgba(59, 130, 246, 0.3)', borderRadius: '12px',
                           padding: '12px', boxShadow: '0 10px 40px rgba(0,0,0,0.5)', zIndex: 1000
                       }}>
-                          <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '8px', fontWeight: 600 }}>PRO SUGGESTIONS</div>
+                          <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '8px', fontWeight: 600 }}>LIVE SUGGESTIONS</div>
                           {filteredSuggestions.map((s, i) => (
                               <div key={i} style={{ padding: '8px', cursor: 'pointer', color: '#fff', fontSize: '13px', borderRadius: '4px' }} 
-                                   onClick={() => {setSearchQuery(s); navigate(`/search/${encodeURIComponent(s)}`);}}
+                                   onClick={() => {
+                                      const text = s.startsWith('Search global database for') ? searchQuery : s;
+                                      setSearchQuery(text); 
+                                      navigate(`/search/${encodeURIComponent(text)}`);
+                                   }}
                                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)'} 
                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                                   <Search size={12} color="#64748b" style={{ marginRight: '8px' }}/> {s}
@@ -140,22 +157,27 @@ export default function HomePage() {
           </div>
       </div>
 
-      {/* ── BREAKING LIVE BANNER (Optional/Dynamic) ── */}
+      {/* ── PROFIT TICKER (Top) ── */}
+      <div style={{ flexShrink: 0, borderBottom: '1px solid rgba(16, 185, 129, 0.2)', background: 'rgba(16, 185, 129, 0.05)' }}>
+         <StockTicker mode="up" />
+      </div>
+
+      {/* ── BREAKING LIVE BANNER ── */}
       <div style={{
           flexShrink: 0, background: 'linear-gradient(90deg, rgba(239, 68, 68, 0.2), transparent)',
-          borderTop: '1px solid rgba(239, 68, 68, 0.5)', borderBottom: '1px solid rgba(239, 68, 68, 0.5)',
+          borderBottom: '1px solid rgba(239, 68, 68, 0.5)',
           padding: '6px 24px', display: 'flex', alignItems: 'center', gap: '16px', color: '#fff', fontSize: '13px'
       }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#ef4444', fontWeight: 700, letterSpacing: '1px' }}>
               <div className="live-pulse" style={{width: 8, height: 8, borderRadius: '50%', background: '#ef4444'}}></div> LIVE
           </div>
           <span style={{ fontWeight: 500 }}>Global Leaders Summit triggers market volatility.</span>
-          <button style={{ marginLeft: 'auto', background: 'rgba(239, 68, 68, 0.2)', border: '1px solid #ef4444', color: '#fff', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>
+          <button onClick={forceSwitchChannel} style={{ marginLeft: 'auto', background: 'rgba(239, 68, 68, 0.2)', border: '1px solid #ef4444', color: '#fff', padding: '4px 12px', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>
             WATCH STREAM
           </button>
       </div>
 
-      {/* ── MAIN GRID (FLEX: 1, MIN-HEIGHT: 0 to prevent expanding past 100vh) ── */}
+      {/* ── MAIN GRID ── */}
       <div style={{ display: 'flex', flex: 1, minHeight: 0, padding: '10px 20px', gap: '30px' }}>
         
         {/* Left Side: 3D GLOBE + SPLIT FLAP */}
@@ -188,7 +210,7 @@ export default function HomePage() {
           minHeight: 0
         }}>
           {/* Live Stream */}
-          <div style={{ flex: '0 0 auto', height: '40%' }}>
+          <div style={{ flex: '0 0 auto', maxHeight: '45%' }}>
             <LiveNewsStream />
           </div>
 
@@ -229,7 +251,7 @@ export default function HomePage() {
                     transition: 'all 0.2s', 
                     display: 'flex', 
                     flexDirection: 'column', 
-                    gap: '4px',
+                    gap: '6px',
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)';
@@ -238,9 +260,20 @@ export default function HomePage() {
                     e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)';
                   }}
                 >
-                  <div style={{ fontSize: '14px', color: '#fff', fontWeight: 500, lineHeight: 1.4, textOverflow: 'ellipsis', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
-                    {item.title}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div style={{ fontSize: '14px', color: '#fff', fontWeight: 500, lineHeight: 1.4, textOverflow: 'ellipsis', overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', paddingRight: '8px' }}>
+                      {item.title}
+                    </div>
+                    {/* AUDIO PLAY BUTTON */}
+                    <button 
+                      onClick={(e) => playAudioHeadline(item.title, e)}
+                      style={{ background: 'rgba(59, 130, 246, 0.2)', border: 'none', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0, color: '#3b82f6' }}
+                      title="Listen to headline"
+                    >
+                      <Play size={12} style={{ marginLeft: '2px' }} />
+                    </button>
                   </div>
+                  
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '4px' }}>
                     <span style={{ fontSize: '11px', color: '#cbd5e1' }}>{item.time_ago}</span>
                     <span style={{ fontSize: '10px', color: item.is_trusted ? '#10b981' : '#f59e0b', fontWeight: 600, background: 'rgba(0,0,0,0.3)', padding: '2px 6px', borderRadius: '4px' }}>
@@ -254,9 +287,9 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* ── STOCK TICKER REBORN ── */}
-      <div style={{ flexShrink: 0, borderTop: '1px solid rgba(255,255,255,0.05)', borderBottom: '1px solid rgba(255,255,255,0.05)', background: '#02040a' }}>
-         <StockTicker />
+      {/* ── LOSS TICKER (Bottom) ── */}
+      <div style={{ flexShrink: 0, borderTop: '1px solid rgba(239, 68, 68, 0.2)', background: 'rgba(239, 68, 68, 0.05)' }}>
+         <StockTicker mode="down" />
       </div>
 
       {/* Bottom Ticker Stream */}

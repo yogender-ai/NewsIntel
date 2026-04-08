@@ -13,6 +13,16 @@ export default function LiveNewsStream() {
   const { t } = useLanguage();
   const [activeChannel, setActiveChannel] = useState(CHANNELS[0]);
 
+  useEffect(() => {
+    const handleSwitch = (e) => {
+       const targetId = e.detail;
+       const ch = CHANNELS.find(c => c.id === targetId);
+       if (ch) setActiveChannel(ch);
+    };
+    window.addEventListener('SWITCH_LIVE_CHANNEL', handleSwitch);
+    return () => window.removeEventListener('SWITCH_LIVE_CHANNEL', handleSwitch);
+  }, []);
+
   return (
     <div className="live-news-stream-container scroll-reveal" style={{
       height: '100%',
