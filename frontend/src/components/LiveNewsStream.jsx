@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Radio, MonitorPlay } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 

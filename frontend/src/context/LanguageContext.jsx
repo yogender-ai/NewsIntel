@@ -122,6 +122,15 @@ export function LanguageProvider({ children }) {
   const setLanguage = useCallback((code) => {
     setLang(code);
     try { localStorage.setItem('newsintel-lang', code); } catch {}
+    
+    // Wire into Google Translate widget
+    setTimeout(() => {
+      const select = document.querySelector('.goog-te-combo');
+      if (select) {
+        select.value = code;
+        select.dispatchEvent(new Event('change'));
+      }
+    }, 100);
   }, []);
 
   const t = useCallback((key) => {
