@@ -303,15 +303,16 @@ export default function WorldMap() {
           ref={globeReff}
           width={dimensions.width}
           height={dimensions.height}
-          showGlobe={false}
+          globeImageUrl="//unpkg.com/three-globe/example/img/earth-dark.jpg"
+          showGlobe={true}
           showAtmosphere={true}
-          atmosphereColor="#3b82f6"
-          atmosphereAltitude={0.15}
+          atmosphereColor="#5b21b6"
+          atmosphereAltitude={0.2}
           polygonsData={countries}
-          polygonAltitude={d => d.info === hoveredInfo ? 0.06 : 0.01}
-          polygonCapColor={d => d.info === hoveredInfo ? 'rgba(250, 204, 21, 0.7)' : 'rgba(59, 130, 246, 0.05)'}
-          polygonSideColor={() => 'rgba(59, 130, 246, 0.1)'}
-          polygonStrokeColor={() => 'rgba(59, 130, 246, 0.8)'}
+          polygonAltitude={d => d.info === hoveredInfo ? 0.08 : 0.015}
+          polygonCapColor={d => d.info === hoveredInfo ? 'rgba(59, 130, 246, 0.4)' : 'rgba(59, 130, 246, 0.05)'}
+          polygonSideColor={() => 'rgba(59, 130, 246, 0.2)'}
+          polygonStrokeColor={() => 'rgba(96, 165, 250, 0.9)'}
           onPolygonHover={polygon => setHoveredInfo(polygon ? polygon.info : null)}
           onPolygonClick={handleCountryClick}
           backgroundColor="rgba(0,0,0,0)"

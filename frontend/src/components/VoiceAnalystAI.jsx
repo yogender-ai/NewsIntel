@@ -1,10 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, Play } from 'lucide-react';
 import { fetchTrending, analyzeTopic } from '../api';
 
 export default function VoiceAnalystAI() {
-  const [isActive, setIsActive] = useState(false);
-  const [status, setStatus] = useState('offline'); // offline, initializing, idle, listening, analyzing, speaking
+  const [status, setStatus] = useState('idle'); // idle, listening, analyzing, speaking
   const recognitionRef = useRef(null);
 
   useEffect(() => {
@@ -48,7 +46,6 @@ export default function VoiceAnalystAI() {
     window.speechSynthesis.cancel();
     const utterance = new SpeechSynthesisUtterance(text);
     
-    // Try to find a premium/professional sounding voice
     const voices = window.speechSynthesis.getVoices();
     const prefVoice = voices.find(v => v.name.includes('Google UK English Male') || v.name.includes('Samantha') || v.name.includes('Daniel')) || voices[0];
     if (prefVoice) utterance.voice = prefVoice;
@@ -66,21 +63,6 @@ export default function VoiceAnalystAI() {
     window.speechSynthesis.speak(utterance);
   };
 
-  const startCommandCenter = async () => {
-    setIsActive(true);
-    setStatus('initializing');
-    
-    try {
-      const data = await fetchTrending();
-      const headlines = data?.headlines?.slice(0, 2).map(h => h.title) || ["Markets stabilize after tech rally", "Global weather anomalies reported"];
-      
-      const introText = `Welcome to the Command Center. Global feeds synchronized. Today's top intelligence: ${headlines[0]}. Also, ${headlines[1]}. Awaiting your orders.`;
-      speak(introText);
-    } catch (e) {
-      speak("Welcome to the Command Center. Database connection limited, but I am listening.");
-    }
-  };
-
   const toggleListen = () => {
     if (!recognitionRef.current) return;
     if (status === 'listening') {
@@ -93,69 +75,48 @@ export default function VoiceAnalystAI() {
     }
   };
 
-  if (!isActive) {
-    return (
-      <div style={{
-        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-        background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(20px)',
-        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-        zIndex: 9999
-      }}>
-        <button onClick={startCommandCenter} style={{
-          background: 'none', border: '1px solid #3b82f6', color: '#3b82f6',
-          padding: '20px 40px', fontSize: '24px', letterSpacing: '4px', textTransform: 'uppercase',
-          cursor: 'pointer', borderRadius: '4px', boxShadow: '0 0 40px rgba(59, 130, 246, 0.4)',
-          transition: 'all 0.3s', display: 'flex', alignItems: 'center', gap: '16px'
-        }}>
-          <Play size={24} /> Enter Command Center
-        </button>
-      </div>
-    );
-  }
-
-  // Determine elegant orb styling based on state
-  let orbGlow = 'rgba(255,255,255,0.1)';
-  let orbBorder = 'rgba(255,255,255,0.2)';
-  let iconColor = '#fff';
-
-  if (status === 'listening') {
-    orbGlow = 'rgba(239, 68, 68, 0.6)'; // Red alert
-    orbBorder = '#ef4444';
-    iconColor = '#ef4444';
-  } else if (status === 'speaking' || status === 'analyzing') {
-    orbGlow = 'rgba(59, 130, 246, 0.5)'; // Siri blue
-    orbBorder = '#3b82f6';
-    iconColor = '#3b82f6';
-  }
-
   return (
-    <div style={{ position: 'relative' }}>
-        {status === 'speaking' || status === 'listening' || status === 'analyzing' ? (
-           <div className="orb-pulse-ring" style={{
-               position: 'absolute', top: -10, left: -10, right: -10, bottom: -10,
-               borderRadius: '50%', background: orbGlow, filter: 'blur(10px)',
-               animation: 'pulse 1.5s infinite alternate'
-           }} />
-        ) : null}
-        <button 
-          onClick={toggleListen}
-          title="V.O.I.C.E Analyst"
-          style={{
-            position: 'relative',
-            width: '48px', height: '48px',
-            background: 'rgba(10, 15, 30, 0.6)',
-            backdropFilter: 'blur(10px)',
-            border: `1px solid ${orbBorder}`,
-            borderRadius: '50%',
-            cursor: 'pointer',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-            zIndex: 10,
-            boxShadow: `0 0 20px ${orbGlow}`
-          }}
-        >
-          {status === 'listening' ? <Mic size={20} color={iconColor} className="pulse-animation" /> : <MicOff size={20} color={iconColor} />}
-        </button>
+    <div 
+      onClick={toggleListen}
+      title="Siri-Style AI Analyst"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '4px',
+        padding: '6px 12px',
+        background: 'rgba(255,255,255,0.03)',
+        borderRadius: '20px',
+        cursor: 'pointer',
+        border: '1px solid rgba(255,255,255,0.05)',
+        minWidth: '80px',
+        height: '32px'
+      }}
+    >
+      {status === 'idle' ? (
+        <span style={{ fontSize: '12px', color: '#64748b', fontWeight: 600, letterSpacing: '1px' }}>V.O.I.C.E</span>
+      ) : (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '3px', height: '16px' }}>
+          {[1, 2, 3, 4, 5].map((i) => (
+            <div
+              key={i}
+              style={{
+                width: '4px',
+                background: status === 'listening' ? 'linear-gradient(to top, #ef4444, #f87171)' : 'linear-gradient(to top, #3b82f6, #60a5fa)',
+                borderRadius: '2px',
+                animation: `siri-wave 0.${5 + i}s infinite alternate ease-in-out`,
+                animationDelay: `0.${i * 2}s`
+              }}
+            />
+          ))}
+        </div>
+      )}
+      <style>{`
+        @keyframes siri-wave {
+          0% { height: 4px; }
+          100% { height: 16px; }
+        }
+      `}</style>
     </div>
   );
 }
