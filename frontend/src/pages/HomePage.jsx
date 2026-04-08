@@ -1,43 +1,14 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Zap, TrendingUp, Flame, Clock, ArrowUpRight, Shield, Loader, MapPin, Sparkles, Search } from 'lucide-react';
 import { fetchTrending } from '../api';
-import SplitFlapDisplay from '../components/SplitFlapDisplay';
 import WorldMap from '../components/WorldMap';
-import WeatherWidget from '../components/WeatherWidget';
-import GithubWidget from '../components/GithubWidget';
-import PopularTopics from '../components/PopularTopics';
+import LiveNewsStream from '../components/LiveNewsStream';
+import VoiceAnalystAI from '../components/VoiceAnalystAI';
+import HolographicStream from '../components/HolographicStream';
 import { useLanguage } from '../context/LanguageContext';
 
-const QUICK_TOPICS = [
-  { label: 'Artificial Intelligence', emoji: '🤖' },
-  { label: 'Stock Market', emoji: '📈' },
-  { label: 'IPL Cricket', emoji: '🏏' },
-  { label: 'World Politics', emoji: '🏛️' },
-  { label: 'Technology', emoji: '💻' },
-  { label: 'Bollywood', emoji: '🎬' },
-  { label: 'Space Exploration', emoji: '🚀' },
-  { label: 'Cryptocurrency', emoji: '₿' },
-];
-
-const CITY_PICKS = [
-  { name: 'Delhi', emoji: '🏛️' },
-  { name: 'Mumbai', emoji: '🌊' },
-  { name: 'Bangalore', emoji: '💻' },
-  { name: 'Rohtak', emoji: '🌾' },
-  { name: 'Chandigarh', emoji: '🌳' },
-  { name: 'Hyderabad', emoji: '🏰' },
-  { name: 'Kolkata', emoji: '🌉' },
-  { name: 'Pune', emoji: '📚' },
-  { name: 'Chennai', emoji: '🎭' },
-  { name: 'Jaipur', emoji: '🏰' },
-];
-
 export default function HomePage() {
-  const navigate = useNavigate();
-  const { t } = useLanguage();
   const [trending, setTrending] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { t } = useLanguage();
 
   useEffect(() => {
     (async () => {
@@ -45,243 +16,69 @@ export default function HomePage() {
         const data = await fetchTrending();
         setTrending(data);
       } catch { /* silent */ }
-      setLoading(false);
     })();
   }, []);
 
-  const handleSearch = (topic) => {
-    navigate(`/search/${encodeURIComponent(topic)}`);
-  };
-
   const headlines = trending?.headlines || [];
-  const heroHeadlines = headlines.slice(0, 8);
-  const sideHeadlines = headlines.slice(0, 10);
-  const hasBreaking = trending?.has_breaking;
 
   return (
-    <div className="home-page">
-      {/* ── Breaking/Live Ticker ── */}
-      {headlines.length > 0 && (
-        <div className="home-ticker">
-          <div className="home-ticker-label">
-            <Zap size={9} />
-            {hasBreaking ? t('breaking') : t('live')}
-          </div>
-          <div className="home-ticker-track">
-            <div className="home-ticker-scroll">
-              {headlines.concat(headlines).concat(headlines).map((h, i) => (
-                <span key={i} className="home-ticker-item" onClick={() => handleSearch(h.title.split(' ').slice(0, 5).join(' '))}>
-                  <span className="home-ticker-dot" />
-                  {h.title} — <em>{h.source}</em>
-                </span>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
+    <div className="command-center-layout" style={{
+      width: '100%', 
+      height: 'calc(100vh - 72px)', /* Adjust based on your header height */
+      display: 'flex', 
+      flexDirection: 'column',
+      overflow: 'hidden', 
+      background: '#02040a', 
+      position: 'relative'
+    }}>
+      {/* Background ambient lighting */}
+      <div style={{
+          position: 'absolute', top: '-10%', left: '-10%', width: '40%', height: '40%',
+          background: 'radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%)',
+          pointerEvents: 'none'
+      }} />
+      <div style={{
+          position: 'absolute', bottom: '-10%', right: '-10%', width: '40%', height: '40%',
+          background: 'radial-gradient(circle, rgba(250, 204, 21, 0.1) 0%, transparent 70%)',
+          pointerEvents: 'none'
+      }} />
 
-      {/* ── SPLIT-FLAP HERO ── */}
-      <section className="home-hero-section">
-        <div className="home-hero-bg">
-          <div className="hero-grid-overlay" />
-        </div>
-        <div className="home-hero-content">
-          <div className="home-hero-label">
-            <Sparkles size={12} />
-            <span>{t('heroLabel')}</span>
-          </div>
-          <SplitFlapDisplay 
-            headlines={heroHeadlines.length > 0 ? heroHeadlines : [{title: "CONNECTING TO GLOBAL INTELLIGENCE NETWORK..."}, {title: "AWAITING LIVE DATA FEED..."}]} 
-            interval={15000} 
-          />
-          {heroHeadlines.length > 0 && (
-            <button className="home-hero-cta" onClick={() => handleSearch(heroHeadlines[0]?.title?.split(' ').slice(0, 5).join(' '))}>
-              {t('analyzeStory')} <ArrowUpRight size={14} />
-            </button>
-          )}
+      {/* Floating AI Analyst module */}
+      <div style={{ position: 'absolute', top: 20, right: 20, zIndex: 100 }}>
+         <VoiceAnalystAI />
+      </div>
 
-          {/* ── INTERACTIVE WORLD MAP ── */}
+      {/* Main Grid */}
+      <div style={{ display: 'flex', flex: 1, padding: '20px', gap: '20px', overflow: 'hidden' }}>
+        
+        {/* Left Side: 3D GLOBE */}
+        <div style={{ 
+          flex: 6.5, 
+          position: 'relative', 
+          borderRadius: '16px', 
+          border: '1px solid rgba(255,255,255,0.05)', 
+          overflow: 'hidden', 
+          background: 'radial-gradient(circle at center, rgba(20, 30, 50, 0.5) 0%, rgba(2, 4, 10, 1) 100%)',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.5) inset'
+        }}>
           <WorldMap />
-
         </div>
-      </section>
 
-      {/* ── MAIN CONTENT GRID ── */}
-      <section className="home-content">
-        <div className="home-grid">
-          {/* Left: Trending Wire Feed */}
-          <div className="home-trending-feed scroll-reveal">
-            <div className="feed-header">
-              <div className="feed-header-left">
-                <Flame size={16} className="feed-icon" />
-                <h2>{t('trendingNow')}</h2>
-                <div className="feed-live-dot" />
-              </div>
-              {loading && (
-                <div className="feed-loading">
-                  <Loader size={12} className="spin" /> {t('loading')}
-                </div>
-              )}
-              {!loading && sideHeadlines.length === 0 && (
-                <div className="feed-error" style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                  {t('backendOffline')}
-                </div>
-              )}
-            </div>
-
-            {loading ? (
-              <div className="feed-skeleton">
-                {[1, 2, 3, 4, 5, 6].map(i => (
-                  <div key={i} className="skeleton-wire">
-                    <div className="skeleton-line w60" />
-                    <div className="skeleton-line w40" />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="wire-feed">
-                {sideHeadlines.map((h, i) => (
-                  <div
-                    key={i}
-                    className="wire-feed-item"
-                    onClick={() => handleSearch(h.title.split(' ').slice(0, 5).join(' '))}
-                  >
-                    <div className="wire-feed-rank">{String(i + 1).padStart(2, '0')}</div>
-                    <div className="wire-feed-body">
-                      <div className="wire-feed-badges">
-                        {h.is_trusted && <span className="wire-trusted"><Shield size={8} /> {t('trusted')}</span>}
-                        <span className="wire-time-badge"><Clock size={8} /> {h.time_ago}</span>
-                      </div>
-                      <h3 className="wire-feed-title">{h.title}</h3>
-                      {h.description && (
-                        <p className="wire-feed-desc">{h.description.slice(0, 120)}...</p>
-                      )}
-                      <div className="wire-feed-meta">
-                        <span className="wire-feed-source">{h.source}</span>
-                        <span className="wire-feed-action">{t('analyze')} <ArrowUpRight size={10} /></span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Right: Sidebar */}
-          <div className="home-sidebar">
-            
-            {/* ── GLOBAL SEARCH BAR ── */}
-            <div className="search-container sidebar-search scroll-reveal">
-              <form onSubmit={(e) => {
-                e.preventDefault();
-                const input = e.target.elements.topic.value;
-                const region = e.target.elements.region.value;
-                if (input.trim()) {
-                   navigate(`/search/${encodeURIComponent(input.trim())}?region=${region}`);
-                }
-              }}>
-                <h3 className="sidebar-title"><Search size={14} /> {t('globalSearch')}</h3>
-                
-                <div className="search-input-wrapper" style={{ marginBottom: '10px' }}>
-                  <Search className="search-icon" size={18} />
-                  <input 
-                    type="text" 
-                    name="topic"
-                    className="search-input" 
-                    placeholder={t('searchPlaceholder')} 
-                    required
-                  />
-                  <button type="submit" className="search-btn">
-                    <ArrowUpRight size={14} />
-                  </button>
-                </div>
-
-                <div className="region-selector-row" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <span className="live-indicator"><span className="live-dot" /> {t('region')}</span>
-                  <select name="region" className="region-trigger" defaultValue="global" style={{ background: 'var(--bg-glass)', outline: 'none', appearance: 'none', paddingRight: '25px', cursor: 'pointer', flex: 1 }}>
-                    <option value="global">{t('global')}</option>
-                    <option value="us">🇺🇸 United States</option>
-                    <option value="in">🇮🇳 India</option>
-                    <option value="gb">🇬🇧 United Kingdom</option>
-                  </select>
-                </div>
-              </form>
-            </div>
-
-            {/* Popular Topics Analytics */}
-            <PopularTopics />
-
-            {/* Quick Topics */}
-            <div className="sidebar-section scroll-reveal">
-              <h3 className="sidebar-title">
-                <TrendingUp size={14} />
-                {t('quickTopics')}
-              </h3>
-              <div className="quick-topics">
-                {QUICK_TOPICS.map((tp) => (
-                  <button
-                    key={tp.label}
-                    className="quick-topic-btn"
-                    onClick={() => handleSearch(tp.label)}
-                  >
-                    <span>{tp.emoji}</span>
-                    {tp.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* City News */}
-            <div className="sidebar-section scroll-reveal">
-              <h3 className="sidebar-title">
-                <MapPin size={14} />
-                {t('cityNews')}
-              </h3>
-              <div className="city-grid">
-                {CITY_PICKS.map((city) => (
-                  <button
-                    key={city.name}
-                    className="city-btn"
-                    onClick={() => handleSearch(`${city.name} news`)}
-                  >
-                    <span>{city.emoji}</span>
-                    {city.name}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Weather Mini */}
-            <WeatherWidget />
-
-            {/* Stats */}
-            <div className="home-stats scroll-reveal">
-              <div className="home-stat">
-                <span className="stat-value">14+</span>
-                <span className="stat-label">{t('countries')}</span>
-              </div>
-              <div className="stat-divider" />
-              <div className="home-stat">
-                <span className="stat-value">12</span>
-                <span className="stat-label">{t('articles')}</span>
-              </div>
-              <div className="stat-divider" />
-              <div className="home-stat">
-                <span className="stat-value">4</span>
-                <span className="stat-label">{t('aiModels')}</span>
-              </div>
-              <div className="stat-divider" />
-              <div className="home-stat">
-                <span className="stat-value live-pulse">{t('live')}</span>
-                <span className="stat-label">{t('realTime')}</span>
-              </div>
-            </div>
-          </div>
+        {/* Right Side: LIVE STREAM */}
+        <div style={{ 
+          flex: 3.5, 
+          display: 'flex', 
+          flexDirection: 'column',
+          paddingTop: '60px' // Offset to accommodate the VoiceAnalystAI module above it
+        }}>
+          <LiveNewsStream />
         </div>
-      </section>
-      
-      {/* ── Premium Embedded Feedback Section ── */}
-      <GithubWidget />
+      </div>
+
+      {/* Bottom Ticker Stream */}
+      <div style={{ flexShrink: 0, paddingBottom: '20px', paddingLeft: '20px', paddingRight: '20px' }}>
+        <HolographicStream headlines={headlines} />
+      </div>
     </div>
   );
 }

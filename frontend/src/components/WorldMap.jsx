@@ -1,11 +1,10 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { feature } from 'topojson-client';
-import { Globe, Zap } from 'lucide-react';
+import Globe from 'react-globe.gl';
+import { Globe as GlobeIcon, Zap } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 
-const MAP_WIDTH = 960;
-const MAP_HEIGHT = 460;
 const TOPO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
 
 /* ── Country metadata by ISO 3166-1 numeric & name lookup ── */
@@ -192,113 +191,30 @@ const NAME_FALLBACK = {
   'Somaliland':  { name: 'Somaliland', capital: 'Hargeisa', flag: '🏴' },
 };
 
-/* ── City dots for visual effect ── */
-const CITY_DOTS = [
-  { lon: -74.0, lat: 40.7 }, { lon: -0.1, lat: 51.5 }, { lon: 77.2, lat: 28.6 },
-  { lon: 139.7, lat: 35.7 }, { lon: 116.4, lat: 39.9 }, { lon: 2.35, lat: 48.8 },
-  { lon: 37.6, lat: 55.8 }, { lon: -43.2, lat: -22.9 }, { lon: 151.2, lat: -33.9 },
-  { lon: -99.1, lat: 19.4 }, { lon: 31.2, lat: 30.0 }, { lon: 28.9, lat: 41.0 },
-  { lon: 55.3, lat: 25.3 }, { lon: 126.9, lat: 37.6 }, { lon: 100.5, lat: 13.7 },
-  { lon: 106.8, lat: -6.2 }, { lon: 36.8, lat: -1.3 }, { lon: -46.6, lat: -23.5 },
-  { lon: 18.4, lat: -34.0 }, { lon: 103.8, lat: 1.35 }, { lon: -122.4, lat: 37.8 },
-  { lon: 13.4, lat: 52.5 }, { lon: 46.7, lat: 24.7 }, { lon: 67.0, lat: 24.9 },
-  { lon: 72.8, lat: 19.1 },
-];
-
-/* ── Equirectangular projection (clipped to avoid Antarctica) ── */
-function project(lon, lat) {
-  const cLat = Math.max(-58, Math.min(83, lat));
-  const x = (lon + 180) / 360 * MAP_WIDTH;
-  const y = (83 - cLat) / (83 + 58) * MAP_HEIGHT;
-  return [x, y];
-}
-
-/* ── Convert GeoJSON → SVG path, handling antimeridian crossings ── */
-function geoToSvgPath(geometry) {
-  const segments = [];
-
-  const processRing = (ring) => {
-    let d = '';
-    for (let i = 0; i < ring.length; i++) {
-      const [x, y] = project(ring[i][0], ring[i][1]);
-      if (i === 0) {
-        d += `M${x.toFixed(1)},${y.toFixed(1)}`;
-      } else {
-        // Detect antimeridian crossing (lon jump > 170°)
-        const lonDiff = Math.abs(ring[i][0] - ring[i - 1][0]);
-        if (lonDiff > 170) {
-          // Break path — start a new subpath instead of drawing a line across
-          d += `M${x.toFixed(1)},${y.toFixed(1)}`;
-        } else {
-          d += `L${x.toFixed(1)},${y.toFixed(1)}`;
-        }
-      }
-    }
-    return d + 'Z';
-  };
-
-  if (geometry.type === 'Polygon') {
-    geometry.coordinates.forEach(ring => segments.push(processRing(ring)));
-  } else if (geometry.type === 'MultiPolygon') {
-    geometry.coordinates.forEach(poly =>
-      poly.forEach(ring => segments.push(processRing(ring)))
-    );
-  }
-
-  return segments.join('');
-}
-
 /* ── Resolve country info from a feature ── */
 function resolveCountryInfo(f) {
-  // Try by ID first (padded to 3 digits)
   if (f.id != null) {
     const padded = String(f.id).padStart(3, '0');
     if (COUNTRY_META[padded]) return { key: padded, ...COUNTRY_META[padded] };
-    // Try raw string
     const raw = String(f.id);
     if (COUNTRY_META[raw]) return { key: raw, ...COUNTRY_META[raw] };
   }
-  // Fallback by properties.name
   if (f.properties?.name) {
     const n = f.properties.name;
     if (NAME_FALLBACK[n]) return { key: n, ...NAME_FALLBACK[n] };
-    // Build from name
     return { key: n, name: n, capital: '', flag: '🏳️' };
   }
   return null;
 }
 
-/* ── Graticule grid ── */
-function generateGraticule() {
-  const lines = [];
-  for (let lon = -180; lon <= 180; lon += 40) {
-    let d = '';
-    for (let lat = -58; lat <= 83; lat += 3) {
-      const [x, y] = project(lon, lat);
-      d += `${lat === -58 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
-    }
-    lines.push(d);
-  }
-  for (let lat = -40; lat <= 80; lat += 40) {
-    let d = '';
-    for (let lon = -180; lon <= 180; lon += 3) {
-      const [x, y] = project(lon, Math.max(-58, Math.min(83, lat)));
-      d += `${lon === -180 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
-    }
-    lines.push(d);
-  }
-  return lines;
-}
-
-const GRATICULE = generateGraticule();
-
 export default function WorldMap() {
   const [countries, setCountries] = useState([]);
-  const [hoveredKey, setHoveredKey] = useState(null);
   const [hoveredInfo, setHoveredInfo] = useState(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const [loading, setLoading] = useState(true);
+  const [dimensions, setDimensions] = useState({ width: 600, height: 600 });
   const containerRef = useRef(null);
+  const globeReff = useRef(null);
   const navigate = useNavigate();
   const { t } = useLanguage();
 
@@ -310,39 +226,41 @@ export default function WorldMap() {
       .then(topo => {
         if (cancelled) return;
         const feats = feature(topo, topo.objects.countries).features;
-        setCountries(feats);
+        // Attach info to each polygon
+        const enhancedFeats = feats.map(f => ({
+          ...f,
+          info: resolveCountryInfo(f)
+        }));
+        setCountries(enhancedFeats);
         setLoading(false);
       })
       .catch(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, []);
 
-  /* ── Memoize paths + info ── */
-  const paths = useMemo(() => {
-    return countries.map((f, i) => {
-      const info = resolveCountryInfo(f);
-      return {
-        key: info?.key || `unknown-${i}`,
-        d: geoToSvgPath(f.geometry),
-        info,
-      };
-    });
-  }, [countries]);
-
-  /* ── City dots ── */
-  const dots = useMemo(() => CITY_DOTS.map(d => {
-    const [x, y] = project(d.lon, d.lat);
-    return { x, y };
-  }), []);
-
-  /* ── Mouse handlers ── */
-  const handleMouseMove = useCallback((e) => {
+  /* ── Resize Observer for Responsive Globe ── */
+  useEffect(() => {
     if (!containerRef.current) return;
-    const rect = containerRef.current.getBoundingClientRect();
-    setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-  }, []);
+    const observer = new ResizeObserver(entries => {
+      if (!entries[0]) return;
+      let { width, height } = entries[0].contentRect;
+      // Keep it a square or just use width
+      setDimensions({ width, height: height || width });
+    });
+    observer.observe(containerRef.current);
+    
+    // Auto Rotation
+    if (globeReff.current) {
+        globeReff.current.controls().autoRotate = true;
+        globeReff.current.controls().autoRotateSpeed = 0.5;
+        globeReff.current.controls().enableZoom = true;
+    }
 
-  const handleCountryClick = useCallback((info) => {
+    return () => observer.disconnect();
+  }, [loading]);
+
+  const handleCountryClick = useCallback((polygon) => {
+    const info = polygon.info;
     if (info && info.name !== 'Antarctica') {
       navigate(`/search/${encodeURIComponent(info.name + ' news')}`);
     }
@@ -350,7 +268,7 @@ export default function WorldMap() {
 
   if (loading) {
     return (
-      <div className="world-map-section scroll-reveal">
+      <div className="world-map-section scroll-reveal" style={{minHeight: '400px', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>
         <div className="world-map-loading">
           <div className="map-loader-ring" />
           <span>{t('loadingMap')}</span>
@@ -360,10 +278,10 @@ export default function WorldMap() {
   }
 
   return (
-    <div className="world-map-section scroll-reveal" ref={containerRef} onMouseMove={handleMouseMove}>
-      <div className="world-map-header">
+    <div className="world-map-section scroll-reveal" ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative' }}>
+      <div className="world-map-header" style={{ position: 'absolute', top: 20, zIndex: 10 }}>
         <div className="map-indicator">
-          <Globe size={13} className="map-globe-icon" />
+          <GlobeIcon size={13} className="map-globe-icon" />
           <span className="map-live-dot" />
           <span>{t('globalNewsMap')}</span>
         </div>
@@ -373,67 +291,40 @@ export default function WorldMap() {
         </span>
       </div>
 
-      <div className="world-map-3d-wrapper">
-        <div className="world-map-wrapper">
-          <svg
-            viewBox={`0 0 ${MAP_WIDTH} ${MAP_HEIGHT}`}
-            className="world-map-svg"
-            preserveAspectRatio="xMidYMid meet"
-          >
-            <defs>
-              <filter id="country-glow" x="-20%" y="-20%" width="140%" height="140%">
-                <feGaussianBlur stdDeviation="4" result="blur" />
-                <feFlood floodColor="#facc15" floodOpacity="0.35" result="color" />
-                <feComposite in="color" in2="blur" operator="in" result="glow" />
-                <feMerge>
-                  <feMergeNode in="glow" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
-              <radialGradient id="dot-glow" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stopColor="#facc15" stopOpacity="0.8" />
-                <stop offset="100%" stopColor="#facc15" stopOpacity="0" />
-              </radialGradient>
-            </defs>
-
-            {/* Graticule */}
-            {GRATICULE.map((d, i) => (
-              <path key={`g${i}`} d={d} fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="0.5" />
-            ))}
-
-            {/* Countries */}
-            {paths.map(({ key, d, info }) => (
-              <path
-                key={key}
-                d={d}
-                className={`country-path ${hoveredKey === key ? 'country-hovered' : ''}`}
-                onMouseEnter={() => { setHoveredKey(key); setHoveredInfo(info); }}
-                onMouseLeave={() => { setHoveredKey(null); setHoveredInfo(null); }}
-                onClick={() => handleCountryClick(info)}
-              />
-            ))}
-
-            {/* City dots */}
-            {dots.map((dot, i) => (
-              <g key={`d${i}`}>
-                <circle cx={dot.x} cy={dot.y} r="5" fill="url(#dot-glow)" className="map-dot-glow" style={{ animationDelay: `${i * 0.4}s` }} />
-                <circle cx={dot.x} cy={dot.y} r="1.3" className="map-city-dot" style={{ animationDelay: `${i * 0.3}s` }} />
-              </g>
-            ))}
-          </svg>
-
-          {/* Bottom fade for 3D depth */}
-          <div className="map-depth-fade" />
-        </div>
+      <div 
+        className="globe-container"
+        onMouseMove={(e) => {
+            if (hoveredInfo) {
+              setTooltipPos({ x: e.clientX, y: e.clientY });
+            }
+        }}
+      >
+        <Globe
+          ref={globeReff}
+          width={dimensions.width}
+          height={dimensions.height}
+          globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
+          polygonsData={countries}
+          polygonAltitude={d => d.info === hoveredInfo ? 0.05 : 0.01}
+          polygonCapColor={d => d.info === hoveredInfo ? 'rgba(250, 204, 21, 0.7)' : 'rgba(255, 255, 255, 0.05)'}
+          polygonSideColor={() => 'rgba(255, 255, 255, 0.02)'}
+          polygonStrokeColor={() => '#111'}
+          onPolygonHover={polygon => setHoveredInfo(polygon ? polygon.info : null)}
+          onPolygonClick={handleCountryClick}
+          backgroundColor="rgba(0,0,0,0)"
+        />
       </div>
 
-      {/* Tooltip */}
-      {hoveredKey && hoveredInfo && (
+      {/* Custom Tooltip matching old style */}
+      {hoveredInfo && (
         <div
           className="map-tooltip"
           style={{
-            left: Math.min(tooltipPos.x + 16, (containerRef.current?.offsetWidth || 600) - 200),
+            position: 'fixed',
+            left: tooltipPos.x + 15,
             top: tooltipPos.y - 10,
+            zIndex: 100,
+            pointerEvents: 'none',
           }}
         >
           <span className="map-tooltip-flag">{hoveredInfo.flag}</span>
