@@ -209,8 +209,8 @@ export default function HomePage() {
           gap: '20px',
           minHeight: 0
         }}>
-          {/* Live Stream */}
-          <div style={{ flexShrink: 0, overflow: 'visible' }}>
+          {/* Live Stream — capped height so globe stays big */}
+          <div style={{ flexShrink: 0, maxHeight: '260px', overflow: 'hidden', borderRadius: '8px' }}>
             <LiveNewsStream />
           </div>
 
