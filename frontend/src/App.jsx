@@ -1,11 +1,12 @@
 import { lazy, Suspense, useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
-import { Loader, Zap, Bookmark } from 'lucide-react';
+import { Loader, Zap, Bookmark, Globe } from 'lucide-react';
 import './App.css';
 import { pingHealth } from './api';
 import StockTicker from './components/StockTicker';
 import LiveClock from './components/LiveClock';
 import ReadingList, { useReadingList } from './components/ReadingList';
+import { LanguageProvider, useLanguage } from './context/LanguageContext';
 
 // Lazy load pages for performance
 const HomePage = lazy(() => import('./pages/HomePage'));
@@ -44,9 +45,43 @@ function AnimatedRoutes() {
   );
 }
 
+/* ── Language Switcher ── */
+function LanguageSwitcher() {
+  const { lang, setLanguage, LANGUAGES } = useLanguage();
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="lang-switcher">
+      <button className="lang-toggle" onClick={() => setOpen(!open)} title="Language">
+        <Globe size={13} />
+        <span>{LANGUAGES.find(l => l.code === lang)?.label || 'EN'}</span>
+      </button>
+      {open && (
+        <>
+          <div className="lang-backdrop" onClick={() => setOpen(false)} />
+          <div className="lang-dropdown">
+            {LANGUAGES.map(l => (
+              <button
+                key={l.code}
+                className={`lang-option ${lang === l.code ? 'active' : ''}`}
+                onClick={() => { setLanguage(l.code); setOpen(false); }}
+              >
+                <span className="lang-flag">{l.flag}</span>
+                <span className="lang-name">{l.full}</span>
+                <span className="lang-code">{l.label}</span>
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
 function AppShell() {
   const [showReadingList, setShowReadingList] = useState(false);
   const { list: readingList, removeArticle, clearAll } = useReadingList();
+  const { t } = useLanguage();
 
   useEffect(() => { pingHealth(); }, []);
 
@@ -100,7 +135,7 @@ function AppShell() {
             <div className="app-logo-icon"><Zap size={16} color="white" /></div>
             <div>
               <h1>NewsIntel</h1>
-              <span>AI Intelligence v5.0</span>
+              <span>{t('aiIntelligence')}</span>
             </div>
           </a>
 
@@ -109,21 +144,24 @@ function AppShell() {
           </div>
 
           <div className="header-right">
+            {/* Language Switcher */}
+            <LanguageSwitcher />
+
             {/* Reading List Toggle */}
             <button
               className={`header-bookmark-btn ${readingList.length > 0 ? 'has-items' : ''}`}
               onClick={() => setShowReadingList(true)}
-              title="Reading List"
+              title={t('readingList')}
             >
               <Bookmark size={14} />
               {readingList.length > 0 && <span className="bookmark-count">{readingList.length}</span>}
             </button>
 
-            <a href="/weather" className="header-weather-link" title="Weather Dashboard">
+            <a href="/weather" className="header-weather-link" title={t('weatherDashboard')}>
               🌤️
             </a>
 
-            <div className="header-badge"><span className="dot" />Live</div>
+            <div className="header-badge"><span className="dot" />{t('live')}</div>
           </div>
         </header>
 
@@ -148,8 +186,8 @@ function AppShell() {
 
         <footer className="app-footer">
           <div className="footer-content">
-            <span>NewsIntel v5.0 — AI-Powered News Intelligence Platform</span>
-            <span className="footer-tech">FastAPI · HuggingFace NLP · Google Gemini · React</span>
+            <span>{t('footerMain')}</span>
+            <span className="footer-tech">{t('footerTech')}</span>
           </div>
         </footer>
       </div>
@@ -160,7 +198,9 @@ function AppShell() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AppShell />
+      <LanguageProvider>
+        <AppShell />
+      </LanguageProvider>
     </BrowserRouter>
   );
 }

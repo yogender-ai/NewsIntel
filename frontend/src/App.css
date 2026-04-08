@@ -295,11 +295,105 @@
 .footer-tech { color: var(--text-dim); }
 
 /* ═══════════════════════════════════════════════════════════════════
+   LANGUAGE SWITCHER
+   ═══════════════════════════════════════════════════════════════════ */
+.lang-switcher {
+  position: relative;
+}
+
+.lang-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-glass);
+  border-radius: var(--radius-sm);
+  padding: 5px 10px;
+  color: var(--accent-cyan);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  letter-spacing: 0.5px;
+}
+
+.lang-toggle:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.12);
+}
+
+.lang-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+}
+
+.lang-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: rgba(10, 10, 18, 0.96);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-md);
+  padding: 4px;
+  z-index: 100;
+  min-width: 160px;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.6),
+    0 0 40px rgba(250, 204, 21, 0.05);
+  animation: tooltipFadeIn 0.15s ease;
+}
+
+.lang-option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.lang-option:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text-primary);
+}
+
+.lang-option.active {
+  background: rgba(250, 204, 21, 0.1);
+  color: var(--accent-amber);
+}
+
+.lang-flag {
+  font-size: 15px;
+  line-height: 1;
+}
+
+.lang-name {
+  flex: 1;
+  font-weight: 600;
+}
+
+.lang-code {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
    SPLIT-FLAP DISPLAY — Airport Departure Board
    ═══════════════════════════════════════════════════════════════════ */
 .split-flap-container {
   width: 100%;
-  padding: 16px 0;
+  padding: 10px 0;
   perspective: 1000px;
 }
 
@@ -307,7 +401,7 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 14px;
+  margin-bottom: 10px;
 }
 
 .flap-indicator {
@@ -485,19 +579,21 @@
 .world-map-3d-wrapper {
   perspective: 1000px;
   perspective-origin: 50% 40%;
+  max-height: 42vh;
+  overflow: hidden;
 }
 
 .world-map-wrapper {
   position: relative;
   overflow: hidden;
   border-radius: var(--radius-sm);
-  transform: rotateX(18deg);
+  transform: rotateX(12deg);
   transform-origin: center 40%;
   transition: transform 0.6s ease;
 }
 
 .world-map-wrapper:hover {
-  transform: rotateX(12deg);
+  transform: rotateX(6deg);
 }
 
 /* Depth fade at bottom edge for 3D illusion */
@@ -690,15 +786,15 @@
   color: var(--accent-purple);
   letter-spacing: 1px;
   text-transform: uppercase;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 }
 
 .home-hero-cta {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  margin-top: 20px;
-  padding: 10px 20px;
+  margin-top: 10px;
+  padding: 8px 16px;
   background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
   color: white;
   font-size: 13px;

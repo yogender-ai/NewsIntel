@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { feature } from 'topojson-client';
 import { Globe, Zap } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 const MAP_WIDTH = 960;
 const MAP_HEIGHT = 460;
@@ -299,6 +300,7 @@ export default function WorldMap() {
   const [loading, setLoading] = useState(true);
   const containerRef = useRef(null);
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   /* ── Load TopoJSON ── */
   useEffect(() => {
@@ -351,7 +353,7 @@ export default function WorldMap() {
       <div className="world-map-section scroll-reveal">
         <div className="world-map-loading">
           <div className="map-loader-ring" />
-          <span>Loading Global Map...</span>
+          <span>{t('loadingMap')}</span>
         </div>
       </div>
     );
@@ -363,11 +365,11 @@ export default function WorldMap() {
         <div className="map-indicator">
           <Globe size={13} className="map-globe-icon" />
           <span className="map-live-dot" />
-          <span>GLOBAL NEWS MAP</span>
+          <span>{t('globalNewsMap')}</span>
         </div>
         <span className="map-subtitle">
           <Zap size={9} />
-          Click any country for live news
+          {t('clickCountry')}
         </span>
       </div>
 

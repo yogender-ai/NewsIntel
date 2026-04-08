@@ -7,6 +7,7 @@ import WorldMap from '../components/WorldMap';
 import WeatherWidget from '../components/WeatherWidget';
 import GithubWidget from '../components/GithubWidget';
 import PopularTopics from '../components/PopularTopics';
+import { useLanguage } from '../context/LanguageContext';
 
 const QUICK_TOPICS = [
   { label: 'Artificial Intelligence', emoji: '🤖' },
@@ -34,6 +35,7 @@ const CITY_PICKS = [
 
 export default function HomePage() {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [trending, setTrending] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -63,7 +65,7 @@ export default function HomePage() {
         <div className="home-ticker">
           <div className="home-ticker-label">
             <Zap size={9} />
-            {hasBreaking ? 'BREAKING' : 'LIVE'}
+            {hasBreaking ? t('breaking') : t('live')}
           </div>
           <div className="home-ticker-track">
             <div className="home-ticker-scroll">
@@ -86,7 +88,7 @@ export default function HomePage() {
         <div className="home-hero-content">
           <div className="home-hero-label">
             <Sparkles size={12} />
-            <span>AI-Powered News Intelligence v5.0</span>
+            <span>{t('heroLabel')}</span>
           </div>
           <SplitFlapDisplay 
             headlines={heroHeadlines.length > 0 ? heroHeadlines : [{title: "CONNECTING TO GLOBAL INTELLIGENCE NETWORK..."}, {title: "AWAITING LIVE DATA FEED..."}]} 
@@ -94,7 +96,7 @@ export default function HomePage() {
           />
           {heroHeadlines.length > 0 && (
             <button className="home-hero-cta" onClick={() => handleSearch(heroHeadlines[0]?.title?.split(' ').slice(0, 5).join(' '))}>
-              Analyze This Story <ArrowUpRight size={14} />
+              {t('analyzeStory')} <ArrowUpRight size={14} />
             </button>
           )}
 
@@ -112,17 +114,17 @@ export default function HomePage() {
             <div className="feed-header">
               <div className="feed-header-left">
                 <Flame size={16} className="feed-icon" />
-                <h2>Trending Now</h2>
+                <h2>{t('trendingNow')}</h2>
                 <div className="feed-live-dot" />
               </div>
               {loading && (
                 <div className="feed-loading">
-                  <Loader size={12} className="spin" /> Loading...
+                  <Loader size={12} className="spin" /> {t('loading')}
                 </div>
               )}
               {!loading && sideHeadlines.length === 0 && (
                 <div className="feed-error" style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                  ⚠️ Backend Connection Offline.
+                  {t('backendOffline')}
                 </div>
               )}
             </div>
@@ -147,7 +149,7 @@ export default function HomePage() {
                     <div className="wire-feed-rank">{String(i + 1).padStart(2, '0')}</div>
                     <div className="wire-feed-body">
                       <div className="wire-feed-badges">
-                        {h.is_trusted && <span className="wire-trusted"><Shield size={8} /> Trusted</span>}
+                        {h.is_trusted && <span className="wire-trusted"><Shield size={8} /> {t('trusted')}</span>}
                         <span className="wire-time-badge"><Clock size={8} /> {h.time_ago}</span>
                       </div>
                       <h3 className="wire-feed-title">{h.title}</h3>
@@ -156,7 +158,7 @@ export default function HomePage() {
                       )}
                       <div className="wire-feed-meta">
                         <span className="wire-feed-source">{h.source}</span>
-                        <span className="wire-feed-action">Analyze <ArrowUpRight size={10} /></span>
+                        <span className="wire-feed-action">{t('analyze')} <ArrowUpRight size={10} /></span>
                       </div>
                     </div>
                   </div>
@@ -178,7 +180,7 @@ export default function HomePage() {
                    navigate(`/search/${encodeURIComponent(input.trim())}?region=${region}`);
                 }
               }}>
-                <h3 className="sidebar-title"><Search size={14} /> Global Search</h3>
+                <h3 className="sidebar-title"><Search size={14} /> {t('globalSearch')}</h3>
                 
                 <div className="search-input-wrapper" style={{ marginBottom: '10px' }}>
                   <Search className="search-icon" size={18} />
@@ -186,7 +188,7 @@ export default function HomePage() {
                     type="text" 
                     name="topic"
                     className="search-input" 
-                    placeholder="Search any topic..." 
+                    placeholder={t('searchPlaceholder')} 
                     required
                   />
                   <button type="submit" className="search-btn">
@@ -195,9 +197,9 @@ export default function HomePage() {
                 </div>
 
                 <div className="region-selector-row" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <span className="live-indicator"><span className="live-dot" /> Region:</span>
+                  <span className="live-indicator"><span className="live-dot" /> {t('region')}</span>
                   <select name="region" className="region-trigger" defaultValue="global" style={{ background: 'var(--bg-glass)', outline: 'none', appearance: 'none', paddingRight: '25px', cursor: 'pointer', flex: 1 }}>
-                    <option value="global">🌍 Global</option>
+                    <option value="global">{t('global')}</option>
                     <option value="us">🇺🇸 United States</option>
                     <option value="in">🇮🇳 India</option>
                     <option value="gb">🇬🇧 United Kingdom</option>
@@ -213,17 +215,17 @@ export default function HomePage() {
             <div className="sidebar-section scroll-reveal">
               <h3 className="sidebar-title">
                 <TrendingUp size={14} />
-                Quick Topics
+                {t('quickTopics')}
               </h3>
               <div className="quick-topics">
-                {QUICK_TOPICS.map((t) => (
+                {QUICK_TOPICS.map((tp) => (
                   <button
-                    key={t.label}
+                    key={tp.label}
                     className="quick-topic-btn"
-                    onClick={() => handleSearch(t.label)}
+                    onClick={() => handleSearch(tp.label)}
                   >
-                    <span>{t.emoji}</span>
-                    {t.label}
+                    <span>{tp.emoji}</span>
+                    {tp.label}
                   </button>
                 ))}
               </div>
@@ -233,7 +235,7 @@ export default function HomePage() {
             <div className="sidebar-section scroll-reveal">
               <h3 className="sidebar-title">
                 <MapPin size={14} />
-                City News
+                {t('cityNews')}
               </h3>
               <div className="city-grid">
                 {CITY_PICKS.map((city) => (
@@ -256,22 +258,22 @@ export default function HomePage() {
             <div className="home-stats scroll-reveal">
               <div className="home-stat">
                 <span className="stat-value">14+</span>
-                <span className="stat-label">Countries</span>
+                <span className="stat-label">{t('countries')}</span>
               </div>
               <div className="stat-divider" />
               <div className="home-stat">
                 <span className="stat-value">12</span>
-                <span className="stat-label">Articles</span>
+                <span className="stat-label">{t('articles')}</span>
               </div>
               <div className="stat-divider" />
               <div className="home-stat">
                 <span className="stat-value">4</span>
-                <span className="stat-label">AI Models</span>
+                <span className="stat-label">{t('aiModels')}</span>
               </div>
               <div className="stat-divider" />
               <div className="home-stat">
-                <span className="stat-value live-pulse">Live</span>
-                <span className="stat-label">Real-time</span>
+                <span className="stat-value live-pulse">{t('live')}</span>
+                <span className="stat-label">{t('realTime')}</span>
               </div>
             </div>
           </div>
