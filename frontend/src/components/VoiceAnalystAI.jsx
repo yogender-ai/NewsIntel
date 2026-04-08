@@ -1,15 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { Mic, MicOff, Volume2, Activity, Play } from 'lucide-react';
+import { Mic, MicOff, Play } from 'lucide-react';
 import { fetchTrending, analyzeTopic } from '../api';
 
 export default function VoiceAnalystAI() {
   const [isActive, setIsActive] = useState(false);
   const [status, setStatus] = useState('offline'); // offline, initializing, idle, listening, analyzing, speaking
-  const [transcript, setTranscript] = useState('');
-  const [systemMessage, setSystemMessage] = useState('System Offline. Awaiting authentication.');
   const recognitionRef = useRef(null);
 
-  // Initialize Speech Recognition
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
@@ -19,9 +16,7 @@ export default function VoiceAnalystAI() {
       
       recognitionRef.current.onresult = async (event) => {
         const text = event.results[0][0].transcript;
-        setTranscript(text);
         setStatus('analyzing');
-        setSystemMessage(`Analyzing intelligence on: "${text}"`);
         
         try {
           const data = await analyzeTopic(text, 'global', true);
@@ -40,7 +35,6 @@ export default function VoiceAnalystAI() {
       recognitionRef.current.onerror = (e) => {
         console.error(e);
         setStatus('idle');
-        setSystemMessage('Awaiting voice input...');
       };
 
       recognitionRef.current.onend = () => {
@@ -64,11 +58,9 @@ export default function VoiceAnalystAI() {
 
     utterance.onstart = () => {
       setStatus('speaking');
-      setSystemMessage(`Broadcasting: "${text.substring(0, 40)}..."`);
     };
     utterance.onend = () => {
       setStatus('idle');
-      setSystemMessage('Awaiting your orders.');
     };
 
     window.speechSynthesis.speak(utterance);
@@ -77,7 +69,6 @@ export default function VoiceAnalystAI() {
   const startCommandCenter = async () => {
     setIsActive(true);
     setStatus('initializing');
-    setSystemMessage('Connecting to global feeds...');
     
     try {
       const data = await fetchTrending();
@@ -91,10 +82,7 @@ export default function VoiceAnalystAI() {
   };
 
   const toggleListen = () => {
-    if (!recognitionRef.current) {
-        setSystemMessage("Speech Recognition not supported in this browser.");
-        return;
-    }
+    if (!recognitionRef.current) return;
     if (status === 'listening') {
       recognitionRef.current.stop();
       setStatus('idle');
@@ -102,8 +90,6 @@ export default function VoiceAnalystAI() {
       window.speechSynthesis.cancel();
       recognitionRef.current.start();
       setStatus('listening');
-      setSystemMessage('Listening...');
-      setTranscript('');
     }
   };
 
@@ -116,68 +102,60 @@ export default function VoiceAnalystAI() {
         zIndex: 9999
       }}>
         <button onClick={startCommandCenter} style={{
-          background: 'none', border: '1px solid var(--accent-orange)', color: 'var(--accent-orange)',
+          background: 'none', border: '1px solid #3b82f6', color: '#3b82f6',
           padding: '20px 40px', fontSize: '24px', letterSpacing: '4px', textTransform: 'uppercase',
-          cursor: 'pointer', borderRadius: '4px', boxShadow: '0 0 20px rgba(250, 204, 21, 0.2)',
+          cursor: 'pointer', borderRadius: '4px', boxShadow: '0 0 40px rgba(59, 130, 246, 0.4)',
           transition: 'all 0.3s', display: 'flex', alignItems: 'center', gap: '16px'
         }}>
           <Play size={24} /> Enter Command Center
         </button>
-        <p style={{ color: 'var(--text-secondary)', marginTop: '20px', letterSpacing: '1px', fontSize: '12px' }}>
-          INITIALIZATION SEQUENCE REQUIRES AUDIO PERMISSION
-        </p>
       </div>
     );
   }
 
-  return (
-    <div className="voice-ai-module" style={{
-      background: 'rgba(10, 15, 30, 0.8)',
-      border: '1px solid rgba(255, 255, 255, 0.1)',
-      borderLeft: status === 'listening' ? '3px solid #ef4444' : status === 'speaking' ? '3px solid #3b82f6' : '3px solid var(--accent-orange)',
-      borderRadius: '8px',
-      padding: '16px',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '16px',
-      boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
-      minWidth: '300px'
-    }}>
-      <button 
-        onClick={toggleListen}
-        style={{
-          background: status === 'listening' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255,255,255,0.05)',
-          color: status === 'listening' ? '#ef4444' : 'var(--text-primary)',
-          border: 'none',
-          padding: '12px',
-          borderRadius: '50%',
-          cursor: 'pointer',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          transition: 'all 0.2s',
-          outline: 'none'
-        }}
-      >
-        {status === 'listening' ? <Mic size={20} className="pulse-animation" /> : <MicOff size={20} />}
-      </button>
+  // Determine elegant orb styling based on state
+  let orbGlow = 'rgba(255,255,255,0.1)';
+  let orbBorder = 'rgba(255,255,255,0.2)';
+  let iconColor = '#fff';
 
-      <div style={{ flex: 1 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
-          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--accent-orange)', letterSpacing: '1px' }}>V.O.I.C.E ANALYST</span>
-          {status === 'speaking' && <Volume2 size={12} color="#3b82f6" />}
-          {status === 'analyzing' && <Activity size={12} className="spin" color="var(--accent-orange)" />}
-        </div>
-        <div style={{ 
-          color: 'var(--text-secondary)', 
-          fontSize: '13px', 
-          fontFamily: 'monospace',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          maxWidth: '250px'
-        }}>
-          {systemMessage}
-        </div>
-      </div>
+  if (status === 'listening') {
+    orbGlow = 'rgba(239, 68, 68, 0.6)'; // Red alert
+    orbBorder = '#ef4444';
+    iconColor = '#ef4444';
+  } else if (status === 'speaking' || status === 'analyzing') {
+    orbGlow = 'rgba(59, 130, 246, 0.5)'; // Siri blue
+    orbBorder = '#3b82f6';
+    iconColor = '#3b82f6';
+  }
+
+  return (
+    <div style={{ position: 'relative' }}>
+        {status === 'speaking' || status === 'listening' || status === 'analyzing' ? (
+           <div className="orb-pulse-ring" style={{
+               position: 'absolute', top: -10, left: -10, right: -10, bottom: -10,
+               borderRadius: '50%', background: orbGlow, filter: 'blur(10px)',
+               animation: 'pulse 1.5s infinite alternate'
+           }} />
+        ) : null}
+        <button 
+          onClick={toggleListen}
+          title="V.O.I.C.E Analyst"
+          style={{
+            position: 'relative',
+            width: '48px', height: '48px',
+            background: 'rgba(10, 15, 30, 0.6)',
+            backdropFilter: 'blur(10px)',
+            border: `1px solid ${orbBorder}`,
+            borderRadius: '50%',
+            cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+            zIndex: 10,
+            boxShadow: `0 0 20px ${orbGlow}`
+          }}
+        >
+          {status === 'listening' ? <Mic size={20} color={iconColor} className="pulse-animation" /> : <MicOff size={20} color={iconColor} />}
+        </button>
     </div>
   );
 }

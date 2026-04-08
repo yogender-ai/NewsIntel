@@ -303,12 +303,15 @@ export default function WorldMap() {
           ref={globeReff}
           width={dimensions.width}
           height={dimensions.height}
-          globeImageUrl="//unpkg.com/three-globe/example/img/earth-night.jpg"
+          showGlobe={false}
+          showAtmosphere={true}
+          atmosphereColor="#3b82f6"
+          atmosphereAltitude={0.15}
           polygonsData={countries}
-          polygonAltitude={d => d.info === hoveredInfo ? 0.05 : 0.01}
-          polygonCapColor={d => d.info === hoveredInfo ? 'rgba(250, 204, 21, 0.7)' : 'rgba(255, 255, 255, 0.05)'}
-          polygonSideColor={() => 'rgba(255, 255, 255, 0.02)'}
-          polygonStrokeColor={() => '#111'}
+          polygonAltitude={d => d.info === hoveredInfo ? 0.06 : 0.01}
+          polygonCapColor={d => d.info === hoveredInfo ? 'rgba(250, 204, 21, 0.7)' : 'rgba(59, 130, 246, 0.05)'}
+          polygonSideColor={() => 'rgba(59, 130, 246, 0.1)'}
+          polygonStrokeColor={() => 'rgba(59, 130, 246, 0.8)'}
           onPolygonHover={polygon => setHoveredInfo(polygon ? polygon.info : null)}
           onPolygonClick={handleCountryClick}
           backgroundColor="rgba(0,0,0,0)"
