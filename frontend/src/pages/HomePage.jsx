@@ -196,7 +196,7 @@ export default function HomePage() {
               />
           </div>
           
-          <div style={{ flex: 1, position: 'relative', minHeight: 0 }}>
+          <div style={{ flex: 1, position: 'relative', minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
              <WorldMap />
           </div>
         </div>
@@ -210,7 +210,7 @@ export default function HomePage() {
           minHeight: 0
         }}>
           {/* Live Stream */}
-          <div style={{ flex: '0 0 auto', maxHeight: '45%' }}>
+          <div style={{ flexShrink: 0, overflow: 'visible' }}>
             <LiveNewsStream />
           </div>
 

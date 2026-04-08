@@ -3,10 +3,10 @@ import { Radio, MonitorPlay } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 
 const CHANNELS = [
-  { id: 'alj', name: 'Al Jazeera', url: 'https://www.youtube.com/embed/gCNeDWCI0vo?autoplay=1&mute=1&controls=0&modestbranding=1' },
-  { id: 'sky', name: 'Sky News', url: 'https://www.youtube.com/embed/9Auq9mYxFEE?autoplay=1&mute=1&controls=0&modestbranding=1' },
-  { id: 'nbc', name: 'NBC News', url: 'https://www.youtube.com/embed/FPTAWOSw-2M?autoplay=1&mute=1&controls=0&modestbranding=1' },
-  { id: 'abc', name: 'ABC News', url: 'https://www.youtube.com/embed/W1ilCy6XrmI?autoplay=1&mute=1&controls=0&modestbranding=1' },
+  { id: 'alj', name: 'Al Jazeera', url: 'https://www.youtube.com/embed/gCNeDWCI0vo?autoplay=1&modestbranding=1' },
+  { id: 'sky', name: 'Sky News', url: 'https://www.youtube.com/embed/9Auq9mYxFEE?autoplay=1&modestbranding=1' },
+  { id: 'nbc', name: 'NBC News', url: 'https://www.youtube.com/embed/FPTAWOSw-2M?autoplay=1&modestbranding=1' },
+  { id: 'abc', name: 'ABC News', url: 'https://www.youtube.com/embed/W1ilCy6XrmI?autoplay=1&modestbranding=1' },
 ];
 
 export default function LiveNewsStream() {
@@ -25,11 +25,9 @@ export default function LiveNewsStream() {
 
   return (
     <div className="live-news-stream-container scroll-reveal" style={{
-      height: '100%',
       display: 'flex',
       flexDirection: 'column',
-      position: 'relative',
-      overflow: 'hidden'
+      position: 'relative'
     }}>
       <div className="stream-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -54,11 +52,12 @@ export default function LiveNewsStream() {
         paddingTop: '56.25%', // 16:9 Aspect Ratio
         borderRadius: '8px',
         overflow: 'hidden',
-        background: 'transparent',
+        background: '#000',
+        pointerEvents: 'auto'
       }}>
         <iframe
           src={activeChannel.url}
-          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none', pointerEvents: 'none' }}
+          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', border: 'none' }}
           allow="autoplay; encrypted-media"
           allowFullScreen
         />
