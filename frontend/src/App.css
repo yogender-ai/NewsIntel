@@ -579,8 +579,13 @@
 .world-map-3d-wrapper {
   perspective: 1000px;
   perspective-origin: 50% 40%;
-  max-height: 42vh;
+  max-height: 40vh;
   overflow: hidden;
+  transition: max-height 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.world-map-section:hover .world-map-3d-wrapper {
+  max-height: 1000px;
 }
 
 .world-map-wrapper {
@@ -606,6 +611,11 @@
   background: linear-gradient(to top, var(--bg-primary) 0%, transparent 100%);
   pointer-events: none;
   z-index: 5;
+  transition: opacity 0.8s ease;
+}
+
+.world-map-section:hover .map-depth-fade {
+  opacity: 0;
 }
 
 .world-map-svg {
