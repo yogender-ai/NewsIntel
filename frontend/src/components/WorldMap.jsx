@@ -279,17 +279,7 @@ export default function WorldMap() {
 
   return (
     <div className="world-map-section scroll-reveal" ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative' }}>
-      <div className="world-map-header" style={{ position: 'absolute', top: 20, zIndex: 10 }}>
-        <div className="map-indicator">
-          <GlobeIcon size={13} className="map-globe-icon" />
-          <span className="map-live-dot" />
-          <span>{t('globalNewsMap')}</span>
-        </div>
-        <span className="map-subtitle">
-          <Zap size={9} />
-          {t('clickCountry')}
-        </span>
-      </div>
+
 
       <div 
         className="globe-container"
