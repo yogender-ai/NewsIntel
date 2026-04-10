@@ -120,7 +120,6 @@ export default function HomePage() {
           <SplitFlapDisplay headlines={heroHeadlines.length > 0 ? heroHeadlines : [{ title: "CONNECTING TO GLOBAL FEED..." }]} interval={8000} />
           
           <div style={{ marginTop: '20px', display: 'flex', gap: '12px', alignItems: 'center' }}>
-          <div style={{ marginTop: '20px', display: 'flex', gap: '12px', alignItems: 'center' }}>
             <button onClick={() => {
               if (!localStorage.getItem('user_token')) {
                 window.dispatchEvent(new Event('open-login'));
