@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { feature } from 'topojson-client';
-import { geoOrthographic, geoPath } from 'd3-geo';
+import { geoNaturalEarth1, geoPath } from 'd3-geo';
 import { useLanguage } from '../context/LanguageContext';
 
 const TOPO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
@@ -93,10 +93,9 @@ export default function WorldMap() {
   const width = 900;
   const height = 460;
 
-  const projection = geoOrthographic()
-    .scale(230)
-    .translate([width / 2, height / 2])
-    .rotate([pulsePhase * 6, -15]);
+  const projection = geoNaturalEarth1()
+    .scale(155)
+    .translate([width / 2, height / 2]);
 
   const pathGenerator = geoPath().projection(projection);
 
@@ -163,18 +162,13 @@ export default function WorldMap() {
         </div>
       )}
 
-      {/* SVG Map (3D Curved Rendering) */}
-      <div style={{ width: '100%', padding: '20px 0' }}>
+      {/* SVG Map */}
+      <div style={{ width: '100%', padding: '10px 0' }}>
         <svg 
           viewBox={`0 0 ${width} ${height}`} 
           className="world-map-svg"
           preserveAspectRatio="xMidYMid meet"
-          style={{ 
-            width: '100%', 
-            height: 'auto', 
-            overflow: 'visible',
-            filter: 'drop-shadow(0 20px 40px rgba(139,92,246,0.3))'
-          }}
+          style={{ width: '100%', height: 'auto', overflow: 'visible' }}
         >
         <defs>
           <filter id="glow-hot" x="-50%" y="-50%" width="200%" height="200%">
@@ -184,6 +178,9 @@ export default function WorldMap() {
           <filter id="glow-medium" x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur stdDeviation="2.5" result="blur" />
             <feComposite in="SourceGraphic" in2="blur" operator="over" />
+          </filter>
+          <filter id="3d-pop" x="-20%" y="-20%" width="140%" height="140%">
+            <feDropShadow dx="3" dy="5" stdDeviation="3" floodColor="rgba(0,0,0,0.6)" />
           </filter>
           <radialGradient id="heatGrad-critical" cx="50%" cy="50%" r="50%">
             <stop offset="0%" stopColor="rgba(239,68,68,0.6)" />
@@ -227,7 +224,7 @@ export default function WorldMap() {
                 fill={isHot ? sev.fill : (isHovered ? 'rgba(139,92,246,0.2)' : 'rgba(20,15,40,0.8)')}
                 stroke={isHot ? sev.stroke : (isHovered ? '#a855f7' : 'rgba(139,92,246,0.1)')}
                 strokeWidth={isHot ? 1.2 : (isHovered ? 1.5 : 0.6)}
-                filter={isHot ? 'url(#glow-hot)' : (isHovered ? 'url(#glow-medium)' : '')}
+                filter={isHot ? 'url(#glow-hot)' : (isHovered ? 'url(#glow-medium)' : 'url(#3d-pop)')}
                 onMouseEnter={(e) => {
                   if (feat.info) setHoveredInfo(feat.info);
                   if (containerRef.current) {
