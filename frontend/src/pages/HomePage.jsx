@@ -60,54 +60,9 @@ export default function HomePage() {
 
   return (
     <div className="command-center-v2">
-      {/* ── TOP COMMAND BAR ── */}
-      <div className="cmd-bar">
-        {/* Weather pill */}
-        <div className="cmd-weather-pill" onClick={() => navigate('/weather')}>
-          <CloudLightning size={14} className="cmd-weather-icon" />
-          <span className="cmd-weather-temp">72°F</span>
-        </div>
 
-        {/* Search */}
-        <form onSubmit={handleSearch} className="cmd-search-form">
-          <Search size={14} className={`cmd-search-icon ${searchFocused ? 'focused' : ''}`} />
-          <input
-            type="text"
-            placeholder="Search on Search..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            onFocus={() => setSearchFocused(true)}
-            onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
-            className="cmd-search-input"
-          />
-          {searchFocused && searchQuery && filteredSuggestions.length > 0 && (
-            <div className="cmd-search-dropdown">
-              <div className="cmd-search-label">LIVE SUGGESTIONS</div>
-              {filteredSuggestions.map((s, i) => (
-                <div
-                  key={i}
-                  className="cmd-search-suggestion"
-                  onClick={() => {
-                    const text = s.startsWith('Search global database for') ? searchQuery : s;
-                    setSearchQuery(text);
-                    navigate(`/search/${encodeURIComponent(text)}`);
-                  }}
-                >
-                  <Search size={11} /> {s}
-                </div>
-              ))}
-            </div>
-          )}
-        </form>
 
-        {/* Voice AI */}
-        <VoiceAnalystAI />
-      </div>
 
-      {/* ── STOCK TICKER ── */}
-      <div className="cmd-ticker-bar">
-        <StockTicker mode="all" />
-      </div>
 
       {/* ── MAIN GRID: Breaking + Stream ── */}
       <div className="cmd-hero-grid">
@@ -148,13 +103,7 @@ export default function HomePage() {
             Analyze This Story <ArrowRight size={14} />
           </button>
 
-          {/* SplitFlap at bottom of breaking panel */}
-          <div className="cmd-splitflap-wrap">
-            <SplitFlapDisplay
-              headlines={heroHeadlines.length > 0 ? heroHeadlines : [{ title: "CONNECTING TO GLOBAL INTELLIGENCE NETWORK..." }, { title: "AWAITING LIVE DATA FEED..." }]}
-              interval={15000}
-            />
-          </div>
+
         </div>
 
         {/* RIGHT: Live Stream */}

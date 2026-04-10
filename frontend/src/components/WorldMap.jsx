@@ -251,9 +251,16 @@ export default function WorldMap() {
     
     // Auto Rotation
     if (globeReff.current) {
-        globeReff.current.controls().autoRotate = true;
-        globeReff.current.controls().autoRotateSpeed = 0.5;
-        globeReff.current.controls().enableZoom = true;
+      try {
+        const controls = globeReff.current.controls();
+        if (controls) {
+          controls.autoRotate = true;
+          controls.autoRotateSpeed = 0.5;
+          controls.enableZoom = true;
+        }
+      } catch (e) {
+        console.warn("Globe controls not ready yet");
+      }
     }
 
     return () => observer.disconnect();

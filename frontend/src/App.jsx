@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
-import { Loader, Zap, Bookmark, Globe, Users, Bell } from 'lucide-react';
+import { Loader, Zap, Bookmark, Globe, Users, Bell, Search, CloudLightning } from 'lucide-react';
 import './App.css';
 import './overhaul.css';
 import { pingHealth } from './api';
@@ -85,8 +85,16 @@ function AppShell() {
   const [showReadingList, setShowReadingList] = useState(false);
   const { list: readingList, removeArticle, clearAll } = useReadingList();
   const { t } = useLanguage();
+  const navigate = useNavigate();
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => { pingHealth(); }, []);
+
+  const handleSearch = (e) => {
+    e.preventDefault();
+    if (searchQuery.trim()) navigate(`/search/${encodeURIComponent(searchQuery)}`);
+  };
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -134,46 +142,47 @@ function AppShell() {
       <div className="app">
         {/* ── Header ──────────────────── */}
         <header className="app-header">
-          <a href="/" className="app-logo">
-            <div className="app-logo-icon"><Zap size={16} color="white" /></div>
-            <div>
-              <h1>NewsIntel</h1>
-              <span>{t('aiIntelligence')}</span>
+          <div className="header-left" style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+            <a href="/" className="app-logo">
+              <div className="app-logo-icon"><Zap size={16} color="white" /></div>
+              <div>
+                <h1>NewsIntel</h1>
+                <span style={{color: '#64748b'}}>{t('aiIntelligence')}</span>
+              </div>
+            </a>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div className="cmd-weather-pill" onClick={() => navigate('/weather')}>
+                <CloudLightning size={14} className="cmd-weather-icon" style={{color: '#f59e0b'}} />
+                <span className="cmd-weather-temp">72°F</span>
+              </div>
+
+              <form onSubmit={handleSearch} className="cmd-search-form" style={{ width: '280px' }}>
+                <Search size={14} className={`cmd-search-icon ${searchFocused ? 'focused' : ''}`} />
+                <input
+                  type="text"
+                  placeholder="Search on Search..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onFocus={() => setSearchFocused(true)}
+                  onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
+                  className="cmd-search-input"
+                />
+              </form>
             </div>
-          </a>
+          </div>
 
           <div className="header-center">
             <LiveClock />
           </div>
 
           <div className="header-right">
-            {/* Language Switcher */}
             <LanguageSwitcher />
 
-            {/* Community Link */}
-            <a href="/community" className="header-community-link" title="Community">
-              <Users size={14} />
-            </a>
-
-            {/* Notification Bell */}
             <button className="header-notification-btn" title="Notifications">
               <Bell size={14} />
-              <span className="notification-dot" />
+              <div className="notification-badge" style={{position: 'absolute', top: '2px', right: '2px', background: '#ef4444', color: 'white', fontSize: '8px', fontWeight: 'bold', width: '12px', height: '12px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>1</div>
             </button>
-
-            {/* Reading List Toggle */}
-            <button
-              className={`header-bookmark-btn ${readingList.length > 0 ? 'has-items' : ''}`}
-              onClick={() => setShowReadingList(true)}
-              title={t('readingList')}
-            >
-              <Bookmark size={14} />
-              {readingList.length > 0 && <span className="bookmark-count">{readingList.length}</span>}
-            </button>
-
-            <a href="/weather" className="header-weather-link" title={t('weatherDashboard')}>
-              🌤️
-            </a>
 
             <div className="header-badge"><span className="dot" />{t('live')}</div>
           </div>
