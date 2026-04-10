@@ -42,7 +42,7 @@ export default function AnalystOpinions({ analysts = null }) {
       </div>
 
       <div className="analyst-opinions-list">
-        <div className="analyst-opinion-card" style={{ transition: 'opacity 0.5s' }}>
+        <div className="analyst-opinion-card" style={{ transition: 'all 0.5s', borderLeft: `3px solid ${analyst.color}`, background: `linear-gradient(90deg, ${analyst.color}15 0%, rgba(255,255,255,0.02) 100%)` }}>
           <div className="analyst-card-header">
             <div className="analyst-avatar">
               <img src={`https://ui-avatars.com/api/?name=${analyst.name.replace(' ', '+')}&background=${analyst.color.slice(1)}&color=fff`} alt={analyst.name} style={{ width: '100%', height: '100%', borderRadius: '50%' }} />
