@@ -45,7 +45,20 @@ export default function HomePage() {
   const [visiblePosts, setVisiblePosts] = useState(ALL_COMMUNITY_POSTS.slice(0, 4));
   const [factIndex, setFactIndex] = useState(0);
   const [engagementCounts, setEngagementCounts] = useState(ALL_COMMUNITY_POSTS.map(p => p.votes));
+  const [sentiment, setSentiment] = useState(84);
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const navigate = useNavigate();
+
+  // Oscillate sentiment every 6 seconds
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setSentiment(prev => {
+        const delta = Math.floor(Math.random() * 5) - 2;
+        return Math.max(60, Math.min(95, prev + delta));
+      });
+    }, 6000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -102,8 +115,11 @@ export default function HomePage() {
   const headlines = trending?.headlines || [];
   const heroHeadlines = headlines.slice(0, 8);
 
+  const sentimentLabel = sentiment >= 80 ? 'VERY BULLISH' : sentiment >= 65 ? 'BULLISH' : 'NEUTRAL';
+  const sentimentColor = sentiment >= 80 ? '#10b981' : sentiment >= 65 ? '#f59e0b' : '#94a3b8';
+
   return (
-    <div className="home-preview-page" style={{ padding: '0 24px 40px', maxWidth: '1600px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px', position: 'relative', zIndex: 1 }}>
+    <div className="home-preview-page" style={{ padding: '0 24px 40px', maxWidth: '1600px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '18px', position: 'relative', zIndex: 1 }}>
       
       {/* ── LIVE STATS BAR ── */}
       <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', padding: '12px 0' }}>
@@ -131,15 +147,19 @@ export default function HomePage() {
           
           <SplitFlapDisplay headlines={heroHeadlines.length > 0 ? heroHeadlines : [{ title: "CONNECTING TO GLOBAL FEED..." }]} interval={8000} />
           
-          <div style={{ marginTop: '24px', display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <div style={{ marginTop: '20px', display: 'flex', gap: '12px', alignItems: 'center' }}>
             <button onClick={() => {
-              const h = heroHeadlines[0];
-              if (h) navigate(`/search/${encodeURIComponent(h.title.split(' ').slice(0, 6).join(' '))}`);
-            }} style={{ padding: '10px 20px', background: 'linear-gradient(135deg, #8b5cf6, #6366f1)', color: '#fff', border: 'none', borderRadius: '24px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 4px 20px rgba(139,92,246,0.35)', transition: 'transform 0.2s' }}>
-              Deep AI Analysis <Zap size={14} />
+              /* Deep Analysis requires login */
+              const loginModal = document.querySelector('.login-modal-overlay');
+              if (!loginModal) {
+                const h = heroHeadlines[0];
+                if (h) navigate(`/search/${encodeURIComponent(h.title.split(' ').slice(0, 6).join(' '))}`);
+              }
+            }} style={{ padding: '10px 20px', background: 'linear-gradient(135deg, #8b5cf6, #6366f1)', color: '#fff', border: 'none', borderRadius: '24px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', boxShadow: '0 4px 20px rgba(139,92,246,0.35)' }}>
+              Deep AI Analysis <Zap size={13} />
             </button>
-            <button onClick={() => navigate('/community')} style={{ padding: '10px 20px', background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '24px', fontSize: '13px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', transition: 'all 0.2s' }}>
-              Join Discussions <Users size={14} />
+            <button onClick={() => navigate('/community')} style={{ padding: '10px 20px', background: 'rgba(255,255,255,0.05)', color: '#fff', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '24px', fontSize: '12px', fontWeight: '600', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              Join Discussions <Users size={13} />
             </button>
           </div>
         </div>
@@ -150,22 +170,20 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════════════════════════ */}
-      {/* ── SECTION 2: INTERACTIVE MAP (Full Width) ── */}
-      {/* ══════════════════════════════════════════════════════════════ */}
-      <div style={{ background: 'linear-gradient(180deg, #08050f 0%, #0c0818 100%)', padding: '24px', borderRadius: '16px', border: '1px solid rgba(139,92,246,0.15)', boxShadow: '0 10px 50px rgba(0,0,0,0.4)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+      {/* ── SECTION 2: INTERACTIVE MAP (Full Width, no box) ── */}
+      <div style={{ padding: '8px 0' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', padding: '0 4px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <Globe size={16} style={{ color: '#8b5cf6' }} />
-            <span style={{ fontSize: '12px', fontWeight: '700', color: '#8b5cf6', letterSpacing: '2px' }}>GLOBAL INTELLIGENCE HEATMAP</span>
-            <div style={{ width: '80px', height: '3px', background: 'rgba(255,255,255,0.06)', borderRadius: '2px', overflow: 'hidden', position: 'relative' }}>
+            <Globe size={14} style={{ color: '#8b5cf6' }} />
+            <span style={{ fontSize: '11px', fontWeight: '700', color: '#8b5cf6', letterSpacing: '2px' }}>GLOBAL INTELLIGENCE HEATMAP</span>
+            <div style={{ width: '60px', height: '2px', background: 'rgba(255,255,255,0.06)', borderRadius: '2px', overflow: 'hidden', position: 'relative' }}>
               <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: '60%', background: 'linear-gradient(90deg, #8b5cf6, #10b981)', borderRadius: '2px', animation: 'progressGlow 3s ease-in-out infinite' }} />
             </div>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
             {[{l:'Critical',c:'#ef4444'},{l:'High',c:'#f97316'},{l:'Medium',c:'#facc15'},{l:'Low',c:'#10b981'}].map((item, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: '#94a3b8' }}>
-                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: item.c }} />
+              <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '9px', color: '#64748b' }}>
+                <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: item.c }} />
                 {item.l}
               </div>
             ))}
@@ -234,13 +252,16 @@ export default function HomePage() {
 
         {/* Right Sidebar */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {/* Bullish Gauge */}
-          <div style={{ padding: '20px', background: 'linear-gradient(135deg, rgba(16,185,129,0.08), rgba(6,78,59,0.3))', borderRadius: '16px', border: '1px solid rgba(16,185,129,0.25)', boxShadow: '0 0 30px rgba(16,185,129,0.1)' }}>
-            <div style={{ fontSize: '11px', color: '#34d399', fontWeight: '700', letterSpacing: '1px', marginBottom: '4px' }}>MARKET SENTIMENT</div>
-            <div style={{ fontSize: '36px', fontWeight: '900', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              84% <TrendingUp size={28} color="#34d399" />
+          {/* Live Sentiment Gauge */}
+          <div style={{ padding: '20px', background: `linear-gradient(135deg, ${sentimentColor}11, ${sentimentColor}22)`, borderRadius: '16px', border: `1px solid ${sentimentColor}44`, boxShadow: `0 0 30px ${sentimentColor}15`, transition: 'all 0.8s ease' }}>
+            <div style={{ fontSize: '11px', color: sentimentColor, fontWeight: '700', letterSpacing: '1px', marginBottom: '4px', transition: 'color 0.8s' }}>MARKET SENTIMENT</div>
+            <div style={{ fontSize: '36px', fontWeight: '900', color: sentimentColor, display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'color 0.8s' }}>
+              {sentiment}% <TrendingUp size={28} color={sentimentColor} />
             </div>
-            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>VERY BULLISH</div>
+            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', transition: 'all 0.8s' }}>{sentimentLabel}</div>
+            <div style={{ marginTop: '8px', width: '100%', height: '4px', background: 'rgba(255,255,255,0.06)', borderRadius: '2px', overflow: 'hidden' }}>
+              <div style={{ width: `${sentiment}%`, height: '100%', background: sentimentColor, borderRadius: '2px', transition: 'width 0.8s ease, background 0.8s ease' }} />
+            </div>
           </div>
           <TrendsSidebar />
           <AlertsPanel />

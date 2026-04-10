@@ -145,7 +145,7 @@ function AppShell() {
       <div className="app">
         {/* ── Header ──────────────────── */}
         <header className="app-header">
-          <div className="header-left" style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+          <div className="header-left" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <a href="/" className="app-logo">
               <div className="app-logo-icon"><Zap size={16} color="white" /></div>
               <div>
@@ -154,35 +154,32 @@ function AppShell() {
               </div>
             </a>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <div className="cmd-weather-pill" onClick={() => navigate('/weather')}>
-                <CloudLightning size={14} className="cmd-weather-icon" style={{color: '#f59e0b'}} />
-                <span className="cmd-weather-temp">72°F</span>
-              </div>
-
-              <form onSubmit={handleSearch} className="cmd-search-form" style={{ width: '280px' }}>
-                <Search size={14} className={`cmd-search-icon ${searchFocused ? 'focused' : ''}`} />
-                <input
-                  type="text"
-                  placeholder="Search on Search..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  onFocus={() => setSearchFocused(true)}
-                  onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
-                  className="cmd-search-input"
-                />
-              </form>
+            <div className="cmd-weather-pill" onClick={() => navigate('/weather')}>
+              <CloudLightning size={14} className="cmd-weather-icon" style={{color: '#f59e0b'}} />
+              <span className="cmd-weather-temp">72°F</span>
             </div>
           </div>
 
-          <div className="header-center">
+          <div className="header-center" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <form onSubmit={handleSearch} className="cmd-search-form" style={{ width: '260px' }}>
+              <Search size={14} className={`cmd-search-icon ${searchFocused ? 'focused' : ''}`} />
+              <input
+                type="text"
+                placeholder="Search global intelligence..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onFocus={() => setSearchFocused(true)}
+                onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
+                className="cmd-search-input"
+              />
+            </form>
             <LiveClock />
           </div>
 
           <div className="header-right">
             <LanguageSwitcher />
 
-            <button className="header-notification-btn" title="Sign In" onClick={() => setIsLoginOpen(true)} style={{ marginLeft: '12px' }}>
+            <button className="header-notification-btn" title="Sign In" onClick={() => setIsLoginOpen(true)} style={{ marginLeft: '8px' }}>
               <Users size={14} />
             </button>
 
