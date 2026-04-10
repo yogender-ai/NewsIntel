@@ -273,14 +273,14 @@ export default function WeatherPage() {
               border: '1px solid rgba(255,255,255,0.06)', borderRadius: '32px',
               padding: '40px 50px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               boxShadow: '0 30px 80px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)',
-              position: 'relative', overflow: 'hidden', transition: 'transform 0.4s, box-shadow 0.4s'
+              position: 'relative', transition: 'transform 0.4s, box-shadow 0.4s'
             }}>
               {/* Subtle inner glow */}
               <div style={{ position: 'absolute', top: '-50%', right: '-20%', width: '400px', height: '400px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(56,189,248,0.1) 0%, transparent 70%)', pointerEvents: 'none' }} />
 
               <div style={{ position: 'relative', zIndex: 1, paddingBottom: '10px' }}>
-                <div style={{ fontSize: '100px', fontWeight: 800, lineHeight: 1.1, letterSpacing: '-5px', textShadow: '0 10px 40px rgba(0,0,0,0.4)', paddingTop: '20px' }}>
-                  {weather.temp_c}<span style={{ fontSize: '50px', fontWeight: 300, verticalAlign: 'text-top', marginLeft: '6px' }}>°C</span>
+                <div style={{ fontSize: '100px', fontWeight: 800, lineHeight: 'normal', letterSpacing: '-5px', textShadow: '0 10px 40px rgba(0,0,0,0.4)' }}>
+                  {weather.temp_c}<span style={{ fontSize: '50px', fontWeight: 300, verticalAlign: 'text-top', marginLeft: '6px', position: 'relative', top: '10px' }}>°C</span>
                 </div>
                 <div style={{ fontSize: '22px', fontWeight: 500, opacity: 0.9, marginTop: '8px', letterSpacing: '0.5px' }}>{weather.condition}</div>
                 <div style={{ fontSize: '15px', color: '#cbd5e1', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>

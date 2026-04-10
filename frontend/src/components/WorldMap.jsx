@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { feature } from 'topojson-client';
-import { geoNaturalEarth1, geoPath } from 'd3-geo';
+import { geoOrthographic, geoPath } from 'd3-geo';
 import { useLanguage } from '../context/LanguageContext';
 
 const TOPO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
@@ -93,9 +93,10 @@ export default function WorldMap() {
   const width = 900;
   const height = 460;
 
-  const projection = geoNaturalEarth1()
-    .scale(155)
-    .translate([width / 2, height / 2]);
+  const projection = geoOrthographic()
+    .scale(230)
+    .translate([width / 2, height / 2])
+    .rotate([pulsePhase * 6, -15]);
 
   const pathGenerator = geoPath().projection(projection);
 
@@ -162,8 +163,8 @@ export default function WorldMap() {
         </div>
       )}
 
-      {/* SVG Map (3D Holographic Rendering) */}
-      <div style={{ perspective: '1200px', width: '100%', padding: '40px 0' }}>
+      {/* SVG Map (3D Curved Rendering) */}
+      <div style={{ width: '100%', padding: '20px 0' }}>
         <svg 
           viewBox={`0 0 ${width} ${height}`} 
           className="world-map-svg"
@@ -172,9 +173,7 @@ export default function WorldMap() {
             width: '100%', 
             height: 'auto', 
             overflow: 'visible',
-            transform: 'rotateX(50deg) rotateZ(-12deg) rotateY(15deg)',
-            transformStyle: 'preserve-3d',
-            filter: 'drop-shadow(-20px 30px 40px rgba(139,92,246,0.35))'
+            filter: 'drop-shadow(0 20px 40px rgba(139,92,246,0.3))'
           }}
         >
         <defs>
