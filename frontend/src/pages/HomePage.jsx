@@ -217,7 +217,6 @@ export default function HomePage() {
               ))}
             </div>
           </div>
-          </div>
           {/* Intelligence Feed embedded inside Left Column */}
           <div style={{ marginTop: '20px' }}>
             <IntelligenceFeed headlines={headlines} />

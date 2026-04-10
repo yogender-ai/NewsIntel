@@ -47,8 +47,6 @@ const ALL_CITIES = [
   { name: 'Toronto', emoji: '🍁', region: 'Canada' },
 ];
 
-];
-
 export default function WeatherPage() {
   const navigate = useNavigate();
   const [city, setCity] = useState('');
