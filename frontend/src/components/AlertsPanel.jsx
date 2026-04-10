@@ -58,7 +58,6 @@ export default function AlertsPanel({ alerts = null }) {
           <span>ALERTS</span>
           <span style={{ fontSize: '9px', color: '#64748b', marginLeft: '4px' }}>LIVE</span>
         </div>
-        <div className="alerts-actions"><CheckCircle size={12} /></div>
       </div>
 
       <div className="alerts-list">

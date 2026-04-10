@@ -11,15 +11,7 @@ import AlertsPanel from '../components/AlertsPanel';
 import WorldMap from '../components/WorldMap';
 import { ArrowRight, Globe, Zap, Users, TrendingUp, Shield, MessageSquare, Eye, ChevronUp, ChevronDown, BarChart3, Radio, Flame } from 'lucide-react';
 
-/* ── Dynamic community posts that rotate ── */
-const ALL_COMMUNITY_POSTS = [
-  { author: 'Isaac Chen', role: 'Senior Market Strategist', color: '#3b82f6', verified: true, title: 'Dow spikes 1,200 points as US-Iran ceasefire sparks buying frenzy.', comments: 124, votes: 758, time: '3h ago', tags: ['Trending', 'Economy', 'Iran'] },
-  { author: 'Maxine Forsythe', role: 'Geopolitical Analyst', color: '#f43f5e', verified: true, title: 'Middle East tensions run high amid new ceasefire talks.', comments: 68, votes: 635, time: '6h ago', tags: ['Reuters', 'Iran', 'Ceasefire'] },
-  { author: 'Paul D.', role: 'Energy Trader', color: '#f59e0b', verified: true, title: 'Brent crude spikes to $89/barrel as US-Iran ceasefire talks fuel optimism.', comments: 31, votes: 508, time: '2h ago', tags: ['Oil', 'Energy', 'Futures'] },
-  { author: 'Sarah Kim', role: 'Asia-Pacific Desk', color: '#10b981', verified: true, title: 'South Korean chipmakers rally after US tariff exemptions announced.', comments: 89, votes: 412, time: '1h ago', tags: ['Tech', 'Trade', 'Asia'] },
-  { author: 'Ahmed Hassan', role: 'MENA Correspondent', color: '#8b5cf6', verified: false, title: 'Sudan humanitarian crisis deepens as warring factions reject talks.', comments: 156, votes: 923, time: '45m ago', tags: ['Conflict', 'Africa', 'UN'] },
-  { author: 'Elena Rodriguez', role: 'Climate Analyst', color: '#06b6d4', verified: true, title: 'Hurricane season predicted to be most active in 30 years warns NOAA.', comments: 72, votes: 341, time: '4h ago', tags: ['Climate', 'Weather', 'NOAA'] },
-];
+
 
 /* ── Key Intelligence Facts that rotate ── */
 const KEY_FACTS = [
@@ -42,9 +34,7 @@ const LIVE_STATS = [
 export default function HomePage() {
   const [trending, setTrending] = useState(null);
   const [liveStatValues, setLiveStatValues] = useState(LIVE_STATS.map(s => s.base));
-  const [visiblePosts, setVisiblePosts] = useState(ALL_COMMUNITY_POSTS.slice(0, 4));
   const [factIndex, setFactIndex] = useState(0);
-  const [engagementCounts, setEngagementCounts] = useState(ALL_COMMUNITY_POSTS.map(p => p.votes));
   const [sentiment, setSentiment] = useState(84);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const navigate = useNavigate();
@@ -82,19 +72,7 @@ export default function HomePage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Rotate community posts every 12 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setVisiblePosts(prev => {
-        const shifted = [...ALL_COMMUNITY_POSTS];
-        shifted.push(shifted.shift());
-        ALL_COMMUNITY_POSTS.length = 0;
-        ALL_COMMUNITY_POSTS.push(...shifted);
-        return shifted.slice(0, 4);
-      });
-    }, 12000);
-    return () => clearInterval(interval);
-  }, []);
+
 
   // Rotate key facts every 8 seconds
   useEffect(() => {
@@ -104,13 +82,7 @@ export default function HomePage() {
     return () => clearInterval(interval);
   }, []);
 
-  // Simulate engagement going up
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setEngagementCounts(prev => prev.map(v => v + Math.floor(Math.random() * 3)));
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
+
 
   const headlines = trending?.headlines || [];
   const heroHeadlines = headlines.slice(0, 8);
@@ -148,10 +120,11 @@ export default function HomePage() {
           <SplitFlapDisplay headlines={heroHeadlines.length > 0 ? heroHeadlines : [{ title: "CONNECTING TO GLOBAL FEED..." }]} interval={8000} />
           
           <div style={{ marginTop: '20px', display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <div style={{ marginTop: '20px', display: 'flex', gap: '12px', alignItems: 'center' }}>
             <button onClick={() => {
-              /* Deep Analysis requires login */
-              const loginModal = document.querySelector('.login-modal-overlay');
-              if (!loginModal) {
+              if (!localStorage.getItem('user_token')) {
+                window.dispatchEvent(new Event('open-login'));
+              } else {
                 const h = heroHeadlines[0];
                 if (h) navigate(`/search/${encodeURIComponent(h.title.split(' ').slice(0, 6).join(' '))}`);
               }
@@ -176,9 +149,7 @@ export default function HomePage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Globe size={14} style={{ color: '#8b5cf6' }} />
             <span style={{ fontSize: '11px', fontWeight: '700', color: '#8b5cf6', letterSpacing: '2px' }}>GLOBAL INTELLIGENCE HEATMAP</span>
-            <div style={{ width: '60px', height: '2px', background: 'rgba(255,255,255,0.06)', borderRadius: '2px', overflow: 'hidden', position: 'relative' }}>
-              <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: '60%', background: 'linear-gradient(90deg, #8b5cf6, #10b981)', borderRadius: '2px', animation: 'progressGlow 3s ease-in-out infinite' }} />
-            </div>
+            <span style={{ fontSize: '11px', fontWeight: '700', color: '#8b5cf6', letterSpacing: '2px' }}>GLOBAL INTELLIGENCE HEATMAP</span>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
             {[{l:'Critical',c:'#ef4444'},{l:'High',c:'#f97316'},{l:'Medium',c:'#facc15'},{l:'Low',c:'#10b981'}].map((item, i) => (
@@ -195,7 +166,7 @@ export default function HomePage() {
       {/* ══════════════════════════════════════════════════════════════ */}
       {/* ── SECTION 3: WHY THIS MATTERS + SIDEBAR ── */}
       {/* ══════════════════════════════════════════════════════════════ */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.8fr) minmax(0, 1fr)', gap: '24px' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.8fr) minmax(0, 1fr)', gap: '24px', alignItems: 'start' }}>
         
         {/* Left: Deep Context */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -265,58 +236,6 @@ export default function HomePage() {
           </div>
           <TrendsSidebar />
           <AlertsPanel />
-        </div>
-      </div>
-
-      {/* ══════════════════════════════════════════════════════════════ */}
-      {/* ── SECTION 4: COMMUNITY DISCUSSIONS (6 posts) ── */}
-      {/* ══════════════════════════════════════════════════════════════ */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.8fr) minmax(0, 1fr)', gap: '24px' }}>
-        <div style={{ background: 'rgba(255,255,255,0.02)', padding: '24px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.06)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 'bold', color: '#fbbf24', letterSpacing: '1px' }}>
-              <MessageSquare size={14} /> TOP COMMUNITY DISCUSSIONS
-              <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '400' }}>({ALL_COMMUNITY_POSTS.length} active)</span>
-            </div>
-            <button onClick={() => navigate('/community')} style={{ background: 'linear-gradient(135deg, #8b5cf6, #6366f1)', border: 'none', color: '#fff', fontSize: '11px', fontWeight: '600', padding: '6px 14px', borderRadius: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              View All <ArrowRight size={12} />
-            </button>
-          </div>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            {visiblePosts.map((post, idx) => (
-              <div key={`${post.author}-${idx}`} onClick={() => navigate('/community')} style={{ background: 'rgba(0,0,0,0.25)', padding: '16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.04)', cursor: 'pointer', transition: 'all 0.25s', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(139,92,246,0.08)'; e.currentTarget.style.borderColor = 'rgba(139,92,246,0.2)'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.25)'; e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)'; }}
-              >
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-                    <img src={`https://ui-avatars.com/api/?name=${post.author.replace(' ', '+')}&background=${post.color.slice(1)}&color=fff`} style={{ width: '32px', height: '32px', borderRadius: '50%' }} alt="" />
-                    <div>
-                      <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#fff' }}>
-                        {post.author} {post.verified && <span style={{ color: '#10b981', fontSize: '10px', fontWeight: '700' }}>VERIFIED</span>}
-                      </div>
-                      <div style={{ fontSize: '10px', color: '#64748b' }}>{post.role} · {post.time}</div>
-                    </div>
-                  </div>
-                  <div style={{ fontSize: '14px', fontWeight: '600', color: '#e2e8f0', marginBottom: '8px', lineHeight: '1.4' }}>{post.title}</div>
-                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                    {post.tags.map((tag, ti) => (
-                      <span key={ti} style={{ fontSize: '10px', padding: '2px 8px', background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: '10px', color: '#a78bfa' }}>{tag}</span>
-                    ))}
-                  </div>
-                </div>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px', minWidth: '60px' }}>
-                  <span style={{ fontSize: '14px', fontWeight: '700', color: '#10b981' }}>▲ {engagementCounts[ALL_COMMUNITY_POSTS.indexOf(post)] || post.votes}</span>
-                  <span style={{ fontSize: '10px', color: '#64748b' }}>{post.comments} replies</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Right: Similar Stories + Analyst */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
           <SimilarStories />
           <AnalystOpinions />
         </div>

@@ -151,7 +151,7 @@ export default function WorldMap() {
       {hoveredInfo && (
         <div 
           className="map-tooltip" 
-          style={{ left: tooltipPos.x + 15, top: tooltipPos.y + 15, position: 'fixed', zIndex: 100, background: 'rgba(10,5,20,0.95)', backdropFilter: 'blur(12px)', border: '1px solid rgba(139,92,246,0.4)', borderRadius: '12px', padding: '12px 16px', boxShadow: '0 10px 40px rgba(0,0,0,0.5)' }}
+          style={{ left: tooltipPos.x + 15, top: tooltipPos.y + 15, position: 'fixed', zIndex: 100, background: 'rgba(10,5,20,0.95)', backdropFilter: 'blur(12px)', border: '1px solid rgba(139,92,246,0.4)', borderRadius: '12px', padding: '12px 16px', boxShadow: '0 10px 40px rgba(0,0,0,0.5)', pointerEvents: 'none' }}
         >
           <span style={{ fontSize: '20px' }}>{hoveredInfo.flag}</span>
           <div style={{ marginLeft: '8px', display: 'inline-block' }}>
@@ -193,15 +193,16 @@ export default function WorldMap() {
             <stop offset="0%" stopColor="rgba(139,92,246,0.03)" />
             <stop offset="100%" stopColor="rgba(139,92,246,0.01)" />
           </linearGradient>
+          <pattern id="dotGrid" width="30" height="30" patternUnits="userSpaceOnUse">
+            <circle cx="2" cy="2" r="1.5" fill="rgba(139,92,246,0.15)" />
+            <line x1="2" y1="2" x2="30" y2="2" stroke="rgba(139,92,246,0.05)" strokeWidth="0.5" />
+            <line x1="2" y1="2" x2="2" y2="30" stroke="rgba(139,92,246,0.05)" strokeWidth="0.5" />
+          </pattern>
         </defs>
 
-        {/* Grid lines for techy aesthetic */}
-        {Array.from({length: 12}, (_, i) => (
-          <line key={`hgrid-${i}`} x1="0" y1={i * (height/12)} x2={width} y2={i * (height/12)} stroke="rgba(139,92,246,0.04)" strokeWidth="0.5" />
-        ))}
-        {Array.from({length: 18}, (_, i) => (
-          <line key={`vgrid-${i}`} x1={i * (width/18)} y1="0" x2={i * (width/18)} y2={height} stroke="rgba(139,92,246,0.04)" strokeWidth="0.5" />
-        ))}
+        {/* 3D background grid effect */}
+        <rect x="0" y="0" width={width} height={height} fill="url(#dotGrid)" />
+        <rect x="0" y="0" width={width} height={height} fill="url(#gridGrad)" />
 
         {/* Countries */}
         <g className="countries-group">
@@ -215,10 +216,10 @@ export default function WorldMap() {
               <path
                 key={`path-${i}`}
                 d={pathGenerator(feat)}
-                fill={isHot ? sev.fill : (isHovered ? 'rgba(139,92,246,0.3)' : 'rgba(255,255,255,0.02)')}
-                stroke={isHot ? sev.stroke : (isHovered ? 'rgba(139,92,246,0.5)' : 'rgba(255,255,255,0.08)')}
-                strokeWidth={isHot ? 1.2 : (isHovered ? 1 : 0.3)}
-                filter={isHot ? 'url(#glow-medium)' : ''}
+                fill={isHot ? sev.fill : (isHovered ? 'rgba(139,92,246,0.2)' : 'rgba(20,15,40,0.4)')}
+                stroke={isHot ? sev.stroke : (isHovered ? '#a855f7' : 'rgba(139,92,246,0.2)')}
+                strokeWidth={isHot ? 1.2 : (isHovered ? 1.5 : 0.6)}
+                filter={isHot ? 'url(#glow-medium)' : (isHovered ? 'url(#glow-medium)' : '')}
                 onMouseEnter={(e) => {
                   if (feat.info) setHoveredInfo(feat.info);
                   setTooltipPos({ x: e.clientX, y: e.clientY });

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { MessageSquare, ThumbsUp, ThumbsDown } from 'lucide-react';
 
 const ALL_ANALYSTS = [
-  { name: 'Isaac Chen', role: 'Senior Market Strategist', color: '#3b82f6', opinion: 'Markets are in full risk-on mode, pricing in a swift Middle East ceasefire. I watch reaction at geopolitical flashpoints carefully.', upvotes: 214, downvotes: 7 },
+  { name: 'Yash', role: 'Head of Analytics', color: '#8b5cf6', opinion: 'Markets are in full risk-on mode, pricing in a swift Middle East ceasefire. I watch reaction at geopolitical flashpoints carefully.', upvotes: 214, downvotes: 7 },
   { name: 'Sarah Kim', role: 'Asia-Pacific Desk Lead', color: '#10b981', opinion: 'South Korean semiconductor rally is sustainable if US tariff exemptions hold. Watch Samsung and SK Hynix closely.', upvotes: 156, downvotes: 12 },
   { name: 'Carlos Mendez', role: 'Energy Analyst', color: '#f59e0b', opinion: 'Oil volatility is far from over. Even with a ceasefire, supply chain disruptions in the Strait of Hormuz persist.', upvotes: 89, downvotes: 23 },
   { name: 'Priya Sharma', role: 'Climate Risk Analyst', color: '#06b6d4', opinion: 'The NOAA forecast is alarming. Insurance stocks will take a significant hit if hurricane predictions hold true.', upvotes: 67, downvotes: 5 },
@@ -12,11 +12,11 @@ export default function AnalystOpinions({ analysts = null }) {
   const [currentIdx, setCurrentIdx] = useState(0);
   const [votes, setVotes] = useState(ALL_ANALYSTS.map(a => ({ up: a.upvotes, down: a.downvotes })));
 
-  // Rotate analyst every 15 seconds
+  // Rotate analyst every 6 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentIdx(prev => (prev + 1) % ALL_ANALYSTS.length);
-    }, 15000);
+    }, 6000);
     return () => clearInterval(interval);
   }, []);
 
@@ -42,7 +42,7 @@ export default function AnalystOpinions({ analysts = null }) {
       </div>
 
       <div className="analyst-opinions-list">
-        <div className="analyst-opinion-card" style={{ transition: 'all 0.5s', borderLeft: `3px solid ${analyst.color}`, background: `linear-gradient(90deg, ${analyst.color}15 0%, rgba(255,255,255,0.02) 100%)` }}>
+        <div key={currentIdx} className="analyst-opinion-card" style={{ animation: 'fadeIn 0.5s', borderLeft: `3px solid ${analyst.color}`, background: `linear-gradient(90deg, ${analyst.color}15 0%, rgba(255,255,255,0.02) 100%)` }}>
           <div className="analyst-card-header">
             <div className="analyst-avatar">
               <img src={`https://ui-avatars.com/api/?name=${analyst.name.replace(' ', '+')}&background=${analyst.color.slice(1)}&color=fff`} alt={analyst.name} style={{ width: '100%', height: '100%', borderRadius: '50%' }} />

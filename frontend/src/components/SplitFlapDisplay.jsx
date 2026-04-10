@@ -77,7 +77,13 @@ export default function SplitFlapDisplay({ headlines = [], interval = 12000 }) {
   const chars = title.padEnd(DISPLAY_LENGTH, ' ').split('');
 
   return (
-    <div className="split-flap-container" id="split-flap">
+    <div className="split-flap-container" id="split-flap" style={{ cursor: 'pointer', transition: 'all 0.3s' }} onClick={() => {
+      if (!localStorage.getItem('user_token')) {
+        window.dispatchEvent(new Event('open-login'));
+      } else if (currentHeadline.title) {
+        window.location.href = `/search/${encodeURIComponent(currentHeadline.title.split(' ').slice(0, 6).join(' '))}`;
+      }
+    }}>
       <div className="split-flap-header">
         <div className="flap-indicator">
           <span className="flap-live-dot" />

@@ -37,61 +37,7 @@ const SIDEBAR_CATEGORIES = [
   ]},
 ];
 
-const MOCK_POSTS = [
-  {
-    author: 'Isaac Chen',
-    role: 'Senior Market Strategist',
-    verified: true,
-    timestamp: '3 hours ago',
-    title: 'Dow spikes 1,200 points as US-Iran ceasefire sparks buying frenzy.',
-    content: 'We just witnessed a major +1,200 point surge in Dow Futures on reports of a pending US-Iran ceasefire. But if this rally sustainable?',
-    tags: [
-      { label: 'Trending', icon: '🔥' },
-      { label: 'Economy', icon: '💰', type: 'accent' },
-      { label: 'Iran', icon: '🇮🇷' },
-      { label: 'Ceasefire' },
-      { label: 'VERIFIED', type: 'verified' },
-    ],
-    votes: 758,
-    comments: 124,
-    discussion: 'What are your risk levels here?',
-  },
-  {
-    author: 'Maxine Forsythe',
-    role: 'Geopolitical Analyst',
-    verified: true,
-    timestamp: '6 hours ago',
-    title: 'Middle East tensions run high amid new ceasefire talks',
-    content: 'Brent crude spikes to $89/barrel as US-Iran ceasefire talks fuel optimism for reduced Middle East tension.',
-    tags: [
-      { label: 'Reuters' },
-      { label: 'breakdown', type: 'accent' },
-      { label: 'Iran 1.20' },
-      { label: 'Verich' },
-    ],
-    votes: 635,
-    comments: 68,
-    discussion: 'Think this ceasefire deal will stick?',
-  },
-  {
-    author: 'Paul D.',
-    role: 'Energy Trader',
-    verified: true,
-    timestamp: '2 hours ago',
-    title: 'Brent crude spikes to $89/barrel as US-Iran ceasefire talks fuel optimism',
-    content: 'Expect oil prices to stay elevated. Reduced Middle East tension could stabilize supply, but it\'s far from over.',
-    tags: [
-      { label: 'Fuel' },
-      { label: 'Brice Nbr' },
-    ],
-    votes: 508,
-    comments: 31,
-    chartData: {
-      label: 'Brent Oil Futures',
-      change: 1.84,
-    },
-  },
-];
+const MOCK_POSTS = [];
 
 const GUIDELINES = [
   'Be respectful and civil',
@@ -149,13 +95,13 @@ export default function CommunityPage() {
 
             <div className="comm-user-card">
               <div className="comm-user-avatar">
-                <div className="comm-user-avatar-placeholder">IC</div>
+                <div className="comm-user-avatar-placeholder">YA</div>
               </div>
               <div className="comm-user-info">
-                <div className="comm-user-name">Isaac Chen</div>
-                <div className="comm-user-role">Senior Market Strategist</div>
+                <div className="comm-user-name">Yash</div>
+                <div className="comm-user-role">Head of Analytics</div>
                 <span className="comm-user-handle">
-                  <Shield size={9} /> @Isaac_Chen
+                  <Shield size={9} /> @Yash
                 </span>
               </div>
             </div>
@@ -227,20 +173,10 @@ export default function CommunityPage() {
             </div>
           </div>
 
-          {/* Posts */}
           <div className="comm-posts-list">
-            {MOCK_POSTS.map((post, idx) => (
+            {MOCK_POSTS.length > 0 ? MOCK_POSTS.map((post, idx) => (
               <CommunityPost key={idx} post={post} />
-            ))}
-          </div>
-
-          {/* Pagination */}
-          <div className="comm-pagination">
-            <button className="comm-page-btn">‹</button>
-            {[1, 2, 3, 4, 5, 6].map(n => (
-              <button key={n} className={`comm-page-btn ${n === 1 ? 'active' : ''}`}>{n}</button>
-            ))}
-            <button className="comm-page-btn">›</button>
+            )) : <div style={{textAlign: 'center', padding: '60px', color: '#64748b', fontSize: '14px', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: '16px'}}>Community API integration pending... Add yourself soon!</div>}
           </div>
         </main>
 

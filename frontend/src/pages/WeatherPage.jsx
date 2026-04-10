@@ -143,15 +143,16 @@ export default function WeatherPage() {
   const isDay = weather?.is_day === 1 || condition.toLowerCase().includes('sun');
 
   // Dynamic gradient per weather
+  // Dynamic ambient overlay per weather that respects the space theme
   const c = condition.toLowerCase();
   let bgGradient;
-  if (c.includes('rain') || c.includes('drizzle')) bgGradient = 'linear-gradient(135deg, #1e293b 0%, #334155 50%, #475569 100%)';
-  else if (c.includes('snow')) bgGradient = 'linear-gradient(135deg, #e2e8f0 0%, #94a3b8 50%, #64748b 100%)';
-  else if (c.includes('thunder') || c.includes('storm')) bgGradient = 'linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #312e81 100%)';
-  else if (c.includes('cloud') || c.includes('overcast')) bgGradient = 'linear-gradient(135deg, #1e3a5f 0%, #334155 50%, #475569 100%)';
-  else if (c.includes('fog') || c.includes('mist') || c.includes('haze')) bgGradient = 'linear-gradient(135deg, #374151, #6b7280)';
-  else if (isDay) bgGradient = 'linear-gradient(135deg, #0c4a6e 0%, #0369a1 40%, #38bdf8 100%)';
-  else bgGradient = 'linear-gradient(135deg, #020617 0%, #0f172a 50%, #1e1b4b 100%)';
+  if (c.includes('rain') || c.includes('drizzle')) bgGradient = 'radial-gradient(circle at top right, rgba(51, 65, 85, 0.4), transparent 80%)';
+  else if (c.includes('snow')) bgGradient = 'radial-gradient(circle at top right, rgba(148, 163, 184, 0.3), transparent 80%)';
+  else if (c.includes('thunder') || c.includes('storm')) bgGradient = 'radial-gradient(circle at top right, rgba(49, 46, 129, 0.5), transparent 80%)';
+  else if (c.includes('cloud') || c.includes('overcast')) bgGradient = 'radial-gradient(circle at top right, rgba(71, 85, 105, 0.3), transparent 80%)';
+  else if (c.includes('fog') || c.includes('mist') || c.includes('haze')) bgGradient = 'radial-gradient(circle at top right, rgba(107, 114, 128, 0.3), transparent 80%)';
+  else if (isDay) bgGradient = 'radial-gradient(circle at top right, rgba(14, 165, 233, 0.15), transparent 80%)';
+  else bgGradient = 'radial-gradient(circle at top right, rgba(139, 92, 246, 0.1), transparent 80%)';
 
   const hourlyData = forecast?.hourly || [];
   const dailyData = forecast?.daily || [];
@@ -191,7 +192,7 @@ export default function WeatherPage() {
       {/* ── Header ── */}
       <div style={{ padding: '20px 40px', display: 'flex', alignItems: 'center', gap: '20px', zIndex: 10, flexShrink: 0 }}>
         <button onClick={() => navigate('/')} className="weather-btn-hover" style={{
-          background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)',
+          background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.06)',
           color: '#fff', display: 'flex', alignItems: 'center', gap: '8px',
           padding: '10px 20px', borderRadius: '50px', cursor: 'pointer',
           backdropFilter: 'blur(20px)', fontWeight: 600, fontSize: '14px', transition: 'all 0.3s'
@@ -252,8 +253,8 @@ export default function WeatherPage() {
             <button key={ct.name} className="weather-btn-hover"
               onClick={() => { setSearchInput(ct.name); loadWeather(ct.name); }}
               style={{
-                background: city === ct.name ? 'rgba(56,189,248,0.2)' : 'rgba(255,255,255,0.05)',
-                border: city === ct.name ? '1px solid #38bdf8' : '1px solid rgba(255,255,255,0.08)',
+                background: city === ct.name ? 'rgba(56,189,248,0.1)' : 'rgba(255,255,255,0.02)',
+                border: city === ct.name ? '1px solid #38bdf8' : '1px solid rgba(255,255,255,0.06)',
                 color: '#fff', padding: '8px 14px', borderRadius: '50px', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', gap: '6px',
                 fontSize: '13px', fontWeight: 500, transition: 'all 0.3s', whiteSpace: 'nowrap'
@@ -290,8 +291,8 @@ export default function WeatherPage() {
 
             {/* Giant Hero Card */}
             <div className="weather-hero-card" style={{
-              background: 'rgba(255,255,255,0.08)', backdropFilter: 'blur(40px)',
-              border: '1px solid rgba(255,255,255,0.15)', borderRadius: '32px',
+              background: 'rgba(255,255,255,0.02)', backdropFilter: 'blur(40px)',
+              border: '1px solid rgba(255,255,255,0.06)', borderRadius: '32px',
               padding: '40px 50px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
               boxShadow: '0 30px 80px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.1)',
               position: 'relative', overflow: 'hidden', transition: 'transform 0.4s, box-shadow 0.4s'
@@ -333,9 +334,9 @@ export default function WeatherPage() {
                   onMouseEnter={() => setHoveredCard(idx)}
                   onMouseLeave={() => setHoveredCard(null)}
                   style={{
-                    background: hoveredCard === idx ? 'rgba(255,255,255,0.12)' : 'rgba(255,255,255,0.05)',
+                    background: hoveredCard === idx ? 'rgba(139,92,246,0.05)' : 'rgba(255,255,255,0.02)',
                     backdropFilter: 'blur(20px)',
-                    border: hoveredCard === idx ? `1px solid ${item.color}40` : '1px solid rgba(255,255,255,0.08)',
+                    border: hoveredCard === idx ? `1px solid ${item.color}40` : '1px solid rgba(255,255,255,0.06)',
                     borderRadius: '20px', padding: '20px',
                     display: 'flex', flexDirection: 'column', gap: '8px',
                     cursor: 'default', transition: 'all 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
@@ -352,14 +353,14 @@ export default function WeatherPage() {
 
             {/* Hourly Forecast */}
             {hourlyData.length > 0 && (
-              <div style={{ background: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '20px', padding: '20px' }}>
+              <div style={{ background: 'rgba(255,255,255,0.02)', backdropFilter: 'blur(20px)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '20px', padding: '20px' }}>
                 <div style={{ fontSize: '14px', fontWeight: 600, color: '#94a3b8', marginBottom: '14px', letterSpacing: '1px', textTransform: 'uppercase' }}>Hourly Forecast</div>
                 <div style={{ display: 'flex', gap: '12px', overflowX: 'auto', paddingBottom: '8px' }} className="no-scrollbar">
                   {hourlyData.map((h, i) => (
                     <div key={i} className="hourly-hover" style={{
                       minWidth: '70px', textAlign: 'center', padding: '12px 8px',
-                      background: 'rgba(255,255,255,0.05)', borderRadius: '16px',
-                      border: '1px solid rgba(255,255,255,0.05)',
+                      background: 'rgba(0,0,0,0.2)', borderRadius: '16px',
+                      border: '1px solid rgba(255,255,255,0.02)',
                       transition: 'all 0.3s', cursor: 'default', flexShrink: 0
                     }}>
                       <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '6px' }}>{h.time}</div>
@@ -378,8 +379,8 @@ export default function WeatherPage() {
 
             {/* 3-Day Forecast */}
             <div style={{
-              background: 'rgba(255,255,255,0.06)', backdropFilter: 'blur(20px)',
-              border: '1px solid rgba(255,255,255,0.1)', borderRadius: '24px', padding: '24px',
+              background: 'rgba(255,255,255,0.02)', backdropFilter: 'blur(20px)',
+              border: '1px solid rgba(255,255,255,0.06)', borderRadius: '24px', padding: '24px',
               boxShadow: '0 10px 40px rgba(0,0,0,0.2)'
             }}>
               <div style={{ fontSize: '14px', fontWeight: 600, color: '#94a3b8', marginBottom: '16px', letterSpacing: '1px', textTransform: 'uppercase', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '12px' }}>
@@ -443,7 +444,7 @@ export default function WeatherPage() {
 
             {/* All Cities Grid */}
             <div style={{
-              background: 'rgba(255,255,255,0.04)', backdropFilter: 'blur(20px)',
+              background: 'rgba(255,255,255,0.02)', backdropFilter: 'blur(20px)',
               border: '1px solid rgba(255,255,255,0.06)', borderRadius: '24px', padding: '20px',
               flex: 1, overflow: 'auto'
             }}>

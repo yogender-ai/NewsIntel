@@ -64,8 +64,8 @@ export default function LoginModal({ isOpen, onClose }) {
             color: '#e2e8f0', fontSize: '14px', fontWeight: '600', cursor: 'pointer',
             transition: 'all 0.2s'
           }}>
-            <img src="https://img.icons8.com/ios-filled/24/ffffff/facebook-new.png" alt="Facebook" width="18" />
-            Continue with Facebook
+            <img src="https://img.icons8.com/ios-filled/24/ffffff/github.png" alt="GitHub" width="18" />
+            Continue with GitHub
           </button>
         </div>
 
