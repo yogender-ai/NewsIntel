@@ -78,26 +78,28 @@ export async function fetchTrending() {
     headlines: [
       {
         title: "DOW FUTURES SOAR 1,200 POINTS AS TRADERS RUSH TO BUY STOCKS AHEAD OF US-IRAN CEASEFIRE",
-        summary: "Dow futures surged over 1,200 points, marking a major rally as traders reacted to news of a potential ceasefire between the US and Iran, spurring optimism across global markets.",
-        source: "MarketWatch",
-        time_ago: "12m ago",
+        summary: "Dow futures surged over 1,200 points this morning after reports of a potential ceasefire between the United States and Iran...",
+        source: "CNBC",
+        time_ago: "1 hour ago",
         is_trusted: true,
-        entities: [{word: "Economy"}, {word: "Markets"}]
+        entities: [{word: "Economy"}, {word: "Markets"}, {word: "USA"}, {word: "Iran"}]
       },
       {
-        title: "Millions flee Sudan as famine threat looms amid conflict - BBC",
+        title: "MILLIONS FLEE SUDAN AS FAMINE THREAT LOOMS AMID CONFLICT",
+        summary: "Humanitarian crisis worsens as millions leave escalating conflict zones.",
         source: "BBC News",
-        time_ago: "2h ago",
+        time_ago: "2 hours ago",
         is_trusted: true,
         entities: [{word: "Africa"}, {word: "Sudan"}],
         image_url: "https://via.placeholder.com/60"
       },
       {
-        title: "US, Iran reach historic ceasefire deal amid mounting chaos - CNDC",
-        source: "CNDC",
-        time_ago: "3h ago",
+        title: "GLOBAL MARKETS SURGE ON TECH EARNINGS REPORTS",
+        summary: "Silicon Valley giants exceed expectations, driving widespread global market rallies.",
+        source: "Bloomberg",
+        time_ago: "3 hours ago",
         is_trusted: true,
-        entities: [{word: "Geopolitics"}, {word: "Ceasefire"}],
+        entities: [{word: "Tech"}, {word: "Markets"}],
         image_url: "https://via.placeholder.com/60"
       }
     ],
@@ -162,9 +164,9 @@ export async function fetchStocks() {
     stocks: [
       { name: "Nifty 50", price: 23775, change_pct: 0.23, direction: "up", flag: "IN" },
       { name: "Dow Jones", price: 48584, change_pct: 0.59, direction: "up", flag: "US" },
-      { name: "NASDAQ", price: 23709, change_pct: 0.55, direction: "up", flag: "US" },
+      { name: "NASDAQ", price: 23709, change_pct: -0.30, direction: "down", flag: "US" },
       { name: "S&P 500", price: 6819, change_pct: 0.48, direction: "up", flag: "US" },
-      { name: "FTSE 100", price: 18657, change_pct: 0.43, direction: "up", flag: "GB" }
+      { name: "FTSE 100", price: 18657, change_pct: -0.43, direction: "down", flag: "GB" }
     ]
   };
 }

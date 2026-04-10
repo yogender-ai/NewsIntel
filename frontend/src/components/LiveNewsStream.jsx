@@ -3,14 +3,11 @@ import { Radio, MonitorPlay, Users, Eye } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 
 const CHANNELS = [
-  { id: 'alj', name: 'Al Jazeera English', badge: '🟢', url: 'https://www.youtube.com/embed/live_stream?channel=UCNye-wNBqNL5ZzHSJj3l8Bg&autoplay=1&modestbranding=1&mute=1' },
-  { id: 'toi', name: 'Times Now', badge: '🇮🇳', url: 'https://www.youtube.com/embed/live_stream?channel=UCkm_UlnjCkY4ig0MMDywCkA&autoplay=1&modestbranding=1&mute=1' },
-  { id: 'ndtv', name: 'NDTV 24x7', badge: '🇮🇳', url: 'https://www.youtube.com/embed/live_stream?channel=UCp6mMCMrGROxsPSazcuiIcA&autoplay=1&modestbranding=1&mute=1' },
-  { id: 'republic', name: 'Republic TV', badge: '🇮🇳', url: 'https://www.youtube.com/embed/live_stream?channel=UCUnKswQoP7N6GvsTzrgFQSg&autoplay=1&modestbranding=1&mute=1' },
-  { id: 'india_today', name: 'India Today', badge: '🇮🇳', url: 'https://www.youtube.com/embed/live_stream?channel=UCYPvAwZP8pZhSMW8qs7cVCw&autoplay=1&modestbranding=1&mute=1' },
-  { id: 'sky', name: 'Sky News', badge: '🇬🇧', url: 'https://www.youtube.com/embed/live_stream?channel=UCoMdktPbSTixAyNGwb-UYkQ&autoplay=1&modestbranding=1&mute=1' },
-  { id: 'france24', name: 'France 24', badge: '🇫🇷', url: 'https://www.youtube.com/embed/live_stream?channel=UCQfwfsi5VrQ8yKZ-UWmAEFg&autoplay=1&modestbranding=1&mute=1' },
-  { id: 'dw', name: 'DW News', badge: '🇩🇪', url: 'https://www.youtube.com/embed/live_stream?channel=UCknLrEdhRCp1aegoMqRhGGw&autoplay=1&modestbranding=1&mute=1' },
+  { id: 'aajtak', name: 'Aaj Tak | Live', badge: '🇮🇳', url: 'https://www.youtube.com/embed/UX6KM95AOHE?autoplay=1&mute=1' },
+  { id: 'toi', name: 'Times of India | Live', badge: '🇮🇳', url: 'https://www.youtube.com/embed/dXhy8KoYuQM?autoplay=1&mute=1' },
+  { id: 'bbc', name: 'BBC News | Live', badge: '🇬🇧', url: 'https://www.youtube.com/embed/dXhy8KoYuQM?autoplay=1&mute=1' },
+  { id: 'republic', name: 'Republic TV', badge: '🇮🇳', url: 'https://www.youtube.com/embed/live_stream?channel=UCUnKswQoP7N6GvsTzrgFQSg&autoplay=1&mute=1' },
+  { id: 'alj', name: 'Al Jazeera English', badge: '🟢', url: 'https://www.youtube.com/embed/live_stream?channel=UCNye-wNBqNL5ZzHSJj3l8Bg&autoplay=1&mute=1' }
 ];
 
 export default function LiveNewsStream() {
