@@ -11,11 +11,11 @@ import { LanguageProvider, useLanguage } from './context/LanguageContext';
 
 // Lazy load pages for performance
 const HomePage = lazy(() => import('./pages/HomePage'));
-const StoryPage = lazy(() => import('./pages/StoryPage'));
 const ResultsPage = lazy(() => import('./pages/ResultsPage'));
 const WeatherPage = lazy(() => import('./pages/WeatherPage'));
 const CommunityPage = lazy(() => import('./pages/CommunityPage'));
 import LoginModal from './components/LoginModal';
+import ParticleBackground from './components/ParticleBackground';
 
 /* ── Premium Page Loader (Suspense fallback) ── */
 function PageLoader() {
@@ -42,7 +42,6 @@ function AnimatedRoutes() {
     <div className="route-transition" key={location.pathname}>
       <Routes location={location}>
         <Route path="/" element={<HomePage />} />
-        <Route path="/story" element={<StoryPage />} />
         <Route path="/search/:topic" element={<ResultsPage />} />
         <Route path="/weather" element={<WeatherPage />} />
         <Route path="/community" element={<CommunityPage />} />
@@ -232,6 +231,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <LanguageProvider>
+        <ParticleBackground />
         <AppShell />
       </LanguageProvider>
     </BrowserRouter>

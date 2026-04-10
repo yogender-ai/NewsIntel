@@ -99,7 +99,7 @@ html {
 
 body {
   font-family: var(--font-sans);
-  background: #06020c url('https://www.transparenttextures.com/patterns/stardust.png');
+  background: #06020c;
   color: var(--text-primary);
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
