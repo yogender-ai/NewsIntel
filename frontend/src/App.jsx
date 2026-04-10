@@ -11,9 +11,11 @@ import { LanguageProvider, useLanguage } from './context/LanguageContext';
 
 // Lazy load pages for performance
 const HomePage = lazy(() => import('./pages/HomePage'));
+const StoryPage = lazy(() => import('./pages/StoryPage'));
 const ResultsPage = lazy(() => import('./pages/ResultsPage'));
 const WeatherPage = lazy(() => import('./pages/WeatherPage'));
 const CommunityPage = lazy(() => import('./pages/CommunityPage'));
+import LoginModal from './components/LoginModal';
 
 /* ── Premium Page Loader (Suspense fallback) ── */
 function PageLoader() {
@@ -40,6 +42,7 @@ function AnimatedRoutes() {
     <div className="route-transition" key={location.pathname}>
       <Routes location={location}>
         <Route path="/" element={<HomePage />} />
+        <Route path="/story" element={<StoryPage />} />
         <Route path="/search/:topic" element={<ResultsPage />} />
         <Route path="/weather" element={<WeatherPage />} />
         <Route path="/community" element={<CommunityPage />} />
@@ -83,6 +86,7 @@ function LanguageSwitcher() {
 
 function AppShell() {
   const [showReadingList, setShowReadingList] = useState(false);
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
   const { list: readingList, removeArticle, clearAll } = useReadingList();
   const { t } = useLanguage();
   const navigate = useNavigate();
@@ -179,6 +183,10 @@ function AppShell() {
           <div className="header-right">
             <LanguageSwitcher />
 
+            <button className="header-notification-btn" title="Sign In" onClick={() => setIsLoginOpen(true)} style={{ marginLeft: '12px' }}>
+              <Users size={14} />
+            </button>
+
             <button className="header-notification-btn" title="Notifications">
               <Bell size={14} />
               <div className="notification-badge" style={{position: 'absolute', top: '2px', right: '2px', background: '#ef4444', color: 'white', fontSize: '8px', fontWeight: 'bold', width: '12px', height: '12px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>1</div>
@@ -187,6 +195,8 @@ function AppShell() {
             <div className="header-badge"><span className="dot" />{t('live')}</div>
           </div>
         </header>
+
+        <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
 
         {/* ── Stock Ticker ──────── */}
         <StockTicker />
