@@ -285,12 +285,12 @@ export default function WorldMap() {
   }
 
   return (
-    <div className="world-map-section scroll-reveal" ref={containerRef} style={{ width: '100%', height: '100%', position: 'relative' }}>
+    <div className="world-map-section" ref={containerRef} style={{ width: '100%', height: '100%', minHeight: '400px', position: 'relative' }}>
 
 
       <div 
         className="globe-container"
-        style={{ width: '100%', height: '100%', padding: '20px 0' }}
+        style={{ width: '100%', height: '100%', minHeight: '400px', padding: '20px 0' }}
         onMouseMove={(e) => {
             if (hoveredInfo) {
               setTooltipPos({ x: e.clientX, y: e.clientY });
