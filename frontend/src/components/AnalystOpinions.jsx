@@ -1,21 +1,39 @@
 import { useState, useEffect } from 'react';
-import { MessageSquare, ThumbsUp, ThumbsDown } from 'lucide-react';
+import { MessageSquare, ThumbsUp, ThumbsDown, ExternalLink } from 'lucide-react';
+import { fetchTrending } from '../api';
 
-const ALL_ANALYSTS = [
-  { name: 'Yash', role: 'Head of Analytics', color: '#8b5cf6', opinion: 'Markets are in full risk-on mode, pricing in a swift Middle East ceasefire. I watch reaction at geopolitical flashpoints carefully.', upvotes: 214, downvotes: 7 },
-  { name: 'Sarah Kim', role: 'Asia-Pacific Desk Lead', color: '#10b981', opinion: 'South Korean semiconductor rally is sustainable if US tariff exemptions hold. Watch Samsung and SK Hynix closely.', upvotes: 156, downvotes: 12 },
-  { name: 'Carlos Mendez', role: 'Energy Analyst', color: '#f59e0b', opinion: 'Oil volatility is far from over. Even with a ceasefire, supply chain disruptions in the Strait of Hormuz persist.', upvotes: 89, downvotes: 23 },
-  { name: 'Priya Sharma', role: 'Climate Risk Analyst', color: '#06b6d4', opinion: 'The NOAA forecast is alarming. Insurance stocks will take a significant hit if hurricane predictions hold true.', upvotes: 67, downvotes: 5 },
+const DEFAULT_ANALYSTS = [
+  { name: 'Yash', role: 'Head of Analytics', color: '#8b5cf6', opinion: 'Markets are in full risk-on mode, pricing in a swift Middle East ceasefire.', upvotes: 214, downvotes: 7, link: '#' },
 ];
 
 export default function AnalystOpinions({ analysts = null }) {
   const [currentIdx, setCurrentIdx] = useState(0);
-  const [votes, setVotes] = useState(ALL_ANALYSTS.map(a => ({ up: a.upvotes, down: a.downvotes })));
+  const [opinionsData, setOpinionsData] = useState(DEFAULT_ANALYSTS);
+  const [votes, setVotes] = useState([{ up: 214, down: 7 }]);
+
+  useEffect(() => {
+    fetchTrending().then(data => {
+      if(data?.headlines?.length > 0) {
+        const mapped = data.headlines.slice(0, 5).map((h, i) => ({
+           name: ['Yash', 'Sarah Kim', 'Carlos Mendez', 'Priya Sharma', 'Michael Gaki'][i] || 'Analyst',
+           role: h.source || 'Intelligence Desk',
+           color: ['#8b5cf6', '#10b981', '#f59e0b', '#06b6d4', '#eab308'][i] || '#a855f7',
+           opinion: h.title,
+           link: h.link || '#',
+           upvotes: 100 + Math.floor(Math.random() * 200),
+           downvotes: Math.floor(Math.random() * 20)
+        }));
+        setOpinionsData(mapped);
+        setVotes(mapped.map(a => ({ up: a.upvotes, down: a.downvotes })));
+      }
+    }).catch(() => {});
+  }, []);
 
   // Rotate analyst every 6 seconds
   useEffect(() => {
+    if(opinionsData.length <= 1) return;
     const interval = setInterval(() => {
-      setCurrentIdx(prev => (prev + 1) % ALL_ANALYSTS.length);
+      setCurrentIdx(prev => (prev + 1) % opinionsData.length);
     }, 6000);
     return () => clearInterval(interval);
   }, []);
@@ -31,8 +49,8 @@ export default function AnalystOpinions({ analysts = null }) {
     return () => clearInterval(interval);
   }, []);
 
-  const analyst = ALL_ANALYSTS[currentIdx];
-  const v = votes[currentIdx];
+  const analyst = opinionsData[currentIdx] || opinionsData[0];
+  const v = votes[currentIdx] || votes[0];
 
   return (
     <div className="analyst-opinions-panel">
@@ -55,6 +73,13 @@ export default function AnalystOpinions({ analysts = null }) {
           </div>
 
           <p className="analyst-opinion-text">{analyst.opinion}</p>
+          {analyst.link !== '#' && (
+            <div style={{ marginTop: '10px' }}>
+              <a href={analyst.link} target="_blank" rel="noreferrer" style={{ fontSize: '11px', color: analyst.color, display: 'flex', alignItems: 'center', gap: '4px', textDecoration: 'none', fontWeight: '600' }}>
+                Read Source <ExternalLink size={10} />
+              </a>
+            </div>
+          )}
 
           <div className="analyst-opinion-actions">
             <button className="analyst-vote-btn" onClick={() => setVotes(prev => { const n = [...prev]; n[currentIdx] = { ...n[currentIdx], up: n[currentIdx].up + 1 }; return n; })}>
@@ -64,7 +89,7 @@ export default function AnalystOpinions({ analysts = null }) {
               <ThumbsDown size={12} /><span>{v.down}</span>
             </button>
             <span className="analyst-view-more" style={{ fontSize: '10px', color: '#64748b' }}>
-              {currentIdx + 1}/{ALL_ANALYSTS.length} · auto-rotating
+              {currentIdx + 1}/{opinionsData.length} · auto-rotating
             </span>
           </div>
         </div>

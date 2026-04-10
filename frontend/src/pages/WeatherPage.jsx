@@ -47,17 +47,7 @@ const ALL_CITIES = [
   { name: 'Toronto', emoji: '🍁', region: 'Canada' },
 ];
 
-// Village/small-town fallback mapping
-const VILLAGE_FALLBACK = {
-  'chehru': 'Rohtak',
-  'kalanaur': 'Rohtak',
-  'meham': 'Rohtak',
-  'dighal': 'Jhajjar',
-  'beri': 'Jhajjar',
-  'sampla': 'Rohtak',
-  'asthal bohar': 'Rohtak',
-  'lakhan majra': 'Rohtak',
-};
+];
 
 export default function WeatherPage() {
   const navigate = useNavigate();
@@ -95,18 +85,6 @@ export default function WeatherPage() {
         fetchWeather(cityName),
         fetchWeatherForecast(cityName),
       ]);
-
-      // If API returned no data, try the fallback for small villages
-      if (!w || w.temp_c === undefined) {
-        const fallback = VILLAGE_FALLBACK[cityName.toLowerCase()];
-        if (fallback) {
-          setErrorMsg(`"${cityName}" is a small village. Showing weather for nearest station: ${fallback}`);
-          [w, f] = await Promise.all([
-            fetchWeather(fallback),
-            fetchWeatherForecast(fallback),
-          ]);
-        }
-      }
 
       if (w && w.temp_c !== undefined) {
         setWeather(w);
@@ -300,8 +278,8 @@ export default function WeatherPage() {
               {/* Subtle inner glow */}
               <div style={{ position: 'absolute', top: '-50%', right: '-20%', width: '400px', height: '400px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(56,189,248,0.1) 0%, transparent 70%)', pointerEvents: 'none' }} />
 
-              <div style={{ position: 'relative', zIndex: 1 }}>
-                <div style={{ fontSize: '100px', fontWeight: 800, lineHeight: 1, letterSpacing: '-5px', textShadow: '0 10px 40px rgba(0,0,0,0.4)' }}>
+              <div style={{ position: 'relative', zIndex: 1, paddingBottom: '10px' }}>
+                <div style={{ fontSize: '100px', fontWeight: 800, lineHeight: 1.1, letterSpacing: '-5px', textShadow: '0 10px 40px rgba(0,0,0,0.4)', paddingTop: '10px' }}>
                   {weather.temp_c}<span style={{ fontSize: '50px', fontWeight: 300, verticalAlign: 'top', marginLeft: '4px' }}>°C</span>
                 </div>
                 <div style={{ fontSize: '22px', fontWeight: 500, opacity: 0.9, marginTop: '8px', letterSpacing: '0.5px' }}>{weather.condition}</div>

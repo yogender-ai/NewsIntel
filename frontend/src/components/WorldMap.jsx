@@ -88,6 +88,7 @@ export default function WorldMap() {
   const [dataFlowOffset, setDataFlowOffset] = useState(0);
   const navigate = useNavigate();
   const { t } = useLanguage();
+  const containerRef = useRef(null);
 
   const width = 900;
   const height = 460;
@@ -145,13 +146,13 @@ export default function WorldMap() {
   const pulseR3 = 20 + Math.sin(pulsePhase * 0.1) * 8;
 
   return (
-    <div className="world-map-section" style={{ width: '100%', position: 'relative' }}>
+    <div ref={containerRef} className="world-map-section" style={{ width: '100%', position: 'relative' }}>
       
       {/* Tooltip */}
       {hoveredInfo && (
         <div 
           className="map-tooltip" 
-          style={{ left: tooltipPos.x + 15, top: tooltipPos.y + 15, position: 'fixed', zIndex: 100, background: 'rgba(10,5,20,0.95)', backdropFilter: 'blur(12px)', border: '1px solid rgba(139,92,246,0.4)', borderRadius: '12px', padding: '12px 16px', boxShadow: '0 10px 40px rgba(0,0,0,0.5)', pointerEvents: 'none' }}
+          style={{ left: tooltipPos.x + 15, top: tooltipPos.y + 15, position: 'absolute', zIndex: 100, background: 'rgba(10,5,20,0.95)', backdropFilter: 'blur(12px)', border: '1px solid rgba(139,92,246,0.4)', borderRadius: '12px', padding: '12px 16px', boxShadow: '0 10px 40px rgba(0,0,0,0.5)', pointerEvents: 'none' }}
         >
           <span style={{ fontSize: '20px' }}>{hoveredInfo.flag}</span>
           <div style={{ marginLeft: '8px', display: 'inline-block' }}>
@@ -216,15 +217,23 @@ export default function WorldMap() {
               <path
                 key={`path-${i}`}
                 d={pathGenerator(feat)}
-                fill={isHot ? sev.fill : (isHovered ? 'rgba(139,92,246,0.2)' : 'rgba(20,15,40,0.4)')}
-                stroke={isHot ? sev.stroke : (isHovered ? '#a855f7' : 'rgba(139,92,246,0.2)')}
+                fill={isHot ? sev.fill : (isHovered ? 'rgba(139,92,246,0.2)' : 'rgba(20,15,40,0.8)')}
+                stroke={isHot ? sev.stroke : (isHovered ? '#a855f7' : 'rgba(139,92,246,0.1)')}
                 strokeWidth={isHot ? 1.2 : (isHovered ? 1.5 : 0.6)}
-                filter={isHot ? 'url(#glow-medium)' : (isHovered ? 'url(#glow-medium)' : '')}
+                filter={isHot ? 'url(#glow-hot)' : (isHovered ? 'url(#glow-medium)' : '')}
                 onMouseEnter={(e) => {
                   if (feat.info) setHoveredInfo(feat.info);
-                  setTooltipPos({ x: e.clientX, y: e.clientY });
+                  if (containerRef.current) {
+                    const rect = containerRef.current.getBoundingClientRect();
+                    setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+                  }
                 }}
-                onMouseMove={(e) => setTooltipPos({ x: e.clientX, y: e.clientY })}
+                onMouseMove={(e) => {
+                  if (containerRef.current) {
+                    const rect = containerRef.current.getBoundingClientRect();
+                    setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+                  }
+                }}
                 onMouseLeave={() => setHoveredInfo(null)}
                 onClick={() => handleCountryClick(feat.info)}
                 style={{ cursor: 'pointer', transition: 'fill 0.3s, stroke 0.3s' }}

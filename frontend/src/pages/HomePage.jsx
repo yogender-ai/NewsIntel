@@ -148,7 +148,6 @@ export default function HomePage() {
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <Globe size={14} style={{ color: '#8b5cf6' }} />
             <span style={{ fontSize: '11px', fontWeight: '700', color: '#8b5cf6', letterSpacing: '2px' }}>GLOBAL INTELLIGENCE HEATMAP</span>
-            <span style={{ fontSize: '11px', fontWeight: '700', color: '#8b5cf6', letterSpacing: '2px' }}>GLOBAL INTELLIGENCE HEATMAP</span>
           </div>
           <div style={{ display: 'flex', gap: '8px' }}>
             {[{l:'Critical',c:'#ef4444'},{l:'High',c:'#f97316'},{l:'Medium',c:'#facc15'},{l:'Low',c:'#10b981'}].map((item, i) => (
@@ -218,6 +217,11 @@ export default function HomePage() {
               ))}
             </div>
           </div>
+          </div>
+          {/* Intelligence Feed embedded inside Left Column */}
+          <div style={{ marginTop: '20px' }}>
+            <IntelligenceFeed headlines={headlines} />
+          </div>
         </div>
 
         {/* Right Sidebar */}
@@ -240,10 +244,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* ══════════════════════════════════════════════════════════════ */}
-      {/* ── SECTION 5: INTELLIGENCE FEED ── */}
-      {/* ══════════════════════════════════════════════════════════════ */}
-      <IntelligenceFeed headlines={headlines} />
+      {/* Feed is now natively embedded in the left column */}
 
       {/* ══════════════════════════════════════════════════════════════ */}
       {/* ── SECTION 6: CTA BANNER ── */}

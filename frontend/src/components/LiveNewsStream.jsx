@@ -44,7 +44,6 @@ export default function LiveNewsStream() {
       <div className="stream-v2-header">
         <div className="stream-v2-channel-info">
           <div className="stream-v2-verified">
-            <span className="stream-verified-check">✓</span>
           </div>
           <div className="stream-v2-names">
             <span className="stream-v2-name">{activeChannel.name} | Live</span>
