@@ -162,13 +162,21 @@ export default function WorldMap() {
         </div>
       )}
 
-      {/* SVG Map */}
-      <svg 
-        viewBox={`0 0 ${width} ${height}`} 
-        className="world-map-svg"
-        preserveAspectRatio="xMidYMid meet"
-        style={{ width: '100%', height: 'auto', overflow: 'visible' }}
-      >
+      {/* SVG Map (3D Holographic Rendering) */}
+      <div style={{ perspective: '1200px', width: '100%', padding: '40px 0' }}>
+        <svg 
+          viewBox={`0 0 ${width} ${height}`} 
+          className="world-map-svg"
+          preserveAspectRatio="xMidYMid meet"
+          style={{ 
+            width: '100%', 
+            height: 'auto', 
+            overflow: 'visible',
+            transform: 'rotateX(50deg) rotateZ(-12deg) rotateY(15deg)',
+            transformStyle: 'preserve-3d',
+            filter: 'drop-shadow(-20px 30px 40px rgba(139,92,246,0.35))'
+          }}
+        >
         <defs>
           <filter id="glow-hot" x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur stdDeviation="4" result="blur" />
@@ -305,7 +313,8 @@ export default function WorldMap() {
         <text x="15" y={height - 10} fill="rgba(255,255,255,0.2)" fontSize="7" fontFamily="monospace">
           LAST UPDATE: {new Date().toLocaleTimeString()} UTC
         </text>
-      </svg>
+        </svg>
+      </div>
     </div>
   );
 }

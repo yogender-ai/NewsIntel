@@ -77,6 +77,8 @@ export default function WeatherPage() {
 
   const loadWeather = async (cityName) => {
     setLoading(true);
+    setWeather(null);
+    setForecast(null);
     setErrorMsg('');
     try {
       let [w, f] = await Promise.all([
@@ -277,8 +279,8 @@ export default function WeatherPage() {
               <div style={{ position: 'absolute', top: '-50%', right: '-20%', width: '400px', height: '400px', borderRadius: '50%', background: 'radial-gradient(circle, rgba(56,189,248,0.1) 0%, transparent 70%)', pointerEvents: 'none' }} />
 
               <div style={{ position: 'relative', zIndex: 1, paddingBottom: '10px' }}>
-                <div style={{ fontSize: '100px', fontWeight: 800, lineHeight: 1.1, letterSpacing: '-5px', textShadow: '0 10px 40px rgba(0,0,0,0.4)', paddingTop: '10px' }}>
-                  {weather.temp_c}<span style={{ fontSize: '50px', fontWeight: 300, verticalAlign: 'top', marginLeft: '4px' }}>°C</span>
+                <div style={{ fontSize: '100px', fontWeight: 800, lineHeight: 1.1, letterSpacing: '-5px', textShadow: '0 10px 40px rgba(0,0,0,0.4)', paddingTop: '20px' }}>
+                  {weather.temp_c}<span style={{ fontSize: '50px', fontWeight: 300, verticalAlign: 'text-top', marginLeft: '6px' }}>°C</span>
                 </div>
                 <div style={{ fontSize: '22px', fontWeight: 500, opacity: 0.9, marginTop: '8px', letterSpacing: '0.5px' }}>{weather.condition}</div>
                 <div style={{ fontSize: '15px', color: '#cbd5e1', marginTop: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
