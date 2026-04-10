@@ -4,7 +4,7 @@ import {
   Zap, Newspaper, RotateCcw, Search, Database, Brain, Sparkles,
   CheckCircle, Loader, AlertTriangle, Globe, Clock, RefreshCw,
   BarChart3, Filter, ArrowUpRight, Shield, TrendingUp,
-  Bookmark, Timer,
+  Bookmark, Timer, Share2, ChevronRight, MapPin, Check
 } from 'lucide-react';
 
 import { analyzeTopic } from '../api';
@@ -18,6 +18,10 @@ import PDFExport from '../components/PDFExport';
 import TextToSpeech from '../components/TextToSpeech';
 import ReadingList, { useReadingList } from '../components/ReadingList';
 import SentimentTrend from '../components/SentimentTrend';
+import SentimentGauge from '../components/SentimentGauge';
+import SimilarStories from '../components/SimilarStories';
+import AnalystOpinions from '../components/AnalystOpinions';
+import TrendsSidebar from '../components/TrendsSidebar';
 
 const PIPELINE_STEPS = [
   { label: 'Scanning live news feeds', icon: Search, detail: 'Google News RSS · 14 Regions · Trusted Sources' },
@@ -71,19 +75,16 @@ export default function ResultsPage() {
     setQuoteIndex(0);
     setShowSlowMessage(false);
     
-    // Animate pipeline steps down
     const timers = [
       setTimeout(() => setActiveStep(1), 2000),
       setTimeout(() => setActiveStep(2), 5000),
       setTimeout(() => setActiveStep(3), 8000),
     ];
     
-    // Rotate quotes every 4 seconds
     const quoteInterval = setInterval(() => {
       setQuoteIndex((prev) => (prev + 1) % PREMIUM_QUOTES.length);
     }, 4000);
     
-    // Show polite timeout message after 12 seconds
     const slowTimer = setTimeout(() => {
       setShowSlowMessage(true);
     }, 12000);
@@ -200,6 +201,14 @@ export default function ResultsPage() {
   const featureArticles = filteredArticles.slice(0, 3);
   const wireArticles = filteredArticles.slice(3);
 
+  // Compute sentiment score for gauge
+  const sentimentData = results?.sentiment_chart || [];
+  const posCount = sentimentData.find(s => s.name === 'positive')?.value || 0;
+  const negCount = sentimentData.find(s => s.name === 'negative')?.value || 0;
+  const neuCount = sentimentData.find(s => s.name === 'neutral')?.value || 0;
+  const totalSent = posCount + negCount + neuCount || 1;
+  const sentimentScore = Math.round(((posCount * 100 + neuCount * 50) / totalSent));
+
   const countdownProgress = ((AUTO_REFRESH_SECONDS - countdown) / AUTO_REFRESH_SECONDS) * 100;
 
   // ── LOADING ──
@@ -221,42 +230,20 @@ export default function ResultsPage() {
               animationDelay: `${Math.random() * 8}s`,
             }} />
           ))}
-          {/* Orbital ring */}
           <div style={{
             position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
             width: '500px', height: '500px', borderRadius: '50%',
             border: '1px solid rgba(99, 102, 241, 0.08)',
             animation: 'spinSlow 30s linear infinite',
           }} />
-          <div style={{
-            position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-            width: '350px', height: '350px', borderRadius: '50%',
-            border: '1px solid rgba(139, 92, 246, 0.06)',
-            animation: 'spinSlow 20s linear infinite reverse',
-          }} />
         </div>
 
         <div style={{ textAlign: 'center', position: 'relative', zIndex: 1, maxWidth: '480px' }}>
-          {/* Premium Spinner */}
           <div style={{ position: 'relative', width: '80px', height: '80px', margin: '0 auto 32px' }}>
-            <div style={{
-              position: 'absolute', inset: 0, borderRadius: '50%',
-              border: '2px solid transparent', borderTopColor: '#6366f1',
-              animation: 'spin 1s linear infinite',
-            }} />
-            <div style={{
-              position: 'absolute', inset: '8px', borderRadius: '50%',
-              border: '2px solid transparent', borderRightColor: '#8b5cf6',
-              animation: 'spin 1.5s linear infinite reverse',
-            }} />
-            <div style={{
-              position: 'absolute', inset: '16px', borderRadius: '50%',
-              border: '2px solid transparent', borderBottomColor: '#06b6d4',
-              animation: 'spin 2s linear infinite',
-            }} />
-            <div style={{
-              position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
+            <div style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid transparent', borderTopColor: '#6366f1', animation: 'spin 1s linear infinite' }} />
+            <div style={{ position: 'absolute', inset: '8px', borderRadius: '50%', border: '2px solid transparent', borderRightColor: '#8b5cf6', animation: 'spin 1.5s linear infinite reverse' }} />
+            <div style={{ position: 'absolute', inset: '16px', borderRadius: '50%', border: '2px solid transparent', borderBottomColor: '#06b6d4', animation: 'spin 2s linear infinite' }} />
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Sparkles size={20} color="#8b5cf6" style={{ animation: 'pulse 2s ease-in-out infinite' }} />
             </div>
           </div>
@@ -268,7 +255,6 @@ export default function ResultsPage() {
             Curating top articles from trusted sources...
           </p>
 
-          {/* Pipeline Steps */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', textAlign: 'left' }}>
             {PIPELINE_STEPS.map((step, i) => {
               const Icon = step.icon;
@@ -308,7 +294,6 @@ export default function ResultsPage() {
             })}
           </div>
 
-          {/* Quote */}
           <div style={{ marginTop: '40px', padding: '0 20px' }}>
             <p key={quoteIndex} style={{
               fontSize: '14px', color: '#64748b', fontStyle: 'italic', lineHeight: 1.6,
@@ -357,9 +342,9 @@ export default function ResultsPage() {
     );
   }
 
-  // ── RESULTS ──
+  // ── RESULTS — Two-Column Layout ──
   return (
-    <div className="results-page">
+    <div className="results-page-v2">
       {/* Headline Ticker */}
       {tickerHeadlines.length > 0 && (
         <div className="news-ticker">
@@ -376,141 +361,195 @@ export default function ResultsPage() {
         </div>
       )}
 
-      {/* Results Actions Bar */}
-      <div className="results-actions-bar">
-        <div className="results-meta">
-          <h2 className="results-topic">{results?.topic}</h2>
-          <div className="results-info">
-            <span>{results?.region_flag} {results?.region_name}</span>
-            <span>·</span>
-            <span>{results?.article_count} Sources</span>
-            <span>·</span>
-            <span>{lastUpdated ? formatTime() : 'Live'}</span>
-            <span className="results-countdown">
-              <Timer size={10} /> {countdown}s
-            </span>
+      {/* Two Column Layout */}
+      <div className="results-v2-layout">
+        {/* ── LEFT: Main Content ── */}
+        <div className="results-v2-main">
+          {/* Hero Headline */}
+          {headline && (
+            <section className="results-v2-hero scroll-reveal">
+              <h1 className="results-v2-headline">{headline.title}</h1>
+              <div className="results-v2-meta-row">
+                <span className="results-v2-source">{headline.source}</span>
+                <span className="results-v2-time">
+                  <Clock size={11} /> {headline.time_ago || '1 hour ago'}
+                </span>
+                {headline.is_trusted && (
+                  <span className="results-v2-verified">
+                    <Check size={10} /> Verified
+                  </span>
+                )}
+              </div>
+
+              {/* Geopolitical Map Image Placeholder */}
+              {headline.image_url && (
+                <div className="results-v2-geo-image">
+                  <img
+                    src={headline.image_url}
+                    alt={headline.title}
+                    onError={(e) => { e.target.style.display = 'none'; }}
+                  />
+                  <div className="results-v2-geo-overlay" />
+                </div>
+              )}
+
+              <p className="results-v2-summary">
+                {headline.summary || headline.full_text_preview || ''}
+              </p>
+            </section>
+          )}
+
+          {/* Why This Matters / AI Brief */}
+          <div className="scroll-reveal">
+            <TopicOverview analysis={results?.ai_analysis} onThemeSearch={handleThemeSearch} />
           </div>
+
+          {/* Market Reaction */}
+          {(results?.entity_chart?.length > 0 || results?.sentiment_chart?.length > 0) && (
+            <section className="results-v2-market scroll-reveal">
+              <h3 className="results-v2-section-title">
+                <BarChart3 size={15} /> Market Reaction
+              </h3>
+              <div className="results-v2-charts">
+                {results.sentiment_chart?.length > 0 && <SentimentPie data={results.sentiment_chart} />}
+                {results.entity_chart?.length > 0 && <EntityChart data={results.entity_chart} />}
+                {results.source_chart?.length > 0 && <SourceChart data={results.source_chart} />}
+              </div>
+              <SentimentTrend topic={decodedTopic} />
+            </section>
+          )}
+
+          {/* Key Facts */}
+          <section className="results-v2-keyfacts scroll-reveal">
+            <h3 className="results-v2-section-title">
+              <Check size={15} /> KEY FACTS
+            </h3>
+            <ul className="results-v2-facts-list">
+              {allArticles.slice(0, 3).map((a, i) => (
+                <li key={i} className="results-v2-fact">
+                  <Check size={12} className="fact-check" />
+                  <span>{a.title}</span>
+                </li>
+              ))}
+            </ul>
+            <button
+              className="results-v2-share-btn"
+              onClick={() => {
+                if (navigator.share) {
+                  navigator.share({ title: results?.topic, url: window.location.href });
+                } else {
+                  navigator.clipboard.writeText(window.location.href);
+                }
+              }}
+            >
+              <Share2 size={13} /> SHARE THIS ARTICLE
+            </button>
+          </section>
+
+          {/* News Timeline */}
+          <div className="scroll-reveal">
+            <NewsTimeline articles={allArticles} />
+          </div>
+
+          {/* More Stories */}
+          <section className="stories-section scroll-reveal">
+            <div className="stories-header">
+              <h3 className="section-header">
+                <Newspaper size={15} /> More Stories
+                <span className="story-count">{filteredArticles.length}</span>
+              </h3>
+              <div className="sentiment-filter">
+                <Filter size={11} />
+                {['all', 'positive', 'negative', 'neutral'].map((f) => (
+                  <button
+                    key={f}
+                    className={`filter-chip ${sentimentFilter === f ? 'active' : ''} ${f}`}
+                    onClick={() => setSentimentFilter(f)}
+                  >
+                    {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {featureArticles.length > 0 && (
+              <div className="feature-grid">
+                {featureArticles.map((article, i) => (
+                  <ArticleCard
+                    key={i}
+                    article={article}
+                    index={i}
+                    variant="feature"
+                    isBookmarked={isBookmarked(article.title)}
+                    onToggleBookmark={handleToggleBookmark}
+                  />
+                ))}
+              </div>
+            )}
+
+            {wireArticles.length > 0 && (
+              <div className="wire-list">
+                {wireArticles.map((article, i) => (
+                  <ArticleCard
+                    key={i}
+                    article={article}
+                    index={i + 3}
+                    variant="wire"
+                    isBookmarked={isBookmarked(article.title)}
+                    onToggleBookmark={handleToggleBookmark}
+                  />
+                ))}
+              </div>
+            )}
+
+            {filteredArticles.length === 0 && (
+              <div className="no-articles"><p>No articles match the selected filter.</p></div>
+            )}
+          </section>
         </div>
-        <div className="results-action-btns">
-          <div className="countdown-ring-wrapper" title={`Auto-refresh in ${countdown}s`}>
-            <svg viewBox="0 0 36 36" className="countdown-ring">
-              <circle cx="18" cy="18" r="15.5" fill="none" stroke="rgba(255,255,255,0.06)" strokeWidth="2" />
-              <circle
-                cx="18" cy="18" r="15.5" fill="none"
-                stroke="var(--accent-emerald)" strokeWidth="2"
-                strokeDasharray={`${countdownProgress * 0.975} 97.5`}
-                strokeLinecap="round" transform="rotate(-90 18 18)"
-              />
-            </svg>
-            <span className="countdown-number">{countdown}</span>
+
+        {/* ── RIGHT: Sidebar ── */}
+        <aside className="results-v2-sidebar">
+          {/* Sentiment Gauge */}
+          <div className="results-v2-gauge-card scroll-reveal">
+            <SentimentGauge
+              sentiment={sentimentScore >= 60 ? 'positive' : sentimentScore >= 40 ? 'neutral' : 'negative'}
+              score={sentimentScore}
+            />
           </div>
-          <button className={`action-btn ${isRefreshing ? 'spinning' : ''}`} onClick={handleRefresh} disabled={isRefreshing}>
-            <RefreshCw size={13} /> {isRefreshing ? 'Updating...' : 'Refresh'}
-          </button>
-          <PDFExport results={results} />
-          <TextToSpeech headlines={allArticles} />
-          <button className="action-btn" onClick={handleReset}>
-            <Search size={13} /> New Search
-          </button>
-        </div>
-      </div>
 
-      {/* ── HERO HEADLINE ── */}
-      {headline && (
-        <section className="results-hero scroll-reveal">
-          <ArticleCard
-            article={headline}
-            index={0}
-            variant="hero"
-            isBookmarked={isBookmarked(headline.title)}
-            onToggleBookmark={handleToggleBookmark}
-          />
-        </section>
-      )}
-
-      {/* ── AI BRIEF ── */}
-      <div className="scroll-reveal">
-        <TopicOverview analysis={results?.ai_analysis} onThemeSearch={handleThemeSearch} />
-      </div>
-
-      {/* ── NEWS TIMELINE ── */}
-      <div className="scroll-reveal">
-        <NewsTimeline articles={allArticles} />
-      </div>
-
-      {/* ── ANALYTICS ── */}
-      {(results?.entity_chart?.length > 0 || results?.sentiment_chart?.length > 0 || results?.source_chart?.length > 0) && (
-        <section className="analytics-section scroll-reveal">
-          <h3 className="section-header"><BarChart3 size={16} /> Analytics Dashboard</h3>
-          <div className="charts-grid">
-            {results.sentiment_chart?.length > 0 && <SentimentPie data={results.sentiment_chart} />}
-            {results.entity_chart?.length > 0 && <EntityChart data={results.entity_chart} />}
-            {results.source_chart?.length > 0 && <SourceChart data={results.source_chart} />}
+          {/* Global Trends */}
+          <div className="results-v2-trends scroll-reveal">
+            <TrendsSidebar />
           </div>
-          {/* Sentiment Over Time */}
-          <SentimentTrend topic={decodedTopic} />
-        </section>
-      )}
 
-      {/* ── MORE STORIES ── */}
-      <section className="stories-section scroll-reveal">
-        <div className="stories-header">
-          <h3 className="section-header">
-            <Newspaper size={15} /> More Stories
-            <span className="story-count">{filteredArticles.length}</span>
-          </h3>
-          <div className="sentiment-filter">
-            <Filter size={11} />
-            {['all', 'positive', 'negative', 'neutral'].map((f) => (
-              <button
-                key={f}
-                className={`filter-chip ${sentimentFilter === f ? 'active' : ''} ${f}`}
-                onClick={() => setSentimentFilter(f)}
-              >
-                {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
+          {/* Similar Stories */}
+          <div className="scroll-reveal">
+            <SimilarStories articles={allArticles.slice(3, 7)} topic={decodedTopic} />
+          </div>
+
+          {/* Analyst Opinions */}
+          <div className="scroll-reveal">
+            <AnalystOpinions />
+          </div>
+
+          {/* Actions */}
+          <div className="results-v2-actions scroll-reveal">
+            <div className="results-v2-action-row">
+              <button className={`action-btn ${isRefreshing ? 'spinning' : ''}`} onClick={handleRefresh} disabled={isRefreshing}>
+                <RefreshCw size={13} /> {isRefreshing ? 'Updating...' : 'Refresh'}
               </button>
-            ))}
+              <PDFExport results={results} />
+              <TextToSpeech headlines={allArticles} />
+              <button className="action-btn" onClick={handleReset}>
+                <Search size={13} /> New Search
+              </button>
+            </div>
           </div>
-        </div>
+        </aside>
+      </div>
 
-        {/* Feature articles (magazine side-by-side) */}
-        {featureArticles.length > 0 && (
-          <div className="feature-grid">
-            {featureArticles.map((article, i) => (
-              <ArticleCard
-                key={i}
-                article={article}
-                index={i}
-                variant="feature"
-                isBookmarked={isBookmarked(article.title)}
-                onToggleBookmark={handleToggleBookmark}
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Wire articles (terminal style) */}
-        {wireArticles.length > 0 && (
-          <div className="wire-list">
-            {wireArticles.map((article, i) => (
-              <ArticleCard
-                key={i}
-                article={article}
-                index={i + 3}
-                variant="wire"
-                isBookmarked={isBookmarked(article.title)}
-                onToggleBookmark={handleToggleBookmark}
-              />
-            ))}
-          </div>
-        )}
-
-        {filteredArticles.length === 0 && (
-          <div className="no-articles"><p>No articles match the selected filter.</p></div>
-        )}
-      </section>
-
-      {/* ── NLP PIPELINE INFO ── */}
+      {/* NLP Pipeline Footer */}
       <section className="nlp-footer scroll-reveal">
         <div className="nlp-badge"><Brain size={14} /><span>NLP Pipeline v5.0</span></div>
         <div className="nlp-tags">

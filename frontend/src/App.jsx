@@ -1,7 +1,8 @@
 import { lazy, Suspense, useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
-import { Loader, Zap, Bookmark, Globe } from 'lucide-react';
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
+import { Loader, Zap, Bookmark, Globe, Users, Bell } from 'lucide-react';
 import './App.css';
+import './overhaul.css';
 import { pingHealth } from './api';
 import StockTicker from './components/StockTicker';
 import LiveClock from './components/LiveClock';
@@ -12,6 +13,7 @@ import { LanguageProvider, useLanguage } from './context/LanguageContext';
 const HomePage = lazy(() => import('./pages/HomePage'));
 const ResultsPage = lazy(() => import('./pages/ResultsPage'));
 const WeatherPage = lazy(() => import('./pages/WeatherPage'));
+const CommunityPage = lazy(() => import('./pages/CommunityPage'));
 
 /* ── Premium Page Loader (Suspense fallback) ── */
 function PageLoader() {
@@ -40,6 +42,7 @@ function AnimatedRoutes() {
         <Route path="/" element={<HomePage />} />
         <Route path="/search/:topic" element={<ResultsPage />} />
         <Route path="/weather" element={<WeatherPage />} />
+        <Route path="/community" element={<CommunityPage />} />
       </Routes>
     </div>
   );
@@ -146,6 +149,17 @@ function AppShell() {
           <div className="header-right">
             {/* Language Switcher */}
             <LanguageSwitcher />
+
+            {/* Community Link */}
+            <a href="/community" className="header-community-link" title="Community">
+              <Users size={14} />
+            </a>
+
+            {/* Notification Bell */}
+            <button className="header-notification-btn" title="Notifications">
+              <Bell size={14} />
+              <span className="notification-dot" />
+            </button>
 
             {/* Reading List Toggle */}
             <button
