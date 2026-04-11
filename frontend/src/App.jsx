@@ -192,7 +192,7 @@ function AppShell() {
   }, []);
 
   return (
-    <>
+    <GlobalErrorBoundary>
       <div className="app">
         {/* ── Header ──────────────────── */}
         <header className="app-header">
@@ -252,15 +252,28 @@ function AppShell() {
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
             </button>
 
-            <button className="header-notification-btn" title="Notifications" onClick={() => {
-              if(!user) {
-                alert("For notifications and premium features, please add an account.");
-                setIsLoginOpen(true);
-              }
-            }}>
-              <Bell size={14} />
-              {user && <div className="notification-badge" style={{position: 'absolute', top: '2px', right: '2px', background: '#ef4444', color: 'white', fontSize: '8px', fontWeight: 'bold', width: '12px', height: '12px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>1</div>}
-            </button>
+            <div style={{ position: 'relative' }}>
+              <button className="header-notification-btn" title="Alerts" onClick={() => {
+                const el = document.getElementById('notif-panel');
+                if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+              }}>
+                <Bell size={14} />
+                <div style={{position: 'absolute', top: '2px', right: '2px', background: '#ef4444', color: 'white', fontSize: '8px', fontWeight: 'bold', width: '10px', height: '10px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>3</div>
+              </button>
+              <div id="notif-panel" style={{ display: 'none', position: 'absolute', right: 0, top: '44px', width: '300px', background: 'rgba(10,5,25,0.98)', border: '1px solid rgba(139,92,246,0.3)', borderRadius: '12px', padding: '16px', zIndex: 999, backdropFilter: 'blur(20px)', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }}>
+                <div style={{ fontSize: '11px', color: '#8b5cf6', fontWeight: 700, letterSpacing: '1px', marginBottom: '12px' }}>INTELLIGENCE ALERTS</div>
+                {[
+                  { icon: '🔴', text: 'Breaking: Iran ceasefire talks enter final phase', time: '2m ago' },
+                  { icon: '🟡', text: 'Market Alert: DOW surges 1,200 points on geopolitical relief', time: '18m ago' },
+                  { icon: '🟢', text: 'Weather Advisory: Monsoon season approaching South Asia', time: '1h ago' },
+                ].map((n, i) => (
+                  <div key={i} style={{ padding: '10px', marginBottom: '8px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px', borderLeft: '2px solid rgba(139,92,246,0.4)' }}>
+                    <div style={{ fontSize: '12px', color: '#e2e8f0' }}>{n.icon} {n.text}</div>
+                    <div style={{ fontSize: '10px', color: '#64748b', marginTop: '4px' }}>{n.time}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </header>
 
@@ -295,7 +308,7 @@ function AppShell() {
         {/* Search Overlay */}
         <SearchOverlay isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
       </div>
-    </>
+    </GlobalErrorBoundary>
   );
 }
 

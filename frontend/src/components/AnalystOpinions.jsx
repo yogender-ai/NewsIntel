@@ -3,7 +3,7 @@ import { MessageSquare, ThumbsUp, ThumbsDown, ExternalLink } from 'lucide-react'
 import { fetchTrending } from '../api';
 
 const DEFAULT_ANALYSTS = [
-  { name: 'Yash', role: 'Head of Analytics', color: '#8b5cf6', opinion: 'Markets are in full risk-on mode, pricing in a swift Middle East ceasefire.', upvotes: 214, downvotes: 7, link: '#' },
+  { name: 'Alpha-Net', role: 'Automated Intelligence Node', color: '#8b5cf6', opinion: 'Scanning global feeds — live intelligence pending next update cycle.', upvotes: 142, downvotes: 3, link: '#' },
 ];
 
 export default function AnalystOpinions({ analysts = null }) {

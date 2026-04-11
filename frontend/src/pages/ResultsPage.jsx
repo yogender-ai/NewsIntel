@@ -201,13 +201,14 @@ export default function ResultsPage() {
   const featureArticles = filteredArticles.slice(0, 3);
   const wireArticles = filteredArticles.slice(3);
 
-  // Compute sentiment score for gauge
+  // Compute sentiment score for gauge — neutral=50, positive pushes higher, negative lower
   const sentimentData = results?.sentiment_chart || [];
   const posCount = sentimentData.find(s => s.name === 'positive')?.value || 0;
   const negCount = sentimentData.find(s => s.name === 'negative')?.value || 0;
   const neuCount = sentimentData.find(s => s.name === 'neutral')?.value || 0;
   const totalSent = posCount + negCount + neuCount || 1;
-  const sentimentScore = Math.round(((posCount * 100 + neuCount * 50) / totalSent));
+  const rawScore = ((posCount * 100 + neuCount * 50 + negCount * 0) / totalSent);
+  const sentimentScore = Math.max(10, Math.min(100, Math.round(rawScore)));
 
   const countdownProgress = ((AUTO_REFRESH_SECONDS - countdown) / AUTO_REFRESH_SECONDS) * 100;
 
@@ -398,6 +399,12 @@ export default function ResultsPage() {
               </p>
             </section>
           )}
+
+          {/* ── Action Bar: PDF + TTS ── */}
+          <div className="scroll-reveal" style={{ display: 'flex', gap: '10px', alignItems: 'center', padding: '10px 0 4px' }}>
+            <PDFExport results={results} topic={decodedTopic} />
+            <TextToSpeech text={results?.ai_analysis?.overview || ''} />
+          </div>
 
           {/* Why This Matters / AI Brief */}
           <div className="scroll-reveal">

@@ -128,7 +128,7 @@ export default function CommunityPage() {
       {/* Tab Navigation */}
       <div className="community-tabs">
         <div className="community-tabs-left">
-          <span className="community-version">AI INTELLIGENCE V5.0</span>
+          <span className="community-version">INTEL FEED</span>
           {['COMMUNITY', 'MY FEED', 'ACTIVITY & DISCUSSIONS'].map(tab => (
             <button
               key={tab}
@@ -159,13 +159,13 @@ export default function CommunityPage() {
 
             <div className="comm-user-card">
               <div className="comm-user-avatar">
-                <div className="comm-user-avatar-placeholder">YA</div>
+                <div className="comm-user-avatar-placeholder">AI</div>
               </div>
               <div className="comm-user-info">
-                <div className="comm-user-name">Yash</div>
-                <div className="comm-user-role">Head of Analytics</div>
+                <div className="comm-user-name">Intel Agent</div>
+                <div className="comm-user-role">Community Feed</div>
                 <span className="comm-user-handle">
-                  <Shield size={9} /> @Yash
+                  <Shield size={9} /> @system
                 </span>
               </div>
             </div>
