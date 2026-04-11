@@ -10,6 +10,7 @@ import TrendsSidebar from '../components/TrendsSidebar';
 import Watchlist from '../components/Watchlist';
 import AnalystLeaderboard from '../components/AnalystLeaderboard';
 import { useLanguage } from '../context/LanguageContext';
+import { fetchReddit, fetchHackerNews, fetchAnalystSummary } from '../api';
 
 const CATEGORY_FILTERS = [
   { label: 'War', icon: '⚔️' },
@@ -51,9 +52,72 @@ export default function CommunityPage() {
   const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState('community');
   const [postFilter, setPostFilter] = useState('featured');
-  const [activeCategory, setActiveCategory] = useState('War');
-  const [searchQuery, setSearchQuery] = useState('');
+  const [activeCategory, setActiveCategory] = useState('World News');
   const [expandedSections, setExpandedSections] = useState({ TRENDS: true, COMMUNITY: true });
+  
+  const [posts, setPosts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [analystSummary, setAnalystSummary] = useState('');
+
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      
+      const topicMap = {
+        'World News': 'worldnews',
+        'Tech': 'technology',
+        'Economy': 'economy',
+        'War': 'geopolitics'
+      };
+      const fetchTopic = topicMap[activeCategory] || 'worldnews';
+      
+      const [redditData, hnData, summaryData] = await Promise.all([
+        fetchReddit(fetchTopic),
+        fetchHackerNews(),
+        fetchAnalystSummary(activeCategory)
+      ]);
+      
+      setAnalystSummary(summaryData.summary || "");
+
+      const formattedReddit = (redditData.posts || []).map(p => ({
+        author: 'Reddit User',
+        role: 'Community Pulse',
+        verified: false,
+        timestamp: 'Just now',
+        title: p.title,
+        content: `Discussing ${fetchTopic} globally.`,
+        tags: [{ label: 'Reddit', type: 'reddit' }, { label: fetchTopic, type: 'topic' }],
+        votes: p.score || 0,
+        comments: p.num_comments || 0,
+        discussion: `Join the conversation on this ${fetchTopic} trend.`,
+      }));
+
+      const formattedHN = (hnData.stories || []).map(s => ({
+        author: s.by,
+        role: 'HN Insider',
+        verified: true,
+        timestamp: 'Live Feed',
+        title: s.title,
+        content: `Sourced directly from Hacker News API.`,
+        tags: [{ label: 'Hacker News', type: 'hn' }, { label: 'Tech', type: 'tech' }],
+        votes: s.score || 0,
+        comments: 0,
+        discussion: 'Technical discussion active.',
+      }));
+
+      // Interleave them
+      let mixed = [];
+      let i = 0;
+      while(i < formattedReddit.length || i < formattedHN.length) {
+        if(formattedReddit[i]) mixed.push(formattedReddit[i]);
+        if(formattedHN[i]) mixed.push(formattedHN[i]);
+        i++;
+      }
+      
+      setPosts(mixed);
+      setLoading(false);
+    })();
+  }, [activeCategory]);
 
   const toggleSection = (section) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
@@ -161,22 +225,38 @@ export default function CommunityPage() {
               </button>
             </div>
             <div className="comm-category-chips">
-              {CATEGORY_FILTERS.map((cat, i) => (
+              {['World News', 'Tech', 'Economy', 'War'].map((cat, i) => (
                 <button
                   key={i}
-                  className={`comm-cat-chip ${activeCategory === cat.label ? 'active' : ''}`}
-                  onClick={() => setActiveCategory(cat.label)}
+                  className={`comm-cat-chip ${activeCategory === cat ? 'active' : ''}`}
+                  onClick={() => setActiveCategory(cat)}
                 >
-                  <span>{cat.icon}</span> {cat.label}
+                  {cat}
                 </button>
               ))}
             </div>
           </div>
+          
+          {analystSummary && (
+            <div className="comm-analyst-summary" style={{ background: 'rgba(52, 211, 153, 0.05)', border: '1px solid rgba(52, 211, 153, 0.2)', padding: '16px', borderRadius: '12px', marginBottom: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                <Zap size={14} color="#10b981" />
+                <span style={{ fontSize: '12px', color: '#10b981', fontWeight: 'bold' }}>AI ANALYST SENTIMENT: {activeCategory.toUpperCase()}</span>
+              </div>
+              <p style={{ fontSize: '14px', color: '#e2e8f0', lineHeight: 1.6, margin: 0 }}>
+                {analystSummary}
+              </p>
+            </div>
+          )}
 
           <div className="comm-posts-list">
-            {MOCK_POSTS.length > 0 ? MOCK_POSTS.map((post, idx) => (
-              <CommunityPost key={idx} post={post} />
-            )) : <div style={{textAlign: 'center', padding: '60px', color: '#64748b', fontSize: '14px', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: '16px'}}>Community API integration pending... Add yourself soon!</div>}
+            {loading ? (
+              <div style={{ textAlign: 'center', padding: '60px', color: '#a855f7' }}>Syncing global nodes...</div>
+            ) : posts.length > 0 ? posts.map((post, idx) => (
+               <CommunityPost key={idx} post={post} />
+            )) : (
+               <div style={{textAlign: 'center', padding: '60px', color: '#64748b', fontSize: '14px', border: '1px dashed rgba(255,255,255,0.1)', borderRadius: '16px'}}>No community discussions found for this sector.</div>
+            )}
           </div>
         </main>
 

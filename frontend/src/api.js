@@ -150,12 +150,23 @@ export async function fetchWeatherForecast(city = 'Delhi') {
  */
 export async function fetchStocks() {
   try {
-    const response = await fetch(`${API_BASE}/stocks`, {
+    const response = await fetch(`${API_BASE}/api/markets/ticker`, {
       method: 'GET',
       headers: { 'Accept': 'application/json' },
     });
     if (response.ok) {
-      return await response.json();
+      const data = await response.json();
+      if(data.data) {
+        return {
+          stocks: data.data.map(item => ({
+             name: item.name,
+             price: item.price,
+             change_pct: item.change_pct,
+             direction: item.change_pct >= 0 ? "up" : "down",
+             flag: item.symbol.includes('BTC') ? "🌐" : (item.symbol.includes('GC=F') ? "🥇" : "US")
+          }))
+        };
+      }
     }
   } catch {
     // Silently fail
@@ -303,6 +314,32 @@ export async function fetchGitHubStats() {
   }
   return { stars: 0, forks: 0, watchers: 0, open_issues: 0 };
 }
+
+// ── Social & Community API ──
+export async function fetchReddit(topic = 'worldnews') {
+  try {
+    const res = await fetch(`${API_BASE}/api/social/reddit?topic=${topic}`);
+    if (res.ok) return await res.json();
+  } catch {}
+  return { posts: [] };
+}
+
+export async function fetchHackerNews() {
+  try {
+    const res = await fetch(`${API_BASE}/api/social/hn`);
+    if (res.ok) return await res.json();
+  } catch {}
+  return { stories: [] };
+}
+
+export async function fetchAnalystSummary(topic = 'global news') {
+  try {
+    const res = await fetch(`${API_BASE}/api/social/analyst-summary?topic=${topic}`);
+    if (res.ok) return await res.json();
+  } catch {}
+  return { summary: "Service unavailable." };
+}
+
 // ── Analytics API ──
 
 export const fetchPopularTopics = async () => {

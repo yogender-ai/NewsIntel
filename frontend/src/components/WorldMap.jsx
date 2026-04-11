@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { feature } from 'topojson-client';
 import { geoNaturalEarth1, geoPath } from 'd3-geo';
+import { Swords, Activity, CloudLightning } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 
 const TOPO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
@@ -56,27 +57,72 @@ function resolveCountryInfo(f) {
   return null;
 }
 
-/* Hot zones with coordinates and severity */
-const HOT_ZONES = [
-  { name: 'United States', coords: [-95, 38], severity: 'high', label: 'USA' },
-  { name: 'Iran', coords: [53, 32], severity: 'critical', label: 'IRAN' },
-  { name: 'Ukraine', coords: [32, 49], severity: 'critical', label: 'UKR' },
-  { name: 'Sudan', coords: [30, 15], severity: 'high', label: 'SDN' },
-  { name: 'Israel', coords: [35, 31], severity: 'medium', label: 'ISR' },
-  { name: 'China', coords: [105, 35], severity: 'medium', label: 'CHN' },
-  { name: 'Russia', coords: [60, 60], severity: 'high', label: 'RUS' },
-];
-
-const CONNECTIONS = [
-  { from: [-95, 38], to: [53, 32], color: '#ef4444', label: 'CEASEFIRE' },
-  { from: [32, 49], to: [60, 60], color: '#f59e0b', label: 'CONFLICT' },
-  { from: [35, 31], to: [53, 32], color: '#f97316', label: 'TENSIONS' },
-];
+const LAYERS = {
+  conflict: {
+    label: 'Geopolitics & Conflict',
+    icon: Swords,
+    color: '#ef4444',
+    zones: [
+      { name: 'United States', coords: [-95, 38], severity: 'high', label: 'USA' },
+      { name: 'Iran', coords: [53, 32], severity: 'critical', label: 'IRAN' },
+      { name: 'Ukraine', coords: [32, 49], severity: 'critical', label: 'UKR' },
+      { name: 'Sudan', coords: [30, 15], severity: 'high', label: 'SDN' },
+      { name: 'Israel', coords: [35, 31], severity: 'medium', label: 'ISR' },
+      { name: 'China', coords: [105, 35], severity: 'medium', label: 'CHN' },
+      { name: 'Russia', coords: [60, 60], severity: 'high', label: 'RUS' },
+    ],
+    connections: [
+      { from: [-95, 38], to: [53, 32], color: '#ef4444', label: 'CEASEFIRE' },
+      { from: [32, 49], to: [60, 60], color: '#f59e0b', label: 'CONFLICT' },
+      { from: [35, 31], to: [53, 32], color: '#f97316', label: 'TENSIONS' },
+    ]
+  },
+  disease: {
+    label: 'Disease Outbreaks',
+    icon: Activity,
+    color: '#a855f7',
+    zones: [
+      { name: 'Brazil', coords: [-55, -10], severity: 'high', label: 'DENGUE' },
+      { name: 'India', coords: [78, 22], severity: 'medium', label: 'NIPAH WATCH' },
+      { name: 'Nigeria', coords: [8, 10], severity: 'critical', label: 'LASSA' },
+      { name: 'United States', coords: [-95, 38], severity: 'medium', label: 'FLU SPIKE' },
+    ],
+    connections: [
+      { from: [-55, -10], to: [-95, 38], color: '#a855f7', label: 'TRANSMISSION VECTOR' },
+    ]
+  },
+  weather: {
+    label: 'Extreme Weather',
+    icon: CloudLightning,
+    color: '#38bdf8',
+    zones: [
+      { name: 'Philippines', coords: [121, 12], severity: 'critical', label: 'TYPHOON' },
+      { name: 'Australia', coords: [133, -25], severity: 'high', label: 'WILDFIRES' },
+      { name: 'Canada', coords: [-106, 56], severity: 'medium', label: 'FREEZE' },
+      { name: 'India', coords: [78, 22], severity: 'critical', label: 'HEATWAVE' },
+    ],
+    connections: [
+      { from: [121, 12], to: [133, -25], color: '#38bdf8', label: 'STORM CELL' },
+    ]
+  }
+};
 
 const SEVERITY_COLORS = {
-  critical: { fill: 'rgba(239,68,68,0.35)', stroke: '#ef4444', glow: 'rgba(239,68,68,0.6)' },
-  high:     { fill: 'rgba(249,115,22,0.25)', stroke: '#f97316', glow: 'rgba(249,115,22,0.5)' },
-  medium:   { fill: 'rgba(250,204,21,0.2)',  stroke: '#facc15', glow: 'rgba(250,204,21,0.4)' },
+  conflict: {
+    critical: { fill: 'rgba(239,68,68,0.35)', stroke: '#ef4444', glow: 'rgba(239,68,68,0.6)' },
+    high:     { fill: 'rgba(249,115,22,0.25)', stroke: '#f97316', glow: 'rgba(249,115,22,0.5)' },
+    medium:   { fill: 'rgba(250,204,21,0.2)',  stroke: '#facc15', glow: 'rgba(250,204,21,0.4)' },
+  },
+  disease: {
+    critical: { fill: 'rgba(168,85,247,0.35)', stroke: '#a855f7', glow: 'rgba(168,85,247,0.6)' },
+    high:     { fill: 'rgba(217,70,239,0.25)', stroke: '#d946ef', glow: 'rgba(217,70,239,0.5)' },
+    medium:   { fill: 'rgba(232,121,249,0.2)',  stroke: '#e879f9', glow: 'rgba(232,121,249,0.4)' },
+  },
+  weather: {
+    critical: { fill: 'rgba(56,189,248,0.35)', stroke: '#38bdf8', glow: 'rgba(56,189,248,0.6)' },
+    high:     { fill: 'rgba(14,165,233,0.25)', stroke: '#0ea5e9', glow: 'rgba(14,165,233,0.5)' },
+    medium:   { fill: 'rgba(2,132,199,0.2)',  stroke: '#0284c7', glow: 'rgba(2,132,199,0.4)' },
+  }
 };
 
 export default function WorldMap() {
@@ -86,6 +132,7 @@ export default function WorldMap() {
   const [loading, setLoading] = useState(true);
   const [pulsePhase, setPulsePhase] = useState(0);
   const [dataFlowOffset, setDataFlowOffset] = useState(0);
+  const [activeLayer, setActiveLayer] = useState('conflict');
   const navigate = useNavigate();
   const { t } = useLanguage();
   const containerRef = useRef(null);
@@ -95,7 +142,7 @@ export default function WorldMap() {
 
   const projection = geoNaturalEarth1()
     .scale(155)
-    .translate([width / 2, height / 2]);
+    .translate([width / 2, height / 2 + 10]);
 
   const pathGenerator = geoPath().projection(projection);
 
@@ -140,14 +187,40 @@ export default function WorldMap() {
     );
   }
 
-  const hotZoneNames = HOT_ZONES.map(z => z.name);
+  const currentLayer = LAYERS[activeLayer];
+  const hotZoneNames = currentLayer.zones.map(z => z.name);
   const pulseR1 = 6 + Math.sin(pulsePhase * 0.2) * 3;
   const pulseR2 = 12 + Math.sin(pulsePhase * 0.15) * 5;
   const pulseR3 = 20 + Math.sin(pulsePhase * 0.1) * 8;
+  const layerColors = SEVERITY_COLORS[activeLayer];
 
   return (
     <div ref={containerRef} className="world-map-section" style={{ width: '100%', position: 'relative' }}>
       
+      {/* Layer Toggle Controls */}
+      <div style={{ position: 'absolute', top: 10, left: 15, zIndex: 50, display: 'flex', gap: '8px' }}>
+        {Object.entries(LAYERS).map(([key, data]) => {
+          const Icon = data.icon;
+          const isActive = activeLayer === key;
+          return (
+            <button
+              key={key}
+              onClick={() => setActiveLayer(key)}
+              style={{
+                background: isActive ? `${data.color}20` : 'rgba(10,5,20,0.6)',
+                border: `1px solid ${isActive ? data.color : 'rgba(255,255,255,0.1)'}`,
+                color: isActive ? data.color : '#94a3b8',
+                padding: '8px 12px', borderRadius: '8px', cursor: 'pointer',
+                display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px',
+                fontWeight: 600, backdropFilter: 'blur(10px)', transition: 'all 0.3s'
+              }}
+            >
+              <Icon size={14} /> {data.label}
+            </button>
+          );
+        })}
+      </div>
+
       {/* Tooltip */}
       {hoveredInfo && (
         <div 
@@ -182,18 +255,25 @@ export default function WorldMap() {
           <filter id="3d-pop" x="-20%" y="-20%" width="140%" height="140%">
             <feDropShadow dx="3" dy="5" stdDeviation="3" floodColor="rgba(0,0,0,0.6)" />
           </filter>
-          <radialGradient id="heatGrad-critical" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="rgba(239,68,68,0.6)" />
-            <stop offset="100%" stopColor="rgba(239,68,68,0)" />
-          </radialGradient>
-          <radialGradient id="heatGrad-high" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="rgba(249,115,22,0.5)" />
-            <stop offset="100%" stopColor="rgba(249,115,22,0)" />
-          </radialGradient>
-          <radialGradient id="heatGrad-medium" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="rgba(250,204,21,0.4)" />
-            <stop offset="100%" stopColor="rgba(250,204,21,0)" />
-          </radialGradient>
+
+          {/* Dynamic Layer Gradients */}
+          {Object.entries(SEVERITY_COLORS).map(([layerName, severities]) => (
+            <g key={`grads-${layerName}`}>
+              <radialGradient id={`heatGrad-${layerName}-critical`} cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor={severities.critical.glow} />
+                <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+              </radialGradient>
+              <radialGradient id={`heatGrad-${layerName}-high`} cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor={severities.high.glow} />
+                <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+              </radialGradient>
+              <radialGradient id={`heatGrad-${layerName}-medium`} cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stopColor={severities.medium.glow} />
+                <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+              </radialGradient>
+            </g>
+          ))}
+
           <linearGradient id="gridGrad" x1="0%" y1="0%" x2="100%" y2="100%">
             <stop offset="0%" stopColor="rgba(139,92,246,0.03)" />
             <stop offset="100%" stopColor="rgba(139,92,246,0.01)" />
@@ -214,15 +294,15 @@ export default function WorldMap() {
           {countries.map((feat, i) => {
             const isHot = feat.info && hotZoneNames.includes(feat.info.name);
             const isHovered = hoveredInfo?.key === feat.info?.key;
-            const zone = isHot ? HOT_ZONES.find(z => z.name === feat.info.name) : null;
-            const sev = zone ? SEVERITY_COLORS[zone.severity] : null;
+            const zone = isHot ? currentLayer.zones.find(z => z.name === feat.info.name) : null;
+            const sev = zone ? layerColors[zone.severity] : null;
 
             return (
               <path
                 key={`path-${i}`}
                 d={pathGenerator(feat)}
-                fill={isHot ? sev.fill : (isHovered ? 'rgba(139,92,246,0.2)' : 'rgba(20,15,40,0.8)')}
-                stroke={isHot ? sev.stroke : (isHovered ? '#a855f7' : 'rgba(139,92,246,0.1)')}
+                fill={isHot ? sev.fill : (isHovered ? `${currentLayer.color}40` : 'rgba(20,15,40,0.8)')}
+                stroke={isHot ? sev.stroke : (isHovered ? currentLayer.color : 'rgba(139,92,246,0.1)')}
                 strokeWidth={isHot ? 1.2 : (isHovered ? 1.5 : 0.6)}
                 filter={isHot ? 'url(#glow-hot)' : (isHovered ? 'url(#glow-medium)' : 'url(#3d-pop)')}
                 onMouseEnter={(e) => {
@@ -240,21 +320,21 @@ export default function WorldMap() {
                 }}
                 onMouseLeave={() => setHoveredInfo(null)}
                 onClick={() => handleCountryClick(feat.info)}
-                style={{ cursor: 'pointer', transition: 'fill 0.3s, stroke 0.3s' }}
+                style={{ cursor: 'pointer', transition: 'fill 0.5s ease, stroke 0.5s ease' }}
               />
             );
           })}
         </g>
 
         {/* Connection arcs with animated data flow */}
-        {CONNECTIONS.map((conn, i) => {
+        {currentLayer.connections.map((conn, i) => {
           const from = projection(conn.from);
           const to = projection(conn.to);
           if (!from || !to) return null;
           const midX = (from[0] + to[0]) / 2;
           const midY = Math.min(from[1], to[1]) - 60;
           return (
-            <g key={`conn-${i}`}>
+            <g key={`conn-${activeLayer}-${i}`}>
               <path 
                 d={`M ${from[0]},${from[1]} Q ${midX},${midY} ${to[0]},${to[1]}`} 
                 fill="none" 
@@ -262,7 +342,8 @@ export default function WorldMap() {
                 strokeWidth="1.5"
                 strokeDasharray="6,4"
                 strokeDashoffset={dataFlowOffset}
-                opacity="0.7"
+                opacity="0.8"
+                style={{ transition: 'stroke 0.5s ease' }}
               />
               <text x={midX} y={midY - 6} fill={conn.color} fontSize="7" fontWeight="700" textAnchor="middle" letterSpacing="1.5px" opacity="0.9">
                 {conn.label}
@@ -272,14 +353,14 @@ export default function WorldMap() {
         })}
 
         {/* Hot zone markers with animated pulse rings */}
-        {HOT_ZONES.map((zone, i) => {
+        {currentLayer.zones.map((zone, i) => {
           const pt = projection(zone.coords);
           if (!pt) return null;
-          const sev = SEVERITY_COLORS[zone.severity];
+          const sev = layerColors[zone.severity];
           return (
-            <g key={`zone-${i}`}>
+            <g key={`zone-${activeLayer}-${i}`} style={{ animation: 'fadeIn 0.5s ease-out' }}>
               {/* Heat gradient circle */}
-              <circle cx={pt[0]} cy={pt[1]} r="30" fill={`url(#heatGrad-${zone.severity})`} opacity="0.8" />
+              <circle cx={pt[0]} cy={pt[1]} r="30" fill={`url(#heatGrad-${activeLayer}-${zone.severity})`} opacity="0.8" />
               
               {/* Animated pulse rings */}
               <circle cx={pt[0]} cy={pt[1]} r={pulseR3} fill="none" stroke={sev.glow} strokeWidth="0.5" opacity={0.2 + Math.sin(pulsePhase * 0.1) * 0.15} />
@@ -300,14 +381,14 @@ export default function WorldMap() {
 
         {/* Live data indicator */}
         <g transform={`translate(${width - 100}, 15)`}>
-          <circle r="4" fill="#10b981" opacity={0.4 + Math.sin(pulsePhase * 0.3) * 0.6} />
-          <circle r="2" fill="#10b981" />
-          <text x="10" y="4" fill="#10b981" fontSize="8" fontWeight="700" letterSpacing="1px">LIVE DATA</text>
+          <circle r="4" fill={currentLayer.color} opacity={0.4 + Math.sin(pulsePhase * 0.3) * 0.6} style={{ transition: 'fill 0.5s ease' }} />
+          <circle r="2" fill={currentLayer.color} style={{ transition: 'fill 0.5s ease' }} />
+          <text x="10" y="4" fill={currentLayer.color} fontSize="8" fontWeight="700" letterSpacing="1px" style={{ transition: 'fill 0.5s ease' }}>{activeLayer.toUpperCase()} SYS</text>
         </g>
         
         {/* Timestamp */}
-        <text x="15" y={height - 10} fill="rgba(255,255,255,0.2)" fontSize="7" fontFamily="monospace">
-          LAST UPDATE: {new Date().toLocaleTimeString()} UTC
+        <text x="15" y={height - 10} fill="rgba(255,255,255,0.3)" fontSize="7" fontFamily="monospace">
+          UTC {new Date().toLocaleTimeString()}
         </text>
         </svg>
       </div>

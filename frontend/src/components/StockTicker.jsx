@@ -15,7 +15,7 @@ export default function StockTicker({ mode = 'all' }) {
     const interval = setInterval(async () => {
       const data = await fetchStocks();
       if (data?.stocks) setStocks(data.stocks);
-    }, 5 * 60 * 1000);
+    }, 60 * 1000);
 
     return () => clearInterval(interval);
   }, []);
@@ -56,7 +56,7 @@ export default function StockTicker({ mode = 'all' }) {
               {stock.price ? (
                 <>
                   <span className="stock-price">
-                    {stock.price.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                    {stock.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </span>
                   <span className={`stock-change ${stock.direction}`}>
                     {stock.direction === 'up' ? (

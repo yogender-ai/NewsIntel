@@ -1,9 +1,27 @@
 import { useState } from 'react';
-import { X, Zap } from 'lucide-react';
+import { X, Zap, Loader } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
+import { useAuth } from '../context/AuthContext';
 
 export default function LoginModal({ isOpen, onClose }) {
+  const { loginWithGoogle } = useAuth();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+
   if (!isOpen) return null;
+
+  const handleGoogleLogin = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      await loginWithGoogle();
+      onClose();
+    } catch (err) {
+      setError(err.message || 'Failed to login with Google.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="login-modal-overlay" style={{
@@ -35,7 +53,6 @@ export default function LoginModal({ isOpen, onClose }) {
             </div>
             <span style={{ fontSize: '24px', fontWeight: '800', color: '#fff', letterSpacing: '-0.5px' }}>NewsIntel</span>
           </div>
-          <div style={{ fontSize: '10px', color: '#a855f7', fontWeight: '700', letterSpacing: '2px' }}>AI INTELLIGENCE V5.0</div>
         </div>
 
         {/* Header Text */}
@@ -44,28 +61,39 @@ export default function LoginModal({ isOpen, onClose }) {
           Stay smart with personalized news and AI-powered insights.
         </p>
 
+        {error && (
+          <div style={{ padding: '10px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.4)', borderRadius: '8px', color: '#fca5a5', fontSize: '12px', marginBottom: '16px' }}>
+            {error}
+          </div>
+        )}
+
         {/* Sign In Options */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-          <button style={{
+          <button 
+            onClick={handleGoogleLogin}
+            disabled={loading}
+            style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px',
             width: '100%', padding: '12px', background: 'rgba(255,255,255,0.05)',
             border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px',
-            color: '#e2e8f0', fontSize: '14px', fontWeight: '600', cursor: 'pointer',
-            transition: 'all 0.2s'
+            color: '#e2e8f0', fontSize: '14px', fontWeight: '600', cursor: loading ? 'not-allowed' : 'pointer',
+            transition: 'all 0.2s', opacity: loading ? 0.7 : 1
           }}>
-            <img src="https://img.icons8.com/color/24/000000/google-logo.png" alt="Google" width="18" />
-            Continue with Google
+            {loading ? <Loader size={18} className="spin" /> : <img src="https://img.icons8.com/color/24/000000/google-logo.png" alt="Google" width="18" />}
+            {loading ? 'Signing in...' : 'Continue with Google'}
           </button>
           
-          <button style={{
+          <button 
+            disabled
+            style={{
             display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px',
-            width: '100%', padding: '12px', background: 'rgba(255,255,255,0.05)',
-            border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px',
-            color: '#e2e8f0', fontSize: '14px', fontWeight: '600', cursor: 'pointer',
+            width: '100%', padding: '12px', background: 'rgba(255,255,255,0.02)',
+            border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px',
+            color: '#64748b', fontSize: '14px', fontWeight: '600', cursor: 'not-allowed',
             transition: 'all 0.2s'
           }}>
-            <img src="https://img.icons8.com/ios-filled/24/ffffff/github.png" alt="GitHub" width="18" />
-            Continue with GitHub
+            <img src="https://img.icons8.com/ios-filled/24/64748b/github.png" alt="GitHub" width="18" />
+            Continue with GitHub (Coming Soon)
           </button>
         </div>
 
@@ -75,17 +103,15 @@ export default function LoginModal({ isOpen, onClose }) {
           <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }} />
         </div>
 
-        <button style={{
-          width: '100%', padding: '14px', background: 'linear-gradient(135deg, #8b5cf6, #6366f1)',
-          border: 'none', borderRadius: '12px', color: '#fff', fontSize: '15px', fontWeight: '600',
-          cursor: 'pointer', transition: 'all 0.3s', boxShadow: '0 8px 24px rgba(139, 92, 246, 0.3)'
+        <button 
+          disabled
+          style={{
+          width: '100%', padding: '14px', background: 'rgba(139, 92, 246, 0.2)',
+          border: 'none', borderRadius: '12px', color: '#a855f7', fontSize: '15px', fontWeight: '600',
+          cursor: 'not-allowed', transition: 'all 0.3s'
         }}>
-          Sign in
+          Email Sign In
         </button>
-
-        <div style={{ marginTop: '24px', fontSize: '13px', color: '#94a3b8' }}>
-          Don't have an account? <span style={{ color: '#a855f7', fontWeight: '600', cursor: 'pointer' }}>Create account</span>
-        </div>
 
         <div style={{ marginTop: '24px', fontSize: '10px', color: '#475569', lineHeight: '1.5' }}>
           By continuing, you agree to our <span style={{ color: '#64748b' }}>Terms of Service</span> and <span style={{ color: '#64748b' }}>Privacy Policy</span>

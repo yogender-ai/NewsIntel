@@ -3,17 +3,20 @@ import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-ro
 import { Loader, Zap, Bookmark, Globe, Users, Bell, Search, CloudLightning } from 'lucide-react';
 import './App.css';
 import './overhaul.css';
-import { pingHealth } from './api';
+import { pingHealth, detectLocation, fetchWeather } from './api';
 import StockTicker from './components/StockTicker';
 import LiveClock from './components/LiveClock';
 import ReadingList, { useReadingList } from './components/ReadingList';
+import SearchOverlay from './components/SearchOverlay';
 import { LanguageProvider, useLanguage } from './context/LanguageContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 
 // Lazy load pages for performance
 const HomePage = lazy(() => import('./pages/HomePage'));
 const ResultsPage = lazy(() => import('./pages/ResultsPage'));
 const WeatherPage = lazy(() => import('./pages/WeatherPage'));
 const CommunityPage = lazy(() => import('./pages/CommunityPage'));
+const MarketsPage = lazy(() => import('./pages/MarketsPage'));
 import LoginModal from './components/LoginModal';
 import ParticleBackground from './components/ParticleBackground';
 
@@ -45,6 +48,7 @@ function AnimatedRoutes() {
         <Route path="/search/:topic" element={<ResultsPage />} />
         <Route path="/weather" element={<WeatherPage />} />
         <Route path="/community" element={<CommunityPage />} />
+        <Route path="/markets" element={<MarketsPage />} />
       </Routes>
     </div>
   );
@@ -90,9 +94,24 @@ function AppShell() {
   const { t } = useLanguage();
   const navigate = useNavigate();
   const [searchFocused, setSearchFocused] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const { user, logout } = useAuth();
+  const [headerTemp, setHeaderTemp] = useState(null);
 
-  useEffect(() => { pingHealth(); }, []);
+  useEffect(() => {
+    pingHealth();
+    (async () => {
+      try {
+        const loc = await detectLocation();
+        if (loc?.city) {
+          const w = await fetchWeather(loc.city);
+          if (w && w.temp_c !== undefined) {
+            setHeaderTemp(w.temp_c);
+          }
+        }
+      } catch (e) { /* silent */ }
+    })();
+  }, []);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -149,50 +168,51 @@ function AppShell() {
             <a href="/" className="app-logo">
               <div className="app-logo-icon"><Zap size={16} color="white" /></div>
               <div>
-                <h1>NewsIntel</h1>
-                <span style={{color: '#64748b'}}>{t('aiIntelligence')}</span>
+                <h1 style={{ fontSize: '18px', margin: 0, padding: 0 }}>NewsIntel</h1>
               </div>
             </a>
 
             <div className="cmd-weather-pill" onClick={() => navigate('/weather')}>
               <CloudLightning size={14} className="cmd-weather-icon" style={{color: '#f59e0b'}} />
-              <span className="cmd-weather-temp">72°F</span>
+              <span className="cmd-weather-temp">{headerTemp !== null ? `${headerTemp}°C` : '...'}</span>
             </div>
           </div>
 
           <div className="header-center" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <form onSubmit={handleSearch} className="cmd-search-form" style={{ width: '260px' }}>
-              <Search size={14} className={`cmd-search-icon ${searchFocused ? 'focused' : ''}`} />
-              <input
-                type="text"
-                placeholder="Search global intelligence..."
-                value={searchQuery}
-                onChange={(e) => {
-                  let val = e.target.value.replace(/^\s+/, ''); // No leading spaces
-                  val = val.replace(/[\u{1F300}-\u{1F9FF}]|[\u{1F600}-\u{1F64F}]|[\u{1F680}-\u{1F6FF}]|[\u{2600}-\u{26FF}]|[\u{2700}-\u{27BF}]|[\u{1F900}-\u{1F9FF}]|[\u{1FA70}-\u{1FAFF}]|[\u{1F1E6}-\u{1F1FF}]|[\u{2B50}]/gu, ''); // No emojis
-                  setSearchQuery(val);
-                }}
-                onFocus={() => setSearchFocused(true)}
-                onBlur={() => setTimeout(() => setSearchFocused(false), 200)}
-                className="cmd-search-input"
-              />
-            </form>
+            <button onClick={() => setIsSearchOpen(true)} className="cmd-search-form" style={{ width: '40px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', cursor: 'pointer', padding: 0, justifyContent: 'center' }}>
+              <Search size={16} className="cmd-search-icon" />
+            </button>
             <LiveClock />
           </div>
 
           <div className="header-right">
             <LanguageSwitcher />
 
-            <button className="header-notification-btn" title="Sign In" onClick={() => setIsLoginOpen(true)} style={{ marginLeft: '8px' }}>
-              <Users size={14} />
+            <button className="header-notification-btn" title={user ? "Account" : "Sign In"} onClick={() => {
+              if(user) {
+                if(window.confirm('Do you want to sign out?')) logout();
+              } else {
+                setIsLoginOpen(true);
+              }
+            }} style={{ marginLeft: '8px' }}>
+              {user ? (
+                <img src={user.photoURL} alt="Profile" style={{ width: '18px', height: '18px', borderRadius: '50%' }} />
+              ) : (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                </div>
+              )}
             </button>
 
-            <button className="header-notification-btn" title="Notifications">
+            <button className="header-notification-btn" title="Notifications" onClick={() => {
+              if(!user) {
+                alert("For notifications and premium features, please add an account.");
+                setIsLoginOpen(true);
+              }
+            }}>
               <Bell size={14} />
-              <div className="notification-badge" style={{position: 'absolute', top: '2px', right: '2px', background: '#ef4444', color: 'white', fontSize: '8px', fontWeight: 'bold', width: '12px', height: '12px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>1</div>
+              {user && <div className="notification-badge" style={{position: 'absolute', top: '2px', right: '2px', background: '#ef4444', color: 'white', fontSize: '8px', fontWeight: 'bold', width: '12px', height: '12px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center'}}>1</div>}
             </button>
-
-            <div className="header-badge"><span className="dot" />{t('live')}</div>
           </div>
         </header>
 
@@ -223,6 +243,9 @@ function AppShell() {
             <span className="footer-tech">{t('footerTech')}</span>
           </div>
         </footer>
+
+        {/* Search Overlay */}
+        <SearchOverlay isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
       </div>
     </>
   );
@@ -231,10 +254,12 @@ function AppShell() {
 export default function App() {
   return (
     <BrowserRouter>
-      <LanguageProvider>
-        <ParticleBackground />
-        <AppShell />
-      </LanguageProvider>
+      <AuthProvider>
+        <LanguageProvider>
+          <ParticleBackground />
+          <AppShell />
+        </LanguageProvider>
+      </AuthProvider>
     </BrowserRouter>
   );
 }

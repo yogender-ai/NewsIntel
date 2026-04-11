@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
+import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 
 const CHARS = ' ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789:.-\'",!?&()';
 const FLIP_DURATION = 35; // ms per character flip step (faster = snappier)
 const STAGGER_DELAY = 12; // ms between each character starting
-const DISPLAY_LENGTH = 44; // fewer chars = compact display
+const DISPLAY_LENGTH = 72; // increased for more words
 
 function FlapChar({ targetChar, delay = 0, isActive }) {
   const [displayChar, setDisplayChar] = useState(' ');
@@ -49,7 +50,7 @@ function FlapChar({ targetChar, delay = 0, isActive }) {
   );
 }
 
-export default function SplitFlapDisplay({ headlines = [], interval = 12000 }) {
+export default function SplitFlapDisplay({ headlines = [], interval = 15000 }) {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isActive, setIsActive] = useState(true);
   const [key, setKey] = useState(0);
@@ -58,13 +59,31 @@ export default function SplitFlapDisplay({ headlines = [], interval = 12000 }) {
     if (headlines.length <= 1) return;
 
     const timer = setInterval(() => {
-      setIsActive(true);
-      setKey(k => k + 1);
-      setCurrentIndex(prev => (prev + 1) % headlines.length);
+      handleNext();
     }, interval);
 
     return () => clearInterval(timer);
-  }, [headlines.length, interval]);
+  }, [headlines.length, interval, currentIndex]);
+
+  const handleNext = (e) => {
+    if(e) e.stopPropagation();
+    setIsActive(true);
+    setKey(k => k + 1);
+    setCurrentIndex(prev => (prev + 1) % headlines.length);
+  };
+
+  const handlePrev = (e) => {
+    if(e) e.stopPropagation();
+    setIsActive(true);
+    setKey(k => k + 1);
+    setCurrentIndex(prev => (prev - 1 + headlines.length) % headlines.length);
+  };
+
+  const handleRefresh = (e) => {
+    if(e) e.stopPropagation();
+    setIsActive(true);
+    setKey(k => k + 1);
+  };
 
   if (!headlines.length) return null;
 
@@ -78,9 +97,7 @@ export default function SplitFlapDisplay({ headlines = [], interval = 12000 }) {
 
   return (
     <div className="split-flap-container" id="split-flap" style={{ cursor: 'pointer', transition: 'all 0.3s' }} onClick={() => {
-      if (!localStorage.getItem('user_token')) {
-        window.dispatchEvent(new Event('open-login'));
-      } else if (currentHeadline.title) {
+      if (currentHeadline.title) {
         window.location.href = `/search/${encodeURIComponent(currentHeadline.title.split(' ').slice(0, 6).join(' '))}`;
       }
     }}>
@@ -89,8 +106,19 @@ export default function SplitFlapDisplay({ headlines = [], interval = 12000 }) {
           <span className="flap-live-dot" />
           <span>DEPARTURES</span>
         </div>
-        <div className="flap-counter">
-          {currentIndex + 1} / {headlines.length}
+        <div className="flap-controls" style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button onClick={handlePrev} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center' }} title="Previous">
+            <ChevronLeft size={16} />
+          </button>
+          <div className="flap-counter">
+            {currentIndex + 1} / {headlines.length}
+          </div>
+          <button onClick={handleNext} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center' }} title="Next">
+            <ChevronRight size={16} />
+          </button>
+          <button onClick={handleRefresh} style={{ background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', display: 'flex', alignItems: 'center', marginLeft: '8px' }} title="Refresh">
+            <RefreshCw size={14} />
+          </button>
         </div>
       </div>
       <div className="split-flap-board" key={key}>

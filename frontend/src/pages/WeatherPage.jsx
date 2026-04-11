@@ -420,17 +420,46 @@ export default function WeatherPage() {
               </div>
             )}
 
-            {/* All Cities Grid */}
+            {/* Meteorological Intelligence */}
+            {weather.temp_c > 35 || weather.wind_speed_kmph > 30 || condition.toLowerCase().includes('rain') || condition.toLowerCase().includes('snow') ? (
+              <div style={{
+                background: 'rgba(239, 68, 68, 0.1)', backdropFilter: 'blur(20px)',
+                border: '1px solid rgba(239, 68, 68, 0.4)', borderRadius: '24px', padding: '20px',
+                flexShrink: 0
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                  <div className="live-pulse" style={{ background: '#ef4444' }} />
+                  <span style={{ fontSize: '13px', color: '#ef4444', fontWeight: 700, letterSpacing: '1px' }}>ACTIVE HAZARD ALERT</span>
+                </div>
+                {weather.temp_c > 35 && <p style={{ fontSize: '14px', margin: '4px 0', color: '#fca5a5' }}>Extreme Heat Warning: Temperatures exceeding 35°C detected.</p>}
+                {weather.wind_speed_kmph > 30 && <p style={{ fontSize: '14px', margin: '4px 0', color: '#fca5a5' }}>High Wind Advisory: Gusts up to {weather.wind_speed_kmph} km/h.</p>}
+                {(condition.toLowerCase().includes('rain') || condition.toLowerCase().includes('snow')) && <p style={{ fontSize: '14px', margin: '4px 0', color: '#fca5a5' }}>Precipitation Alert: Reduced visibility and hazardous conditions likely.</p>}
+              </div>
+            ) : (
+                <div style={{
+                  background: 'rgba(52, 211, 153, 0.05)', backdropFilter: 'blur(20px)',
+                  border: '1px solid rgba(52, 211, 153, 0.2)', borderRadius: '24px', padding: '20px',
+                  flexShrink: 0
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                    <Shield size={14} color="#34d399" />
+                    <span style={{ fontSize: '13px', color: '#34d399', fontWeight: 700, letterSpacing: '1px' }}>SAFE CONDITIONS</span>
+                  </div>
+                  <p style={{ fontSize: '14px', color: '#a7f3d0', margin: 0 }}>No active meteorological hazards detected for {weather.city}.</p>
+                </div>
+            )}
+
+            {/* All Cities Grid (Condense) */}
             <div style={{
               background: 'rgba(255,255,255,0.02)', backdropFilter: 'blur(20px)',
               border: '1px solid rgba(255,255,255,0.06)', borderRadius: '24px', padding: '20px',
               flex: 1, overflow: 'auto'
-            }}>
+            }} className="no-scrollbar">
               <div style={{ fontSize: '12px', fontWeight: 600, color: '#94a3b8', marginBottom: '12px', letterSpacing: '1px', textTransform: 'uppercase' }}>
                 Explore Regions
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
-                {ALL_CITIES.slice(0, 12).map(ct => (
+                {ALL_CITIES.slice(0, 10).map(ct => (
                   <button key={ct.name} className="weather-btn-hover"
                     onClick={() => { setSearchInput(ct.name); loadWeather(ct.name); }}
                     style={{
