@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Cloud, Sun, CloudRain, Wind, Droplets, Eye, Gauge, Search, ArrowLeft,
-  Sunrise, Sunset, Loader, MapPin, Thermometer, Moon, RefreshCw
+  Sunrise, Sunset, Loader, MapPin, Thermometer, Moon, RefreshCw, Shield
 } from 'lucide-react';
 import { fetchWeather, fetchWeatherForecast, detectLocation } from '../api';
 

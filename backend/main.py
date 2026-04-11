@@ -955,7 +955,7 @@ async def get_stocks():
     if cache_key in stocks_cache:
         return stocks_cache[cache_key]
 
-    # Predefined stock data structure — we'll fetch real data from Google Finance
+    # Predefined stock data structure — we'll fetch real data from Yahoo Finance
     indices = [
         {"symbol": "SENSEX", "name": "BSE Sensex", "exchange": "BSE", "flag": "🇮🇳"},
         {"symbol": "NIFTY_50", "name": "Nifty 50", "exchange": "NSE", "flag": "🇮🇳"},
@@ -963,15 +963,26 @@ async def get_stocks():
         {"symbol": ".IXIC", "name": "NASDAQ", "exchange": "NASDAQ", "flag": "🇺🇸"},
         {"symbol": ".INX", "name": "S&P 500", "exchange": "NYSE", "flag": "🇺🇸"},
         {"symbol": "UKX", "name": "FTSE 100", "exchange": "LSE", "flag": "🇬🇧"},
+        {"symbol": "AAPL", "name": "Apple", "exchange": "NASDAQ", "flag": "🇺🇸"},
+        {"symbol": "NVDA", "name": "Nvidia", "exchange": "NASDAQ", "flag": "🇺🇸"},
+        {"symbol": "MSFT", "name": "Microsoft", "exchange": "NASDAQ", "flag": "🇺🇸"},
+        {"symbol": "GOOGL", "name": "Alphabet", "exchange": "NASDAQ", "flag": "🇺🇸"},
+        {"symbol": "TSLA", "name": "Tesla", "exchange": "NASDAQ", "flag": "🇺🇸"},
+        {"symbol": "AMZN", "name": "Amazon", "exchange": "NASDAQ", "flag": "🇺🇸"},
+        {"symbol": "RELIANCE", "name": "Reliance", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "TCS", "name": "TCS", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "HDFCBANK", "name": "HDFC Bank", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "000001.SS", "name": "SSE Composite", "exchange": "SSE", "flag": "🇨🇳"},
+        {"symbol": "N225", "name": "Nikkei 225", "exchange": "TSE", "flag": "🇯🇵"},
+        {"symbol": "GC=F", "name": "Gold", "exchange": "COMEX", "flag": "🥇"},
+        {"symbol": "CL=F", "name": "Crude Oil", "exchange": "NYMEX", "flag": "🛢️"},
+        {"symbol": "BTC-USD", "name": "Bitcoin", "exchange": "CRYPTO", "flag": "₿"},
     ]
 
-    # Use reliable market data with realistic values
-    # Google Finance HTML scraping is unreliable (blocks bots, changes markup)
-    # Instead, try Yahoo Finance API and fallback to realistic estimates
     import random
     stock_data = []
 
-    # Realistic baseline prices for major indices (approximate)
+    # Realistic baseline prices for major indices (approximate fallbacks if Yahoo blocks IP)
     baselines = {
         "SENSEX": {"price": 77450, "range": 800},
         "NIFTY_50": {"price": 23520, "range": 250},
@@ -979,12 +990,27 @@ async def get_stocks():
         ".IXIC": {"price": 17980, "range": 200},
         ".INX": {"price": 5680, "range": 60},
         "UKX": {"price": 8640, "range": 80},
+        "AAPL": {"price": 185, "range": 5},
+        "NVDA": {"price": 125, "range": 6},
+        "MSFT": {"price": 425, "range": 8},
+        "GOOGL": {"price": 175, "range": 4},
+        "TSLA": {"price": 220, "range": 10},
+        "AMZN": {"price": 190, "range": 5},
+        "RELIANCE": {"price": 2900, "range": 40},
+        "TCS": {"price": 4000, "range": 60},
+        "HDFCBANK": {"price": 1600, "range": 25},
+        "000001.SS": {"price": 3100, "range": 40},
+        "N225": {"price": 39000, "range": 400},
+        "GC=F": {"price": 2400, "range": 20},
+        "CL=F": {"price": 82, "range": 2},
+        "BTC-USD": {"price": 68000, "range": 1500},
     }
 
     try:
         async with httpx.AsyncClient(timeout=8) as client:
             for idx in indices:
                 symbol = idx["symbol"]
+                # Translate to Yahoo Finance recognized symbols
                 yahoo_symbol = {
                     "SENSEX": "%5EBSESN",
                     "NIFTY_50": "%5ENSEI",
@@ -992,6 +1018,9 @@ async def get_stocks():
                     ".IXIC": "%5EIXIC",
                     ".INX": "%5EGSPC",
                     "UKX": "%5EFTSE",
+                    "RELIANCE": "RELIANCE.NS",
+                    "TCS": "TCS.NS",
+                    "HDFCBANK": "HDFCBANK.NS"
                 }.get(symbol, symbol)
 
                 try:
@@ -1065,6 +1094,74 @@ async def get_stocks():
     stocks_cache[cache_key] = response
     return response
 
+
+@app.get("/api/markets/history/{symbol}")
+async def get_stock_history(symbol: str, range: str = "1mo"):
+    """Fetch historical chart data from Yahoo Finance API for the Groww-style UI"""
+    
+    # Map raw symbol to yahoo ticker
+    yahoo_symbol = {
+        "SENSEX": "%5EBSESN",
+        "NIFTY_50": "%5ENSEI",
+        ".DJI": "%5EDJI",
+        ".IXIC": "%5EIXIC",
+        ".INX": "%5EGSPC",
+        "UKX": "%5EFTSE",
+        "RELIANCE": "RELIANCE.NS",
+        "TCS": "TCS.NS",
+        "HDFCBANK": "HDFCBANK.NS",
+        "AAPL": "AAPL",
+        "GC=F": "GC=F",
+        "BTC-USD": "BTC-USD"
+    }.get(symbol, symbol)
+
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            resp = await client.get(
+                f"https://query1.finance.yahoo.com/v8/finance/chart/{yahoo_symbol}?range={range}&interval=1d",
+                headers={"User-Agent": HTTP_USER_AGENT}
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                res = data.get("chart", {}).get("result", [{}])[0]
+                timestamps = res.get("timestamp", [])
+                close_prices = res.get("indicators", {}).get("quote", [{}])[0].get("close", [])
+                
+                if timestamps and close_prices:
+                    history = []
+                    for i in range(len(timestamps)):
+                        if close_prices[i] is not None:
+                            history.append({
+                                "date": datetime.fromtimestamp(timestamps[i]).strftime("%Y-%m-%d"),
+                                "price": round(close_prices[i], 2)
+                            })
+                    return {"symbol": symbol, "history": history}
+    except Exception as e:
+        logger.warning(f"Yahoo history failed for {symbol}: {e}")
+        
+    # Realistic Fallback (random walk)
+    import random
+    from datetime import timedelta
+    
+    base_price = 100
+    if symbol == "BTC-USD": base_price = 68000
+    elif symbol == "AAPL": base_price = 180
+    elif "SENSEX" in symbol: base_price = 77000
+    elif "NIFTY" in symbol: base_price = 23000
+    
+    days = 30 if range == "1mo" else 365
+    history = []
+    current_price = base_price * (1 - random.uniform(-0.1, 0.1))
+    
+    for i in range(days):
+        date_str = (datetime.now() - timedelta(days=days-i)).strftime("%Y-%m-%d")
+        history.append({
+            "date": date_str,
+            "price": round(current_price, 2)
+        })
+        current_price *= (1 + random.uniform(-0.02, 0.02))
+        
+    return {"symbol": symbol, "history": history, "fallback": True}
 
 @app.get("/detect-location")
 async def detect_location(request: Request):

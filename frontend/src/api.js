@@ -150,36 +150,46 @@ export async function fetchWeatherForecast(city = 'Delhi') {
  */
 export async function fetchStocks() {
   try {
-    const response = await fetch(`${API_BASE}/api/markets/ticker`, {
+    const response = await fetch(`${API_BASE}/stocks`, {
       method: 'GET',
       headers: { 'Accept': 'application/json' },
     });
     if (response.ok) {
       const data = await response.json();
-      if(data.data) {
+      if(data.stocks) {
         return {
-          stocks: data.data.map(item => ({
+          stocks: data.stocks.map(item => ({
              name: item.name,
              price: item.price,
              change_pct: item.change_pct,
-             direction: item.change_pct >= 0 ? "up" : "down",
-             flag: item.symbol.includes('BTC') ? "🌐" : (item.symbol.includes('GC=F') ? "🥇" : "US")
+             direction: item.direction,
+             flag: item.flag
           }))
         };
       }
     }
+  } catch (err) {
+    // Silently fail
+  }
+  return { stocks: [] };
+}
+
+/**
+ * Fetch historical chart data for a symbol
+ */
+export async function fetchStockHistory(symbol, range = '1mo') {
+  try {
+    const response = await fetch(`${API_BASE}/api/markets/history/${encodeURIComponent(symbol)}?range=${range}`, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+    });
+    if (response.ok) {
+      return await response.json();
+    }
   } catch {
     // Silently fail
   }
-  return {
-    stocks: [
-      { name: "Nifty 50", price: 23775, change_pct: 0.23, direction: "up", flag: "IN" },
-      { name: "Dow Jones", price: 48584, change_pct: 0.59, direction: "up", flag: "US" },
-      { name: "NASDAQ", price: 23709, change_pct: -0.30, direction: "down", flag: "US" },
-      { name: "S&P 500", price: 6819, change_pct: 0.48, direction: "up", flag: "US" },
-      { name: "FTSE 100", price: 18657, change_pct: -0.43, direction: "down", flag: "GB" }
-    ]
-  };
+  return { history: [] };
 }
 
 /**
