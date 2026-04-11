@@ -11,3 +11,4 @@ googlenewsdecoder
 asyncpg>=0.30.0
 databases>=0.9.0
 aiosqlite>=0.20.0
+yfinance>=0.2.37
