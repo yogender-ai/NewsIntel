@@ -19,8 +19,36 @@ const CommunityPage = lazy(() => import('./pages/CommunityPage'));
 const MarketsPage = lazy(() => import('./pages/MarketsPage'));
 const CountryProfilePage = lazy(() => import('./pages/CountryProfilePage'));
 const MyIntelPage = lazy(() => import('./pages/MyIntelPage'));
+import React from 'react';
 import LoginModal from './components/LoginModal';
 import ParticleBackground from './components/ParticleBackground';
+
+class GlobalErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error, errorInfo) {
+    console.error("App Crash Caught:", error, errorInfo);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ color: 'white', padding: '50px', textAlign: 'center', height: '100vh', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+          <h2>System Offline: Core Render Error</h2>
+          <p style={{ color: '#ef4444' }}>{this.state.error?.message}</p>
+          <button onClick={() => window.location.href='/'} style={{ padding: '10px 20px', background: '#3b82f6', color: 'white', borderRadius: '8px', border: 'none', cursor: 'pointer', marginTop: '20px' }}>
+            Reboot Command Center
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 /* ── Premium Page Loader (Suspense fallback) ── */
 function PageLoader() {
