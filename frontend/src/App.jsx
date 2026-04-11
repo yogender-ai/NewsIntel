@@ -17,6 +17,8 @@ const ResultsPage = lazy(() => import('./pages/ResultsPage'));
 const WeatherPage = lazy(() => import('./pages/WeatherPage'));
 const CommunityPage = lazy(() => import('./pages/CommunityPage'));
 const MarketsPage = lazy(() => import('./pages/MarketsPage'));
+const CountryProfilePage = lazy(() => import('./pages/CountryProfilePage'));
+const MyIntelPage = lazy(() => import('./pages/MyIntelPage'));
 import LoginModal from './components/LoginModal';
 import ParticleBackground from './components/ParticleBackground';
 
@@ -49,6 +51,8 @@ function AnimatedRoutes() {
         <Route path="/weather" element={<WeatherPage />} />
         <Route path="/community" element={<CommunityPage />} />
         <Route path="/markets" element={<MarketsPage />} />
+        <Route path="/country/:country" element={<CountryProfilePage />} />
+        <Route path="/my-intel" element={<MyIntelPage />} />
       </Routes>
     </div>
   );
@@ -188,9 +192,9 @@ function AppShell() {
           <div className="header-right">
             <LanguageSwitcher />
 
-            <button className="header-notification-btn" title={user ? "Account" : "Sign In"} onClick={() => {
+            <button className="header-notification-btn" title={user ? "Dashboard" : "Sign In"} onClick={() => {
               if(user) {
-                if(window.confirm('Do you want to sign out?')) logout();
+                navigate('/my-intel');
               } else {
                 setIsLoginOpen(true);
               }
@@ -202,6 +206,17 @@ function AppShell() {
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                 </div>
               )}
+            </button>
+
+            <button className="header-notification-btn" title="Sign Out" onClick={() => {
+              if(user) {
+                if(window.confirm('Do you want to sign out?')) logout();
+              } else {
+                alert("Please add an account first.");
+                setIsLoginOpen(true);
+              }
+            }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
             </button>
 
             <button className="header-notification-btn" title="Notifications" onClick={() => {

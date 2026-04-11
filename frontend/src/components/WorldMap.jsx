@@ -175,7 +175,7 @@ export default function WorldMap() {
 
   const handleCountryClick = useCallback((info) => {
     if (info && info.name !== 'Antarctica') {
-      navigate(`/search/${encodeURIComponent(info.name + ' news')}`);
+      navigate(`/country/${encodeURIComponent(info.name)}`);
     }
   }, [navigate]);
 
