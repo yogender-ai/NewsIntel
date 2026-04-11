@@ -23,17 +23,10 @@ const KEY_FACTS = [
   'Ukraine reports 14 drone strikes on Kyiv overnight, largest barrage in 3 months.',
 ];
 
-/* ── Live stat counters ── */
-const LIVE_STATS = [
-  { label: 'ARTICLES ANALYZED', base: 14892 },
-  { label: 'ACTIVE REGIONS', base: 47 },
-  { label: 'AI MODELS RUNNING', base: 12 },
-  { label: 'DATA POINTS/SEC', base: 2340 },
-];
+/* ── Live stat counters removed per user request ── */
 
 export default function HomePage() {
   const [trending, setTrending] = useState(null);
-  const [liveStatValues, setLiveStatValues] = useState(LIVE_STATS.map(s => s.base));
   const [factIndex, setFactIndex] = useState(0);
   const [sentiment, setSentiment] = useState(84);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
@@ -59,18 +52,7 @@ export default function HomePage() {
     })();
   }, []);
 
-  // Live counter simulation — updates every 3 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setLiveStatValues(prev => prev.map((v, i) => {
-        if (i === 0) return v + Math.floor(Math.random() * 8) + 1;
-        if (i === 1) return LIVE_STATS[1].base + Math.floor(Math.random() * 5);
-        if (i === 2) return LIVE_STATS[2].base;
-        return LIVE_STATS[3].base + Math.floor(Math.random() * 200);
-      }));
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
+
 
 
 
@@ -93,16 +75,7 @@ export default function HomePage() {
   return (
     <div className="home-preview-page" style={{ padding: '0 24px 40px', maxWidth: '1600px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '18px', position: 'relative', zIndex: 1 }}>
       
-      {/* ── LIVE STATS BAR ── */}
-      <div style={{ display: 'flex', gap: '16px', justifyContent: 'center', padding: '12px 0' }}>
-        {LIVE_STATS.map((stat, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '6px 16px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', borderRadius: '20px' }}>
-            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#10b981', animation: 'pulseDot 2s infinite' }} />
-            <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '600', letterSpacing: '1px' }}>{stat.label}</span>
-            <span style={{ fontSize: '13px', color: '#10b981', fontWeight: '800', fontFamily: 'var(--font-mono)' }}>{liveStatValues[i].toLocaleString()}</span>
-          </div>
-        ))}
-      </div>
+
 
       {/* ══════════════════════════════════════════════════════════════ */}
       {/* ── SECTION 1: HERO — SplitFlap + Live YouTube ── */}
@@ -175,16 +148,17 @@ export default function HomePage() {
               <span style={{ fontSize: '18px' }}>🔮</span> WHY THIS MATTERS
             </h2>
             <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
-              <img src="https://ui-avatars.com/api/?name=Michael+Gaki&background=1e1e2d&color=fff" style={{ width: '40px', height: '40px', borderRadius: '50%' }} alt="" />
+              <div style={{ background: '#38bdf8', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#fff' }}>
+                AI
+              </div>
               <div>
-                <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#e2e8f0' }}>Michael Gaki</div>
-                <div style={{ fontSize: '11px', color: '#94a3b8' }}>Senior Financial Analyst · <span style={{ color: '#10b981' }}>VERIFIED</span></div>
+                <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#e2e8f0' }}>System Analyst</div>
+                <div style={{ fontSize: '11px', color: '#94a3b8' }}>Automated Insights · <span style={{ color: '#10b981' }}>VERIFIED</span></div>
               </div>
             </div>
             <p style={{ color: '#cbd5e1', fontSize: '14px', lineHeight: '1.7', marginBottom: '16px' }}>
-              Traders are rushing to buy stocks as Dow futures jumped 1,200 points (a +2.8% surge) in just one day.
-              This bullish momentum has spilled over to the S&P 500 and NASDAQ as well. Geopolitical cooldowns
-              and strong earnings reports are the primary catalysts.
+              The global intelligence feed is actively analyzing structural shifts in the market. 
+              Real-time monitoring indicates heavy data flows surrounding geopolitical realignments and tech policy.
             </p>
 
             {/* Key Facts — rotating */}
@@ -198,9 +172,14 @@ export default function HomePage() {
 
           {/* Market Reaction Mini Chart */}
           <div style={{ padding: '20px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <h3 style={{ fontSize: '12px', color: '#f59e0b', fontWeight: '700', letterSpacing: '1px', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-              <BarChart3 size={14} /> MARKET REACTION
-            </h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ fontSize: '12px', color: '#f59e0b', fontWeight: '700', letterSpacing: '1px', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <BarChart3 size={14} /> MARKET REACTION
+              </h3>
+              <button onClick={() => navigate('/markets')} style={{ background: 'none', border: 'none', color: '#38bdf8', fontSize: '10px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+                FULL BOARD <ArrowRight size={10} />
+              </button>
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
               {[
                 { name: 'S&P 500', val: '+2.6%', num: '48,512', up: true },

@@ -286,7 +286,6 @@ export default function WorldMap() {
         </defs>
 
         {/* 3D background grid effect */}
-        <rect x="0" y="0" width={width} height={height} fill="url(#dotGrid)" />
         <rect x="0" y="0" width={width} height={height} fill="url(#gridGrad)" />
 
         {/* Countries */}
@@ -301,9 +300,9 @@ export default function WorldMap() {
               <path
                 key={`path-${i}`}
                 d={pathGenerator(feat)}
-                fill={isHot ? sev.fill : (isHovered ? `${currentLayer.color}40` : 'rgba(20,15,40,0.8)')}
-                stroke={isHot ? sev.stroke : (isHovered ? currentLayer.color : 'rgba(139,92,246,0.1)')}
-                strokeWidth={isHot ? 1.2 : (isHovered ? 1.5 : 0.6)}
+                fill={isHot ? sev.fill : (isHovered ? `${currentLayer.color}40` : 'rgba(35,25,65,0.9)')}
+                stroke={isHot ? sev.stroke : (isHovered ? currentLayer.color : 'rgba(180,150,255,0.25)')}
+                strokeWidth={isHot ? 1.2 : (isHovered ? 1.5 : 0.4)}
                 filter={isHot ? 'url(#glow-hot)' : (isHovered ? 'url(#glow-medium)' : 'url(#3d-pop)')}
                 onMouseEnter={(e) => {
                   if (feat.info) setHoveredInfo(feat.info);

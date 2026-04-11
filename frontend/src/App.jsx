@@ -1,6 +1,6 @@
 import { lazy, Suspense, useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
-import { Loader, Zap, Bookmark, Globe, Users, Bell, Search, CloudLightning } from 'lucide-react';
+import { Loader, Zap, Bookmark, Globe, Users, Bell, Search, CloudLightning, TrendingUp } from 'lucide-react';
 import './App.css';
 import './overhaul.css';
 import { pingHealth, detectLocation, fetchWeather } from './api';
@@ -179,6 +179,11 @@ function AppShell() {
             <div className="cmd-weather-pill" onClick={() => navigate('/weather')}>
               <CloudLightning size={14} className="cmd-weather-icon" style={{color: '#f59e0b'}} />
               <span className="cmd-weather-temp">{headerTemp !== null ? `${headerTemp}°C` : '...'}</span>
+            </div>
+
+            <div className="cmd-weather-pill" onClick={() => navigate('/markets')} style={{ marginLeft: '0px' }}>
+              <TrendingUp size={14} className="cmd-weather-icon" style={{color: '#10b981'}} />
+              <span className="cmd-weather-temp" style={{ color: '#10b981' }}>MARKETS</span>
             </div>
           </div>
 

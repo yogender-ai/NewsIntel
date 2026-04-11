@@ -15,7 +15,7 @@ export default function AnalystOpinions({ analysts = null }) {
     fetchTrending().then(data => {
       if(data?.headlines?.length > 0) {
         const mapped = data.headlines.slice(0, 5).map((h, i) => ({
-           name: ['Yash', 'Sarah Kim', 'Carlos Mendez', 'Priya Sharma', 'Michael Gaki'][i] || 'Analyst',
+           name: ['Alpha-Net', 'Omega-Node', 'Sigma-Engine', 'Theta-Core', 'Zeta-Matrix'][i] || 'AI Node',
            role: h.source || 'Intelligence Desk',
            color: ['#8b5cf6', '#10b981', '#f59e0b', '#06b6d4', '#eab308'][i] || '#a855f7',
            opinion: h.title,
@@ -36,7 +36,7 @@ export default function AnalystOpinions({ analysts = null }) {
       setCurrentIdx(prev => (prev + 1) % opinionsData.length);
     }, 6000);
     return () => clearInterval(interval);
-  }, []);
+  }, [opinionsData]);
 
   // Simulate vote changes every 8 seconds
   useEffect(() => {
