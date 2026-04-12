@@ -1,11 +1,24 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { feature } from 'topojson-client';
-import { geoNaturalEarth1, geoPath } from 'd3-geo';
-import { Swords, Activity, CloudLightning } from 'lucide-react';
-import { useLanguage } from '../context/LanguageContext';
+import { geoNaturalEarth1, geoPath, geoMercator } from 'd3-geo';
+import { Swords, Activity, CloudLightning, ArrowLeft } from 'lucide-react';
+import { fetchTrending } from '../api';
 
 const TOPO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
+
+const HIGHCHARTS_CDN = "https://code.highcharts.com/mapdata";
+const COUNTRY_TOPO_URLS = {
+  'United States': `${HIGHCHARTS_CDN}/countries/us/us-all.topo.json`,
+  'India': `${HIGHCHARTS_CDN}/countries/in/in-all.topo.json`,
+  'Japan': `${HIGHCHARTS_CDN}/countries/jp/jp-all.topo.json`,
+  'France': `${HIGHCHARTS_CDN}/countries/fr/fr-all.topo.json`,
+  'United Kingdom': `${HIGHCHARTS_CDN}/countries/gb/gb-all.topo.json`,
+  'Russia': `${HIGHCHARTS_CDN}/countries/ru/ru-all.topo.json`,
+  'Australia': `${HIGHCHARTS_CDN}/countries/au/au-all.topo.json`,
+  'Canada': `${HIGHCHARTS_CDN}/countries/ca/ca-all.topo.json`,
+  'China': `${HIGHCHARTS_CDN}/countries/cn/cn-all.topo.json`,
+  'Brazil': `${HIGHCHARTS_CDN}/countries/br/br-all.topo.json`
+};
 
 const COUNTRY_META = {
   '004': { name: 'Afghanistan', capital: 'Kabul', flag: '🇦🇫' },

@@ -3,15 +3,15 @@ import { Radio, Users, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 const CHANNELS = [
   { id: 'alj', name: 'Al Jazeera', url: 'https://www.youtube.com/embed/live_stream?channel=UCNye-wNBqNL5ZzHSJj3l8Bg&autoplay=1&mute=1' },
-  { id: 'sky', name: 'Sky News', url: 'https://www.youtube.com/embed/live_stream?channel=UCoMdktPbSTixAyNGwb-PUYA&autoplay=1&mute=1' },
-  { id: 'abc_au', name: 'ABC News AU', url: 'https://www.youtube.com/embed/live_stream?channel=UCvNPk-wqCbcvA_AAM2OIEA&autoplay=1&mute=1' },
+  { id: 'sky', name: 'Sky News UK', url: 'https://www.youtube.com/embed/live_stream?channel=UCoMdktPbSTixAyNGwb-PUYA&autoplay=1&mute=1' },
+  { id: 'nbc', name: 'NBC News', url: 'https://www.youtube.com/embed/live_stream?channel=UCeY0bbntWzzVIaj2z3QigXg&autoplay=1&mute=1' },
   { id: 'dw', name: 'DW News', url: 'https://www.youtube.com/embed/live_stream?channel=UCknLrEdhRCp1aegoMqRaCZg&autoplay=1&mute=1' },
   { id: 'france24', name: 'France 24', url: 'https://www.youtube.com/embed/live_stream?channel=UCQfwfsi5VrQ8yKZ-UOWISsg&autoplay=1&mute=1' },
   { id: 'cna', name: 'CNA', url: 'https://www.youtube.com/embed/live_stream?channel=UC83jt4dlz1Gjl58fzQrrKZg&autoplay=1&mute=1' },
-  { id: 'nbc', name: 'NBC News', url: 'https://www.youtube.com/embed/live_stream?channel=UCeY0bbntWzzVIaj2z3QigXg&autoplay=1&mute=1' },
-  { id: 'bloomberg', name: 'Bloomberg', url: 'https://www.youtube.com/embed/live_stream?channel=UCIALMKvObZNtJ6AmdToI7VJg&autoplay=1&mute=1' },
-  { id: 'cbs', name: 'CBS News', url: 'https://www.youtube.com/embed/live_stream?channel=UC8p1vwvWtl6T73JiExfWs1g&autoplay=1&mute=1' },
-  { id: 'reuters', name: 'Reuters', url: 'https://www.youtube.com/embed/live_stream?channel=UChqUTb7kYRX8-EiaN3XFrSQ&autoplay=1&mute=1' }
+  { id: 'wion', name: 'WION India', url: 'https://www.youtube.com/embed/live_stream?channel=UC_gUM8rL-LrgCAA9058O-Ww&autoplay=1&mute=1' },
+  { id: 'ndtv', name: 'NDTV 24x7', url: 'https://www.youtube.com/embed/live_stream?channel=UCVQhC-u8-MwcB6A2F2qU40w&autoplay=1&mute=1' },
+  { id: 'trt', name: 'TRT World', url: 'https://www.youtube.com/embed/live_stream?channel=UC7fWeaHhqgM4Ry-RMpM2YYw&autoplay=1&mute=1' },
+  { id: 'abc_us', name: 'ABC News', url: 'https://www.youtube.com/embed/live_stream?channel=UCBi2mrWuNuyYy4gbM6fU18Q&autoplay=1&mute=1' }
 ];
 
 export default function LiveNewsStream() {
