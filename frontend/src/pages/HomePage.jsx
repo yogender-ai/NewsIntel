@@ -73,7 +73,7 @@ export default function HomePage() {
   const sentimentColor = sentiment >= 80 ? '#10b981' : sentiment >= 65 ? '#f59e0b' : '#94a3b8';
 
   return (
-    <div className="home-preview-page" style={{ padding: '0 24px 40px', maxWidth: '1600px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '18px', position: 'relative', zIndex: 1 }}>
+    <div className="home-preview-page" style={{ padding: '32px 24px 40px', maxWidth: '1600px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '18px', position: 'relative', zIndex: 1 }}>
       
 
 

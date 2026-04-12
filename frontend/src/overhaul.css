@@ -65,7 +65,10 @@
 .stream-v2-live-indicator { display: flex; align-items: center; gap: 6px; padding: 4px 10px; background: rgba(239,68,68,0.9); color: #fff; font-size: 10px; font-weight: 700; letter-spacing: 1px; border-radius: 4px; }
 .stream-live-dot-pulse { width: 6px; height: 6px; border-radius: 50%; background: #fff; animation: pulseDot 1.5s ease-in-out infinite; }
 .stream-v2-viewers { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 11px; color: #94a3b8; }
-.stream-v2-channels { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.stream-v2-channels { display: flex; flex-wrap: nowrap; overflow-x: auto; gap: 6px; scrollbar-width: none; -ms-overflow-style: none; scroll-behavior: smooth; }
+.stream-v2-channels::-webkit-scrollbar { display: none; }
+.stream-scroll-arrow { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); color: #94a3b8; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: all 0.2s; }
+.stream-scroll-arrow:hover { background: rgba(255,255,255,0.1); color: #fff; }
 .stream-v2-channel-btn { display: flex; align-items: center; gap: 4px; padding: 4px 10px; font-size: 11px; font-weight: 500; color: #94a3b8; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06); border-radius: 16px; cursor: pointer; transition: all 0.2s; }
 .stream-v2-channel-btn:hover { background: rgba(255,255,255,0.06); color: #fff; }
 .stream-v2-channel-btn.active { background: rgba(139,92,246,0.1); border-color: rgba(139,92,246,0.3); color: #a78bfa; }
