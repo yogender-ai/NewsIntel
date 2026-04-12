@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { feature } from 'topojson-client';
-import { geoNaturalEarth1, geoPath, geoMercator, geoIdentity, geoOrthographic, geoCentroid } from 'd3-geo';
-import { select, zoom, drag } from 'd3';
-import { Swords, Activity, CloudLightning, ArrowLeft, Globe } from 'lucide-react';
+import { geoNaturalEarth1, geoPath, geoMercator, geoIdentity, geoCentroid } from 'd3-geo';
+import { select, zoom } from 'd3';
+import { Activity, CloudLightning, ArrowLeft, Maximize } from 'lucide-react';
 import { fetchTrending } from '../api';
 
 const TOPO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
@@ -77,7 +77,6 @@ const SEVERITY_COLORS = {
   medium:   { fill: 'rgba(250,204,21,0.2)',  stroke: '#facc15', glow: 'rgba(250,204,21,0.4)' },
 };
 
-// Algorithm to assign severity based on keywords
 function classifyHeadline(title) {
   const t = title.toLowerCase();
   if (t.includes('war') || t.includes('strike') || t.includes('missile') || t.includes('flee')) return 'critical';
@@ -114,9 +113,6 @@ export default function WorldMap() {
   const [dynamicZones, setDynamicZones] = useState([]);
   const [dynamicConns, setDynamicConns] = useState([]);
   
-  // 3D Projection States
-  const [rotation, setRotation] = useState([0, 0, 0]);
-  const [scaleMult, setScaleMult] = useState(1);
   const [pulsePhase, setPulsePhase] = useState(0);
   const [currentTimeMs, setCurrentTimeMs] = useState(Date.now());
   const [dataFlowOffset, setDataFlowOffset] = useState(0);
@@ -124,6 +120,7 @@ export default function WorldMap() {
   
   const containerRef = useRef(null);
   const svgRef = useRef(null);
+  const mapGroupRef = useRef(null); // Ref for D3 Zoom scaling limits
 
   const width = 1000;
   const height = 550;
@@ -152,10 +149,12 @@ export default function WorldMap() {
        const newZones = [];
        const newConns = [];
 
-       headlines.forEach((hl, i) => {
+       headlines.forEach((hl) => {
           const entities = hl.entities || [];
           if (entities.length > 0) {
               const countryEntities = entities.filter(e => countries.some(c => c.info?.name === e.word || c.info?.key === e.word));
+              if(countryEntities.length === 0) return;
+
               const severity = classifyHeadline(hl.title);
               const label = getEventLabel(hl.title);
               
@@ -184,30 +183,30 @@ export default function WorldMap() {
     });
   }, [countries]);
 
-  // Bind 3D Drag & Zoom behaviors natively
+  // Reliable Zooming via D3 Transforming a <g> object so path clicks aren't destroyed!
   useEffect(() => {
-    if (!svgRef.current || zoomedCountryInfo) return;
-    
+    if (!svgRef.current || !mapGroupRef.current) return;
     const svg = select(svgRef.current);
+    const g = select(mapGroupRef.current);
     
+    // Create zoom behavior
     const dZoom = zoom()
-      .scaleExtent([0.5, 4])
-      .on('zoom', (e) => setScaleMult(e.transform.k));
-      
-    const dDrag = drag()
-      .on('drag', (e) => {
-        setRotation(r => [r[0] + e.dx * 0.4, r[1] - e.dy * 0.4, r[2]]);
+      .scaleExtent([0.8, 6])
+      .on('zoom', (e) => {
+        g.attr('transform', e.transform);
       });
+      
+    // Remove old zoom behavior if any, to prevent memory leaks
+    svg.on('.zoom', null);
 
-    svg.call(dZoom);
-    // Bind drag to the container itself so clicking path doesn't stop it if empty space dragged
-    svg.call(dDrag);
-
-    return () => {
-      svg.on('.zoom', null);
-      svg.on('.drag', null);
-    };
-  }, [zoomedCountryInfo]);
+    // Apply only if we are not locked into state drilldown 
+    // (Drilldown performs its own perfect viewport fit)
+    if (!zoomedCountryInfo) {
+      svg.call(dZoom);
+    } else {
+      g.attr('transform', ''); // Reset transform if zooming natively via drilldown
+    }
+  }, [zoomedCountryInfo, countries.length]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -296,26 +295,34 @@ export default function WorldMap() {
       projection = geoMercator().fitSize([width * 0.65, height * 0.9], zoomParentFeature);
     }
   } else {
-    // 3D Orthographic Globe
-    projection = geoOrthographic()
-      .scale(260 * scaleMult)
-      .translate([width / 2, height / 2])
-      .clipAngle(90) // Hide back of globe
-      .rotate(rotation);
+    // Elegant Flat Projection
+    projection = geoNaturalEarth1()
+      .scale(210)
+      .translate([width / 2, height / 2 + 20]);
   }
   
   const pathGenerator = geoPath().projection(projection);
   const featuresToRender = zoomedCountryInfo && zoomStateFeatures.length > 0 ? zoomStateFeatures : countries;
 
   return (
-    <div ref={containerRef} className="world-map-section" style={{ width: '100%', position: 'relative', overflow: 'visible', margin: '20px 0' }}>
+    <div 
+      ref={containerRef} 
+      className="world-map-section" 
+      style={{ 
+        width: '100%', 
+        position: 'relative', 
+        overflow: 'visible', 
+        margin: '20px 0',
+        perspective: '1200px' // Provides depth context
+      }}
+    >
       {/* ── Global Header Overlay ── */}
       {!zoomedCountryInfo && (
         <div style={{ position: 'absolute', top: 15, left: 15, zIndex: 50, display: 'flex', gap: '8px', alignItems: 'center' }}>
           <div style={{ background: 'rgba(10,5,20,0.8)', border: '1px solid #10b981', color: '#10b981', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', backdropFilter: 'blur(10px)' }}>
-             <Globe size={14} className="animate-pulse" /> LIVE GLOBE ACTIVE
+             <Activity size={14} className="animate-pulse" /> LIVE TACTICAL FEED
           </div>
-          <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '600' }}>Scroll to Zoom • Drag to Spin</span>
+          <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '600' }}>Scroll to Zoom • Drag to Pan</span>
         </div>
       )}
 
@@ -325,7 +332,7 @@ export default function WorldMap() {
           onClick={() => { setZoomedCountryInfo(null); setZoomParentFeature(null); setZoomStateFeatures([]); setSelectedState(null); }} 
           style={{ position: 'absolute', top: 15, left: 15, zIndex: 100, background: 'rgba(139,92,246,0.2)', border: '1px solid #8b5cf6', color: '#fff', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 'bold', backdropFilter: 'blur(10px)', transition: 'all 0.2s', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}
         >
-          <ArrowLeft size={14} /> Back to Global Sphere
+          <ArrowLeft size={14} /> Back to Global View
         </button>
       )}
 
@@ -382,14 +389,20 @@ export default function WorldMap() {
         </div>
       )}
 
-      {/* ── Main SVG Projection Sphere ── */}
+      {/* ── Main SVG Projection ── */}
       <div style={{ width: '100%', padding: zoomedCountryInfo ? '30px 32% 30px 20px' : '0' }}>
         <svg 
           ref={svgRef}
           viewBox={`0 0 ${width} ${height}`} 
           className="world-map-svg"
           preserveAspectRatio="xMidYMid meet"
-          style={{ width: '100%', height: '100%', minHeight: '550px', overflow: 'visible', cursor: zoomedCountryInfo ? 'default' : 'grab' }}
+          style={{ 
+            width: '100%', height: '100%', minHeight: '550px', overflow: 'visible', cursor: zoomedCountryInfo ? 'default' : 'grab',
+            // Clean 3D map effect through CSS hardware limits
+            transform: !zoomedCountryInfo ? 'rotateX(8deg) scale(1.02)' : 'none',
+            transformOrigin: '50% 50%',
+            transition: 'transform 0.5s ease-out'
+          }}
         >
         <defs>
           <radialGradient id="globe-glow" cx="50%" cy="50%" r="50%">
@@ -417,136 +430,130 @@ export default function WorldMap() {
           ))}
         </defs>
 
-        {/* 3D Sphere Background Horizon - Only show when Orthographic (Not drill-down) */}
-        {!zoomedCountryInfo && (
-           <circle cx={width/2} cy={height/2} r={260 * scaleMult} fill="url(#globe-glow)" stroke="rgba(56,189,248,0.3)" strokeWidth="1" />
-        )}
+        {/* Group everything inside mapGroupRef for flawless zooming without breaking physics */}
+        <g ref={mapGroupRef}>
+          <g className="countries-group">
+            {featuresToRender.map((feat, i) => {
+              const info = feat.info;
+              const isStateMap = !!(zoomedCountryInfo && zoomStateFeatures.length > 0);
+              
+              const renderedPath = pathGenerator(feat);
+              if (!renderedPath) return null;
 
-        <g className="countries-group">
-          {featuresToRender.map((feat, i) => {
-            const info = feat.info;
-            const isStateMap = !!(zoomedCountryInfo && zoomStateFeatures.length > 0);
+              const dynamicZone = dynamicZones.find(z => z.name === info?.name);
+              const isHot = !zoomedCountryInfo && dynamicZone;
+              const sev = isHot ? SEVERITY_COLORS[dynamicZone.severity] : null;
+
+              const isHovered = hoveredInfo?.key === info?.key || hoveredInfo?.name === info?.name;
+              const isSelectedState = selectedState && selectedState.info.name === info?.name;
+
+              const baseFill = isSelectedState ? 'rgba(139,92,246,0.35)' : (isStateMap ? 'rgba(20,25,50,0.8)' : 'rgba(12,16,36,0.95)');
+              const baseStroke = isSelectedState ? '#c084fc' : (isStateMap ? 'rgba(56,189,248,0.3)' : 'rgba(56,189,248,0.15)');
+              const hoverFill = 'rgba(139,92,246,0.25)';
+              const hoverStroke = '#a78bfa';
+
+              return (
+                <path
+                  key={`path-${i}`}
+                  d={renderedPath}
+                  fill={isHot ? sev.fill : (isHovered ? hoverFill : baseFill)}
+                  stroke={isHot ? sev.stroke : (isHovered ? hoverStroke : baseStroke)}
+                  strokeWidth={isHot ? 1.2 : (isHovered || isSelectedState ? 1.5 : 0.5)}
+                  filter={isHot ? 'url(#glow-hot)' : (isHovered || isSelectedState ? 'url(#glow-medium)' : (zoomedCountryInfo ? 'none' : 'url(#3d-pop)'))}
+                  onMouseEnter={(e) => {
+                    if (!info) return;
+                    if (dynamicZone) {
+                       setHoveredInfo({...info, headline: dynamicZone.headline});
+                    } else {
+                       setHoveredInfo(info);
+                    }
+                    if (containerRef.current) {
+                      const rect = containerRef.current.getBoundingClientRect();
+                      setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+                    }
+                  }}
+                  onMouseMove={(e) => {
+                    if (containerRef.current && hoveredInfo) {
+                      const rect = containerRef.current.getBoundingClientRect();
+                      setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+                    }
+                  }}
+                  onMouseLeave={() => setHoveredInfo(null)}
+                  onClick={() => {
+                     if (!isStateMap) handleCountryClick(feat);
+                     else handleStateClick(feat);
+                  }}
+                  style={{ cursor: 'pointer', transition: 'fill 0.4s ease, stroke 0.4s ease' }}
+                />
+              );
+            })}
+          </g>
+
+          {/* ── NLP Dynamic Connections ── */}
+          {!zoomedCountryInfo && dynamicConns.map((conn, i) => {
+            const from = projection(conn.from);
+            const to = projection(conn.to);
+            if (!from || !to) return null;
             
-            // Generate path using the current projection
-            const renderedPath = pathGenerator(feat);
-            if (!renderedPath) return null; // path out of view / clipped by back side of globe
-
-            const dynamicZone = dynamicZones.find(z => z.name === info?.name);
-            const isHot = !zoomedCountryInfo && dynamicZone;
-            const sev = isHot ? SEVERITY_COLORS[dynamicZone.severity] : null;
-
-            const isHovered = hoveredInfo?.key === info?.key || hoveredInfo?.name === info?.name;
-            const isSelectedState = selectedState && selectedState.info.name === info?.name;
-
-            // Deep visual hierarchy mapping
-            const baseFill = isSelectedState ? 'rgba(139,92,246,0.35)' : (isStateMap ? 'rgba(20,25,50,0.8)' : 'rgba(12,16,36,0.95)');
-            const baseStroke = isSelectedState ? '#c084fc' : (isStateMap ? 'rgba(56,189,248,0.3)' : 'rgba(56,189,248,0.15)');
-            const hoverFill = 'rgba(139,92,246,0.25)';
-            const hoverStroke = '#a78bfa';
-
+            const midX = (from[0] + to[0]) / 2;
+            const midY = Math.min(from[1], to[1]) - 60;
             return (
-              <path
-                key={`path-${i}`}
-                d={renderedPath}
-                fill={isHot ? sev.fill : (isHovered ? hoverFill : baseFill)}
-                stroke={isHot ? sev.stroke : (isHovered ? hoverStroke : baseStroke)}
-                strokeWidth={isHot ? 1.2 : (isHovered || isSelectedState ? 1.5 : 0.5)}
-                filter={isHot ? 'url(#glow-hot)' : (isHovered || isSelectedState ? 'url(#glow-medium)' : (zoomedCountryInfo ? 'none' : 'none'))}
-                onMouseEnter={(e) => {
-                  if (!info) return;
-                  if (dynamicZone) {
-                     setHoveredInfo({...info, headline: dynamicZone.headline});
-                  } else {
-                     setHoveredInfo(info);
-                  }
-                  if (containerRef.current) {
-                    const rect = containerRef.current.getBoundingClientRect();
-                    setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-                  }
-                }}
-                onMouseMove={(e) => {
-                  if (containerRef.current && hoveredInfo) {
-                    const rect = containerRef.current.getBoundingClientRect();
-                    setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-                  }
-                }}
-                onMouseLeave={() => setHoveredInfo(null)}
-                onClick={() => {
-                   if (!isStateMap) handleCountryClick(feat);
-                   else handleStateClick(feat);
-                }}
-                style={{ cursor: 'pointer', transition: 'fill 0.4s ease, stroke 0.4s ease' }}
-              />
+              <g key={`conn-dyn-${i}`} style={{ pointerEvents: 'none' }}>
+                <path 
+                  d={`M ${from[0]},${from[1]} Q ${midX},${midY} ${to[0]},${to[1]}`} 
+                  fill="none" 
+                  stroke={conn.color} 
+                  strokeWidth="1.5"
+                  strokeDasharray="6,4"
+                  strokeDashoffset={dataFlowOffset}
+                  opacity="0.8"
+                />
+                <text x={midX} y={midY - 6} fill={conn.color} fontSize="7" fontWeight="700" textAnchor="middle" letterSpacing="1.5px">
+                  {conn.label}
+                </text>
+              </g>
             );
+          })}
+
+          {/* ── NLP Dynamic Intelligence Nodes ── */}
+          {!zoomedCountryInfo && dynamicZones.map((zone, i) => {
+            const pt = projection(zone.coords);
+            if (!pt) return null;
+
+            const sev = SEVERITY_COLORS[zone.severity];
+            return (
+              <g key={`zone-dyn-${i}`} style={{ pointerEvents: 'none' }}>
+                <circle cx={pt[0]} cy={pt[1]} r={30} fill={`url(#heatGrad-${zone.severity})`} opacity="0.8" />
+                <circle cx={pt[0]} cy={pt[1]} r={pulseR3} fill="none" stroke={sev.glow} strokeWidth="0.5" opacity={0.2 + Math.sin(pulsePhase * 0.1) * 0.15} />
+                <circle cx={pt[0]} cy={pt[1]} r={pulseR2} fill="none" stroke={sev.glow} strokeWidth="0.8" opacity={0.3 + Math.sin(pulsePhase * 0.15) * 0.2} />
+                <circle cx={pt[0]} cy={pt[1]} r={pulseR1} fill="none" stroke={sev.stroke} strokeWidth="1" opacity="0.6" />
+                <circle cx={pt[0]} cy={pt[1]} r={3} fill={sev.stroke} filter="url(#glow-hot)" />
+                <g transform={`translate(${pt[0]}, ${pt[1] - 18 - 10})`}>
+                  <rect x={-zone.label.length * 3.5 - 4} y="-10" width={zone.label.length * 7 + 8} height="14" rx="3" fill="rgba(0,0,0,0.8)" stroke={sev.stroke} strokeWidth="0.5" />
+                  <text x="0" y="0" fill={sev.stroke} fontSize="7" fontWeight="bold" textAnchor="middle" letterSpacing="1px">{zone.label}</text>
+                </g>
+              </g>
+            );
+          })}
+
+          {/* ── Deep Space Blips ── */}
+          {!zoomedCountryInfo && liveBlips.map(blip => {
+             const pt = projection(blip.coords);
+             if (!pt) return null;
+             
+             const ageMs = currentTimeMs - blip.id;
+             if (ageMs > 2500) return null;
+             const progress = ageMs / 2500;
+             return (
+               <g key={blip.id} style={{ pointerEvents: 'none' }}>
+                 <circle cx={pt[0]} cy={pt[1]} r="1.5" fill="#38bdf8" filter="url(#glow-hot)" opacity={1 - progress} />
+                 <circle cx={pt[0]} cy={pt[1]} r={2 + progress * 20} fill="none" stroke="#38bdf8" strokeWidth="1" opacity={0.6 - (progress * 0.6)} />
+               </g>
+             )
           })}
         </g>
 
-        {/* ── NLP Dynamic Connections ── */}
-        {!zoomedCountryInfo && dynamicConns.map((conn, i) => {
-          const from = projection(conn.from);
-          const to = projection(conn.to);
-          
-          if (!from || !to) return null; // Out of orthographic view bounds
-          
-          const midX = (from[0] + to[0]) / 2;
-          const midY = Math.min(from[1], to[1]) - 60;
-          return (
-            <g key={`conn-dyn-${i}`} style={{ pointerEvents: 'none' }}>
-              <path 
-                d={`M ${from[0]},${from[1]} Q ${midX},${midY} ${to[0]},${to[1]}`} 
-                fill="none" 
-                stroke={conn.color} 
-                strokeWidth="1.5"
-                strokeDasharray="6,4"
-                strokeDashoffset={dataFlowOffset}
-                opacity="0.8"
-              />
-              <text x={midX} y={midY - 6} fill={conn.color} fontSize="7" fontWeight="700" textAnchor="middle" letterSpacing="1.5px">
-                {conn.label}
-              </text>
-            </g>
-          );
-        })}
-
-        {/* ── NLP Dynamic Intelligence Nodes ── */}
-        {!zoomedCountryInfo && dynamicZones.map((zone, i) => {
-          const pt = projection(zone.coords);
-          if (!pt) return null; // Clipped by back of 3D globe
-
-          const sev = SEVERITY_COLORS[zone.severity];
-          return (
-            <g key={`zone-dyn-${i}`} style={{ pointerEvents: 'none' }}>
-              <circle cx={pt[0]} cy={pt[1]} r={30 * scaleMult} fill={`url(#heatGrad-${zone.severity})`} opacity="0.8" />
-              <circle cx={pt[0]} cy={pt[1]} r={pulseR3 * scaleMult} fill="none" stroke={sev.glow} strokeWidth="0.5" opacity={0.2 + Math.sin(pulsePhase * 0.1) * 0.15} />
-              <circle cx={pt[0]} cy={pt[1]} r={pulseR2 * scaleMult} fill="none" stroke={sev.glow} strokeWidth="0.8" opacity={0.3 + Math.sin(pulsePhase * 0.15) * 0.2} />
-              <circle cx={pt[0]} cy={pt[1]} r={pulseR1 * scaleMult} fill="none" stroke={sev.stroke} strokeWidth="1" opacity="0.6" />
-              <circle cx={pt[0]} cy={pt[1]} r={3 * scaleMult} fill={sev.stroke} filter="url(#glow-hot)" />
-              <g transform={`translate(${pt[0]}, ${pt[1] - 18 - (10 * scaleMult)})`}>
-                <rect x={-zone.label.length * 3.5 - 4} y="-10" width={zone.label.length * 7 + 8} height="14" rx="3" fill="rgba(0,0,0,0.8)" stroke={sev.stroke} strokeWidth="0.5" />
-                <text x="0" y="0" fill={sev.stroke} fontSize="7" fontWeight="bold" textAnchor="middle" letterSpacing="1px">{zone.label}</text>
-              </g>
-            </g>
-          );
-        })}
-
-        {/* ── Deep Space Blips (Pure UX, unattached to geography) ── */}
-        {!zoomedCountryInfo && liveBlips.map(blip => {
-           // We place blips purely randomly, but they must fit the globe
-           const pt = projection(blip.coords);
-           if (!pt) return null;
-           
-           const ageMs = currentTimeMs - blip.id;
-           if (ageMs > 2500) return null;
-           const progress = ageMs / 2500;
-           return (
-             <g key={blip.id} style={{ pointerEvents: 'none' }}>
-               <circle cx={pt[0]} cy={pt[1]} r="1.5" fill="#38bdf8" filter="url(#glow-hot)" opacity={1 - progress} />
-               <circle cx={pt[0]} cy={pt[1]} r={2 + progress * 20} fill="none" stroke="#38bdf8" strokeWidth="1" opacity={0.6 - (progress * 0.6)} />
-             </g>
-           )
-        })}
-
-        {/* ── Status Indication UI ── */}
+        {/* ── Status Indication UI (Outside Pan/Zoom group so it remains fixed) ── */}
         {!zoomedCountryInfo && (
           <g transform={`translate(${width - 120}, ${height - 20})`} style={{ pointerEvents: 'none' }}>
             <circle r="4" fill="#a855f7" opacity={0.4 + Math.sin(pulsePhase * 0.3) * 0.6} />
@@ -556,7 +563,7 @@ export default function WorldMap() {
         )}
         
         <text x="15" y={height - 10} fill="rgba(255,255,255,0.2)" fontSize="7" fontFamily="monospace">
-          UTC {new Date().toLocaleTimeString()} | NLP ENTITY LINKING ENABLED
+          UTC {new Date().toLocaleTimeString()} | SATCOM ZOOM UPLINK SECURED
         </text>
         </svg>
       </div>
