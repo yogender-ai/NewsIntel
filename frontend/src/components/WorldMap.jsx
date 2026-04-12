@@ -311,9 +311,10 @@ export default function WorldMap() {
       style={{ 
         width: '100%', 
         position: 'relative', 
-        overflow: 'visible', 
+        overflow: 'hidden', 
         margin: '20px 0',
-        perspective: '1200px' // Provides depth context
+        borderRadius: '24px',
+        background: 'radial-gradient(circle at center, rgba(139,92,246,0.05) 0%, transparent 80%)'
       }}
     >
       {/* ── Global Header Overlay ── */}
@@ -397,11 +398,7 @@ export default function WorldMap() {
           className="world-map-svg"
           preserveAspectRatio="xMidYMid meet"
           style={{ 
-            width: '100%', height: '100%', minHeight: '550px', overflow: 'visible', cursor: zoomedCountryInfo ? 'default' : 'grab',
-            // Clean 3D map effect through CSS hardware limits
-            transform: !zoomedCountryInfo ? 'rotateX(8deg) scale(1.02)' : 'none',
-            transformOrigin: '50% 50%',
-            transition: 'transform 0.5s ease-out'
+            width: '100%', height: '100%', minHeight: '550px', overflow: 'hidden', cursor: zoomedCountryInfo ? 'default' : 'grab'
           }}
         >
         <defs>
