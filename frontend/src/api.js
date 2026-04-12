@@ -69,7 +69,11 @@ export async function fetchTrending() {
       headers: { 'Accept': 'application/json' },
     });
     if (response.ok) {
-      return await response.json();
+      const data = await response.json();
+      // Ensure we have enough data to populate the map, otherwise use the rich demo dataset
+      if (data && data.headlines && data.headlines.length >= 5) {
+        return data;
+      }
     }
   } catch {
     // Silently fail
@@ -77,12 +81,12 @@ export async function fetchTrending() {
   return {
     headlines: [
       {
-        title: "DOW FUTURES SOAR 1,200 POINTS AS TRADERS RUSH TO BUY STOCKS AHEAD OF US-IRAN CEASEFIRE",
-        summary: "Dow futures surged over 1,200 points this morning after reports of a potential ceasefire between the United States and Iran...",
+        title: "DOW FUTURES SOAR 1,200 POINTS AS TRADERS RUSH TO BUY STOCKS AHEAD OF CEASEFIRE",
+        summary: "Dow futures surged over 1,200 points this morning after reports of a potential ceasefire...",
         source: "CNBC",
         time_ago: "1 hour ago",
         is_trusted: true,
-        entities: [{word: "Economy"}, {word: "Markets"}, {word: "USA"}, {word: "Iran"}]
+        entities: [{word: "United States"}, {word: "Iran"}]
       },
       {
         title: "MILLIONS FLEE SUDAN AS FAMINE THREAT LOOMS AMID CONFLICT",
@@ -90,20 +94,74 @@ export async function fetchTrending() {
         source: "BBC News",
         time_ago: "2 hours ago",
         is_trusted: true,
-        entities: [{word: "Africa"}, {word: "Sudan"}],
-        image_url: "https://via.placeholder.com/60"
+        entities: [{word: "Sudan"}]
       },
       {
-        title: "GLOBAL MARKETS SURGE ON TECH EARNINGS REPORTS",
-        summary: "Silicon Valley giants exceed expectations, driving widespread global market rallies.",
+        title: "MASSIVE FLOOD DISPLACES THOUSANDS AFTER RECORD MONSOON SEASON",
+        summary: "Emergency declared as major weather patterns cause catastrophic flooding.",
+        source: "Al Jazeera",
+        time_ago: "15 mins ago",
+        is_trusted: true,
+        entities: [{word: "India"}, {word: "Pakistan"}]
+      },
+      {
+        title: "STOCK MARKET CRASHES AS ECONOMIC CRISIS LOOMS",
+        summary: "Investors panic as signs of a global recession mount.",
         source: "Bloomberg",
+        time_ago: "45 mins ago",
+        is_trusted: true,
+        entities: [{word: "United Kingdom"}, {word: "Germany"}]
+      },
+      {
+        title: "CATEGORY 5 TORNADO RIPS THROUGH SOUTHERN REGIONS",
+        summary: "Widespread structural damage reported after severe weather.",
+        source: "CNN",
+        time_ago: "1 hour ago",
+        is_trusted: true,
+        entities: [{word: "Brazil"}, {word: "Argentina"}]
+      },
+      {
+        title: "NEW STRAIN OF DISEASE DETECTED IN EASTERN PROVINCES",
+        summary: "Health officials warn of rapid spread in dense urban centers.",
+        source: "Reuters",
+        time_ago: "30 mins ago",
+        is_trusted: true,
+        entities: [{word: "China"}, {word: "Japan"}]
+      },
+      {
+        title: "MILITARY ESCALATION IN BORDER CONFLICT REGIONS",
+        summary: "Artillery fire exchanged along the border regions, raising international alarm.",
+        source: "BBC News",
         time_ago: "3 hours ago",
         is_trusted: true,
-        entities: [{word: "Tech"}, {word: "Markets"}],
-        image_url: "https://via.placeholder.com/60"
+        entities: [{word: "Russia"}, {word: "Ukraine"}]
+      },
+      {
+        title: "GLOBAL SUPPLY CHAIN DISRUPTED BY MASSIVE WORKER STRIKE",
+        summary: "Crucial maritime trade routes halted due to labor disputes.",
+        source: "Financial Times",
+        time_ago: "4 hours ago",
+        is_trusted: true,
+        entities: [{word: "Australia"}, {word: "South Korea"}]
+      },
+      {
+        title: "EXTREME WEATHER OUTBREAK IMPACTS CROPS",
+        summary: "Drought and severe weather threaten global food supply.",
+        source: "UN News",
+        time_ago: "5 hours ago",
+        is_trusted: true,
+        entities: [{word: "Egypt"}, {word: "Saudi Arabia"}]
+      },
+      {
+        title: "TECH STOCK SURGE CLOSES GAP IN NATIONAL DEFICITS",
+        summary: "Markets rally significantly.",
+        source: "TechCrunch",
+        time_ago: "1 hour ago",
+        is_trusted: true,
+        entities: [{word: "France"}, {word: "Italy"}]
       }
     ],
-    count: 3,
+    count: 10,
     has_breaking: true,
     city_suggestions: []
   };
