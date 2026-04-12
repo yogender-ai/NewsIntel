@@ -1,23 +1,25 @@
 import { useState, useRef, useEffect } from 'react';
-import { ChevronLeft, ChevronRight, Activity, Radio, CloudLightning } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Activity, Radio } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 
+// Using direct YouTube video embeds for reliable live streams
 const CHANNELS = [
-  { id: 'alj', name: 'Al Jazeera', url: 'https://www.youtube.com/embed/live_stream?channel=UCNye-wNBqNL5ZzHSJj3l8Bg&autoplay=1&mute=1' },
-  { id: 'sky', name: 'Sky News', url: 'https://www.youtube.com/embed/live_stream?channel=UCoMdktPbSTixAyNGwb-PUYA&autoplay=1&mute=1' },
-  { id: 'fra24', name: 'France 24', url: 'https://www.youtube.com/embed/live_stream?channel=UCQfwfsi5VrQ8yKZ-UOWISsg&autoplay=1&mute=1' },
-  { id: 'dw', name: 'DW News', url: 'https://www.youtube.com/embed/live_stream?channel=UCknLrEdhRCp1aegoMqRaCZg&autoplay=1&mute=1' },
-  { id: 'cna', name: 'CNA', url: 'https://www.youtube.com/embed/live_stream?channel=UC83jt4dlz1Gjl58fzQrrKZg&autoplay=1&mute=1' },
-  { id: 'indiatoday', name: 'India Today', url: 'https://www.youtube.com/embed/live_stream?channel=UCYPvAwZP8pZhSMW8qsG9jtw&autoplay=1&mute=1' },
-  { id: 'cnn18', name: 'CNN-News18', url: 'https://www.youtube.com/embed/live_stream?channel=UC5mN2z2C1EwARtL2H4Uo_3Q&autoplay=1&mute=1' },
-  { id: 'cbs', name: 'CBS News', url: 'https://www.youtube.com/embed/live_stream?channel=UC8p1vwvWtl6T73JiExfWs1g&autoplay=1&mute=1' },
-  { id: 'abc', name: 'ABC News', url: 'https://www.youtube.com/embed/live_stream?channel=UCBi2mrWuNuyYy4gbM6fU18Q&autoplay=1&mute=1' },
-  { id: 'reuters', name: 'Reuters', url: 'https://www.youtube.com/embed/live_stream?channel=UChqUTb7kYRX8-EiaN3XFrSQ&autoplay=1&mute=1' }
+  { id: 'alj', name: 'Al Jazeera', url: 'https://www.youtube.com/embed/gCNeDWCI0vo?autoplay=1&mute=1' },
+  { id: 'sky', name: 'Sky News', url: 'https://www.youtube.com/embed/9Auq9mYxFEE?autoplay=1&mute=1' },
+  { id: 'fra24', name: 'France 24', url: 'https://www.youtube.com/embed/h3MuIUNCCzI?autoplay=1&mute=1' },
+  { id: 'dw', name: 'DW News', url: 'https://www.youtube.com/embed/NvqKZHpKs-g?autoplay=1&mute=1' },
+  { id: 'cna', name: 'CNA', url: 'https://www.youtube.com/embed/XWq5kBlakcQ?autoplay=1&mute=1' },
+  { id: 'ndtv', name: 'NDTV', url: 'https://www.youtube.com/embed/WB0Skeuvyvc?autoplay=1&mute=1' },
+  { id: 'wion', name: 'WION', url: 'https://www.youtube.com/embed/U6bPF6pJo54?autoplay=1&mute=1' },
+  { id: 'abc', name: 'ABC Australia', url: 'https://www.youtube.com/embed/W1ilCy6XrmI?autoplay=1&mute=1' },
+  { id: 'euronews', name: 'Euronews', url: 'https://www.youtube.com/embed/pSyvn5LEXrs?autoplay=1&mute=1' },
+  { id: 'trt', name: 'TRT World', url: 'https://www.youtube.com/embed/CV5Fooi8YJE?autoplay=1&mute=1' }
 ];
 
 export default function LiveNewsStream() {
   const [activeChannel, setActiveChannel] = useState(CHANNELS[0]);
   const [loading, setLoading] = useState(true);
+  const [iframeError, setIframeError] = useState(false);
   const scrollRef = useRef(null);
   const { t } = useLanguage();
 
@@ -30,6 +32,10 @@ export default function LiveNewsStream() {
 
   useEffect(() => {
     setLoading(true);
+    setIframeError(false);
+    // Fallback timeout: if iframe doesn't load in 8s, hide loader
+    const timeout = setTimeout(() => setLoading(false), 8000);
+    return () => clearTimeout(timeout);
   }, [activeChannel]);
 
   return (
@@ -37,7 +43,7 @@ export default function LiveNewsStream() {
       <div className="stream-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
         <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, color: '#e2e8f0' }}>
           <Activity size={18} className="text-red-500" />
-          {t('liveIntelligenceFeed', 'LIVE INTELLIGENCE FEED')}
+          {t('liveIntelligenceFeed', 'liveIntelligenceFeed')}
         </h3>
         <span className="live-badge" style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: '#10b981', fontWeight: 'bold' }}>
           <Radio size={12} className="animate-pulse" />
@@ -54,12 +60,14 @@ export default function LiveNewsStream() {
         )}
         
         <iframe
-          src={`${activeChannel.url}`}
+          key={activeChannel.id}
+          src={activeChannel.url}
           title={activeChannel.name}
           frameBorder="0"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           allowFullScreen
           onLoad={() => setLoading(false)}
+          onError={() => { setLoading(false); setIframeError(true); }}
           style={{ width: '100%', height: '100%', position: 'absolute', top: 0, left: 0 }}
         />
       </div>

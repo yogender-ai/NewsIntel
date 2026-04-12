@@ -1,26 +1,51 @@
 import { useState, useEffect } from 'react';
 import { TrendingUp, Flame, ArrowUpRight, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-
-const MOCK_TRENDS = [
-  { title: 'Iran Ceasefire', change: 1.2, tags: ['Middle East Tensions'], engagement: 37400, hot: true },
-  { title: 'Trump Iran-Deal', change: 5.59, tags: ['Russia Ukraine'], engagement: 5302, hot: false },
-  { title: 'Global Markets Rally', change: 3.41, tags: ['Economy', 'Bulls'], engagement: 12100, hot: true },
-  { title: 'AI Regulation EU', change: 2.87, tags: ['Technology', 'Policy'], engagement: 8400, hot: false },
-  { title: 'Sudan Crisis', change: 4.12, tags: ['Africa', 'Conflict'], engagement: 6700, hot: true },
-];
+import { fetchTrending } from '../api';
 
 function formatNum(n) {
   if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
   return n.toString();
 }
 
+function extractTrendFromHeadline(hl, idx) {
+  const title = hl.title || '';
+  // Create a short trend title from the first 4-5 meaningful words
+  const words = title.split(/\s+/).filter(w => w.length > 2);
+  const shortTitle = words.slice(0, 4).join(' ');
+  
+  const tags = [];
+  if (hl.event_label && hl.event_label !== 'BREAKING') tags.push(hl.event_label);
+  if (hl.source) tags.push(hl.source);
+  
+  return {
+    title: shortTitle || title.slice(0, 40),
+    change: +(Math.random() * 8 + 1).toFixed(2),
+    tags: tags.length > 0 ? tags : ['Global'],
+    engagement: Math.floor(Math.random() * 30000) + 5000,
+    hot: hl.severity === 'critical' || hl.severity === 'high',
+  };
+}
+
 export default function TrendsSidebar({ trends = null }) {
   const navigate = useNavigate();
   const [refreshing, setRefreshing] = useState(false);
-  const [liveData, setLiveData] = useState(MOCK_TRENDS);
+  const [liveData, setLiveData] = useState([]);
 
-  // Auto-update engagement and change values every 5s
+  useEffect(() => {
+    loadTrends();
+  }, []);
+
+  const loadTrends = () => {
+    fetchTrending().then(data => {
+      if (data?.headlines?.length > 0) {
+        const mapped = data.headlines.slice(0, 5).map((hl, i) => extractTrendFromHeadline(hl, i));
+        setLiveData(mapped);
+      }
+    }).catch(() => {});
+  };
+
+  // Auto-update engagement every 5s
   useEffect(() => {
     const interval = setInterval(() => {
       setLiveData(prev => prev.map(t => ({
@@ -34,15 +59,13 @@ export default function TrendsSidebar({ trends = null }) {
 
   const handleRefresh = () => {
     setRefreshing(true);
-    setLiveData(prev => prev.map(t => ({
-      ...t,
-      engagement: t.engagement + Math.floor(Math.random() * 200) + 50,
-      change: +(t.change + Math.random() * 0.5).toFixed(2),
-    })));
+    loadTrends();
     setTimeout(() => setRefreshing(false), 1500);
   };
 
   const displayTrends = trends || liveData;
+
+  if (displayTrends.length === 0) return null;
 
   return (
     <div className="trends-sidebar">

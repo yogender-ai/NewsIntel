@@ -605,17 +605,22 @@ export default function WorldMap() {
             const pt = projection(zone.coords);
             if (!pt) return null;
 
-            const sev = SEVERITY_COLORS[zone.severity];
+            const sev = SEVERITY_COLORS[zone.severity] || SEVERITY_COLORS.medium;
+            // Stagger labels to prevent overlap: alternate above/below and add horizontal jitter
+            const verticalOffset = i % 2 === 0 ? -32 : 20;
+            const horizontalJitter = (i % 3 - 1) * 15;
             return (
               <g key={`zone-dyn-${i}`} style={{ pointerEvents: 'none' }}>
-                <circle cx={pt[0]} cy={pt[1]} r={30} fill={`url(#heatGrad-${zone.severity})`} opacity="0.8" />
+                <circle cx={pt[0]} cy={pt[1]} r={25} fill={`url(#heatGrad-${zone.severity})`} opacity="0.7" />
                 <circle cx={pt[0]} cy={pt[1]} r={pulseR3} fill="none" stroke={sev.glow} strokeWidth="0.5" opacity={0.2 + Math.sin(pulsePhase * 0.1) * 0.15} />
                 <circle cx={pt[0]} cy={pt[1]} r={pulseR2} fill="none" stroke={sev.glow} strokeWidth="0.8" opacity={0.3 + Math.sin(pulsePhase * 0.15) * 0.2} />
                 <circle cx={pt[0]} cy={pt[1]} r={pulseR1} fill="none" stroke={sev.stroke} strokeWidth="1" opacity="0.6" />
                 <circle cx={pt[0]} cy={pt[1]} r={3} fill={sev.stroke} filter="url(#glow-hot)" />
-                <g transform={`translate(${pt[0]}, ${pt[1] - 18 - 10})`}>
-                  <rect x={-zone.label.length * 3.5 - 4} y="-10" width={zone.label.length * 7 + 8} height="14" rx="3" fill="rgba(0,0,0,0.8)" stroke={sev.stroke} strokeWidth="0.5" />
-                  <text x="0" y="0" fill={sev.stroke} fontSize="7" fontWeight="bold" textAnchor="middle" letterSpacing="1px">{zone.label}</text>
+                {/* Line from dot to label */}
+                <line x1={pt[0]} y1={pt[1]} x2={pt[0] + horizontalJitter} y2={pt[1] + verticalOffset + (verticalOffset < 0 ? 10 : -4)} stroke={sev.stroke} strokeWidth="0.5" opacity="0.4" />
+                <g transform={`translate(${pt[0] + horizontalJitter}, ${pt[1] + verticalOffset})`}>
+                  <rect x={-zone.label.length * 3.2 - 4} y="-9" width={zone.label.length * 6.4 + 8} height="13" rx="3" fill="rgba(0,0,0,0.85)" stroke={sev.stroke} strokeWidth="0.5" />
+                  <text x="0" y="0" fill={sev.stroke} fontSize="6.5" fontWeight="bold" textAnchor="middle" letterSpacing="0.8px">{zone.label}</text>
                 </g>
               </g>
             );

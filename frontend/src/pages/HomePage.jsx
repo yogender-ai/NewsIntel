@@ -13,21 +13,11 @@ import { ArrowRight, Globe, Zap, Users, TrendingUp, Shield, MessageSquare, Eye, 
 
 
 
-/* ── Key Intelligence Facts that rotate ── */
-const KEY_FACTS = [
-  'US and Iran in secret negotiations for weeks, aiming for a ceasefire agreement within days.',
-  'Oil prices spiked 4% today as Brent Crude rose to $87.50 per barrel.',
-  'EU regulators approve landmark AI safety framework impacting all member states.',
-  'Hurricane forecasters warn of unprecedented La Niña conditions forming in the Atlantic.',
-  'Gold prices surge past $2,400/oz as investors hedge against geopolitical uncertainty.',
-  'Ukraine reports 14 drone strikes on Kyiv overnight, largest barrage in 3 months.',
-];
 
 /* ── Live stat counters removed per user request ── */
 
 export default function HomePage() {
   const [trending, setTrending] = useState(null);
-  const [factIndex, setFactIndex] = useState(0);
   const [sentiment, setSentiment] = useState(84);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const navigate = useNavigate();
@@ -55,14 +45,6 @@ export default function HomePage() {
 
 
 
-
-  // Rotate key facts every 8 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setFactIndex(prev => (prev + 1) % KEY_FACTS.length);
-    }, 8000);
-    return () => clearInterval(interval);
-  }, []);
 
 
 
@@ -157,17 +139,20 @@ export default function HomePage() {
               </div>
             </div>
             <p style={{ color: '#cbd5e1', fontSize: '14px', lineHeight: '1.7', marginBottom: '16px' }}>
-              The global intelligence feed is actively analyzing structural shifts in the market. 
-              Real-time monitoring indicates heavy data flows surrounding geopolitical realignments and tech policy.
+              {headlines.length > 0 
+                ? `Currently tracking ${headlines.length} active intelligence streams. Top story: ${headlines[0]?.title?.slice(0, 120)}...`
+                : 'Connecting to global intelligence feeds...'}
             </p>
 
-            {/* Key Facts — rotating */}
-            <div style={{ padding: '16px', background: 'rgba(139,92,246,0.05)', border: '1px solid rgba(139,92,246,0.15)', borderRadius: '12px' }}>
-              <div style={{ fontSize: '11px', color: '#8b5cf6', fontWeight: '700', letterSpacing: '1px', marginBottom: '8px' }}>✔ KEY FACTS</div>
-              <p style={{ color: '#e2e8f0', fontSize: '13px', lineHeight: '1.5', transition: 'opacity 0.5s' }}>
-                {KEY_FACTS[factIndex]}
-              </p>
-            </div>
+            {/* Key Facts — live from headlines */}
+            {headlines.length > 1 && (
+              <div style={{ padding: '16px', background: 'rgba(139,92,246,0.05)', border: '1px solid rgba(139,92,246,0.15)', borderRadius: '12px' }}>
+                <div style={{ fontSize: '11px', color: '#8b5cf6', fontWeight: '700', letterSpacing: '1px', marginBottom: '8px' }}>✔ LATEST INTEL</div>
+                <p style={{ color: '#e2e8f0', fontSize: '13px', lineHeight: '1.5' }}>
+                  {headlines[1]?.title}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Market Reaction Mini Chart */}
@@ -224,20 +209,6 @@ export default function HomePage() {
 
       {/* Feed is now natively embedded in the left column */}
 
-      {/* ══════════════════════════════════════════════════════════════ */}
-      {/* ── SECTION 6: CTA BANNER ── */}
-      {/* ══════════════════════════════════════════════════════════════ */}
-      <div style={{ background: 'linear-gradient(135deg, rgba(15,10,30,0.9), rgba(30,15,60,0.9))', padding: '40px', borderRadius: '20px', border: '1px solid rgba(139,92,246,0.25)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', boxShadow: '0 10px 60px rgba(139,92,246,0.15)' }}>
-        <div>
-          <h2 style={{ fontSize: '24px', fontWeight: '800', color: '#fff', marginBottom: '8px' }}>Ready to analyze global intelligence?</h2>
-          <p style={{ fontSize: '14px', color: '#94a3b8', maxWidth: '500px' }}>
-            Access realtime AI sentiment models, interactive geopolitical maps, expert community discussions, and 24/7 live coverage from around the world.
-          </p>
-        </div>
-        <button style={{ padding: '14px 32px', background: '#fff', color: '#000', border: 'none', borderRadius: '32px', fontSize: '15px', fontWeight: '700', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', boxShadow: '0 10px 30px rgba(255,255,255,0.15)', whiteSpace: 'nowrap', flexShrink: 0 }}>
-          Get Started <ArrowRight size={16} />
-        </button>
-      </div>
 
     </div>
   );
