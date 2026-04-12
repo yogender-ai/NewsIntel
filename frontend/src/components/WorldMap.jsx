@@ -1,11 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { feature } from 'topojson-client';
-import { geoNaturalEarth1, geoPath, geoMercator, geoIdentity } from 'd3-geo';
-import { Swords, Activity, CloudLightning, ArrowLeft } from 'lucide-react';
+import { geoNaturalEarth1, geoPath, geoMercator, geoIdentity, geoOrthographic, geoCentroid } from 'd3-geo';
+import { select, zoom, drag } from 'd3';
+import { Swords, Activity, CloudLightning, ArrowLeft, Globe } from 'lucide-react';
 import { fetchTrending } from '../api';
 
 const TOPO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
-
 const HIGHCHARTS_CDN = "https://code.highcharts.com/mapdata";
 const COUNTRY_TOPO_URLS = {
   'United States': `${HIGHCHARTS_CDN}/countries/us/us-all.topo.json`,
@@ -71,73 +71,30 @@ function resolveCountryInfo(f) {
   return null;
 }
 
-const LAYERS = {
-  conflict: {
-    label: 'Geopolitics & Conflict',
-    icon: Swords,
-    color: '#ef4444',
-    zones: [
-      { name: 'United States', coords: [-95, 38], severity: 'high', label: 'USA' },
-      { name: 'Iran', coords: [53, 32], severity: 'critical', label: 'IRAN' },
-      { name: 'Ukraine', coords: [32, 49], severity: 'critical', label: 'UKR' },
-      { name: 'Sudan', coords: [30, 15], severity: 'high', label: 'SDN' },
-      { name: 'Israel', coords: [35, 31], severity: 'medium', label: 'ISR' },
-      { name: 'China', coords: [105, 35], severity: 'medium', label: 'CHN' },
-      { name: 'Russia', coords: [60, 60], severity: 'high', label: 'RUS' },
-    ],
-    connections: [
-      { from: [-95, 38], to: [53, 32], color: '#ef4444', label: 'CEASEFIRE' },
-      { from: [32, 49], to: [60, 60], color: '#f59e0b', label: 'CONFLICT' },
-      { from: [35, 31], to: [53, 32], color: '#f97316', label: 'TENSIONS' },
-    ]
-  },
-  disease: {
-    label: 'Disease Outbreaks',
-    icon: Activity,
-    color: '#a855f7',
-    zones: [
-      { name: 'Brazil', coords: [-55, -10], severity: 'high', label: 'DENGUE' },
-      { name: 'India', coords: [78, 22], severity: 'medium', label: 'NIPAH WATCH' },
-      { name: 'Nigeria', coords: [8, 10], severity: 'critical', label: 'LASSA' },
-      { name: 'United States', coords: [-95, 38], severity: 'medium', label: 'FLU SPIKE' },
-    ],
-    connections: [
-      { from: [-55, -10], to: [-95, 38], color: '#a855f7', label: 'VECTOR' },
-    ]
-  },
-  weather: {
-    label: 'Extreme Weather',
-    icon: CloudLightning,
-    color: '#38bdf8',
-    zones: [
-      { name: 'Philippines', coords: [121, 12], severity: 'critical', label: 'TYPHOON' },
-      { name: 'Australia', coords: [133, -25], severity: 'high', label: 'WILDFIRES' },
-      { name: 'Canada', coords: [-106, 56], severity: 'medium', label: 'FREEZE' },
-      { name: 'India', coords: [78, 22], severity: 'critical', label: 'HEATWAVE' },
-    ],
-    connections: [
-      { from: [121, 12], to: [133, -25], color: '#38bdf8', label: 'STORM CELL' },
-    ]
-  }
+const SEVERITY_COLORS = {
+  critical: { fill: 'rgba(239,68,68,0.3)', stroke: '#ef4444', glow: 'rgba(239,68,68,0.5)' },
+  high:     { fill: 'rgba(249,115,22,0.25)', stroke: '#f97316', glow: 'rgba(249,115,22,0.5)' },
+  medium:   { fill: 'rgba(250,204,21,0.2)',  stroke: '#facc15', glow: 'rgba(250,204,21,0.4)' },
 };
 
-const SEVERITY_COLORS = {
-  conflict: {
-    critical: { fill: 'rgba(239,68,68,0.3)', stroke: '#ef4444', glow: 'rgba(239,68,68,0.5)' },
-    high:     { fill: 'rgba(249,115,22,0.25)', stroke: '#f97316', glow: 'rgba(249,115,22,0.5)' },
-    medium:   { fill: 'rgba(250,204,21,0.2)',  stroke: '#facc15', glow: 'rgba(250,204,21,0.4)' },
-  },
-  disease: {
-    critical: { fill: 'rgba(168,85,247,0.3)', stroke: '#a855f7', glow: 'rgba(168,85,247,0.5)' },
-    high:     { fill: 'rgba(217,70,239,0.25)', stroke: '#d946ef', glow: 'rgba(217,70,239,0.5)' },
-    medium:   { fill: 'rgba(232,121,249,0.2)',  stroke: '#e879f9', glow: 'rgba(232,121,249,0.4)' },
-  },
-  weather: {
-    critical: { fill: 'rgba(56,189,248,0.3)', stroke: '#38bdf8', glow: 'rgba(56,189,248,0.5)' },
-    high:     { fill: 'rgba(14,165,233,0.25)', stroke: '#0ea5e9', glow: 'rgba(14,165,233,0.5)' },
-    medium:   { fill: 'rgba(2,132,199,0.2)',  stroke: '#0284c7', glow: 'rgba(2,132,199,0.4)' },
+// Algorithm to assign severity based on keywords
+function classifyHeadline(title) {
+  const t = title.toLowerCase();
+  if (t.includes('war') || t.includes('strike') || t.includes('missile') || t.includes('flee')) return 'critical';
+  if (t.includes('conflict') || t.includes('tensions') || t.includes('surge') || t.includes('outbreak')) return 'high';
+  return 'medium';
+}
+
+function getEventLabel(title) {
+  const words = title.split(' ');
+  for (const w of words) {
+    const wt = w.toLowerCase().replace(/[^a-z]/g, '');
+    if (['war', 'conflict', 'strike', 'missile', 'famine', 'outbreak', 'virus', 'ceasefire', 'rally', 'surge', 'threat'].includes(wt)) {
+      return w.toUpperCase().replace(/[^A-Z]/g, '');
+    }
   }
-};
+  return 'UPDATE';
+}
 
 export default function WorldMap() {
   const [countries, setCountries] = useState([]);
@@ -150,23 +107,27 @@ export default function WorldMap() {
   const [zoomStateFeatures, setZoomStateFeatures] = useState([]);
   const [zoomParentFeature, setZoomParentFeature] = useState(null);
   const [selectedState, setSelectedState] = useState(null);
-  
   const [stateNews, setStateNews] = useState([]);
   const [loadingStateLevel, setLoadingStateLevel] = useState(false);
   
-  // Animation states
+  // Dynamic Live Feed State
+  const [dynamicZones, setDynamicZones] = useState([]);
+  const [dynamicConns, setDynamicConns] = useState([]);
+  
+  // 3D Projection States
+  const [rotation, setRotation] = useState([0, 0, 0]);
+  const [scaleMult, setScaleMult] = useState(1);
   const [pulsePhase, setPulsePhase] = useState(0);
   const [currentTimeMs, setCurrentTimeMs] = useState(Date.now());
   const [dataFlowOffset, setDataFlowOffset] = useState(0);
   const [liveBlips, setLiveBlips] = useState([]);
   
-  const [activeLayer, setActiveLayer] = useState('conflict');
   const containerRef = useRef(null);
+  const svgRef = useRef(null);
 
   const width = 900;
-  const height = 460;
+  const height = 500;
 
-  // Initial Load: World TopoJSON
   useEffect(() => {
     let cancelled = false;
     fetch(TOPO_URL)
@@ -182,7 +143,72 @@ export default function WorldMap() {
     return () => { cancelled = true; };
   }, []);
 
-  // Frame tick for smooth pulsing & alive dots
+  // Live Intelligence Parsing System
+  useEffect(() => {
+    if (countries.length === 0) return;
+
+    fetchTrending().then(d => {
+       const headlines = d.headlines || [];
+       const newZones = [];
+       const newConns = [];
+
+       headlines.forEach((hl, i) => {
+          const entities = hl.entities || [];
+          if (entities.length > 0) {
+              const countryEntities = entities.filter(e => countries.some(c => c.info?.name === e.word || c.info?.key === e.word));
+              const severity = classifyHeadline(hl.title);
+              const label = getEventLabel(hl.title);
+              
+              countryEntities.forEach(c => {
+                 const feat = countries.find(ct => ct.info?.name === c.word || ct.info?.key === c.word);
+                 if (feat) {
+                    const coords = geoCentroid(feat);
+                    if (!newZones.find(z => z.name === c.word)) {
+                       newZones.push({ name: c.word, coords, severity, label, headline: hl.title });
+                    }
+                 }
+              });
+
+              if (countryEntities.length >= 2) {
+                 const f1 = countries.find(ct => ct.info?.name === countryEntities[0].word || ct.info?.key === countryEntities[0].word);
+                 const f2 = countries.find(ct => ct.info?.name === countryEntities[1].word || ct.info?.key === countryEntities[1].word);
+                 if (f1 && f2) {
+                    newConns.push({ from: geoCentroid(f1), to: geoCentroid(f2), color: SEVERITY_COLORS[severity].stroke, label });
+                 }
+              }
+          }
+       });
+
+       setDynamicZones(newZones);
+       setDynamicConns(newConns);
+    });
+  }, [countries]);
+
+  // Bind 3D Drag & Zoom behaviors natively
+  useEffect(() => {
+    if (!svgRef.current || zoomedCountryInfo) return;
+    
+    const svg = select(svgRef.current);
+    
+    const dZoom = zoom()
+      .scaleExtent([0.5, 4])
+      .on('zoom', (e) => setScaleMult(e.transform.k));
+      
+    const dDrag = drag()
+      .on('drag', (e) => {
+        setRotation(r => [r[0] + e.dx * 0.4, r[1] - e.dy * 0.4, r[2]]);
+      });
+
+    svg.call(dZoom);
+    // Bind drag to the container itself so clicking path doesn't stop it if empty space dragged
+    svg.call(dDrag);
+
+    return () => {
+      svg.on('.zoom', null);
+      svg.on('.drag', null);
+    };
+  }, [zoomedCountryInfo]);
+
   useEffect(() => {
     const interval = setInterval(() => {
       setPulsePhase(p => (p + 1) % 60);
@@ -192,7 +218,6 @@ export default function WorldMap() {
     return () => clearInterval(interval);
   }, []);
 
-  // Spawn random 'Alive' blips randomly on map purely for engaging UI
   useEffect(() => {
     if (zoomedCountryInfo || countries.length === 0) return;
     const interval = setInterval(() => {
@@ -207,7 +232,6 @@ export default function WorldMap() {
   const loadLocalNews = () => {
     fetchTrending().then(d => {
       const allNews = d.headlines || [];
-      // Quick fake shuffle so new country looks different
       setStateNews([...allNews].sort(() => 0.5 - Math.random()));
     });
   };
@@ -259,23 +283,25 @@ export default function WorldMap() {
     );
   }
 
-  const currentLayer = LAYERS[activeLayer];
-  const hotZoneNames = currentLayer.zones.map(z => z.name);
   const pulseR1 = 6 + Math.sin(pulsePhase * 0.2) * 3;
   const pulseR2 = 12 + Math.sin(pulsePhase * 0.15) * 5;
   const pulseR3 = 20 + Math.sin(pulsePhase * 0.1) * 8;
-  const layerColors = SEVERITY_COLORS[activeLayer];
 
-  // Map Projection Engine
+  // Next-Gen Map Projection Engine
   let projection;
   if (zoomedCountryInfo) {
     if (zoomStateFeatures.length > 0) {
       projection = geoIdentity().reflectY(true).fitSize([width * 0.65, height * 0.9], { type: "FeatureCollection", features: zoomStateFeatures });
-    } else if (zoomParentFeature) {
+    } else {
       projection = geoMercator().fitSize([width * 0.65, height * 0.9], zoomParentFeature);
     }
   } else {
-    projection = geoNaturalEarth1().scale(155).translate([width / 2, height / 2 + 10]);
+    // 3D Orthographic Globe
+    projection = geoOrthographic()
+      .scale(230 * scaleMult)
+      .translate([width / 2, height / 2])
+      .clipAngle(90) // Hide back of globe
+      .rotate(rotation);
   }
   
   const pathGenerator = geoPath().projection(projection);
@@ -283,29 +309,13 @@ export default function WorldMap() {
 
   return (
     <div ref={containerRef} className="world-map-section" style={{ width: '100%', position: 'relative', overflow: 'hidden', background: '#0a0b14', borderRadius: '16px', border: '1px solid rgba(139,92,246,0.15)' }}>
-      {/* ── Layer Toggles (Hide when zoomed) ── */}
+      {/* ── Global Header Overlay ── */}
       {!zoomedCountryInfo && (
-        <div style={{ position: 'absolute', top: 15, left: 15, zIndex: 50, display: 'flex', gap: '8px' }}>
-          {Object.entries(LAYERS).map(([key, data]) => {
-            const Icon = data.icon;
-            const isActive = activeLayer === key;
-            return (
-              <button
-                key={key}
-                onClick={() => setActiveLayer(key)}
-                style={{
-                  background: isActive ? `${data.color}25` : 'rgba(10,5,20,0.8)',
-                  border: `1px solid ${isActive ? data.color : 'rgba(255,255,255,0.06)'}`,
-                  color: isActive ? data.color : '#94a3b8',
-                  padding: '8px 12px', borderRadius: '8px', cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px',
-                  fontWeight: 600, backdropFilter: 'blur(10px)', transition: 'all 0.3s'
-                }}
-              >
-                <Icon size={14} /> {data.label}
-              </button>
-            );
-          })}
+        <div style={{ position: 'absolute', top: 15, left: 15, zIndex: 50, display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <div style={{ background: 'rgba(10,5,20,0.8)', border: '1px solid #10b981', color: '#10b981', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px', backdropFilter: 'blur(10px)' }}>
+             <Globe size={14} className="animate-pulse" /> LIVE GLOBE ACTIVE
+          </div>
+          <span style={{ fontSize: '10px', color: '#64748b', fontWeight: '600' }}>Scroll to Zoom • Drag to Spin</span>
         </div>
       )}
 
@@ -315,21 +325,22 @@ export default function WorldMap() {
           onClick={() => { setZoomedCountryInfo(null); setZoomParentFeature(null); setZoomStateFeatures([]); setSelectedState(null); }} 
           style={{ position: 'absolute', top: 15, left: 15, zIndex: 100, background: 'rgba(139,92,246,0.2)', border: '1px solid #8b5cf6', color: '#fff', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 'bold', backdropFilter: 'blur(10px)', transition: 'all 0.2s', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}
         >
-          <ArrowLeft size={14} /> Global Feed
+          <ArrowLeft size={14} /> Back to Global Sphere
         </button>
       )}
 
-      {/* Tooltip Overlay */}
+      {/* Map Tooltip Overlay */}
       {hoveredInfo && (
         <div 
           className="map-tooltip" 
-          style={{ left: tooltipPos.x + 15, top: tooltipPos.y + 15, position: 'absolute', zIndex: 200, background: 'rgba(10,5,20,0.95)', backdropFilter: 'blur(12px)', border: '1px solid rgba(139,92,246,0.4)', borderRadius: '12px', padding: '12px 16px', boxShadow: '0 10px 40px rgba(0,0,0,0.5)', pointerEvents: 'none' }}
+          style={{ left: tooltipPos.x + 15, top: tooltipPos.y + 15, position: 'absolute', zIndex: 200, background: 'rgba(10,5,20,0.95)', backdropFilter: 'blur(12px)', border: '1px solid rgba(139,92,246,0.4)', borderRadius: '12px', padding: '12px 16px', boxShadow: '0 10px 40px rgba(0,0,0,0.5)', pointerEvents: 'none', maxWidth: '200px' }}
         >
           {hoveredInfo.flag && <span style={{ fontSize: '20px' }}>{hoveredInfo.flag}</span>}
           <div style={{ marginLeft: hoveredInfo.flag ? '8px' : 0, display: 'inline-block' }}>
             <span style={{ fontSize: '13px', fontWeight: '700', color: '#fff', display: 'block' }}>{hoveredInfo.name}</span>
-            {hoveredInfo.capital && <span style={{ fontSize: '10px', color: '#94a3b8' }}>{hoveredInfo.capital}</span>}
-            {hoveredInfo.isState && <span style={{ fontSize: '10px', color: '#10b981', fontWeight: '600' }}>Local Region</span>}
+            {hoveredInfo.capital && <span style={{ fontSize: '10px', color: '#94a3b8', display: 'block' }}>{hoveredInfo.capital}</span>}
+            {hoveredInfo.isState && <span style={{ fontSize: '10px', color: '#10b981', fontWeight: '600', display: 'block' }}>Local Region</span>}
+            {hoveredInfo.headline && <span style={{ fontSize: '10px', color: '#f87171', fontWeight: '500', display: 'block', marginTop: '4px', lineHeight: 1.2 }}>"{hoveredInfo.headline}"</span>}
           </div>
         </div>
       )}
@@ -343,19 +354,19 @@ export default function WorldMap() {
             <h2 style={{ fontSize: '20px', margin: 0, color: '#fff', fontWeight: '800' }}>
               {selectedState ? `${selectedState.info.name} Region` : `${zoomedCountryInfo.name} Command`}
             </h2>
-            <p style={{ fontSize: '11px', color: '#10b981', margin: '6px 0 0', fontWeight: '600', letterSpacing: '1px' }}>● LIVE INTELLIGENCE ENABLED</p>
+            <p style={{ fontSize: '11px', color: '#10b981', margin: '6px 0 0', fontWeight: '600', letterSpacing: '1px' }}>● STRICT LOCAL FILTER ACTIVE</p>
             
             {selectedState && (
               <button 
                 onClick={() => { setSelectedState(null); loadLocalNews(); }}
                 style={{ marginTop: '12px', padding: '6px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', transition: 'all 0.2s' }}
               >
-                ⟵ BACK TO NATIONAL FEED
+                ⟵ ALL NATIONAL ALERTS
               </button>
             )}
           </div>
           <div style={{ padding: '20px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
-             {loadingStateLevel && <div style={{ color: '#8b5cf6', fontSize: '11px', textAlign: 'center', background: 'rgba(139,92,246,0.1)', padding: '10px', borderRadius: '8px' }}>Initializing strict local boundaries...</div>}
+             {loadingStateLevel && <div style={{ color: '#8b5cf6', fontSize: '11px', textAlign: 'center', background: 'rgba(139,92,246,0.1)', padding: '10px', borderRadius: '8px' }}>Initializing localized boundaries...</div>}
              <div style={{ fontSize: '10px', color: '#8b5cf6', fontWeight: '700', letterSpacing: '1px', marginBottom: '8px' }}>REGION FEEDS</div>
              {stateNews.map((news, idx) => (
                 <div key={idx} style={{ padding: '14px', background: 'rgba(255,255,255,0.02)', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)', transition: 'all 0.2s', cursor: 'pointer' }} onMouseEnter={e => e.currentTarget.style.background = 'rgba(139,92,246,0.1)'} onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.02)'}>
@@ -371,15 +382,21 @@ export default function WorldMap() {
         </div>
       )}
 
-      {/* ── Main SVG Map ── */}
-      <div style={{ width: '100%', padding: zoomedCountryInfo ? '30px 32% 30px 20px' : '15px 0' }}>
+      {/* ── Main SVG Projection Sphere ── */}
+      <div style={{ width: '100%', padding: zoomedCountryInfo ? '30px 32% 30px 20px' : '0' }}>
         <svg 
+          ref={svgRef}
           viewBox={`0 0 ${width} ${height}`} 
           className="world-map-svg"
           preserveAspectRatio="xMidYMid meet"
-          style={{ width: '100%', height: 'auto', overflow: 'visible' }}
+          style={{ width: '100%', height: 'auto', overflow: 'visible', cursor: zoomedCountryInfo ? 'default' : 'grab' }}
         >
         <defs>
+          <radialGradient id="globe-glow" cx="50%" cy="50%" r="50%">
+            <stop offset="85%" stopColor="rgba(8,12,30,0.8)" />
+            <stop offset="100%" stopColor="rgba(56,189,248,0.2)" />
+          </radialGradient>
+          
           <filter id="glow-hot" x="-50%" y="-50%" width="200%" height="200%">
             <feGaussianBlur stdDeviation="5" result="blur" />
             <feComposite in="SourceGraphic" in2="blur" operator="over" />
@@ -392,42 +409,37 @@ export default function WorldMap() {
             <feDropShadow dx="0" dy="8" stdDeviation="6" floodColor="rgba(0,0,0,0.8)" />
           </filter>
 
-          {Object.entries(SEVERITY_COLORS).map(([layerName, severities]) => (
-            <g key={`grads-${layerName}`}>
-              <radialGradient id={`heatGrad-${layerName}-critical`} cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stopColor={severities.critical.glow} />
-                <stop offset="100%" stopColor="rgba(0,0,0,0)" />
-              </radialGradient>
-              <radialGradient id={`heatGrad-${layerName}-high`} cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stopColor={severities.high.glow} />
-                <stop offset="100%" stopColor="rgba(0,0,0,0)" />
-              </radialGradient>
-            </g>
+          {Object.keys(SEVERITY_COLORS).map(sKey => (
+            <radialGradient key={`heatGrad-${sKey}`} id={`heatGrad-${sKey}`} cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor={SEVERITY_COLORS[sKey].glow} />
+              <stop offset="100%" stopColor="rgba(0,0,0,0)" />
+            </radialGradient>
           ))}
-
-          <linearGradient id="gridGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="rgba(56,189,248,0.03)" />
-            <stop offset="100%" stopColor="rgba(56,189,248,0.01)" />
-          </linearGradient>
         </defs>
 
-        <rect x="0" y="0" width={width} height={height} fill="url(#gridGrad)" />
+        {/* 3D Sphere Background Horizon - Only show when Orthographic (Not drill-down) */}
+        {!zoomedCountryInfo && (
+           <circle cx={width/2} cy={height/2} r={230 * scaleMult} fill="url(#globe-glow)" stroke="rgba(56,189,248,0.3)" strokeWidth="1" />
+        )}
 
         <g className="countries-group">
           {featuresToRender.map((feat, i) => {
             const info = feat.info;
             const isStateMap = !!(zoomedCountryInfo && zoomStateFeatures.length > 0);
             
-            // Check hotness (only applied in global view for now to keep states clean)
-            const isHot = !zoomedCountryInfo && info && hotZoneNames.includes(info.name);
-            const zone = isHot ? currentLayer.zones.find(z => z.name === info.name) : null;
-            const sev = zone ? layerColors[zone.severity] : null;
+            // Generate path using the current projection
+            const renderedPath = pathGenerator(feat);
+            if (!renderedPath) return null; // path out of view / clipped by back side of globe
+
+            const dynamicZone = dynamicZones.find(z => z.name === info?.name);
+            const isHot = !zoomedCountryInfo && dynamicZone;
+            const sev = isHot ? SEVERITY_COLORS[dynamicZone.severity] : null;
 
             const isHovered = hoveredInfo?.key === info?.key || hoveredInfo?.name === info?.name;
             const isSelectedState = selectedState && selectedState.info.name === info?.name;
 
-            // Light up selected states strongly
-            const baseFill = isSelectedState ? 'rgba(139,92,246,0.35)' : (isStateMap ? 'rgba(20,25,50,0.8)' : 'rgba(8,12,24,0.95)');
+            // Deep visual hierarchy mapping
+            const baseFill = isSelectedState ? 'rgba(139,92,246,0.35)' : (isStateMap ? 'rgba(20,25,50,0.8)' : 'rgba(12,16,36,0.95)');
             const baseStroke = isSelectedState ? '#c084fc' : (isStateMap ? 'rgba(56,189,248,0.3)' : 'rgba(56,189,248,0.15)');
             const hoverFill = 'rgba(139,92,246,0.25)';
             const hoverStroke = '#a78bfa';
@@ -435,13 +447,18 @@ export default function WorldMap() {
             return (
               <path
                 key={`path-${i}`}
-                d={pathGenerator(feat)}
+                d={renderedPath}
                 fill={isHot ? sev.fill : (isHovered ? hoverFill : baseFill)}
                 stroke={isHot ? sev.stroke : (isHovered ? hoverStroke : baseStroke)}
                 strokeWidth={isHot ? 1.2 : (isHovered || isSelectedState ? 1.5 : 0.5)}
-                filter={isHot ? 'url(#glow-hot)' : (isHovered || isSelectedState ? 'url(#glow-medium)' : (zoomedCountryInfo ? 'none' : 'url(#3d-pop)'))}
+                filter={isHot ? 'url(#glow-hot)' : (isHovered || isSelectedState ? 'url(#glow-medium)' : (zoomedCountryInfo ? 'none' : 'none'))}
                 onMouseEnter={(e) => {
-                  if (info) setHoveredInfo(info);
+                  if (!info) return;
+                  if (dynamicZone) {
+                     setHoveredInfo({...info, headline: dynamicZone.headline});
+                  } else {
+                     setHoveredInfo(info);
+                  }
                   if (containerRef.current) {
                     const rect = containerRef.current.getBoundingClientRect();
                     setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
@@ -464,15 +481,17 @@ export default function WorldMap() {
           })}
         </g>
 
-        {/* ── Global Animated Nodes (Only on World Map) ── */}
-        {!zoomedCountryInfo && currentLayer.connections.map((conn, i) => {
+        {/* ── NLP Dynamic Connections ── */}
+        {!zoomedCountryInfo && dynamicConns.map((conn, i) => {
           const from = projection(conn.from);
           const to = projection(conn.to);
-          if (!from || !to) return null;
+          
+          if (!from || !to) return null; // Out of orthographic view bounds
+          
           const midX = (from[0] + to[0]) / 2;
           const midY = Math.min(from[1], to[1]) - 60;
           return (
-            <g key={`conn-${activeLayer}-${i}`} style={{ pointerEvents: 'none' }}>
+            <g key={`conn-dyn-${i}`} style={{ pointerEvents: 'none' }}>
               <path 
                 d={`M ${from[0]},${from[1]} Q ${midX},${midY} ${to[0]},${to[1]}`} 
                 fill="none" 
@@ -489,18 +508,20 @@ export default function WorldMap() {
           );
         })}
 
-        {!zoomedCountryInfo && currentLayer.zones.map((zone, i) => {
+        {/* ── NLP Dynamic Intelligence Nodes ── */}
+        {!zoomedCountryInfo && dynamicZones.map((zone, i) => {
           const pt = projection(zone.coords);
-          if (!pt) return null;
-          const sev = layerColors[zone.severity];
+          if (!pt) return null; // Clipped by back of 3D globe
+
+          const sev = SEVERITY_COLORS[zone.severity];
           return (
-            <g key={`zone-${activeLayer}-${i}`} style={{ pointerEvents: 'none' }}>
-              <circle cx={pt[0]} cy={pt[1]} r="30" fill={`url(#heatGrad-${activeLayer}-${zone.severity})`} opacity="0.8" />
-              <circle cx={pt[0]} cy={pt[1]} r={pulseR3} fill="none" stroke={sev.glow} strokeWidth="0.5" opacity={0.2 + Math.sin(pulsePhase * 0.1) * 0.15} />
-              <circle cx={pt[0]} cy={pt[1]} r={pulseR2} fill="none" stroke={sev.glow} strokeWidth="0.8" opacity={0.3 + Math.sin(pulsePhase * 0.15) * 0.2} />
-              <circle cx={pt[0]} cy={pt[1]} r={pulseR1} fill="none" stroke={sev.stroke} strokeWidth="1" opacity="0.6" />
-              <circle cx={pt[0]} cy={pt[1]} r="3" fill={sev.stroke} filter="url(#glow-hot)" />
-              <g transform={`translate(${pt[0]}, ${pt[1] - 18})`}>
+            <g key={`zone-dyn-${i}`} style={{ pointerEvents: 'none' }}>
+              <circle cx={pt[0]} cy={pt[1]} r={30 * scaleMult} fill={`url(#heatGrad-${zone.severity})`} opacity="0.8" />
+              <circle cx={pt[0]} cy={pt[1]} r={pulseR3 * scaleMult} fill="none" stroke={sev.glow} strokeWidth="0.5" opacity={0.2 + Math.sin(pulsePhase * 0.1) * 0.15} />
+              <circle cx={pt[0]} cy={pt[1]} r={pulseR2 * scaleMult} fill="none" stroke={sev.glow} strokeWidth="0.8" opacity={0.3 + Math.sin(pulsePhase * 0.15) * 0.2} />
+              <circle cx={pt[0]} cy={pt[1]} r={pulseR1 * scaleMult} fill="none" stroke={sev.stroke} strokeWidth="1" opacity="0.6" />
+              <circle cx={pt[0]} cy={pt[1]} r={3 * scaleMult} fill={sev.stroke} filter="url(#glow-hot)" />
+              <g transform={`translate(${pt[0]}, ${pt[1] - 18 - (10 * scaleMult)})`}>
                 <rect x={-zone.label.length * 3.5 - 4} y="-10" width={zone.label.length * 7 + 8} height="14" rx="3" fill="rgba(0,0,0,0.8)" stroke={sev.stroke} strokeWidth="0.5" />
                 <text x="0" y="0" fill={sev.stroke} fontSize="7" fontWeight="bold" textAnchor="middle" letterSpacing="1px">{zone.label}</text>
               </g>
@@ -508,12 +529,14 @@ export default function WorldMap() {
           );
         })}
 
-        {/* ── Random 'Alive' Blips to make Map look busy ── */}
+        {/* ── Deep Space Blips (Pure UX, unattached to geography) ── */}
         {!zoomedCountryInfo && liveBlips.map(blip => {
+           // We place blips purely randomly, but they must fit the globe
            const pt = projection(blip.coords);
-           if(!pt) return null;
+           if (!pt) return null;
+           
            const ageMs = currentTimeMs - blip.id;
-           if (ageMs > 2500) return null; // faded out
+           if (ageMs > 2500) return null;
            const progress = ageMs / 2500;
            return (
              <g key={blip.id} style={{ pointerEvents: 'none' }}>
@@ -523,16 +546,17 @@ export default function WorldMap() {
            )
         })}
 
+        {/* ── Status Indication UI ── */}
         {!zoomedCountryInfo && (
-          <g transform={`translate(${width - 100}, 15)`} style={{ pointerEvents: 'none' }}>
-            <circle r="4" fill={currentLayer.color} opacity={0.4 + Math.sin(pulsePhase * 0.3) * 0.6} />
-            <circle r="2" fill={currentLayer.color} />
-            <text x="10" y="4" fill={currentLayer.color} fontSize="8" fontWeight="700" letterSpacing="1px">{activeLayer.toUpperCase()} SYS</text>
+          <g transform={`translate(${width - 120}, ${height - 20})`} style={{ pointerEvents: 'none' }}>
+            <circle r="4" fill="#a855f7" opacity={0.4 + Math.sin(pulsePhase * 0.3) * 0.6} />
+            <circle r="2" fill="#a855f7" />
+            <text x="10" y="4" fill="#a855f7" fontSize="8" fontWeight="700" letterSpacing="1px">AI LIVE SCRAPING</text>
           </g>
         )}
         
         <text x="15" y={height - 10} fill="rgba(255,255,255,0.2)" fontSize="7" fontFamily="monospace">
-          UTC {new Date().toLocaleTimeString()} | SATCOM RELAY
+          UTC {new Date().toLocaleTimeString()} | NLP ENTITY LINKING ENABLED
         </text>
         </svg>
       </div>
