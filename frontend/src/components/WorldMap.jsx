@@ -574,28 +574,25 @@ export default function WorldMap() {
             })}
           </g>
 
-          {/* ── NLP Dynamic Connections ── */}
-          {!zoomedCountryInfo && dynamicConns.map((conn, i) => {
+          {/* ── NLP Dynamic Connections (clean arcs, no labels to prevent overlap) ── */}
+          {!zoomedCountryInfo && dynamicConns.slice(0, 6).map((conn, i) => {
             const from = projection(conn.from);
             const to = projection(conn.to);
             if (!from || !to) return null;
             
             const midX = (from[0] + to[0]) / 2;
-            const midY = Math.min(from[1], to[1]) - 60;
+            const midY = Math.min(from[1], to[1]) - 40 - (i * 8);
             return (
               <g key={`conn-dyn-${i}`} style={{ pointerEvents: 'none' }}>
                 <path 
                   d={`M ${from[0]},${from[1]} Q ${midX},${midY} ${to[0]},${to[1]}`} 
                   fill="none" 
                   stroke={conn.color} 
-                  strokeWidth="1.5"
-                  strokeDasharray="6,4"
+                  strokeWidth="1"
+                  strokeDasharray="5,5"
                   strokeDashoffset={dataFlowOffset}
-                  opacity="0.8"
+                  opacity="0.5"
                 />
-                <text x={midX} y={midY - 6} fill={conn.color} fontSize="7" fontWeight="700" textAnchor="middle" letterSpacing="1.5px">
-                  {conn.label}
-                </text>
               </g>
             );
           })}

@@ -126,61 +126,97 @@ export default function HomePage() {
           
           {/* WHY THIS MATTERS */}
           <div style={{ padding: '24px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <h2 style={{ fontSize: '14px', color: '#8b5cf6', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px' }}>
-              <span style={{ fontSize: '18px' }}>🔮</span> WHY THIS MATTERS
+            <h2 style={{ fontSize: '12px', color: '#8b5cf6', display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '20px', fontWeight: '700', letterSpacing: '1.5px' }}>
+              <Radio size={14} /> LIVE INTELLIGENCE BRIEFING
             </h2>
-            <div style={{ display: 'flex', gap: '16px', marginBottom: '16px' }}>
-              <div style={{ background: '#38bdf8', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', color: '#fff' }}>
-                AI
-              </div>
-              <div>
-                <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#e2e8f0' }}>System Analyst</div>
-                <div style={{ fontSize: '11px', color: '#94a3b8' }}>Automated Insights · <span style={{ color: '#10b981' }}>VERIFIED</span></div>
-              </div>
-            </div>
-            <p style={{ color: '#cbd5e1', fontSize: '14px', lineHeight: '1.7', marginBottom: '16px' }}>
-              {headlines.length > 0 
-                ? `Currently tracking ${headlines.length} active intelligence streams. Top story: ${headlines[0]?.title?.slice(0, 120)}...`
-                : 'Connecting to global intelligence feeds...'}
-            </p>
 
-            {/* Key Facts — live from headlines */}
-            {headlines.length > 1 && (
-              <div style={{ padding: '16px', background: 'rgba(139,92,246,0.05)', border: '1px solid rgba(139,92,246,0.15)', borderRadius: '12px' }}>
-                <div style={{ fontSize: '11px', color: '#8b5cf6', fontWeight: '700', letterSpacing: '1px', marginBottom: '8px' }}>✔ LATEST INTEL</div>
-                <p style={{ color: '#e2e8f0', fontSize: '13px', lineHeight: '1.5' }}>
-                  {headlines[1]?.title}
-                </p>
+            {headlines.length > 0 ? (
+              <>
+                {/* Live Stats Row */}
+                <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+                  {[
+                    { label: 'Active Streams', value: headlines.length, color: '#8b5cf6' },
+                    { label: 'Critical', value: headlines.filter(h => h.severity === 'critical').length, color: '#ef4444' },
+                    { label: 'High', value: headlines.filter(h => h.severity === 'high').length, color: '#f97316' },
+                    { label: 'Sources', value: [...new Set(headlines.map(h => h.source))].length, color: '#10b981' },
+                  ].map((stat, i) => (
+                    <div key={i} style={{ flex: 1, padding: '10px', background: `${stat.color}08`, border: `1px solid ${stat.color}25`, borderRadius: '10px', textAlign: 'center' }}>
+                      <div style={{ fontSize: '18px', fontWeight: '800', color: stat.color }}>{stat.value}</div>
+                      <div style={{ fontSize: '9px', color: '#94a3b8', fontWeight: '600', letterSpacing: '0.5px', marginTop: '2px' }}>{stat.label}</div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Top Story */}
+                <div style={{ padding: '14px', background: 'rgba(239,68,68,0.05)', border: '1px solid rgba(239,68,68,0.15)', borderRadius: '12px', marginBottom: '12px' }}>
+                  <div style={{ fontSize: '10px', color: '#ef4444', fontWeight: '700', letterSpacing: '1px', marginBottom: '6px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444', animation: 'pulseDot 1.5s infinite' }} />
+                    TOP STORY
+                  </div>
+                  <p style={{ color: '#e2e8f0', fontSize: '13px', lineHeight: '1.5', margin: 0 }}>
+                    {headlines[0]?.title}
+                  </p>
+                  <div style={{ marginTop: '8px', display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <span style={{ fontSize: '10px', color: '#38bdf8', fontWeight: '600' }}>{headlines[0]?.source}</span>
+                    <span style={{ fontSize: '10px', color: '#64748b' }}>{headlines[0]?.time_ago}</span>
+                    {headlines[0]?.event_label && (
+                      <span style={{ fontSize: '9px', padding: '2px 6px', background: 'rgba(139,92,246,0.2)', color: '#a78bfa', borderRadius: '4px', fontWeight: '600' }}>{headlines[0]?.event_label}</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Second Story */}
+                {headlines.length > 1 && (
+                  <div style={{ padding: '14px', background: 'rgba(139,92,246,0.04)', border: '1px solid rgba(139,92,246,0.12)', borderRadius: '12px' }}>
+                    <div style={{ fontSize: '10px', color: '#8b5cf6', fontWeight: '700', letterSpacing: '1px', marginBottom: '6px' }}>DEVELOPING</div>
+                    <p style={{ color: '#cbd5e1', fontSize: '12px', lineHeight: '1.5', margin: 0 }}>
+                      {headlines[1]?.title}
+                    </p>
+                    <span style={{ fontSize: '10px', color: '#64748b', marginTop: '6px', display: 'block' }}>{headlines[1]?.source} · {headlines[1]?.time_ago}</span>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div style={{ padding: '20px', textAlign: 'center', color: '#64748b', fontSize: '12px' }}>
+                <div className="map-loader-ring" style={{ margin: '0 auto 12px' }} />
+                Connecting to global intelligence feeds...
               </div>
             )}
           </div>
 
-          {/* Market Reaction Mini Chart */}
-          <div style={{ padding: '20px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-              <h3 style={{ fontSize: '12px', color: '#f59e0b', fontWeight: '700', letterSpacing: '1px', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <BarChart3 size={14} /> MARKET REACTION
-              </h3>
-              <button onClick={() => navigate('/markets')} style={{ background: 'none', border: 'none', color: '#38bdf8', fontSize: '10px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
-                FULL BOARD <ArrowRight size={10} />
-              </button>
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
-              {[
-                { name: 'S&P 500', val: '+2.6%', num: '48,512', up: true },
-                { name: 'NASDAQ', val: '-0.55%', num: '23,789', up: false },
-                { name: 'Brent Crude', val: '+4.1%', num: '$87.50', up: true },
-              ].map((m, i) => (
-                <div key={i} style={{ padding: '14px', background: m.up ? 'rgba(16,185,129,0.06)' : 'rgba(239,68,68,0.06)', borderRadius: '12px', border: `1px solid ${m.up ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.15)'}` }}>
-                  <div style={{ fontSize: '11px', color: '#94a3b8', marginBottom: '4px' }}>{m.name}</div>
-                  <div style={{ fontSize: '18px', fontWeight: '800', color: '#fff' }}>{m.num}</div>
-                  <div style={{ fontSize: '12px', fontWeight: '700', color: m.up ? '#10b981' : '#ef4444', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    {m.up ? <ChevronUp size={14} /> : <ChevronDown size={14} />} {m.val}
-                  </div>
+          {/* Live Market Headlines */}
+          {(() => {
+            const marketKeywords = ['market', 'stock', 'nasdaq', 's&p', 'dow', 'oil', 'gold', 'economy', 'inflation', 'tariff', 'crude', 'rally', 'crash', 'recession', 'trade'];
+            const marketHeadlines = headlines.filter(h => marketKeywords.some(kw => h.title.toLowerCase().includes(kw))).slice(0, 3);
+            if (marketHeadlines.length === 0) return null;
+            return (
+              <div style={{ padding: '20px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <h3 style={{ fontSize: '12px', color: '#f59e0b', fontWeight: '700', letterSpacing: '1px', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <BarChart3 size={14} /> MARKET INTELLIGENCE
+                  </h3>
+                  <button onClick={() => navigate('/markets')} style={{ background: 'none', border: 'none', color: '#38bdf8', fontSize: '10px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+                    FULL BOARD <ArrowRight size={10} />
+                  </button>
                 </div>
-              ))}
-            </div>
-          </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {marketHeadlines.map((mh, i) => (
+                    <div key={i} onClick={() => window.open(mh.link, '_blank')} style={{ padding: '12px', background: 'rgba(249,115,22,0.04)', border: '1px solid rgba(249,115,22,0.1)', borderRadius: '10px', cursor: 'pointer', transition: 'all 0.2s' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'rgba(249,115,22,0.1)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'rgba(249,115,22,0.04)'}
+                    >
+                      <div style={{ fontSize: '12px', fontWeight: '600', color: '#e2e8f0', lineHeight: '1.4', marginBottom: '4px' }}>{mh.title}</div>
+                      <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        <span style={{ fontSize: '10px', color: '#f59e0b', fontWeight: '600' }}>{mh.source}</span>
+                        <span style={{ fontSize: '10px', color: '#64748b' }}>{mh.time_ago}</span>
+                        {mh.event_label && <span style={{ fontSize: '9px', padding: '1px 5px', background: 'rgba(249,115,22,0.15)', color: '#f59e0b', borderRadius: '3px', fontWeight: '600' }}>{mh.event_label}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
           {/* Intelligence Feed embedded inside Left Column */}
           <div style={{ marginTop: '20px' }}>
             <IntelligenceFeed headlines={headlines} />
