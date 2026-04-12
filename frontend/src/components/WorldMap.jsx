@@ -86,14 +86,32 @@ function classifyHeadline(title) {
 
 function getEventLabel(title) {
   const words = title.split(' ');
-  const eventKeywords = ['war', 'conflict', 'strike', 'missile', 'famine', 'outbreak', 'virus', 'ceasefire', 'rally', 'surge', 'threat', 'disease', 'weather', 'flood', 'tornado', 'crisis', 'crash', 'economic'];
+  const eventKeywords = [
+    'war', 'conflict', 'strike', 'missile', 'famine', 'outbreak', 'virus', 'ceasefire', 
+    'rally', 'surge', 'threat', 'disease', 'weather', 'flood', 'tornado', 'crisis', 
+    'crash', 'economic', 'election', 'protest', 'riot', 'agreement', 'trade', 'tech', 
+    'market', 'ban', 'law', 'scandal', 'summit', 'talks', 'deal', 'tension', 'drone',
+    'policy', 'growth', 'loss', 'attack', 'invest', 'court', 'trial', 'climate', 'energy'
+  ];
+  
+  // 1. Try to find a recognized major intelligence keyword
   for (const w of words) {
     const wt = w.toLowerCase().replace(/[^a-z]/g, '');
     if (eventKeywords.includes(wt)) {
       return w.toUpperCase().replace(/[^A-Z]/g, '');
     }
   }
-  return 'UPDATE';
+  
+  // 2. Fallback to finding a significant capitalized keyword that looks like a subject
+  for (const w of words) {
+    const cleanWord = w.replace(/[^A-Za-z]/g, '');
+    if (cleanWord.length >= 6 && cleanWord[0] === cleanWord[0].toUpperCase()) {
+       return cleanWord.toUpperCase();
+    }
+  }
+
+  // 3. Absolute fallback
+  return 'ALERT';
 }
 
 export default function WorldMap() {
