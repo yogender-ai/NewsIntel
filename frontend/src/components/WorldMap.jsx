@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { feature } from 'topojson-client';
 import { geoNaturalEarth1, geoPath, geoMercator, geoIdentity, geoCentroid } from 'd3-geo';
-import { select, zoom } from 'd3';
+import { select, zoom, zoomIdentity } from 'd3';
 import { Activity, CloudLightning, ArrowLeft, Maximize } from 'lucide-react';
 import { fetchTrending } from '../api';
 
@@ -79,16 +79,17 @@ const SEVERITY_COLORS = {
 
 function classifyHeadline(title) {
   const t = title.toLowerCase();
-  if (t.includes('war') || t.includes('strike') || t.includes('missile') || t.includes('flee')) return 'critical';
-  if (t.includes('conflict') || t.includes('tensions') || t.includes('surge') || t.includes('outbreak')) return 'high';
+  if (t.includes('war') || t.includes('strike') || t.includes('missile') || t.includes('flee') || t.includes('crash') || t.includes('crisis') || t.includes('tornado') || t.includes('disease')) return 'critical';
+  if (t.includes('conflict') || t.includes('tensions') || t.includes('surge') || t.includes('outbreak') || t.includes('flood') || t.includes('down')) return 'high';
   return 'medium';
 }
 
 function getEventLabel(title) {
   const words = title.split(' ');
+  const eventKeywords = ['war', 'conflict', 'strike', 'missile', 'famine', 'outbreak', 'virus', 'ceasefire', 'rally', 'surge', 'threat', 'disease', 'weather', 'flood', 'tornado', 'crisis', 'crash', 'economic'];
   for (const w of words) {
     const wt = w.toLowerCase().replace(/[^a-z]/g, '');
-    if (['war', 'conflict', 'strike', 'missile', 'famine', 'outbreak', 'virus', 'ceasefire', 'rally', 'surge', 'threat'].includes(wt)) {
+    if (eventKeywords.includes(wt)) {
       return w.toUpperCase().replace(/[^A-Z]/g, '');
     }
   }
@@ -121,6 +122,7 @@ export default function WorldMap() {
   const containerRef = useRef(null);
   const svgRef = useRef(null);
   const mapGroupRef = useRef(null); // Ref for D3 Zoom scaling limits
+  const idleTimeoutRef = useRef(null); // Ref for map auto-center
 
   const width = 1000;
   const height = 550;
@@ -194,6 +196,18 @@ export default function WorldMap() {
       .scaleExtent([0.8, 6])
       .on('zoom', (e) => {
         g.attr('transform', e.transform);
+        
+        // Auto-center functionality
+        if (idleTimeoutRef.current) clearTimeout(idleTimeoutRef.current);
+        idleTimeoutRef.current = setTimeout(() => {
+           setZoomedCountryInfo((currState) => {
+               // Only reset if we are on the global map (not zoomed into a specific country)
+               if (!currState) {
+                  svg.transition().duration(1500).call(dZoom.transform, zoomIdentity);
+               }
+               return currState;
+           });
+        }, 3000); // Reset map after 3 seconds of inactivity
       });
       
     // Remove old zoom behavior if any, to prevent memory leaks
@@ -456,7 +470,7 @@ export default function WorldMap() {
                   fill={isHot ? sev.fill : (isHovered ? hoverFill : baseFill)}
                   stroke={isHot ? sev.stroke : (isHovered ? hoverStroke : baseStroke)}
                   strokeWidth={isHot ? 1.2 : (isHovered || isSelectedState ? 1.5 : 0.5)}
-                  filter={isHot ? 'url(#glow-hot)' : (isHovered || isSelectedState ? 'url(#glow-medium)' : (zoomedCountryInfo ? 'none' : 'url(#3d-pop)'))}
+                  filter={isHot ? 'url(#glow-hot)' : (isHovered || isSelectedState ? 'url(#glow-medium)' : 'none')}
                   onMouseEnter={(e) => {
                     if (!info) return;
                     if (dynamicZone) {
