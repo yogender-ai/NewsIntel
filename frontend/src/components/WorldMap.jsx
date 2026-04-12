@@ -149,6 +149,8 @@ export default function WorldMap() {
   const [zoomedCountryInfo, setZoomedCountryInfo] = useState(null);
   const [zoomStateFeatures, setZoomStateFeatures] = useState([]);
   const [zoomParentFeature, setZoomParentFeature] = useState(null);
+  const [selectedState, setSelectedState] = useState(null);
+  
   const [stateNews, setStateNews] = useState([]);
   const [loadingStateLevel, setLoadingStateLevel] = useState(false);
   
@@ -217,6 +219,7 @@ export default function WorldMap() {
     setZoomedCountryInfo(info);
     setZoomParentFeature(featureItem);
     setZoomStateFeatures([]);
+    setSelectedState(null);
     setStateNews([]);
     setHoveredInfo(null);
     loadLocalNews();
@@ -243,6 +246,7 @@ export default function WorldMap() {
   }, []);
 
   const handleStateClick = useCallback((feat) => {
+     setSelectedState(feat);
      setHoveredInfo(feat.info);
      loadLocalNews();
   }, []);
@@ -281,7 +285,6 @@ export default function WorldMap() {
 
   return (
     <div ref={containerRef} className="world-map-section" style={{ width: '100%', position: 'relative', overflow: 'hidden', background: '#0a0b14', borderRadius: '16px', border: '1px solid rgba(139,92,246,0.15)' }}>
-      
       {/* ── Layer Toggles (Hide when zoomed) ── */}
       {!zoomedCountryInfo && (
         <div style={{ position: 'absolute', top: 15, left: 15, zIndex: 50, display: 'flex', gap: '8px' }}>
@@ -311,7 +314,7 @@ export default function WorldMap() {
       {/* ── Back Button ── */}
       {zoomedCountryInfo && (
         <button 
-          onClick={() => { setZoomedCountryInfo(null); setZoomParentFeature(null); setZoomStateFeatures([]); }} 
+          onClick={() => { setZoomedCountryInfo(null); setZoomParentFeature(null); setZoomStateFeatures([]); setSelectedState(null); }} 
           style={{ position: 'absolute', top: 15, left: 15, zIndex: 100, background: 'rgba(139,92,246,0.2)', border: '1px solid #8b5cf6', color: '#fff', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', fontWeight: 'bold', backdropFilter: 'blur(10px)', transition: 'all 0.2s', boxShadow: '0 4px 20px rgba(0,0,0,0.5)' }}
         >
           <ArrowLeft size={14} /> Global Feed
@@ -338,8 +341,20 @@ export default function WorldMap() {
         <div style={{ position: 'absolute', top: 0, right: 0, width: '32%', height: '100%', background: 'rgba(5,7,12,0.95)', backdropFilter: 'blur(20px)', borderLeft: '1px solid rgba(139,92,246,0.2)', zIndex: 50, display: 'flex', flexDirection: 'column', animation: 'slideIn 0.3s ease-out' }}>
           <div style={{ padding: '24px 20px 16px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
             <div style={{ fontSize: '32px', marginBottom: '8px' }}>{zoomedCountryInfo.flag}</div>
-            <h2 style={{ fontSize: '20px', margin: 0, color: '#fff', fontWeight: '800' }}>{zoomedCountryInfo.name} Command</h2>
+            
+            <h2 style={{ fontSize: '20px', margin: 0, color: '#fff', fontWeight: '800' }}>
+              {selectedState ? `${selectedState.info.name} Region` : `${zoomedCountryInfo.name} Command`}
+            </h2>
             <p style={{ fontSize: '11px', color: '#10b981', margin: '6px 0 0', fontWeight: '600', letterSpacing: '1px' }}>● LIVE INTELLIGENCE ENABLED</p>
+            
+            {selectedState && (
+              <button 
+                onClick={() => { setSelectedState(null); loadLocalNews(); }}
+                style={{ marginTop: '12px', padding: '6px 12px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', transition: 'all 0.2s' }}
+              >
+                ⟵ BACK TO NATIONAL FEED
+              </button>
+            )}
           </div>
           <div style={{ padding: '20px', overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: '12px' }}>
              {loadingStateLevel && <div style={{ color: '#8b5cf6', fontSize: '11px', textAlign: 'center', background: 'rgba(139,92,246,0.1)', padding: '10px', borderRadius: '8px' }}>Initializing strict local boundaries...</div>}
@@ -411,10 +426,11 @@ export default function WorldMap() {
             const sev = zone ? layerColors[zone.severity] : null;
 
             const isHovered = hoveredInfo?.key === info?.key || hoveredInfo?.name === info?.name;
+            const isSelectedState = selectedState && selectedState.info.name === info?.name;
 
-            // Neon dark space aesthetic
-            const baseFill = isStateMap ? 'rgba(20,25,50,0.8)' : 'rgba(8,12,24,0.95)';
-            const baseStroke = isStateMap ? 'rgba(56,189,248,0.3)' : 'rgba(56,189,248,0.15)';
+            // Light up selected states strongly
+            const baseFill = isSelectedState ? 'rgba(139,92,246,0.35)' : (isStateMap ? 'rgba(20,25,50,0.8)' : 'rgba(8,12,24,0.95)');
+            const baseStroke = isSelectedState ? '#c084fc' : (isStateMap ? 'rgba(56,189,248,0.3)' : 'rgba(56,189,248,0.15)');
             const hoverFill = 'rgba(139,92,246,0.25)';
             const hoverStroke = '#a78bfa';
 
@@ -424,8 +440,8 @@ export default function WorldMap() {
                 d={pathGenerator(feat)}
                 fill={isHot ? sev.fill : (isHovered ? hoverFill : baseFill)}
                 stroke={isHot ? sev.stroke : (isHovered ? hoverStroke : baseStroke)}
-                strokeWidth={isHot ? 1.2 : (isHovered ? 1.5 : 0.5)}
-                filter={isHot ? 'url(#glow-hot)' : (isHovered ? 'url(#glow-medium)' : (zoomedCountryInfo ? 'none' : 'url(#3d-pop)'))}
+                strokeWidth={isHot ? 1.2 : (isHovered || isSelectedState ? 1.5 : 0.5)}
+                filter={isHot ? 'url(#glow-hot)' : (isHovered || isSelectedState ? 'url(#glow-medium)' : (zoomedCountryInfo ? 'none' : 'url(#3d-pop)'))}
                 onMouseEnter={(e) => {
                   if (info) setHoveredInfo(info);
                   if (containerRef.current) {

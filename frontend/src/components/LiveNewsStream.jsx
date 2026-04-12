@@ -1,115 +1,111 @@
-import { useState, useEffect, useRef } from 'react';
-import { Radio, Users, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { ChevronLeft, ChevronRight, Activity, Radio, CloudLightning } from 'lucide-react';
+import ReactPlayer from 'react-player';
 import { useLanguage } from '../context/LanguageContext';
+
 const CHANNELS = [
-  { id: 'alj', name: 'Al Jazeera', url: 'https://www.youtube.com/embed/live_stream?channel=UCNye-wNBqNL5ZzHSJj3l8Bg&autoplay=1&mute=1' },
-  { id: 'sky', name: 'Sky News UK', url: 'https://www.youtube.com/embed/live_stream?channel=UCoMdktPbSTixAyNGwb-PUYA&autoplay=1&mute=1' },
-  { id: 'nbc', name: 'NBC News', url: 'https://www.youtube.com/embed/live_stream?channel=UCeY0bbntWzzVIaj2z3QigXg&autoplay=1&mute=1' },
-  { id: 'dw', name: 'DW News', url: 'https://www.youtube.com/embed/live_stream?channel=UCknLrEdhRCp1aegoMqRaCZg&autoplay=1&mute=1' },
-  { id: 'france24', name: 'France 24', url: 'https://www.youtube.com/embed/live_stream?channel=UCQfwfsi5VrQ8yKZ-UOWISsg&autoplay=1&mute=1' },
-  { id: 'cna', name: 'CNA', url: 'https://www.youtube.com/embed/live_stream?channel=UC83jt4dlz1Gjl58fzQrrKZg&autoplay=1&mute=1' },
-  { id: 'wion', name: 'WION India', url: 'https://www.youtube.com/embed/live_stream?channel=UC_gUM8rL-LrgCAA9058O-Ww&autoplay=1&mute=1' },
-  { id: 'ndtv', name: 'NDTV 24x7', url: 'https://www.youtube.com/embed/live_stream?channel=UCVQhC-u8-MwcB6A2F2qU40w&autoplay=1&mute=1' },
-  { id: 'trt', name: 'TRT World', url: 'https://www.youtube.com/embed/live_stream?channel=UC7fWeaHhqgM4Ry-RMpM2YYw&autoplay=1&mute=1' },
-  { id: 'abc_us', name: 'ABC News', url: 'https://www.youtube.com/embed/live_stream?channel=UCBi2mrWuNuyYy4gbM6fU18Q&autoplay=1&mute=1' }
+  { id: 'alj', name: 'Al Jazeera', url: 'https://live-hls-web-aje.getaj.net/AJE/index.m3u8' },
+  { id: 'sky', name: 'Sky News', url: 'https://skynews-live.akamaized.net/hls/live/2002347/skynews-international/master.m3u8' },
+  { id: 'cbs', name: 'CBS News', url: 'https://cbsn-us.cbsnstream.cbsnews.com/out/v1/55a8648e8f134e82a470f83d562deeca/master.m3u8' },
+  { id: 'abc_au', name: 'ABC News AU', url: 'https://abc-iview-mediapackagelin-2.akamaized.net/out/v1/6e1cc6d25ea0480ea099a5399d73bc4e/index.m3u8' },
+  { id: 'dw', name: 'DW News', url: 'https://dwamdstream104.akamaized.net/hls/live/2015530/dwstream104/index.m3u8' },
+  { id: 'france24', name: 'France 24', url: 'https://static.france24.com/live/F24_EN_HI_HLS/live_web.m3u8' },
+  { id: 'cna', name: 'CNA', url: 'https://d2e1asnsl7br7b.cloudfront.net/7782e205e72f43aeb4a4809738cd0110/index.m3u8' },
+  { id: 'wion', name: 'WION India', url: 'https://d15z0ph024ul31.cloudfront.net/wion/wion-abr/playlist.m3u8' },
+  { id: 'ndtv', name: 'NDTV 24x7', url: 'https://ndtvindia-lh.akamaihd.net/i/ndtv24x7_1@300633/master.m3u8' },
+  { id: 'trt', name: 'TRT World', url: 'https://tv-trtworld.live.trt.com.tr/master_720.m3u8' }
 ];
 
 export default function LiveNewsStream() {
-  const { t } = useLanguage();
   const [activeChannel, setActiveChannel] = useState(CHANNELS[0]);
-  const [viewerCount, setViewerCount] = useState('25.4K');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const scrollRef = useRef(null);
+  const { t } = useLanguage();
 
-  const scrollLeft = () => {
-    if (scrollRef.current) scrollRef.current.scrollBy({ left: -200, behavior: 'smooth' });
-  };
-
-  const scrollRight = () => {
-    if (scrollRef.current) scrollRef.current.scrollBy({ left: 200, behavior: 'smooth' });
+  const handleScroll = (direction) => {
+    if (scrollRef.current) {
+      const amount = direction === 'left' ? -200 : 200;
+      scrollRef.current.scrollBy({ left: amount, behavior: 'smooth' });
+    }
   };
 
   useEffect(() => {
-    const handleSwitch = (e) => {
-       const targetId = e.detail;
-       const ch = CHANNELS.find(c => c.id === targetId);
-       if (ch) setActiveChannel(ch);
-    };
-    window.addEventListener('SWITCH_LIVE_CHANNEL', handleSwitch);
-    return () => window.removeEventListener('SWITCH_LIVE_CHANNEL', handleSwitch);
-  }, []);
-
-  // Simulate viewer count updates
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const base = 15000 + Math.floor(Math.random() * 30000);
-      if (base >= 1000) {
-        setViewerCount(`${(base / 1000).toFixed(1)}K`);
-      } else {
-        setViewerCount(base.toString());
-      }
-    }, 8000);
-    return () => clearInterval(interval);
-  }, []);
+    setLoading(true);
+    setError(false);
+  }, [activeChannel]);
 
   return (
-    <div className="live-news-stream-v2">
-      {/* Stream Header */}
-      <div className="stream-v2-header">
-        <div className="stream-v2-channel-info">
-          <div className="stream-v2-verified">
-          </div>
-          <div className="stream-v2-names">
-            <span className="stream-v2-name">{activeChannel.name} | Live</span>
-            <span className="stream-v2-sub">
-              <span className="stream-v2-live-badge">● LIVE</span>
-              {viewerCount}
-            </span>
-          </div>
-        </div>
+    <div className="stream-container" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+      <div className="stream-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+        <h3 style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: 0, color: '#e2e8f0' }}>
+          <Activity size={18} className="text-red-500" />
+          {t('liveIntelligenceFeed', 'LIVE INTELLIGENCE FEED')}
+        </h3>
+        <span className="live-badge" style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '10px', color: '#10b981', fontWeight: 'bold' }}>
+          <Radio size={12} className="animate-pulse" />
+          SATCOM ACTIVE
+        </span>
       </div>
 
-      {/* Video Player */}
-      <div className="stream-v2-player">
-        <iframe
-          src={activeChannel.url}
-          className="stream-v2-iframe"
-          allow="autoplay; encrypted-media; picture-in-picture"
-          allowFullScreen
-        />
-        {/* Live Overlay */}
-        <div className="stream-v2-overlay">
-          <div className="stream-v2-live-indicator">
-            <div className="stream-live-dot-pulse" />
-            LIVE
+      <div className="video-wrapper" style={{ background: '#0a0b14', borderRadius: '12px', overflow: 'hidden', position: 'relative', flex: 1, minHeight: '260px' }}>
+        {loading && !error && (
+          <div className="loader-overlay" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10, background: '#05070f' }}>
+             <div className="map-loader-ring" />
+             <span style={{ marginLeft: '12px', color: '#8b5cf6', fontSize: '12px', fontWeight: 'bold' }}>ESTABLISHING DOWNLINK...</span>
           </div>
-        </div>
+        )}
+        
+        {error ? (
+          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#1e1b4b', zIndex: 10 }}>
+             <CloudLightning size={32} color="#ef4444" style={{ marginBottom: '12px' }} />
+             <span style={{ color: '#f87171', fontSize: '14px', fontWeight: 'bold' }}>SIGNAL LOST</span>
+             <span style={{ color: '#94a3b8', fontSize: '11px', marginTop: '4px' }}>Please select an alternate feed.</span>
+          </div>
+        ) : (
+          <ReactPlayer 
+             url={activeChannel.url} 
+             playing={true} 
+             controls={true} 
+             width="100%" 
+             height="100%" 
+             onReady={() => setLoading(false)}
+             onError={(e) => { console.warn('Stream Error', e); setLoading(false); setError(true); }}
+             config={{ file: { forceHLS: true } }}
+          />
+        )}
       </div>
 
-      {/* Viewer Count */}
-      <div className="stream-v2-viewers">
-        <Users size={12} />
-        <span>{viewerCount} viewers</span>
-      </div>
-
-      {/* Channel Switcher */}
-      <div className="stream-v2-channels-container" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px' }}>
-        <button onClick={scrollLeft} className="stream-scroll-arrow">
-          <ChevronLeft size={14} />
+      <div className="channel-carousel-wrapper" style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '16px' }}>
+        <button className="carousel-btn" onClick={() => handleScroll('left')} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: '#fff', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+          <ChevronLeft size={16} />
         </button>
-        <div className="stream-v2-channels" ref={scrollRef}>
-          {CHANNELS.map(ch => (
+        
+        <div 
+          className="channel-list horizontal-scroll" 
+          ref={scrollRef}
+          style={{ flex: 1, display: 'flex', gap: '10px', overflowX: 'auto', scrollbarWidth: 'none', padding: '4px 0' }}
+        >
+          {CHANNELS.map(channel => (
             <button
-              key={ch.id}
-              onClick={() => setActiveChannel(ch)}
-              className={`stream-v2-channel-btn ${activeChannel.id === ch.id ? 'active' : ''}`}
+              key={channel.id}
+              onClick={() => setActiveChannel(channel)}
+              style={{ 
+                whiteSpace: 'nowrap', flexShrink: 0, padding: '8px 16px', borderRadius: '8px', border: '1px solid',
+                background: activeChannel.id === channel.id ? 'rgba(139,92,246,0.2)' : 'rgba(10,5,20,0.6)',
+                borderColor: activeChannel.id === channel.id ? '#8b5cf6' : 'rgba(255,255,255,0.1)',
+                color: activeChannel.id === channel.id ? '#fff' : '#94a3b8',
+                fontWeight: activeChannel.id === channel.id ? 'bold' : 'normal',
+                cursor: 'pointer', transition: 'all 0.2s'
+              }}
             >
-              <span className="stream-ch-name">{ch.name}</span>
-              {activeChannel.id === ch.id && <Radio size={10} className="pulse-animation" />}
+              {channel.name}
             </button>
           ))}
         </div>
-        <button onClick={scrollRight} className="stream-scroll-arrow">
-          <ChevronRight size={14} />
+
+        <button className="carousel-btn" onClick={() => handleScroll('right')} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', color: '#fff', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+          <ChevronRight size={16} />
         </button>
       </div>
     </div>
