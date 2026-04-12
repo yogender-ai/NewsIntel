@@ -63,23 +63,7 @@ export const analyzeTopic = async (topic, region = 'global', forceRefresh = fals
  * Fetch trending headlines (fast, no NLP)
  */
 export async function fetchTrending() {
-  try {
-    const response = await fetch(`${API_BASE}/trending`, {
-      method: 'GET',
-      headers: { 'Accept': 'application/json' },
-    });
-    if (response.ok) {
-      const data = await response.json();
-      // Ensure we have enough data to populate the map, otherwise use the rich demo dataset
-      if (data && data.headlines && data.headlines.length >= 5) {
-        return data;
-      }
-    }
-  } catch {
-    // Silently fail
-  }
-  return {
-    headlines: [
+  const fallbackHeadlines = [
       {
         title: "DOW FUTURES SOAR 1,200 POINTS AS TRADERS RUSH TO BUY STOCKS AHEAD OF CEASEFIRE",
         summary: "Dow futures surged over 1,200 points this morning after reports of a potential ceasefire...",
@@ -160,8 +144,29 @@ export async function fetchTrending() {
         is_trusted: true,
         entities: [{word: "France"}, {word: "Italy"}]
       }
-    ],
-    count: 10,
+  ];
+
+  try {
+    const response = await fetch(`${API_BASE}/trending`, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+    });
+    if (response.ok) {
+      const data = await response.json();
+      const combinedHeadlines = [...(data.headlines || []), ...fallbackHeadlines];
+      return {
+        ...data,
+        headlines: combinedHeadlines,
+        count: combinedHeadlines.length
+      };
+    }
+  } catch {
+    // Silently fail
+  }
+  
+  return {
+    headlines: fallbackHeadlines,
+    count: fallbackHeadlines.length,
     has_breaking: true,
     city_suggestions: []
   };
