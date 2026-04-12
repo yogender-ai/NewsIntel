@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { feature } from 'topojson-client';
-import { geoNaturalEarth1, geoPath, geoMercator } from 'd3-geo';
+import { geoNaturalEarth1, geoPath, geoMercator, geoIdentity } from 'd3-geo';
 import { Swords, Activity, CloudLightning, ArrowLeft } from 'lucide-react';
 import { fetchTrending } from '../api';
 
@@ -269,12 +269,10 @@ export default function WorldMap() {
   // Map Projection Engine
   let projection;
   if (zoomedCountryInfo) {
-    // Zoom in. We use Mercator for better local proportions for states
-    projection = geoMercator();
     if (zoomStateFeatures.length > 0) {
-      projection.fitSize([width * 0.65, height * 0.9], { type: "FeatureCollection", features: zoomStateFeatures });
+      projection = geoIdentity().reflectY(true).fitSize([width * 0.65, height * 0.9], { type: "FeatureCollection", features: zoomStateFeatures });
     } else if (zoomParentFeature) {
-      projection.fitSize([width * 0.65, height * 0.9], zoomParentFeature);
+      projection = geoMercator().fitSize([width * 0.65, height * 0.9], zoomParentFeature);
     }
   } else {
     projection = geoNaturalEarth1().scale(155).translate([width / 2, height / 2 + 10]);
@@ -474,7 +472,7 @@ export default function WorldMap() {
           const midX = (from[0] + to[0]) / 2;
           const midY = Math.min(from[1], to[1]) - 60;
           return (
-            <g key={`conn-${activeLayer}-${i}`}>
+            <g key={`conn-${activeLayer}-${i}`} style={{ pointerEvents: 'none' }}>
               <path 
                 d={`M ${from[0]},${from[1]} Q ${midX},${midY} ${to[0]},${to[1]}`} 
                 fill="none" 
@@ -496,7 +494,7 @@ export default function WorldMap() {
           if (!pt) return null;
           const sev = layerColors[zone.severity];
           return (
-            <g key={`zone-${activeLayer}-${i}`}>
+            <g key={`zone-${activeLayer}-${i}`} style={{ pointerEvents: 'none' }}>
               <circle cx={pt[0]} cy={pt[1]} r="30" fill={`url(#heatGrad-${activeLayer}-${zone.severity})`} opacity="0.8" />
               <circle cx={pt[0]} cy={pt[1]} r={pulseR3} fill="none" stroke={sev.glow} strokeWidth="0.5" opacity={0.2 + Math.sin(pulsePhase * 0.1) * 0.15} />
               <circle cx={pt[0]} cy={pt[1]} r={pulseR2} fill="none" stroke={sev.glow} strokeWidth="0.8" opacity={0.3 + Math.sin(pulsePhase * 0.15) * 0.2} />
@@ -518,7 +516,7 @@ export default function WorldMap() {
            if (ageMs > 2500) return null; // faded out
            const progress = ageMs / 2500;
            return (
-             <g key={blip.id}>
+             <g key={blip.id} style={{ pointerEvents: 'none' }}>
                <circle cx={pt[0]} cy={pt[1]} r="1.5" fill="#38bdf8" filter="url(#glow-hot)" opacity={1 - progress} />
                <circle cx={pt[0]} cy={pt[1]} r={2 + progress * 20} fill="none" stroke="#38bdf8" strokeWidth="1" opacity={0.6 - (progress * 0.6)} />
              </g>
@@ -526,7 +524,7 @@ export default function WorldMap() {
         })}
 
         {!zoomedCountryInfo && (
-          <g transform={`translate(${width - 100}, 15)`}>
+          <g transform={`translate(${width - 100}, 15)`} style={{ pointerEvents: 'none' }}>
             <circle r="4" fill={currentLayer.color} opacity={0.4 + Math.sin(pulsePhase * 0.3) * 0.6} />
             <circle r="2" fill={currentLayer.color} />
             <text x="10" y="4" fill={currentLayer.color} fontSize="8" fontWeight="700" letterSpacing="1px">{activeLayer.toUpperCase()} SYS</text>
