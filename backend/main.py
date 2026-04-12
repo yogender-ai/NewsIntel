@@ -740,8 +740,34 @@ async def extract_geospatial_intelligence_gemini(headlines: list[dict]) -> dict:
                         pass
         return mapping
     except Exception as e:
-        logger.warning(f"Gemini geospatial extraction failed: {e}")
-        return {}
+        logger.warning(f"Gemini geospatial extraction failed (likely 429 Quota Exhausted): {e}")
+        # Fallback to local heuristic extraction so the intelligence map never goes completely dark
+        mapping = {}
+        countries_list = [
+            "United States", "China", "Russia", "Ukraine", "India", "Pakistan", 
+            "United Kingdom", "France", "Germany", "Iran", "Israel", "Palestine", 
+            "Brazil", "Argentina", "Japan", "South Korea", "Sudan", "Egypt", 
+            "Nigeria", "South Africa", "Australia", "Canada", "Mexico", 
+            "Saudi Arabia", "Turkey", "Thailand", "Syria", "Lebanon", "Taiwan", "Yemen", "Afghanistan"
+        ]
+        for i, h in enumerate(headlines):
+            content = (h['title'] + " " + h.get('description', '')).lower()
+            found = []
+            for c in countries_list:
+                if c.lower() in content:
+                    found.append(c)
+            words = content.split()
+            if "us" in words or "usa" in words or "america" in content:
+                found.append("United States")
+            if "uk" in words or "britain" in content:
+                found.append("United Kingdom")
+            
+            mapping[i] = {
+                "entities": [{"word": c} for c in list(set(found))],
+                "event_label": "ALERT",
+                "severity": "medium"
+            }
+        return mapping
 
 
 # ---------------------------------------------------------------------------
