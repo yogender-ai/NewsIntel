@@ -692,6 +692,166 @@ Return ONLY valid JSON. No markdown, no code fences, no explanations."""
             "confidence_reason": "Low confidence due to limited analysis data.",
         }
 
+# ── Comprehensive fallback NLP for when Gemini is rate-limited ──
+
+_COUNTRIES_LIST = [
+    # North America
+    "United States", "Canada", "Mexico",
+    # South America
+    "Brazil", "Argentina", "Colombia", "Venezuela", "Chile", "Peru", "Ecuador", "Bolivia", "Paraguay", "Uruguay",
+    # Europe
+    "United Kingdom", "France", "Germany", "Italy", "Spain", "Poland", "Netherlands", "Belgium",
+    "Sweden", "Norway", "Finland", "Denmark", "Greece", "Portugal", "Ireland", "Austria",
+    "Switzerland", "Czech Republic", "Romania", "Hungary", "Serbia", "Croatia", "Bulgaria",
+    # Eastern Europe & Central Asia
+    "Russia", "Ukraine", "Belarus", "Georgia", "Armenia", "Azerbaijan", "Kazakhstan", "Uzbekistan",
+    # Middle East
+    "Iran", "Iraq", "Israel", "Palestine", "Syria", "Lebanon", "Jordan", "Saudi Arabia",
+    "Yemen", "Oman", "Qatar", "Kuwait", "Bahrain", "United Arab Emirates",
+    # South Asia
+    "India", "Pakistan", "Bangladesh", "Sri Lanka", "Nepal", "Afghanistan",
+    # East Asia
+    "China", "Japan", "South Korea", "North Korea", "Taiwan", "Mongolia",
+    # Southeast Asia
+    "Thailand", "Vietnam", "Philippines", "Indonesia", "Malaysia", "Myanmar", "Cambodia", "Singapore",
+    # Africa
+    "Nigeria", "South Africa", "Egypt", "Kenya", "Ethiopia", "Ghana", "Tanzania",
+    "Democratic Republic of the Congo", "Sudan", "Somalia", "Libya", "Tunisia", "Morocco", "Algeria",
+    "Uganda", "Mozambique", "Zimbabwe", "Senegal", "Mali", "Niger", "Chad", "Cameroon",
+    "Rwanda", "Ivory Coast",
+    # Oceania
+    "Australia", "New Zealand",
+    # Caribbean
+    "Cuba", "Haiti", "Dominican Republic", "Jamaica",
+    # Turkey (transcontinental)
+    "Turkey",
+]
+
+_COUNTRY_ALIASES = {
+    "us": "United States", "usa": "United States", "america": "United States", "american": "United States",
+    "uk": "United Kingdom", "britain": "United Kingdom", "british": "United Kingdom", "england": "United Kingdom",
+    "uae": "United Arab Emirates", "emirates": "United Arab Emirates",
+    "drc": "Democratic Republic of the Congo", "congo": "Democratic Republic of the Congo",
+    "korean": "South Korea", "chinese": "China", "russian": "Russia", "iranian": "Iran",
+    "israeli": "Israel", "palestinian": "Palestine", "ukrainian": "Ukraine",
+    "indian": "India", "pakistani": "Pakistan", "afghan": "Afghanistan",
+    "japanese": "Japan", "french": "France", "german": "Germany", "italian": "Italy",
+    "brazilian": "Brazil", "mexican": "Mexico", "canadian": "Canada", "australian": "Australia",
+    "turkish": "Turkey", "syrian": "Syria", "iraqi": "Iraq", "lebanese": "Lebanon",
+    "saudi": "Saudi Arabia", "egyptian": "Egypt", "nigerian": "Nigeria",
+    "south african": "South Africa", "kenyan": "Kenya", "ethiopian": "Ethiopia",
+}
+
+_EVENT_KEYWORDS = {
+    # Military / Conflict
+    "MILITARY": ["military", "army", "troops", "soldiers", "defense", "defence", "pentagon", "nato"],
+    "AIRSTRIKE": ["airstrike", "air strike", "airstrikes", "bombing", "bombed", "bombs", "strike", "strikes"],
+    "WAR": ["war", "warfare", "invasion", "invaded"],
+    "CEASEFIRE": ["ceasefire", "cease-fire", "truce", "armistice"],
+    "MISSILE STRIKE": ["missile", "missiles", "rocket", "rockets", "ballistic"],
+    "CONFLICT": ["conflict", "clashes", "clash", "hostilities", "fighting"],
+    "BLOCKADE": ["blockade", "embargo", "sanctions", "sanction"],
+    # Diplomacy
+    "DIPLOMACY": ["talks", "negotiate", "negotiation", "diplomatic", "diplomacy", "summit", "treaty", "deal", "agreement", "accord", "pact"],
+    # Natural Disasters
+    "EARTHQUAKE": ["earthquake", "quake", "seismic", "tremor"],
+    "FLOODING": ["flood", "floods", "flooding", "inundation", "deluge"],
+    "HURRICANE": ["hurricane", "cyclone", "typhoon", "tropical storm"],
+    "TORNADO": ["tornado", "tornadoes", "twister"],
+    "WILDFIRE": ["wildfire", "wildfires", "bushfire", "forest fire"],
+    "DROUGHT": ["drought", "water crisis", "water shortage"],
+    "SEVERE WEATHER": ["storm", "storms", "severe weather", "blizzard", "heatwave", "heat wave"],
+    # Health
+    "PANDEMIC": ["pandemic", "epidemic", "outbreak", "virus", "covid", "disease", "infection", "plague"],
+    "HEALTH CRISIS": ["famine", "malaria", "cholera", "ebola", "bird flu", "mpox"],
+    # Economy / Markets
+    "MARKET CRASH": ["crash", "crashes", "plunge", "plummets", "nosedive", "freefall"],
+    "MARKET RALLY": ["rally", "surge", "surges", "soars", "soar", "boom", "record high"],
+    "RECESSION": ["recession", "downturn", "depression", "economic crisis"],
+    "INFLATION": ["inflation", "price hike", "cost of living"],
+    "TRADE WAR": ["tariff", "tariffs", "trade war", "trade dispute", "import ban"],
+    # Terror
+    "TERROR ATTACK": ["terror", "terrorist", "terrorism", "explosion", "blast"],
+    # Assassination / Death
+    "ASSASSINATION": ["assassination", "assassinated", "killed", "kills", "shooting", "shot dead", "attack", "attacks"],
+    # Politics / Civil
+    "ELECTION": ["election", "elections", "vote", "voting", "polls", "ballot"],
+    "PROTEST": ["protest", "protests", "demonstration", "riot", "riots", "uprising", "unrest"],
+    "COUP": ["coup", "overthrow", "junta", "martial law"],
+    "CORRUPTION": ["corruption", "scandal", "bribery", "fraud"],
+    "LEGISLATION": ["legislation", "bill passed", "regulation", "ruling", "court"],
+    # Humanitarian
+    "REFUGEE CRISIS": ["refugee", "refugees", "flee", "displaced", "asylum", "migration", "migrants"],
+    "HUMANITARIAN": ["humanitarian", "aid", "relief", "emergency"],
+    # Technology
+    "CYBERATTACK": ["cyber", "hack", "hacked", "hacking", "ransomware", "data breach"],
+    "TECH": ["artificial intelligence", "technology", "space", "satellite"],
+    # Energy
+    "ENERGY CRISIS": ["oil", "gas", "opec", "energy", "nuclear", "pipeline"],
+}
+
+_SEVERITY_KEYWORDS = {
+    "critical": ["war", "invasion", "attack", "attacks", "killed", "kills", "dead", "deaths", "crash",
+                 "earthquake", "terror", "assassination", "coup", "massacre", "emergency", "missile",
+                 "airstrike", "bombing", "explosion", "blast", "pandemic", "collapse"],
+    "high": ["conflict", "crisis", "sanctions", "protests", "riot", "flood", "hurricane", "cyclone",
+             "typhoon", "recession", "plunge", "surge", "blockade", "refugees", "flee", "famine",
+             "unrest", "clashes", "troops"],
+}
+
+def _classify_event(content: str) -> str:
+    """Extract the best event label from headline text using keyword matching."""
+    lower = content.lower()
+    for label, keywords in _EVENT_KEYWORDS.items():
+        for kw in keywords:
+            if kw in lower:
+                return label
+    return "BREAKING"
+
+def _classify_severity(content: str) -> str:
+    """Determine severity from headline text."""
+    lower = content.lower()
+    for kw in _SEVERITY_KEYWORDS["critical"]:
+        if kw in lower:
+            return "critical"
+    for kw in _SEVERITY_KEYWORDS["high"]:
+        if kw in lower:
+            return "high"
+    return "medium"
+
+def _extract_countries(content: str) -> list[str]:
+    """Extract countries mentioned in text."""
+    lower = content.lower()
+    found = set()
+    for c in _COUNTRIES_LIST:
+        if c.lower() in lower:
+            found.add(c)
+    # Check aliases
+    words = lower.split()
+    for alias, country in _COUNTRY_ALIASES.items():
+        if " " in alias:
+            if alias in lower:
+                found.add(country)
+        else:
+            if alias in words:
+                found.add(country)
+    return list(found)
+
+def _fallback_geospatial_extraction(headlines: list[dict]) -> dict:
+    """Comprehensive offline NLP extraction when Gemini is unavailable."""
+    mapping = {}
+    for i, h in enumerate(headlines):
+        content = h['title'] + " " + h.get('description', '')
+        countries = _extract_countries(content)
+        event_label = _classify_event(content)
+        severity = _classify_severity(content)
+        mapping[i] = {
+            "entities": [{"word": c} for c in countries],
+            "event_label": event_label,
+            "severity": severity
+        }
+    return mapping
+
 async def extract_geospatial_intelligence_gemini(headlines: list[dict]) -> dict:
     """Use Gemini to rigidly map headlines to geographical entities, premium event labels, and severity."""
     if not headlines:
@@ -741,33 +901,8 @@ async def extract_geospatial_intelligence_gemini(headlines: list[dict]) -> dict:
         return mapping
     except Exception as e:
         logger.warning(f"Gemini geospatial extraction failed (likely 429 Quota Exhausted): {e}")
-        # Fallback to local heuristic extraction so the intelligence map never goes completely dark
-        mapping = {}
-        countries_list = [
-            "United States", "China", "Russia", "Ukraine", "India", "Pakistan", 
-            "United Kingdom", "France", "Germany", "Iran", "Israel", "Palestine", 
-            "Brazil", "Argentina", "Japan", "South Korea", "Sudan", "Egypt", 
-            "Nigeria", "South Africa", "Australia", "Canada", "Mexico", 
-            "Saudi Arabia", "Turkey", "Thailand", "Syria", "Lebanon", "Taiwan", "Yemen", "Afghanistan"
-        ]
-        for i, h in enumerate(headlines):
-            content = (h['title'] + " " + h.get('description', '')).lower()
-            found = []
-            for c in countries_list:
-                if c.lower() in content:
-                    found.append(c)
-            words = content.split()
-            if "us" in words or "usa" in words or "america" in content:
-                found.append("United States")
-            if "uk" in words or "britain" in content:
-                found.append("United Kingdom")
-            
-            mapping[i] = {
-                "entities": [{"word": c} for c in list(set(found))],
-                "event_label": "ALERT",
-                "severity": "medium"
-            }
-        return mapping
+        # Comprehensive local heuristic: 80+ countries, smart event labels, severity detection
+        return _fallback_geospatial_extraction(headlines)
 
 
 # ---------------------------------------------------------------------------
@@ -805,11 +940,15 @@ async def get_trending():
     async with httpx.AsyncClient(timeout=20, follow_redirects=True, headers=headers) as client:
         tasks = [
             fetch_rss_top_headlines("global", client),
-            fetch_rss_region("Africa continent news OR issue", "global", client),
-            fetch_rss_region("South America news OR issue", "global", client),
-            fetch_rss_region("Asia news OR crisis", "global", client),
-            fetch_rss_region("Middle East conflict OR news", "global", client),
-            fetch_rss_region("Europe economy OR news", "global", client),
+            fetch_rss_top_headlines("in", client),
+            fetch_rss_top_headlines("gb", client),
+            fetch_rss_region("Africa Nigeria Kenya Ethiopia Somalia Sudan", "global", client),
+            fetch_rss_region("South America Brazil Argentina Colombia Venezuela", "global", client),
+            fetch_rss_region("Middle East Israel Iran Syria Lebanon Yemen", "global", client),
+            fetch_rss_region("Asia China Japan Korea Taiwan Philippines", "global", client),
+            fetch_rss_region("Russia Ukraine war conflict", "global", client),
+            fetch_rss_region("earthquake flood hurricane tornado disaster", "global", client),
+            fetch_rss_region("stock market crash economy recession", "global", client),
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -835,7 +974,7 @@ async def get_trending():
         return (quality, ts)
 
     unique.sort(key=sort_key, reverse=True)
-    selected = unique[:20]
+    selected = unique[:30]
 
     # Run AI Geospatial Extraction via Gemini
     ai_mapping = await extract_geospatial_intelligence_gemini(selected)

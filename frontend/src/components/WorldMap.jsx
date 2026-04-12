@@ -22,32 +22,115 @@ const COUNTRY_TOPO_URLS = {
 
 const COUNTRY_META = {
   '004': { name: 'Afghanistan', capital: 'Kabul', flag: '🇦🇫' },
+  '012': { name: 'Algeria', capital: 'Algiers', flag: '🇩🇿' },
   '032': { name: 'Argentina', capital: 'Buenos Aires', flag: '🇦🇷' },
+  '051': { name: 'Armenia', capital: 'Yerevan', flag: '🇦🇲' },
   '036': { name: 'Australia', capital: 'Canberra', flag: '🇦🇺' },
+  '040': { name: 'Austria', capital: 'Vienna', flag: '🇦🇹' },
+  '031': { name: 'Azerbaijan', capital: 'Baku', flag: '🇦🇿' },
+  '050': { name: 'Bangladesh', capital: 'Dhaka', flag: '🇧🇩' },
+  '056': { name: 'Belgium', capital: 'Brussels', flag: '🇧🇪' },
+  '112': { name: 'Belarus', capital: 'Minsk', flag: '🇧🇾' },
+  '068': { name: 'Bolivia', capital: 'Sucre', flag: '🇧🇴' },
   '076': { name: 'Brazil', capital: 'Brasília', flag: '🇧🇷' },
+  '100': { name: 'Bulgaria', capital: 'Sofia', flag: '🇧🇬' },
+  '120': { name: 'Cameroon', capital: 'Yaoundé', flag: '🇨🇲' },
   '124': { name: 'Canada', capital: 'Ottawa', flag: '🇨🇦' },
+  '148': { name: 'Chad', capital: "N'Djamena", flag: '🇹🇩' },
+  '152': { name: 'Chile', capital: 'Santiago', flag: '🇨🇱' },
   '156': { name: 'China', capital: 'Beijing', flag: '🇨🇳' },
+  '170': { name: 'Colombia', capital: 'Bogotá', flag: '🇨🇴' },
+  '178': { name: 'Congo', capital: 'Brazzaville', flag: '🇨🇬' },
+  '180': { name: 'Democratic Republic of the Congo', capital: 'Kinshasa', flag: '🇨🇩' },
+  '191': { name: 'Croatia', capital: 'Zagreb', flag: '🇭🇷' },
+  '192': { name: 'Cuba', capital: 'Havana', flag: '🇨🇺' },
+  '203': { name: 'Czech Republic', capital: 'Prague', flag: '🇨🇿' },
+  '208': { name: 'Denmark', capital: 'Copenhagen', flag: '🇩🇰' },
+  '214': { name: 'Dominican Republic', capital: 'Santo Domingo', flag: '🇩🇴' },
+  '218': { name: 'Ecuador', capital: 'Quito', flag: '🇪🇨' },
+  '818': { name: 'Egypt', capital: 'Cairo', flag: '🇪🇬' },
+  '231': { name: 'Ethiopia', capital: 'Addis Ababa', flag: '🇪🇹' },
+  '246': { name: 'Finland', capital: 'Helsinki', flag: '🇫🇮' },
   '250': { name: 'France', capital: 'Paris', flag: '🇫🇷' },
+  '268': { name: 'Georgia', capital: 'Tbilisi', flag: '🇬🇪' },
   '276': { name: 'Germany', capital: 'Berlin', flag: '🇩🇪' },
+  '288': { name: 'Ghana', capital: 'Accra', flag: '🇬🇭' },
+  '300': { name: 'Greece', capital: 'Athens', flag: '🇬🇷' },
+  '332': { name: 'Haiti', capital: 'Port-au-Prince', flag: '🇭🇹' },
+  '348': { name: 'Hungary', capital: 'Budapest', flag: '🇭🇺' },
   '356': { name: 'India', capital: 'New Delhi', flag: '🇮🇳' },
+  '360': { name: 'Indonesia', capital: 'Jakarta', flag: '🇮🇩' },
   '364': { name: 'Iran', capital: 'Tehran', flag: '🇮🇷' },
+  '368': { name: 'Iraq', capital: 'Baghdad', flag: '🇮🇶' },
+  '372': { name: 'Ireland', capital: 'Dublin', flag: '🇮🇪' },
   '376': { name: 'Israel', capital: 'Jerusalem', flag: '🇮🇱' },
   '380': { name: 'Italy', capital: 'Rome', flag: '🇮🇹' },
+  '384': { name: 'Ivory Coast', capital: 'Yamoussoukro', flag: '🇨🇮' },
+  '388': { name: 'Jamaica', capital: 'Kingston', flag: '🇯🇲' },
   '392': { name: 'Japan', capital: 'Tokyo', flag: '🇯🇵' },
+  '400': { name: 'Jordan', capital: 'Amman', flag: '🇯🇴' },
+  '398': { name: 'Kazakhstan', capital: 'Astana', flag: '🇰🇿' },
+  '404': { name: 'Kenya', capital: 'Nairobi', flag: '🇰🇪' },
+  '414': { name: 'Kuwait', capital: 'Kuwait City', flag: '🇰🇼' },
+  '422': { name: 'Lebanon', capital: 'Beirut', flag: '🇱🇧' },
+  '434': { name: 'Libya', capital: 'Tripoli', flag: '🇱🇾' },
+  '458': { name: 'Malaysia', capital: 'Kuala Lumpur', flag: '🇲🇾' },
+  '466': { name: 'Mali', capital: 'Bamako', flag: '🇲🇱' },
   '484': { name: 'Mexico', capital: 'Mexico City', flag: '🇲🇽' },
+  '496': { name: 'Mongolia', capital: 'Ulaanbaatar', flag: '🇲🇳' },
+  '504': { name: 'Morocco', capital: 'Rabat', flag: '🇲🇦' },
+  '508': { name: 'Mozambique', capital: 'Maputo', flag: '🇲🇿' },
+  '104': { name: 'Myanmar', capital: 'Naypyidaw', flag: '🇲🇲' },
+  '524': { name: 'Nepal', capital: 'Kathmandu', flag: '🇳🇵' },
+  '528': { name: 'Netherlands', capital: 'Amsterdam', flag: '🇳🇱' },
+  '554': { name: 'New Zealand', capital: 'Wellington', flag: '🇳🇿' },
+  '562': { name: 'Niger', capital: 'Niamey', flag: '🇳🇪' },
+  '566': { name: 'Nigeria', capital: 'Abuja', flag: '🇳🇬' },
+  '408': { name: 'North Korea', capital: 'Pyongyang', flag: '🇰🇵' },
+  '578': { name: 'Norway', capital: 'Oslo', flag: '🇳🇴' },
+  '512': { name: 'Oman', capital: 'Muscat', flag: '🇴🇲' },
+  '586': { name: 'Pakistan', capital: 'Islamabad', flag: '🇵🇰' },
+  '275': { name: 'Palestine', capital: 'Ramallah', flag: '🇵🇸' },
+  '600': { name: 'Paraguay', capital: 'Asunción', flag: '🇵🇾' },
+  '604': { name: 'Peru', capital: 'Lima', flag: '🇵🇪' },
+  '608': { name: 'Philippines', capital: 'Manila', flag: '🇵🇭' },
+  '616': { name: 'Poland', capital: 'Warsaw', flag: '🇵🇱' },
+  '620': { name: 'Portugal', capital: 'Lisbon', flag: '🇵🇹' },
+  '634': { name: 'Qatar', capital: 'Doha', flag: '🇶🇦' },
+  '642': { name: 'Romania', capital: 'Bucharest', flag: '🇷🇴' },
   '643': { name: 'Russia', capital: 'Moscow', flag: '🇷🇺' },
+  '646': { name: 'Rwanda', capital: 'Kigali', flag: '🇷🇼' },
   '682': { name: 'Saudi Arabia', capital: 'Riyadh', flag: '🇸🇦' },
+  '686': { name: 'Senegal', capital: 'Dakar', flag: '🇸🇳' },
+  '688': { name: 'Serbia', capital: 'Belgrade', flag: '🇷🇸' },
+  '702': { name: 'Singapore', capital: 'Singapore', flag: '🇸🇬' },
+  '706': { name: 'Somalia', capital: 'Mogadishu', flag: '🇸🇴' },
   '710': { name: 'South Africa', capital: 'Pretoria', flag: '🇿🇦' },
+  '410': { name: 'South Korea', capital: 'Seoul', flag: '🇰🇷' },
+  '724': { name: 'Spain', capital: 'Madrid', flag: '🇪🇸' },
+  '144': { name: 'Sri Lanka', capital: 'Colombo', flag: '🇱🇰' },
+  '729': { name: 'Sudan', capital: 'Khartoum', flag: '🇸🇩' },
+  '752': { name: 'Sweden', capital: 'Stockholm', flag: '🇸🇪' },
+  '756': { name: 'Switzerland', capital: 'Bern', flag: '🇨🇭' },
+  '760': { name: 'Syria', capital: 'Damascus', flag: '🇸🇾' },
+  '158': { name: 'Taiwan', capital: 'Taipei', flag: '🇹🇼' },
+  '834': { name: 'Tanzania', capital: 'Dodoma', flag: '🇹🇿' },
+  '764': { name: 'Thailand', capital: 'Bangkok', flag: '🇹🇭' },
+  '788': { name: 'Tunisia', capital: 'Tunis', flag: '🇹🇳' },
+  '792': { name: 'Turkey', capital: 'Ankara', flag: '🇹🇷' },
+  '800': { name: 'Uganda', capital: 'Kampala', flag: '🇺🇬' },
   '804': { name: 'Ukraine', capital: 'Kyiv', flag: '🇺🇦' },
+  '784': { name: 'United Arab Emirates', capital: 'Abu Dhabi', flag: '🇦🇪' },
   '826': { name: 'United Kingdom', capital: 'London', flag: '🇬🇧' },
   '840': { name: 'United States', capital: 'Washington D.C.', flag: '🇺🇸' },
-  '818': { name: 'Egypt', capital: 'Cairo', flag: '🇪🇬' },
-  '566': { name: 'Nigeria', capital: 'Abuja', flag: '🇳🇬' },
-  '410': { name: 'South Korea', capital: 'Seoul', flag: '🇰🇷' },
-  '792': { name: 'Turkey', capital: 'Ankara', flag: '🇹🇷' },
-  '764': { name: 'Thailand', capital: 'Bangkok', flag: '🇹🇭' },
-  '586': { name: 'Pakistan', capital: 'Islamabad', flag: '🇵🇰' },
-  '729': { name: 'Sudan', capital: 'Khartoum', flag: '🇸🇩' },
+  '858': { name: 'Uruguay', capital: 'Montevideo', flag: '🇺🇾' },
+  '860': { name: 'Uzbekistan', capital: 'Tashkent', flag: '🇺🇿' },
+  '862': { name: 'Venezuela', capital: 'Caracas', flag: '🇻🇪' },
+  '704': { name: 'Vietnam', capital: 'Hanoi', flag: '🇻🇳' },
+  '887': { name: 'Yemen', capital: 'Sanaa', flag: '🇾🇪' },
+  '716': { name: 'Zimbabwe', capital: 'Harare', flag: '🇿🇼' },
+  '116': { name: 'Cambodia', capital: 'Phnom Penh', flag: '🇰🇭' },
+  '048': { name: 'Bahrain', capital: 'Manama', flag: '🇧🇭' },
 };
 
 const NAME_FALLBACK = {
@@ -75,6 +158,7 @@ const SEVERITY_COLORS = {
   critical: { fill: 'rgba(239,68,68,0.3)', stroke: '#ef4444', glow: 'rgba(239,68,68,0.5)' },
   high:     { fill: 'rgba(249,115,22,0.25)', stroke: '#f97316', glow: 'rgba(249,115,22,0.5)' },
   medium:   { fill: 'rgba(250,204,21,0.2)',  stroke: '#facc15', glow: 'rgba(250,204,21,0.4)' },
+  low:      { fill: 'rgba(56,189,248,0.15)', stroke: '#38bdf8', glow: 'rgba(56,189,248,0.3)' },
 };
 
 
@@ -126,23 +210,24 @@ export default function WorldMap() {
     return () => { cancelled = true; };
   }, []);
 
-  // Live Intelligence Parsing System
+  // Live Intelligence Parsing System — auto-reload every 5 minutes
   useEffect(() => {
     if (countries.length === 0) return;
 
-    fetchTrending().then(d => {
-       const headlines = d.headlines || [];
-       const newZones = [];
-       const newConns = [];
+    const loadIntelligence = () => {
+      fetchTrending().then(d => {
+        const headlines = d.headlines || [];
+        const newZones = [];
+        const newConns = [];
 
-       headlines.forEach((hl) => {
+        headlines.forEach((hl) => {
           const entities = hl.entities || [];
           if (entities.length > 0) {
               const countryEntities = entities.filter(e => countries.some(c => c.info?.name === e.word || c.info?.key === e.word));
               if(countryEntities.length === 0) return;
 
               const severity = hl.severity || 'medium';
-              const label = hl.event_label || 'ALERT';
+              const label = hl.event_label || 'BREAKING';
               
               countryEntities.forEach(c => {
                  const feat = countries.find(ct => ct.info?.name === c.word || ct.info?.key === c.word);
@@ -158,15 +243,20 @@ export default function WorldMap() {
                  const f1 = countries.find(ct => ct.info?.name === countryEntities[0].word || ct.info?.key === countryEntities[0].word);
                  const f2 = countries.find(ct => ct.info?.name === countryEntities[1].word || ct.info?.key === countryEntities[1].word);
                  if (f1 && f2) {
-                    newConns.push({ from: geoCentroid(f1), to: geoCentroid(f2), color: SEVERITY_COLORS[severity].stroke, label });
+                    newConns.push({ from: geoCentroid(f1), to: geoCentroid(f2), color: (SEVERITY_COLORS[severity] || SEVERITY_COLORS.medium).stroke, label });
                  }
               }
           }
-       });
+        });
 
-       setDynamicZones(newZones);
-       setDynamicConns(newConns);
-    });
+        setDynamicZones(newZones);
+        setDynamicConns(newConns);
+      });
+    };
+
+    loadIntelligence();
+    const reloadInterval = setInterval(loadIntelligence, 5 * 60 * 1000); // Reload every 5 minutes
+    return () => clearInterval(reloadInterval);
   }, [countries]);
 
   // Reliable Zooming via D3 Transforming a <g> object so path clicks aren't destroyed!
@@ -550,10 +640,10 @@ export default function WorldMap() {
 
         {/* ── Status Indication UI (Outside Pan/Zoom group so it remains fixed) ── */}
         {!zoomedCountryInfo && (
-          <g transform={`translate(${width - 120}, ${height - 20})`} style={{ pointerEvents: 'none' }}>
+          <g transform={`translate(${width - 160}, ${height - 20})`} style={{ pointerEvents: 'none' }}>
             <circle r="4" fill="#a855f7" opacity={0.4 + Math.sin(pulsePhase * 0.3) * 0.6} />
             <circle r="2" fill="#a855f7" />
-            <text x="10" y="4" fill="#a855f7" fontSize="8" fontWeight="700" letterSpacing="1px">AI LIVE SCRAPING</text>
+            <text x="10" y="4" fill="#a855f7" fontSize="8" fontWeight="700" letterSpacing="1px">LIVE — {dynamicZones.length} ACTIVE ZONES</text>
           </g>
         )}
         
