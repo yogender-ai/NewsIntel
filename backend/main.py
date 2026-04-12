@@ -755,12 +755,37 @@ async def get_trending():
         quality = a.get("quality_score", 0)
         return (quality, ts)
 
-    unique.sort(key=sort_key, reverse=True)
     selected = unique[:20]
+
+    # Fast local entity extraction to power the live map
+    def extract_countries(title: str, text: str) -> list[dict]:
+        countries_list = [
+            "United States", "China", "Russia", "Ukraine", "India", "Pakistan", 
+            "United Kingdom", "France", "Germany", "Iran", "Israel", "Palestine", 
+            "Brazil", "Argentina", "Japan", "South Korea", "Sudan", "Egypt", 
+            "Nigeria", "South Africa", "Australia", "Canada", "Mexico", 
+            "Saudi Arabia", "Turkey", "Thailand", "Syria", "Lebanon", "Taiwan", "Yemen", "Afghanistan"
+        ]
+        content = (title + " " + text).lower()
+        found = []
+        for c in countries_list:
+            if c.lower() in content:
+                found.append({"word": c})
+        
+        words = content.split()
+        if "us" in words or "usa" in words or "america" in content:
+            found.append({"word": "United States"})
+        if "uk" in words or "britain" in content:
+            found.append({"word": "United Kingdom"})
+            
+        # Deduplicate
+        unique_ents = {f["word"]: f for f in found}
+        return list(unique_ents.values())
 
     # Format
     formatted = []
     for a in selected:
+        entities = extract_countries(a["title"], a.get("description", ""))
         formatted.append({
             "title": a["title"],
             "link": a["link"],
@@ -769,6 +794,7 @@ async def get_trending():
             "region": a["region"],
             "is_trusted": a["is_trusted"],
             "description": a["description"][:200],
+            "entities": entities,
         })
 
     # Determine if any breaking news
