@@ -708,10 +708,16 @@ async def extract_geospatial_intelligence_gemini(headlines: list[dict]) -> dict:
         prompt += f"{i}. {h['title']}\n"
         
     try:
+        import functools
         client = get_gemini_client()
-        response = client.models.generate_content(
-            model="gemini-2.0-flash",
-            contents=prompt,
+        loop = asyncio.get_event_loop()
+        response = await loop.run_in_executor(
+            executor,
+            functools.partial(
+                client.models.generate_content,
+                model="gemini-2.0-flash",
+                contents=prompt
+            )
         )
         text = response.text.strip()
         text = re.sub(r"^```json\s*", "", text)
@@ -723,11 +729,15 @@ async def extract_geospatial_intelligence_gemini(headlines: list[dict]) -> dict:
             for item in result:
                 idx = item.get("id")
                 if idx is not None:
-                    mapping[idx] = {
-                        "entities": [{"word": c} for c in item.get("countries", []) if isinstance(c, str)],
-                        "event_label": item.get("event_label", "ALERT").upper(),
-                        "severity": item.get("severity", "medium").lower()
-                    }
+                    try:
+                        int_idx = int(idx)
+                        mapping[int_idx] = {
+                            "entities": [{"word": c} for c in item.get("countries", []) if isinstance(c, str)],
+                            "event_label": item.get("event_label", "ALERT").upper(),
+                            "severity": item.get("severity", "medium").lower()
+                        }
+                    except ValueError:
+                        pass
         return mapping
     except Exception as e:
         logger.warning(f"Gemini geospatial extraction failed: {e}")
@@ -796,6 +806,8 @@ async def get_trending():
         dt = a.get("published_dt")
         ts = dt.timestamp() if dt else 0
         quality = a.get("quality_score", 0)
+        return (quality, ts)
+
     unique.sort(key=sort_key, reverse=True)
     selected = unique[:20]
 
