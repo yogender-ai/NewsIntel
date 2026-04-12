@@ -125,8 +125,8 @@ export default function WorldMap() {
   const containerRef = useRef(null);
   const svgRef = useRef(null);
 
-  const width = 900;
-  const height = 500;
+  const width = 1000;
+  const height = 550;
 
   useEffect(() => {
     let cancelled = false;
@@ -298,7 +298,7 @@ export default function WorldMap() {
   } else {
     // 3D Orthographic Globe
     projection = geoOrthographic()
-      .scale(230 * scaleMult)
+      .scale(260 * scaleMult)
       .translate([width / 2, height / 2])
       .clipAngle(90) // Hide back of globe
       .rotate(rotation);
@@ -308,7 +308,7 @@ export default function WorldMap() {
   const featuresToRender = zoomedCountryInfo && zoomStateFeatures.length > 0 ? zoomStateFeatures : countries;
 
   return (
-    <div ref={containerRef} className="world-map-section" style={{ width: '100%', position: 'relative', overflow: 'hidden', background: '#0a0b14', borderRadius: '16px', border: '1px solid rgba(139,92,246,0.15)' }}>
+    <div ref={containerRef} className="world-map-section" style={{ width: '100%', position: 'relative', overflow: 'visible', margin: '20px 0' }}>
       {/* ── Global Header Overlay ── */}
       {!zoomedCountryInfo && (
         <div style={{ position: 'absolute', top: 15, left: 15, zIndex: 50, display: 'flex', gap: '8px', alignItems: 'center' }}>
@@ -389,7 +389,7 @@ export default function WorldMap() {
           viewBox={`0 0 ${width} ${height}`} 
           className="world-map-svg"
           preserveAspectRatio="xMidYMid meet"
-          style={{ width: '100%', height: 'auto', overflow: 'visible', cursor: zoomedCountryInfo ? 'default' : 'grab' }}
+          style={{ width: '100%', height: '100%', minHeight: '550px', overflow: 'visible', cursor: zoomedCountryInfo ? 'default' : 'grab' }}
         >
         <defs>
           <radialGradient id="globe-glow" cx="50%" cy="50%" r="50%">
@@ -419,7 +419,7 @@ export default function WorldMap() {
 
         {/* 3D Sphere Background Horizon - Only show when Orthographic (Not drill-down) */}
         {!zoomedCountryInfo && (
-           <circle cx={width/2} cy={height/2} r={230 * scaleMult} fill="url(#globe-glow)" stroke="rgba(56,189,248,0.3)" strokeWidth="1" />
+           <circle cx={width/2} cy={height/2} r={260 * scaleMult} fill="url(#globe-glow)" stroke="rgba(56,189,248,0.3)" strokeWidth="1" />
         )}
 
         <g className="countries-group">
