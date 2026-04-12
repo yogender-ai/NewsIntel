@@ -77,42 +77,8 @@ const SEVERITY_COLORS = {
   medium:   { fill: 'rgba(250,204,21,0.2)',  stroke: '#facc15', glow: 'rgba(250,204,21,0.4)' },
 };
 
-function classifyHeadline(title) {
-  const t = title.toLowerCase();
-  if (t.includes('war') || t.includes('strike') || t.includes('missile') || t.includes('flee') || t.includes('crash') || t.includes('crisis') || t.includes('tornado') || t.includes('disease')) return 'critical';
-  if (t.includes('conflict') || t.includes('tensions') || t.includes('surge') || t.includes('outbreak') || t.includes('flood') || t.includes('down')) return 'high';
-  return 'medium';
-}
 
-function getEventLabel(title) {
-  const words = title.split(' ');
-  const eventKeywords = [
-    'war', 'conflict', 'strike', 'missile', 'famine', 'outbreak', 'virus', 'ceasefire', 
-    'rally', 'surge', 'threat', 'disease', 'weather', 'flood', 'tornado', 'crisis', 
-    'crash', 'economic', 'election', 'protest', 'riot', 'agreement', 'trade', 'tech', 
-    'market', 'ban', 'law', 'scandal', 'summit', 'talks', 'deal', 'tension', 'drone',
-    'policy', 'growth', 'loss', 'attack', 'invest', 'court', 'trial', 'climate', 'energy'
-  ];
-  
-  // 1. Try to find a recognized major intelligence keyword
-  for (const w of words) {
-    const wt = w.toLowerCase().replace(/[^a-z]/g, '');
-    if (eventKeywords.includes(wt)) {
-      return w.toUpperCase().replace(/[^A-Z]/g, '');
-    }
-  }
-  
-  // 2. Fallback to finding a significant capitalized keyword that looks like a subject
-  for (const w of words) {
-    const cleanWord = w.replace(/[^A-Za-z]/g, '');
-    if (cleanWord.length >= 6 && cleanWord[0] === cleanWord[0].toUpperCase()) {
-       return cleanWord.toUpperCase();
-    }
-  }
 
-  // 3. Absolute fallback
-  return 'ALERT';
-}
 
 export default function WorldMap() {
   const [countries, setCountries] = useState([]);
@@ -175,8 +141,8 @@ export default function WorldMap() {
               const countryEntities = entities.filter(e => countries.some(c => c.info?.name === e.word || c.info?.key === e.word));
               if(countryEntities.length === 0) return;
 
-              const severity = classifyHeadline(hl.title);
-              const label = getEventLabel(hl.title);
+              const severity = hl.severity || 'medium';
+              const label = hl.event_label || 'ALERT';
               
               countryEntities.forEach(c => {
                  const feat = countries.find(ct => ct.info?.name === c.word || ct.info?.key === c.word);

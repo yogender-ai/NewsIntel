@@ -688,10 +688,50 @@ Return ONLY valid JSON. No markdown, no code fences, no explanations."""
             "risk_reason": "Analysis is based on limited data. Full assessment requires additional context.",
             "breaking": False,
             "market_impact": "neutral",
-            "market_reason": "Insufficient data to determine market impact.",
             "confidence": 0.3,
             "confidence_reason": "Low confidence due to limited analysis data.",
         }
+
+async def extract_geospatial_intelligence_gemini(headlines: list[dict]) -> dict:
+    """Use Gemini to rigidly map headlines to geographical entities, premium event labels, and severity."""
+    if not headlines:
+        return {}
+        
+    prompt = "You are a Geospatial Intelligence AI parsing news headlines to plot on a global map. Extract the primary countries involved in each headline.\n"
+    prompt += "Return JSON format strictly as an array of objects:\n```json\n[\n  {\n    \"id\": 0,\n    \"countries\": [\"United States\", \"Russia\"],\n    \"event_label\": \"CYBERATTACK\",\n    \"severity\": \"critical\"\n  }\n]\n```\nRules:\n"
+    prompt += "- 'countries' must be an array of EXACT full country names ONLY (e.g., 'United States', never 'USA', 'United Kingdom', never 'UK'). If none, return empty array.\n"
+    prompt += "- 'event_label' MUST be a highly professional 1-2 word tactical tag (e.g. CIVIL UNREST, MARKET CRASH, MILITARY, DIPLOMACY, CYBERATTACK, TORNADO, AGREEMENT, CORRUPTION, INFLATION). NEVER use generic words like 'UPDATE', 'NEWS', or 'TALKS'.\n"
+    prompt += "- 'severity' MUST be one of: 'critical', 'high', 'medium', 'low'.\n"
+    prompt += "- Return ONLY valid JSON.\n\nHeadlines:\n"
+
+    for i, h in enumerate(headlines):
+        prompt += f"{i}. {h['title']}\n"
+        
+    try:
+        client = get_gemini_client()
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=prompt,
+        )
+        text = response.text.strip()
+        text = re.sub(r"^```json\s*", "", text)
+        text = re.sub(r"\s*```$", "", text)
+        result = json.loads(text)
+        
+        mapping = {}
+        if isinstance(result, list):
+            for item in result:
+                idx = item.get("id")
+                if idx is not None:
+                    mapping[idx] = {
+                        "entities": [{"word": c} for c in item.get("countries", []) if isinstance(c, str)],
+                        "event_label": item.get("event_label", "ALERT").upper(),
+                        "severity": item.get("severity", "medium").lower()
+                    }
+        return mapping
+    except Exception as e:
+        logger.warning(f"Gemini geospatial extraction failed: {e}")
+        return {}
 
 
 # ---------------------------------------------------------------------------
@@ -728,9 +768,12 @@ async def get_trending():
 
     async with httpx.AsyncClient(timeout=20, follow_redirects=True, headers=headers) as client:
         tasks = [
-            fetch_rss_top_headlines("in", client),
             fetch_rss_top_headlines("global", client),
-            fetch_rss_top_headlines("us", client),
+            fetch_rss_region("Africa continent news OR issue", "global", client),
+            fetch_rss_region("South America news OR issue", "global", client),
+            fetch_rss_region("Asia news OR crisis", "global", client),
+            fetch_rss_region("Middle East conflict OR news", "global", client),
+            fetch_rss_region("Europe economy OR news", "global", client),
         ]
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
@@ -753,39 +796,16 @@ async def get_trending():
         dt = a.get("published_dt")
         ts = dt.timestamp() if dt else 0
         quality = a.get("quality_score", 0)
-        return (quality, ts)
-
+    unique.sort(key=sort_key, reverse=True)
     selected = unique[:20]
 
-    # Fast local entity extraction to power the live map
-    def extract_countries(title: str, text: str) -> list[dict]:
-        countries_list = [
-            "United States", "China", "Russia", "Ukraine", "India", "Pakistan", 
-            "United Kingdom", "France", "Germany", "Iran", "Israel", "Palestine", 
-            "Brazil", "Argentina", "Japan", "South Korea", "Sudan", "Egypt", 
-            "Nigeria", "South Africa", "Australia", "Canada", "Mexico", 
-            "Saudi Arabia", "Turkey", "Thailand", "Syria", "Lebanon", "Taiwan", "Yemen", "Afghanistan"
-        ]
-        content = (title + " " + text).lower()
-        found = []
-        for c in countries_list:
-            if c.lower() in content:
-                found.append({"word": c})
-        
-        words = content.split()
-        if "us" in words or "usa" in words or "america" in content:
-            found.append({"word": "United States"})
-        if "uk" in words or "britain" in content:
-            found.append({"word": "United Kingdom"})
-            
-        # Deduplicate
-        unique_ents = {f["word"]: f for f in found}
-        return list(unique_ents.values())
+    # Run AI Geospatial Extraction via Gemini
+    ai_mapping = await extract_geospatial_intelligence_gemini(selected)
 
     # Format
     formatted = []
-    for a in selected:
-        entities = extract_countries(a["title"], a.get("description", ""))
+    for i, a in enumerate(selected):
+        ai_data = ai_mapping.get(i, {})
         formatted.append({
             "title": a["title"],
             "link": a["link"],
@@ -794,7 +814,9 @@ async def get_trending():
             "region": a["region"],
             "is_trusted": a["is_trusted"],
             "description": a["description"][:200],
-            "entities": entities,
+            "entities": ai_data.get("entities", []),
+            "event_label": ai_data.get("event_label", "ALERT"),
+            "severity": ai_data.get("severity", "medium")
         })
 
     # Determine if any breaking news
