@@ -11,7 +11,9 @@ import json
 import html
 import asyncio
 import logging
-from datetime import datetime, timezone
+import gc
+import random
+from datetime import datetime, timezone, timedelta
 from concurrent.futures import ThreadPoolExecutor
 from collections import Counter
 from urllib.parse import quote_plus
@@ -24,7 +26,6 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from cachetools import TTLCache
 from dotenv import load_dotenv
-import yfinance as yf
 from google import genai
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
@@ -56,8 +57,8 @@ SUMMARIZATION_MODEL = "sshleifer/distilbart-cnn-12-6"
 SENTIMENT_MODEL = "cardiffnlp/twitter-roberta-base-sentiment-latest"
 NER_MODEL = "dslim/bert-base-NER"
 
-MAX_ARTICLES = 8
-ARTICLE_TEXT_LIMIT = 1024
+MAX_ARTICLES = 6
+ARTICLE_TEXT_LIMIT = 512
 HTTP_USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
@@ -149,14 +150,14 @@ CITY_SUGGESTIONS = [
     {"name": "Nagpur", "state": "Maharashtra", "emoji": "🍊"},
 ]
 
-# In-memory cache — 100 topics, 10 min TTL
-cache: TTLCache = TTLCache(maxsize=100, ttl=600)
-trending_cache: TTLCache = TTLCache(maxsize=10, ttl=300)  # 5 min for trending
-weather_cache: TTLCache = TTLCache(maxsize=50, ttl=1800)  # 30 min for weather
-stocks_cache: TTLCache = TTLCache(maxsize=1, ttl=300)  # 5 min for stocks
+# In-memory cache — reduced sizes for Render free tier (512MB limit)
+cache: TTLCache = TTLCache(maxsize=30, ttl=600)
+trending_cache: TTLCache = TTLCache(maxsize=3, ttl=300)  # 5 min for trending
+weather_cache: TTLCache = TTLCache(maxsize=20, ttl=1800)  # 30 min for weather
+stocks_cache: TTLCache = TTLCache(maxsize=2, ttl=300)  # 5 min for stocks
 
-# Thread-pool for blocking newspaper3k calls
-executor = ThreadPoolExecutor(max_workers=12)
+# Thread-pool for blocking newspaper3k calls — reduced to save memory
+executor = ThreadPoolExecutor(max_workers=4)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("news-intel")
@@ -506,30 +507,26 @@ def _extract_rss_image(raw_html: str) -> str:
 
 def _extract_text_and_image(url: str, fallback_desc: str, rss_image: str = "") -> dict:
     """Blocking call — run in executor. FAST multi-strategy image + text extraction."""
-    import requests
+    import httpx as httpx_sync
 
     image_url = ""
     text = ""
 
-    # ─── Strategy 1: Fast HEAD-only og:image fetch (4s timeout) ───
+    # ─── Strategy 1: Fast og:image fetch (3s timeout) ───
     try:
-        resp = requests.get(
-            url,
-            headers={"User-Agent": HTTP_USER_AGENT},
-            timeout=4,
-            allow_redirects=True,
-        )
-        if resp.status_code == 200:
-            page_html = resp.text[:10000]
-            og_img = _extract_og_image(page_html)
-            if og_img:
-                image_url = og_img
+        with httpx_sync.Client(timeout=3, follow_redirects=True) as client:
+            resp = client.get(url, headers={"User-Agent": HTTP_USER_AGENT})
+            if resp.status_code == 200:
+                page_html = resp.text[:8000]
+                og_img = _extract_og_image(page_html)
+                if og_img:
+                    image_url = og_img
     except Exception:
         pass
 
-    # ─── Strategy 2: newspaper3k for text + image fallback (4s timeout) ───
+    # ─── Strategy 2: newspaper3k for text + image fallback (3s timeout) ───
     try:
-        art = Article(url, request_timeout=4)
+        art = Article(url, request_timeout=3)
         art.download()
         art.parse()
         text = art.text.strip()
@@ -539,6 +536,8 @@ def _extract_text_and_image(url: str, fallback_desc: str, rss_image: str = "") -
                 image_url = art.top_image
             elif hasattr(art, 'meta_img') and art.meta_img and not _is_junk_image(art.meta_img):
                 image_url = art.meta_img
+        # Free memory immediately
+        del art
     except Exception:
         pass
 
@@ -547,10 +546,10 @@ def _extract_text_and_image(url: str, fallback_desc: str, rss_image: str = "") -
         image_url = rss_image
 
     if text and len(text) > 100:
-        return {"text": clean_text(text[:3000]), "image": image_url}
+        return {"text": clean_text(text[:1500]), "image": image_url}
 
     cleaned = clean_text(fallback_desc)
-    return {"text": cleaned[:3000] if cleaned else "No content available.", "image": image_url}
+    return {"text": cleaned[:1500] if cleaned else "No content available.", "image": image_url}
 
 
 async def enrich_articles(articles: list[dict]) -> list[dict]:
@@ -1175,12 +1174,12 @@ async def get_weather_forecast(city: str = Query("Delhi", min_length=1, max_leng
 
 @app.get("/stocks")
 async def get_stocks():
-    """Return major stock index data. Uses a lightweight approach."""
+    """Return major stock index data. Uses lightweight httpx approach (no yfinance)."""
     cache_key = "stocks_data"
     if cache_key in stocks_cache:
         return stocks_cache[cache_key]
 
-    # Predefined stock data structure — we'll fetch real data from Yahoo Finance
+    # Predefined stock data structure — fetch real data from Yahoo Finance via httpx
     indices = [
         {"symbol": "SENSEX", "name": "BSE Sensex", "exchange": "BSE", "flag": "🇮🇳"},
         {"symbol": "NIFTY_50", "name": "Nifty 50", "exchange": "NSE", "flag": "🇮🇳"},
@@ -1204,7 +1203,6 @@ async def get_stocks():
         {"symbol": "BTC-USD", "name": "Bitcoin", "exchange": "CRYPTO", "flag": "₿"},
     ]
 
-    import random
     stock_data = []
 
     # Realistic baseline prices for major indices (approximate fallbacks if Yahoo blocks IP)
@@ -1317,6 +1315,7 @@ async def get_stocks():
         "fetched_at": datetime.now(timezone.utc).isoformat(),
     }
     stocks_cache[cache_key] = response
+    gc.collect()  # Free memory after heavy operation
     return response
 
 
@@ -1365,8 +1364,6 @@ async def get_stock_history(symbol: str, range: str = "1mo"):
         logger.warning(f"Yahoo history failed for {symbol}: {e}")
         
     # Realistic Fallback (random walk)
-    import random
-    from datetime import timedelta
     
     base_price = 100
     if symbol == "BTC-USD": base_price = 68000
