@@ -75,7 +75,7 @@ export default function GithubWidget() {
       // Exchange code for user info via backend
       (async () => {
         try {
-          const resp = await fetch(`${import.meta.env.VITE_API_URL || 'https://newsintel.onrender.com'}/auth/github?code=${code}`);
+          const resp = await fetch(`${import.meta.env.VITE_API_URL || 'https://newsintel-xvhe.onrender.com'}/auth/github?code=${code}`);
           if (resp.ok) {
             const user = await resp.json();
             if (user.login) {
