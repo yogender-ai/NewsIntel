@@ -1,7 +1,7 @@
-import { useState, useEffect, useRef } from 'react';
-import { TrendingUp, TrendingDown, Activity, RefreshCcw, Search, LineChart, Loader, X, Globe, ChevronRight, Star, Zap } from 'lucide-react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { TrendingUp, TrendingDown, Activity, RefreshCcw, Search, LineChart, Loader, X, Globe, Zap, Sparkles } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
-import { fetchStocks, fetchStockHistory, fetchStockSearch } from '../api';
+import { fetchStocks, fetchStockHistory, fetchStockSearch, fetchStockSuggest } from '../api';
 
 const CATEGORIES = [
   { key: 'all', label: 'All Markets', icon: '🌐' },
@@ -27,6 +27,20 @@ const RANGES = [
   { key: '1y', label: '1Y' },
 ];
 
+// Popular recommendations shown when search bar is focused but empty
+const QUICK_PICKS = [
+  { label: 'Indian Oil', query: 'Indian Oil', flag: '🇮🇳', type: 'Indian Stock' },
+  { label: 'Reliance', query: 'Reliance', flag: '🇮🇳', type: 'Indian Stock' },
+  { label: 'TCS', query: 'TCS', flag: '🇮🇳', type: 'Indian IT' },
+  { label: 'HDFC Bank', query: 'HDFC Bank', flag: '🇮🇳', type: 'Indian Bank' },
+  { label: 'Apple', query: 'Apple', flag: '🇺🇸', type: 'US Tech' },
+  { label: 'Nvidia', query: 'Nvidia', flag: '🇺🇸', type: 'US Tech' },
+  { label: 'Gold', query: 'Gold', flag: '🥇', type: 'Commodity' },
+  { label: 'Bitcoin', query: 'Bitcoin', flag: '₿', type: 'Crypto' },
+  { label: 'Nifty 50', query: 'Nifty 50', flag: '🇮🇳', type: 'Index' },
+  { label: 'S&P 500', query: 'S&P 500', flag: '🇺🇸', type: 'Index' },
+];
+
 const CustomTooltip = ({ active, payload, label, color }) => {
   if (active && payload && payload.length) {
     return (
@@ -50,14 +64,33 @@ export default function MarketsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [category, setCategory] = useState('all');
   const [activeRange, setActiveRange] = useState('1mo');
-  // Custom search state
+
+  // Smart search state
   const [customSearch, setCustomSearch] = useState('');
   const [customSearching, setCustomSearching] = useState(false);
   const [customResult, setCustomResult] = useState(null);
   const [customError, setCustomError] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [suggestLoading, setSuggestLoading] = useState(false);
+  const [activeSuggestion, setActiveSuggestion] = useState(-1);
+
   const searchInputRef = useRef(null);
+  const dropdownRef = useRef(null);
+  const suggestTimerRef = useRef(null);
 
   useEffect(() => { loadMarkets(); }, []);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
 
   const loadMarkets = async () => {
     setLoading(true);
@@ -82,7 +115,6 @@ export default function MarketsPage() {
     setSelectedStock(stock);
     setActiveRange('1mo');
     loadHistory(stock, '1mo');
-    // Scroll chart into view
     setTimeout(() => document.getElementById('stock-chart-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
   };
 
@@ -91,16 +123,65 @@ export default function MarketsPage() {
     if (selectedStock) loadHistory(selectedStock, range);
   };
 
-  const handleCustomSearch = async (e) => {
-    e.preventDefault();
-    if (!customSearch.trim()) return;
+  // Debounced suggestion fetch
+  const fetchSuggestions = useCallback(async (q) => {
+    if (!q || q.trim().length < 1) {
+      setSuggestions([]);
+      setSuggestLoading(false);
+      return;
+    }
+    setSuggestLoading(true);
+    const result = await fetchStockSuggest(q.trim());
+    setSuggestions(result?.suggestions || []);
+    setSuggestLoading(false);
+  }, []);
+
+  const handleSearchInput = (e) => {
+    const val = e.target.value;
+    setCustomSearch(val);
+    setCustomError('');
+    setCustomResult(null);
+    setActiveSuggestion(-1);
+    setShowDropdown(true);
+
+    // Debounce
+    clearTimeout(suggestTimerRef.current);
+    if (val.trim().length >= 1) {
+      suggestTimerRef.current = setTimeout(() => fetchSuggestions(val), 280);
+    } else {
+      setSuggestions([]);
+    }
+  };
+
+  const handleSearchFocus = () => {
+    setShowDropdown(true);
+    if (customSearch.trim().length >= 1) {
+      fetchSuggestions(customSearch);
+    }
+  };
+
+  const handleSuggestionClick = (s) => {
+    setCustomSearch(s.name);
+    setShowDropdown(false);
+    setSuggestions([]);
+    // Trigger search
+    runSearch(s.name);
+  };
+
+  const handleQuickPick = (pick) => {
+    setCustomSearch(pick.query);
+    setShowDropdown(false);
+    runSearch(pick.query);
+  };
+
+  const runSearch = async (query) => {
+    if (!query?.trim()) return;
     setCustomSearching(true);
     setCustomError('');
     setCustomResult(null);
-    const result = await fetchStockSearch(customSearch.trim());
+    const result = await fetchStockSearch(query.trim());
     if (result?.found) {
       setCustomResult(result);
-      // Simulate click to show chart
       const pseudo = {
         symbol: result.yahoo_symbol || result.symbol,
         name: result.name,
@@ -115,12 +196,40 @@ export default function MarketsPage() {
       loadHistory(pseudo, '1mo');
       setTimeout(() => document.getElementById('stock-chart-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
     } else {
-      setCustomError(result?.message || 'Ticker not found. Try e.g. IOC.NS, AAPL, BTC-USD');
+      setCustomError(result?.message || 'Stock not found. Try a company name like "Reliance", "Apple", or ticker like "IOC.NS".');
     }
     setCustomSearching(false);
   };
 
-  // Filter logic
+  const handleCustomSearch = async (e) => {
+    e.preventDefault();
+    setShowDropdown(false);
+    await runSearch(customSearch);
+  };
+
+  // Keyboard nav in dropdown
+  const handleKeyDown = (e) => {
+    const items = suggestions.length > 0 ? suggestions : (customSearch.trim().length < 1 ? QUICK_PICKS : []);
+    if (!showDropdown || items.length === 0) return;
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveSuggestion(prev => Math.min(prev + 1, items.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveSuggestion(prev => Math.max(prev - 1, -1));
+    } else if (e.key === 'Enter' && activeSuggestion >= 0) {
+      e.preventDefault();
+      const item = items[activeSuggestion];
+      if (suggestions.length > 0) {
+        handleSuggestionClick(item);
+      } else {
+        handleQuickPick(item);
+      }
+    } else if (e.key === 'Escape') {
+      setShowDropdown(false);
+    }
+  };
+
   const filteredData = marketData.filter(s => {
     const matchesCategory = CATEGORY_FILTER[category]?.(s) ?? true;
     const q = searchQuery.toLowerCase();
@@ -129,10 +238,12 @@ export default function MarketsPage() {
   });
 
   const color = selectedStock ? (selectedStock.direction === 'up' ? '#10b981' : '#ef4444') : '#8b5cf6';
-
-  // Quick stats
   const gainers = marketData.filter(s => s.direction === 'up').length;
   const losers = marketData.filter(s => s.direction === 'down').length;
+
+  // Show quick picks OR live suggestions in dropdown
+  const showQuickPicks = showDropdown && customSearch.trim().length < 1;
+  const showSuggestions = showDropdown && customSearch.trim().length >= 1;
 
   return (
     <div style={{ padding: '24px 40px 60px', minHeight: '100vh', background: 'transparent' }}>
@@ -146,10 +257,8 @@ export default function MarketsPage() {
             </div>
             <h1 style={{ fontSize: '26px', margin: 0, fontWeight: 700, color: '#fff', letterSpacing: '0.5px' }}>Market Intelligence</h1>
           </div>
-          <p style={{ margin: 0, color: '#64748b', fontSize: '13px' }}>Real-time prices · Click any card for interactive chart</p>
+          <p style={{ margin: 0, color: '#64748b', fontSize: '13px' }}>Real-time prices · Search by name or ticker · Click any card for chart</p>
         </div>
-
-        {/* Refresh */}
         <button onClick={loadMarkets} style={{ background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.25)', color: '#38bdf8', padding: '8px 18px', borderRadius: '12px', display: 'flex', gap: '8px', alignItems: 'center', cursor: 'pointer', fontSize: '13px' }}>
           <RefreshCcw size={13} /> Sync
         </button>
@@ -172,39 +281,149 @@ export default function MarketsPage() {
         </div>
       )}
 
-      {/* ── CUSTOM TICKER SEARCH ── */}
+      {/* ── SMART SEARCH ── */}
       <div style={{ background: 'rgba(139,92,246,0.05)', border: '1px solid rgba(139,92,246,0.2)', borderRadius: '18px', padding: '20px 24px', marginBottom: '24px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '14px' }}>
           <Zap size={14} color="#a855f7" />
-          <span style={{ color: '#a855f7', fontSize: '12px', fontWeight: 700, letterSpacing: '1px' }}>SEARCH ANY TICKER</span>
+          <span style={{ color: '#a855f7', fontSize: '12px', fontWeight: 700, letterSpacing: '1px' }}>SEARCH ANY STOCK</span>
+          <span style={{ color: '#475569', fontSize: '11px', marginLeft: '4px' }}>— type a company name or ticker symbol</span>
         </div>
-        <form onSubmit={handleCustomSearch} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          <div style={{ position: 'relative', flex: 1, minWidth: '200px' }}>
-            <Search size={14} style={{ position: 'absolute', left: '14px', top: '13px', color: '#64748b' }} />
+
+        <form onSubmit={handleCustomSearch} style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', position: 'relative' }}>
+          {/* Search input + dropdown wrapper */}
+          <div ref={dropdownRef} style={{ position: 'relative', flex: 1, minWidth: '220px' }}>
+            <Search size={14} style={{ position: 'absolute', left: '14px', top: '13px', color: '#64748b', zIndex: 2 }} />
             <input
               ref={searchInputRef}
               type="text"
-              placeholder="e.g. IOC, IOCL, RELIANCE, AAPL, BTC-USD ..."
+              placeholder="e.g. Indian Oil, Apple, Bitcoin, RELIANCE, IOC..."
               value={customSearch}
-              onChange={e => { setCustomSearch(e.target.value); setCustomError(''); }}
-              style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '11px 14px 11px 38px', color: '#fff', fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+              onChange={handleSearchInput}
+              onFocus={handleSearchFocus}
+              onKeyDown={handleKeyDown}
+              autoComplete="off"
+              style={{ width: '100%', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '12px', padding: '11px 14px 11px 38px', color: '#fff', fontSize: '13px', outline: 'none', boxSizing: 'border-box', transition: 'border-color 0.2s' }}
+              onMouseEnter={e => e.target.style.borderColor = 'rgba(139,92,246,0.5)'}
+              onMouseLeave={e => e.target.style.borderColor = showDropdown ? 'rgba(139,92,246,0.5)' : 'rgba(255,255,255,0.12)'}
             />
+
+            {/* ── DROPDOWN ── */}
+            {showDropdown && (showQuickPicks || showSuggestions) && (
+              <div style={{
+                position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0,
+                background: 'rgba(10,8,30,0.98)', backdropFilter: 'blur(20px)',
+                border: '1px solid rgba(139,92,246,0.25)', borderRadius: '14px',
+                zIndex: 100, overflow: 'hidden', boxShadow: '0 16px 40px rgba(0,0,0,0.6)',
+              }}>
+                {/* Quick picks header */}
+                {showQuickPicks && (
+                  <>
+                    <div style={{ padding: '10px 14px 6px', display: 'flex', alignItems: 'center', gap: '6px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                      <Sparkles size={11} color="#a855f7" />
+                      <span style={{ color: '#64748b', fontSize: '10px', fontWeight: 700, letterSpacing: '1px' }}>POPULAR STOCKS</span>
+                    </div>
+                    {QUICK_PICKS.map((pick, i) => (
+                      <div
+                        key={pick.query}
+                        onClick={() => handleQuickPick(pick)}
+                        style={{
+                          padding: '9px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px',
+                          background: activeSuggestion === i ? 'rgba(139,92,246,0.15)' : 'transparent',
+                          transition: 'background 0.15s',
+                        }}
+                        onMouseEnter={e => { setActiveSuggestion(i); e.currentTarget.style.background = 'rgba(139,92,246,0.12)'; }}
+                        onMouseLeave={e => { e.currentTarget.style.background = activeSuggestion === i ? 'rgba(139,92,246,0.15)' : 'transparent'; }}
+                      >
+                        <span style={{ fontSize: '16px', width: '20px', textAlign: 'center' }}>{pick.flag}</span>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: 500 }}>{pick.label}</div>
+                        </div>
+                        <span style={{ color: '#475569', fontSize: '10px', background: 'rgba(255,255,255,0.05)', padding: '2px 7px', borderRadius: '5px' }}>{pick.type}</span>
+                      </div>
+                    ))}
+                  </>
+                )}
+
+                {/* Live suggestions */}
+                {showSuggestions && (
+                  <>
+                    {suggestLoading && (
+                      <div style={{ padding: '12px 14px', display: 'flex', alignItems: 'center', gap: '8px', color: '#64748b', fontSize: '12px' }}>
+                        <Loader size={12} className="spin" /> Searching...
+                      </div>
+                    )}
+                    {!suggestLoading && suggestions.length === 0 && (
+                      <div style={{ padding: '12px 14px', color: '#475569', fontSize: '12px' }}>
+                        No suggestions — press Search to look up "{customSearch}"
+                      </div>
+                    )}
+                    {!suggestLoading && suggestions.length > 0 && (
+                      <>
+                        <div style={{ padding: '10px 14px 6px', display: 'flex', alignItems: 'center', gap: '6px', borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                          <Search size={10} color="#64748b" />
+                          <span style={{ color: '#64748b', fontSize: '10px', fontWeight: 700, letterSpacing: '1px' }}>MATCHES</span>
+                        </div>
+                        {suggestions.map((s, i) => (
+                          <div
+                            key={s.symbol}
+                            onClick={() => handleSuggestionClick(s)}
+                            style={{
+                              padding: '10px 14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '10px',
+                              background: activeSuggestion === i ? 'rgba(139,92,246,0.15)' : 'transparent',
+                              transition: 'background 0.15s',
+                            }}
+                            onMouseEnter={e => { setActiveSuggestion(i); e.currentTarget.style.background = 'rgba(139,92,246,0.12)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = activeSuggestion === i ? 'rgba(139,92,246,0.15)' : 'transparent'; }}
+                          >
+                            <span style={{ fontSize: '18px', width: '22px', textAlign: 'center' }}>{s.flag}</span>
+                            <div style={{ flex: 1, overflow: 'hidden' }}>
+                              <div style={{ color: '#e2e8f0', fontSize: '13px', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.name}</div>
+                              <div style={{ color: '#64748b', fontSize: '10px' }}>{s.exchange}</div>
+                            </div>
+                            <span style={{ color: '#8b5cf6', fontFamily: 'monospace', fontSize: '11px', background: 'rgba(139,92,246,0.12)', padding: '2px 7px', borderRadius: '5px', whiteSpace: 'nowrap' }}>{s.symbol}</span>
+                          </div>
+                        ))}
+                      </>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
           </div>
-          <button type="submit" disabled={customSearching || !customSearch.trim()} style={{ background: customSearching ? 'rgba(139,92,246,0.2)' : 'rgba(139,92,246,0.8)', border: 'none', color: '#fff', padding: '11px 22px', borderRadius: '12px', cursor: customSearching ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+
+          <button
+            type="submit"
+            disabled={customSearching || !customSearch.trim()}
+            style={{ background: customSearching ? 'rgba(139,92,246,0.2)' : 'rgba(139,92,246,0.8)', border: 'none', color: '#fff', padding: '11px 22px', borderRadius: '12px', cursor: customSearching ? 'not-allowed' : 'pointer', fontWeight: 600, fontSize: '13px', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap' }}
+          >
             {customSearching ? <><Loader size={13} className="spin" /> Searching...</> : <><Search size={13} /> Search</>}
           </button>
         </form>
+
+        {/* Error */}
         {customError && (
-          <div style={{ marginTop: '10px', color: '#f87171', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            ⚠️ {customError}
+          <div style={{ marginTop: '12px', padding: '12px 16px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '10px' }}>
+            <div style={{ color: '#f87171', fontSize: '12px', fontWeight: 600, marginBottom: '6px' }}>⚠️ {customError}</div>
+            <div style={{ color: '#64748b', fontSize: '11px' }}>
+              Try clicking a suggestion below, or use exact Yahoo Finance symbols like{' '}
+              {['IOC.NS', 'RELIANCE.NS', 'HDFCBANK.NS', 'AAPL', 'BTC-USD'].map(s => (
+                <span
+                  key={s}
+                  onClick={() => { setCustomSearch(s); runSearch(s); }}
+                  style={{ color: '#a855f7', cursor: 'pointer', marginLeft: '4px', textDecoration: 'underline', fontFamily: 'monospace' }}
+                >{s}</span>
+              ))}
+            </div>
           </div>
         )}
-        {customResult && (
+
+        {/* Success result */}
+        {customResult && !customError && (
           <div style={{ marginTop: '12px', display: 'flex', alignItems: 'center', gap: '12px', padding: '10px 14px', background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)', borderRadius: '10px' }}>
             <span style={{ fontSize: '20px' }}>{customResult.flag}</span>
             <div>
               <span style={{ color: '#e2e8f0', fontWeight: 600, fontSize: '14px' }}>{customResult.name}</span>
-              <span style={{ color: '#64748b', fontSize: '11px', marginLeft: '8px' }}>{customResult.yahoo_symbol}</span>
+              <span style={{ color: '#64748b', fontSize: '11px', marginLeft: '8px', fontFamily: 'monospace' }}>{customResult.yahoo_symbol}</span>
             </div>
             <span style={{ marginLeft: 'auto', color: '#fff', fontWeight: 700, fontFamily: 'monospace', fontSize: '16px' }}>
               {customResult.price?.toLocaleString(undefined, { minimumFractionDigits: 2 })}
@@ -214,20 +433,31 @@ export default function MarketsPage() {
             </span>
           </div>
         )}
-        <p style={{ margin: '10px 0 0', color: '#475569', fontSize: '11px' }}>
-          Try Indian stocks: <code style={{ color: '#94a3b8' }}>IOC</code>, <code style={{ color: '#94a3b8' }}>SBIN</code>, <code style={{ color: '#94a3b8' }}>WIPRO</code>, <code style={{ color: '#94a3b8' }}>ADANIENT</code> · US: <code style={{ color: '#94a3b8' }}>AAPL</code>, <code style={{ color: '#94a3b8' }}>META</code> · Crypto: <code style={{ color: '#94a3b8' }}>BTC-USD</code>
-        </p>
+
+        {/* Quick tip chips */}
+        <div style={{ marginTop: '12px', display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <span style={{ color: '#334155', fontSize: '10px', marginRight: '4px' }}>Quick picks:</span>
+          {QUICK_PICKS.slice(0, 6).map(pick => (
+            <span
+              key={pick.query}
+              onClick={() => handleQuickPick(pick)}
+              style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '6px', padding: '3px 9px', fontSize: '11px', color: '#94a3b8', cursor: 'pointer', transition: 'all 0.15s', display: 'flex', alignItems: 'center', gap: '4px' }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(139,92,246,0.4)'; e.currentTarget.style.color = '#c4b5fd'; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#94a3b8'; }}
+            >
+              {pick.flag} {pick.label}
+            </span>
+          ))}
+        </div>
       </div>
 
       {/* ── CHART PANEL ── */}
       {selectedStock && (
         <div id="stock-chart-panel" style={{ background: 'rgba(8,5,25,0.85)', backdropFilter: 'blur(16px)', border: `1px solid ${color}33`, borderRadius: '24px', padding: '28px 32px', marginBottom: '28px', animation: 'tooltipFadeIn 0.3s ease', position: 'relative' }}>
-          {/* Close button */}
           <button onClick={() => setSelectedStock(null)} style={{ position: 'absolute', top: '16px', right: '16px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#64748b', cursor: 'pointer', padding: '4px 8px', display: 'flex', alignItems: 'center' }}>
             <X size={14} />
           </button>
 
-          {/* Stock header */}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
@@ -253,7 +483,6 @@ export default function MarketsPage() {
               </div>
             </div>
 
-            {/* Range selector */}
             <div style={{ display: 'flex', gap: '6px', background: 'rgba(255,255,255,0.04)', padding: '4px', borderRadius: '10px' }}>
               {RANGES.map(r => (
                 <button key={r.key} onClick={() => handleRangeChange(r.key)} style={{ padding: '6px 12px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 600, background: activeRange === r.key ? color : 'transparent', color: activeRange === r.key ? '#fff' : '#64748b', transition: 'all 0.2s' }}>
@@ -263,7 +492,6 @@ export default function MarketsPage() {
             </div>
           </div>
 
-          {/* Chart */}
           {historyLoading ? (
             <div style={{ height: '280px', display: 'flex', alignItems: 'center', justifyContent: 'center', color, flexDirection: 'column', gap: '12px' }}>
               <Loader className="spin" size={28} />
@@ -288,8 +516,9 @@ export default function MarketsPage() {
               </ResponsiveContainer>
             </div>
           ) : (
-            <div style={{ height: '100px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#64748b', fontSize: '13px' }}>
-              Historical data unavailable
+            <div style={{ height: '120px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ color: '#64748b', fontSize: '13px' }}>Chart data unavailable for this symbol</div>
+              <div style={{ color: '#334155', fontSize: '11px' }}>Try a different time range or check back later</div>
             </div>
           )}
         </div>
@@ -297,7 +526,6 @@ export default function MarketsPage() {
 
       {/* ── FILTER BAR ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '20px' }}>
-        {/* Category tabs */}
         <div style={{ display: 'flex', gap: '6px', background: 'rgba(255,255,255,0.03)', padding: '4px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.06)' }}>
           {CATEGORIES.map(c => (
             <button key={c.key} onClick={() => setCategory(c.key)} style={{ padding: '7px 14px', borderRadius: '9px', border: 'none', cursor: 'pointer', fontSize: '12px', fontWeight: 600, background: category === c.key ? 'rgba(139,92,246,0.7)' : 'transparent', color: category === c.key ? '#fff' : '#64748b', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '5px' }}>
@@ -306,7 +534,6 @@ export default function MarketsPage() {
           ))}
         </div>
 
-        {/* Name/symbol filter */}
         <div style={{ position: 'relative' }}>
           <Search size={13} style={{ position: 'absolute', left: '12px', top: '11px', color: '#64748b' }} />
           <input
@@ -349,7 +576,6 @@ export default function MarketsPage() {
                 onMouseEnter={e => { if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.055)'; }}
                 onMouseLeave={e => { if (!isSelected) e.currentTarget.style.background = 'rgba(255,255,255,0.025)'; }}
               >
-                {/* Top row */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <span style={{ fontSize: '18px' }}>{stock.flag}</span>
@@ -361,12 +587,10 @@ export default function MarketsPage() {
                   {up ? <TrendingUp size={14} color="#10b981" /> : <TrendingDown size={14} color="#ef4444" />}
                 </div>
 
-                {/* Price */}
                 <div style={{ fontSize: '22px', fontWeight: 800, color: '#fff', marginBottom: '4px', fontFamily: 'monospace', letterSpacing: '-0.5px' }}>
                   {stock.price != null ? stock.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—'}
                 </div>
 
-                {/* Change */}
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <span style={{ color: cardColor, fontSize: '12px', fontWeight: 700 }}>
                     {stock.change_pct > 0 ? '+' : ''}{stock.change_pct}%
@@ -383,7 +607,7 @@ export default function MarketsPage() {
             <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '60px', color: '#475569' }}>
               <Globe size={32} style={{ marginBottom: '12px', opacity: 0.4 }} />
               <div>No markets found for "{searchQuery}"</div>
-              <div style={{ fontSize: '12px', marginTop: '8px', color: '#334155' }}>Try the ticker search above for any stock</div>
+              <div style={{ fontSize: '12px', marginTop: '8px', color: '#334155' }}>Try the smart search above for any stock</div>
             </div>
           )}
         </div>
