@@ -1181,52 +1181,84 @@ async def get_stocks():
 
     # Predefined stock data structure — fetch real data from Yahoo Finance via httpx
     indices = [
+        # Indian Indices
         {"symbol": "SENSEX", "name": "BSE Sensex", "exchange": "BSE", "flag": "🇮🇳"},
         {"symbol": "NIFTY_50", "name": "Nifty 50", "exchange": "NSE", "flag": "🇮🇳"},
+        # US Indices
         {"symbol": ".DJI", "name": "Dow Jones", "exchange": "NYSE", "flag": "🇺🇸"},
         {"symbol": ".IXIC", "name": "NASDAQ", "exchange": "NASDAQ", "flag": "🇺🇸"},
         {"symbol": ".INX", "name": "S&P 500", "exchange": "NYSE", "flag": "🇺🇸"},
         {"symbol": "UKX", "name": "FTSE 100", "exchange": "LSE", "flag": "🇬🇧"},
+        # US Tech
         {"symbol": "AAPL", "name": "Apple", "exchange": "NASDAQ", "flag": "🇺🇸"},
         {"symbol": "NVDA", "name": "Nvidia", "exchange": "NASDAQ", "flag": "🇺🇸"},
         {"symbol": "MSFT", "name": "Microsoft", "exchange": "NASDAQ", "flag": "🇺🇸"},
         {"symbol": "GOOGL", "name": "Alphabet", "exchange": "NASDAQ", "flag": "🇺🇸"},
         {"symbol": "TSLA", "name": "Tesla", "exchange": "NASDAQ", "flag": "🇺🇸"},
         {"symbol": "AMZN", "name": "Amazon", "exchange": "NASDAQ", "flag": "🇺🇸"},
-        {"symbol": "RELIANCE", "name": "Reliance", "exchange": "NSE", "flag": "🇮🇳"},
+        # Indian Blue Chips
+        {"symbol": "RELIANCE", "name": "Reliance Ind.", "exchange": "NSE", "flag": "🇮🇳"},
         {"symbol": "TCS", "name": "TCS", "exchange": "NSE", "flag": "🇮🇳"},
         {"symbol": "HDFCBANK", "name": "HDFC Bank", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "INFY", "name": "Infosys", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "WIPRO", "name": "Wipro", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "ICICIBANK", "name": "ICICI Bank", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "SBIN", "name": "State Bank of India", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "IOC", "name": "Indian Oil Corp", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "ONGC", "name": "ONGC", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "BAJFINANCE", "name": "Bajaj Finance", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "MARUTI", "name": "Maruti Suzuki", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "TATAMOTORS", "name": "Tata Motors", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "ADANIENT", "name": "Adani Enterprises", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "COALINDIA", "name": "Coal India", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "NTPC", "name": "NTPC", "exchange": "NSE", "flag": "🇮🇳"},
+        # Global
         {"symbol": "000001.SS", "name": "SSE Composite", "exchange": "SSE", "flag": "🇨🇳"},
         {"symbol": "N225", "name": "Nikkei 225", "exchange": "TSE", "flag": "🇯🇵"},
+        # Commodities & Crypto
         {"symbol": "GC=F", "name": "Gold", "exchange": "COMEX", "flag": "🥇"},
         {"symbol": "CL=F", "name": "Crude Oil", "exchange": "NYMEX", "flag": "🛢️"},
         {"symbol": "BTC-USD", "name": "Bitcoin", "exchange": "CRYPTO", "flag": "₿"},
+        {"symbol": "ETH-USD", "name": "Ethereum", "exchange": "CRYPTO", "flag": "Ξ"},
     ]
 
     stock_data = []
 
     # Realistic baseline prices for major indices (approximate fallbacks if Yahoo blocks IP)
     baselines = {
-        "SENSEX": {"price": 77450, "range": 800},
-        "NIFTY_50": {"price": 23520, "range": 250},
-        ".DJI": {"price": 42150, "range": 400},
-        ".IXIC": {"price": 17980, "range": 200},
-        ".INX": {"price": 5680, "range": 60},
-        "UKX": {"price": 8640, "range": 80},
-        "AAPL": {"price": 185, "range": 5},
-        "NVDA": {"price": 125, "range": 6},
-        "MSFT": {"price": 425, "range": 8},
-        "GOOGL": {"price": 175, "range": 4},
-        "TSLA": {"price": 220, "range": 10},
-        "AMZN": {"price": 190, "range": 5},
-        "RELIANCE": {"price": 2900, "range": 40},
-        "TCS": {"price": 4000, "range": 60},
-        "HDFCBANK": {"price": 1600, "range": 25},
-        "000001.SS": {"price": 3100, "range": 40},
-        "N225": {"price": 39000, "range": 400},
-        "GC=F": {"price": 2400, "range": 20},
-        "CL=F": {"price": 82, "range": 2},
-        "BTC-USD": {"price": 68000, "range": 1500},
+        "SENSEX": {"price": 79500, "range": 500},
+        "NIFTY_50": {"price": 24100, "range": 160},
+        ".DJI": {"price": 39800, "range": 350},
+        ".IXIC": {"price": 16900, "range": 180},
+        ".INX": {"price": 5300, "range": 50},
+        "UKX": {"price": 8350, "range": 70},
+        "AAPL": {"price": 212, "range": 5},
+        "NVDA": {"price": 875, "range": 20},
+        "MSFT": {"price": 418, "range": 8},
+        "GOOGL": {"price": 168, "range": 4},
+        "TSLA": {"price": 175, "range": 8},
+        "AMZN": {"price": 192, "range": 5},
+        "RELIANCE": {"price": 2920, "range": 35},
+        "TCS": {"price": 3650, "range": 50},
+        "HDFCBANK": {"price": 1580, "range": 22},
+        "INFY": {"price": 1420, "range": 20},
+        "WIPRO": {"price": 462, "range": 10},
+        "ICICIBANK": {"price": 1250, "range": 18},
+        "SBIN": {"price": 810, "range": 15},
+        "IOC": {"price": 175, "range": 5},
+        "ONGC": {"price": 275, "range": 6},
+        "BAJFINANCE": {"price": 6950, "range": 100},
+        "MARUTI": {"price": 12500, "range": 200},
+        "TATAMOTORS": {"price": 945, "range": 20},
+        "ADANIENT": {"price": 2450, "range": 50},
+        "COALINDIA": {"price": 455, "range": 10},
+        "NTPC": {"price": 368, "range": 8},
+        "000001.SS": {"price": 3050, "range": 35},
+        "N225": {"price": 37800, "range": 350},
+        "GC=F": {"price": 3280, "range": 25},
+        "CL=F": {"price": 72, "range": 2},
+        "BTC-USD": {"price": 84000, "range": 2000},
+        "ETH-USD": {"price": 1600, "range": 50},
     }
 
     try:
@@ -1243,7 +1275,21 @@ async def get_stocks():
                     "UKX": "%5EFTSE",
                     "RELIANCE": "RELIANCE.NS",
                     "TCS": "TCS.NS",
-                    "HDFCBANK": "HDFCBANK.NS"
+                    "HDFCBANK": "HDFCBANK.NS",
+                    "INFY": "INFY.NS",
+                    "WIPRO": "WIPRO.NS",
+                    "ICICIBANK": "ICICIBANK.NS",
+                    "SBIN": "SBIN.NS",
+                    "IOC": "IOC.NS",
+                    "ONGC": "ONGC.NS",
+                    "BAJFINANCE": "BAJFINANCE.NS",
+                    "MARUTI": "MARUTI.NS",
+                    "TATAMOTORS": "TATAMOTORS.NS",
+                    "ADANIENT": "ADANIENT.NS",
+                    "COALINDIA": "COALINDIA.NS",
+                    "NTPC": "NTPC.NS",
+                    "N225": "%5EN225",
+                    "ETH-USD": "ETH-USD",
                 }.get(symbol, symbol)
 
                 try:
@@ -1334,9 +1380,23 @@ async def get_stock_history(symbol: str, range: str = "1mo"):
         "RELIANCE": "RELIANCE.NS",
         "TCS": "TCS.NS",
         "HDFCBANK": "HDFCBANK.NS",
+        "INFY": "INFY.NS",
+        "WIPRO": "WIPRO.NS",
+        "ICICIBANK": "ICICIBANK.NS",
+        "SBIN": "SBIN.NS",
+        "IOC": "IOC.NS",
+        "ONGC": "ONGC.NS",
+        "BAJFINANCE": "BAJFINANCE.NS",
+        "MARUTI": "MARUTI.NS",
+        "TATAMOTORS": "TATAMOTORS.NS",
+        "ADANIENT": "ADANIENT.NS",
+        "COALINDIA": "COALINDIA.NS",
+        "NTPC": "NTPC.NS",
+        "N225": "%5EN225",
         "AAPL": "AAPL",
         "GC=F": "GC=F",
-        "BTC-USD": "BTC-USD"
+        "BTC-USD": "BTC-USD",
+        "ETH-USD": "ETH-USD",
     }.get(symbol, symbol)
 
     try:
@@ -2120,6 +2180,51 @@ async def get_market_tickers():
     
     # Fallback mock data if network fails
     return {"data": [{"symbol": "^GSPC", "name": "S&P 500", "price": 5200.0, "change": 10.5, "change_pct": 0.2}]}
+
+@app.get("/api/markets/search")
+async def search_stock(q: str = Query(..., min_length=1, max_length=30)):
+    """Search for a stock by symbol or name via Yahoo Finance. Returns current price + meta."""
+    symbol = q.strip().upper()
+    # Try as-is first, then with .NS suffix for Indian stocks
+    attempts = [symbol, symbol + ".NS", symbol + ".BO"]
+    
+    for attempt in attempts:
+        try:
+            async with httpx.AsyncClient(timeout=6) as client:
+                resp = await client.get(
+                    f"https://query1.finance.yahoo.com/v8/finance/chart/{attempt}?interval=1d&range=1d",
+                    headers={"User-Agent": HTTP_USER_AGENT},
+                )
+                if resp.status_code == 200:
+                    data = resp.json()
+                    result = data.get("chart", {}).get("result", [{}])
+                    if result and result[0]:
+                        meta = result[0].get("meta", {})
+                        price = meta.get("regularMarketPrice")
+                        prev_close = meta.get("previousClose") or meta.get("chartPreviousClose")
+                        long_name = meta.get("longName") or meta.get("shortName") or attempt
+                        currency = meta.get("currency", "USD")
+                        if price:
+                            change = round(price - (prev_close or price), 2)
+                            change_pct = round((change / prev_close) * 100, 2) if prev_close else 0.0
+                            flag = "🇮🇳" if ".NS" in attempt or ".BO" in attempt else "🌐"
+                            return {
+                                "found": True,
+                                "symbol": symbol,
+                                "yahoo_symbol": attempt,
+                                "name": long_name,
+                                "price": round(price, 2),
+                                "change": change,
+                                "change_pct": change_pct,
+                                "direction": "up" if change > 0 else "down" if change < 0 else "flat",
+                                "currency": currency,
+                                "flag": flag,
+                            }
+        except Exception:
+            continue
+    
+    return {"found": False, "symbol": symbol, "message": f"Could not find ticker '{symbol}'. Try the exact Yahoo Finance symbol (e.g., IOC.NS, RELIANCE.NS, AAPL)."}
+
 
 @app.get("/api/social/reddit")
 async def get_reddit_pulse(topic: str = "worldnews"):

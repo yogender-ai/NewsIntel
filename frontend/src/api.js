@@ -131,10 +131,14 @@ export async function fetchStocks() {
     if (response.ok) {
       const data = await response.json();
       if(data.stocks) {
+        // IMPORTANT: include `symbol` and `exchange` so clicking works
         return {
           stocks: data.stocks.map(item => ({
+             symbol: item.symbol,
              name: item.name,
+             exchange: item.exchange || '',
              price: item.price,
+             change: item.change,
              change_pct: item.change_pct,
              direction: item.direction,
              flag: item.flag
@@ -164,6 +168,24 @@ export async function fetchStockHistory(symbol, range = '1mo') {
     // Silently fail
   }
   return { history: [] };
+}
+
+/**
+ * Search for any stock by symbol/name via Yahoo Finance chart endpoint (proxy through backend)
+ */
+export async function fetchStockSearch(query) {
+  try {
+    const response = await fetch(`${API_BASE}/api/markets/search?q=${encodeURIComponent(query)}`, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+    });
+    if (response.ok) {
+      return await response.json();
+    }
+  } catch {
+    // Silently fail
+  }
+  return { results: [] };
 }
 
 /**
