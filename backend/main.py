@@ -2181,14 +2181,223 @@ async def get_market_tickers():
     # Fallback mock data if network fails
     return {"data": [{"symbol": "^GSPC", "name": "S&P 500", "price": 5200.0, "change": 10.5, "change_pct": 0.2}]}
 
-@app.get("/api/markets/search")
-async def search_stock(q: str = Query(..., min_length=1, max_length=30)):
-    """Search for a stock by symbol or name via Yahoo Finance. Returns current price + meta."""
-    symbol = q.strip().upper()
-    # Try as-is first, then with .NS suffix for Indian stocks
-    attempts = [symbol, symbol + ".NS", symbol + ".BO"]
+
+# ---------------------------------------------------------------------------
+# Company name → Yahoo Finance ticker mapping (for smart name search)
+# ---------------------------------------------------------------------------
+COMPANY_NAME_MAP = {
+    # Indian Oil / Petroleum
+    "indian oil": "IOC.NS", "iocl": "IOC.NS", "indian oil corporation": "IOC.NS",
+    "indianoil": "IOC.NS", "indian oil corp": "IOC.NS",
+    "ongc": "ONGC.NS", "oil and natural gas": "ONGC.NS", "oil natural gas": "ONGC.NS",
+    "bpcl": "BPCL.NS", "bharat petroleum": "BPCL.NS",
+    "hpcl": "HPCL.NS", "hindustan petroleum": "HPCL.NS",
+    "petronet": "PETRONET.NS", "petronet lng": "PETRONET.NS",
+    # Indian Banks
+    "sbi": "SBIN.NS", "state bank": "SBIN.NS", "state bank of india": "SBIN.NS",
+    "hdfc bank": "HDFCBANK.NS", "hdfc": "HDFCBANK.NS", "hdfcbank": "HDFCBANK.NS",
+    "icici bank": "ICICIBANK.NS", "icici": "ICICIBANK.NS",
+    "axis bank": "AXISBANK.NS", "axisbank": "AXISBANK.NS",
+    "kotak bank": "KOTAKBANK.NS", "kotak mahindra bank": "KOTAKBANK.NS", "kotak": "KOTAKBANK.NS",
+    "bank of baroda": "BANKBARODA.NS", "bob": "BANKBARODA.NS",
+    "punjab national bank": "PNB.NS", "pnb": "PNB.NS",
+    "canara bank": "CANBK.NS", "canara": "CANBK.NS",
+    "indusind bank": "INDUSINDBK.NS", "indusind": "INDUSINDBK.NS",
+    "yes bank": "YESBANK.NS",
+    # Indian IT
+    "tcs": "TCS.NS", "tata consultancy": "TCS.NS", "tata consultancy services": "TCS.NS",
+    "infosys": "INFY.NS", "infy": "INFY.NS",
+    "wipro": "WIPRO.NS",
+    "hcl tech": "HCLTECH.NS", "hcl technologies": "HCLTECH.NS", "hcltech": "HCLTECH.NS",
+    "tech mahindra": "TECHM.NS", "techm": "TECHM.NS",
+    "mphasis": "MPHASIS.NS",
+    "ltimindtree": "LTIM.NS", "l&t infotech": "LTIM.NS",
+    # Indian Conglomerates
+    "reliance": "RELIANCE.NS", "reliance industries": "RELIANCE.NS", "ril": "RELIANCE.NS",
+    "tata motors": "TATAMOTORS.NS", "tatamotors": "TATAMOTORS.NS",
+    "tata steel": "TATASTEEL.NS", "tatasteel": "TATASTEEL.NS",
+    "tata power": "TATAPOWER.NS",
+    "tata consumer": "TATACONSUM.NS",
+    "adani enterprises": "ADANIENT.NS", "adani": "ADANIENT.NS", "adanient": "ADANIENT.NS",
+    "adani ports": "ADANIPORTS.NS",
+    "adani green": "ADANIGREEN.NS",
+    "adani total gas": "ATGL.NS",
+    "bajaj finance": "BAJFINANCE.NS", "bajfinance": "BAJFINANCE.NS",
+    "bajaj auto": "BAJAJ-AUTO.NS",
+    "bajaj finserv": "BAJAJFINSV.NS",
+    "maruti": "MARUTI.NS", "maruti suzuki": "MARUTI.NS",
+    "mahindra": "M&M.NS", "m&m": "M&M.NS", "mahindra and mahindra": "M&M.NS",
+    "hero motocorp": "HEROMOTOCO.NS", "hero moto": "HEROMOTOCO.NS",
+    "l&t": "LT.NS", "larsen": "LT.NS", "larsen and toubro": "LT.NS",
+    "coal india": "COALINDIA.NS", "coalindia": "COALINDIA.NS",
+    "ntpc": "NTPC.NS",
+    "power grid": "POWERGRID.NS",
+    "asian paints": "ASIANPAINT.NS",
+    "hindustan unilever": "HINDUNILVR.NS", "hul": "HINDUNILVR.NS",
+    "itc": "ITC.NS",
+    "nestle india": "NESTLEIND.NS", "nestle": "NESTLEIND.NS",
+    "sun pharma": "SUNPHARMA.NS", "sun pharmaceutical": "SUNPHARMA.NS",
+    "dr reddy": "DRREDDY.NS", "dr reddy's": "DRREDDY.NS",
+    "cipla": "CIPLA.NS",
+    "divis laboratories": "DIVISLAB.NS", "divi's": "DIVISLAB.NS",
+    "apollo hospital": "APOLLOHOSP.NS", "apollo hospitals": "APOLLOHOSP.NS",
+    "zomato": "ZOMATO.NS",
+    "swiggy": "SWIGGY.NS",
+    "paytm": "PAYTM.NS", "one97": "PAYTM.NS",
+    "nykaa": "NYKAA.NS",
+    "dmart": "DMART.NS", "avenue supermarts": "DMART.NS",
+    "nifty": "^NSEI", "nifty 50": "^NSEI", "nse": "^NSEI",
+    "sensex": "^BSESN", "bse sensex": "^BSESN", "bse": "^BSESN",
+    "nifty bank": "^NSEBANK",
+    # US Tech
+    "apple": "AAPL", "aapl": "AAPL",
+    "microsoft": "MSFT", "msft": "MSFT",
+    "google": "GOOGL", "alphabet": "GOOGL", "googl": "GOOGL",
+    "amazon": "AMZN", "amzn": "AMZN",
+    "meta": "META", "facebook": "META",
+    "nvidia": "NVDA", "nvda": "NVDA",
+    "tesla": "TSLA", "tsla": "TSLA",
+    "netflix": "NFLX", "nflx": "NFLX",
+    "uber": "UBER",
+    "airbnb": "ABNB",
+    "palantir": "PLTR",
+    "amd": "AMD", "advanced micro devices": "AMD",
+    "intel": "INTC",
+    "salesforce": "CRM",
+    "adobe": "ADBE",
+    "zoom": "ZM", "zoom video": "ZM",
+    "twitter": "X", "x corp": "X",
+    "snap": "SNAP", "snapchat": "SNAP",
+    "spotify": "SPOT",
+    "coinbase": "COIN",
+    "shopify": "SHOP",
+    # US Finance
+    "jpmorgan": "JPM", "jp morgan": "JPM",
+    "goldman sachs": "GS",
+    "morgan stanley": "MS",
+    "bank of america": "BAC",
+    "berkshire": "BRK-B", "berkshire hathaway": "BRK-B",
+    "visa": "V",
+    "mastercard": "MA",
+    "paypal": "PYPL",
+    # US Indices
+    "dow jones": "^DJI", "dow": "^DJI", "djia": "^DJI",
+    "nasdaq": "^IXIC", "nasdaq composite": "^IXIC",
+    "s&p 500": "^GSPC", "sp500": "^GSPC", "s&p": "^GSPC",
+    "russell": "^RUT", "russell 2000": "^RUT",
+    # Global
+    "ftse": "^FTSE", "ftse 100": "^FTSE", "uk": "^FTSE",
+    "nikkei": "^N225", "nikkei 225": "^N225", "japan": "^N225",
+    "dax": "^GDAXI", "germany": "^GDAXI",
+    "hang seng": "^HSI", "hong kong": "^HSI",
+    "shanghai": "000001.SS", "sse": "000001.SS",
+    # Commodities & Crypto
+    "gold": "GC=F",
+    "silver": "SI=F",
+    "crude oil": "CL=F", "oil": "CL=F", "brent crude": "BZ=F",
+    "natural gas": "NG=F",
+    "bitcoin": "BTC-USD", "btc": "BTC-USD",
+    "ethereum": "ETH-USD", "eth": "ETH-USD",
+    "dogecoin": "DOGE-USD", "doge": "DOGE-USD",
+    "solana": "SOL-USD", "sol": "SOL-USD",
+    "ripple": "XRP-USD", "xrp": "XRP-USD",
+}
+
+@app.get("/api/markets/suggest")
+async def suggest_stocks(q: str = Query(..., min_length=1, max_length=50)):
+    """Return autocomplete suggestions for stock search based on name or symbol."""
+    query_lower = q.strip().lower()
     
-    for attempt in attempts:
+    # All known stocks for suggestion
+    ALL_STOCKS = [
+        # Indian Indices
+        {"symbol": "NIFTY_50", "yahoo": "^NSEI", "name": "Nifty 50", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "SENSEX", "yahoo": "^BSESN", "name": "BSE Sensex", "exchange": "BSE", "flag": "🇮🇳"},
+        # Indian Blue-chips
+        {"symbol": "RELIANCE", "yahoo": "RELIANCE.NS", "name": "Reliance Industries", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "TCS", "yahoo": "TCS.NS", "name": "Tata Consultancy Services", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "HDFCBANK", "yahoo": "HDFCBANK.NS", "name": "HDFC Bank", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "INFY", "yahoo": "INFY.NS", "name": "Infosys", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "ICICIBANK", "yahoo": "ICICIBANK.NS", "name": "ICICI Bank", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "SBIN", "yahoo": "SBIN.NS", "name": "State Bank of India", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "IOC", "yahoo": "IOC.NS", "name": "Indian Oil Corporation", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "ONGC", "yahoo": "ONGC.NS", "name": "Oil & Natural Gas Corp", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "WIPRO", "yahoo": "WIPRO.NS", "name": "Wipro", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "BAJFINANCE", "yahoo": "BAJFINANCE.NS", "name": "Bajaj Finance", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "MARUTI", "yahoo": "MARUTI.NS", "name": "Maruti Suzuki", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "TATAMOTORS", "yahoo": "TATAMOTORS.NS", "name": "Tata Motors", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "ADANIENT", "yahoo": "ADANIENT.NS", "name": "Adani Enterprises", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "COALINDIA", "yahoo": "COALINDIA.NS", "name": "Coal India", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "NTPC", "yahoo": "NTPC.NS", "name": "NTPC", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "LT", "yahoo": "LT.NS", "name": "Larsen & Toubro", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "AXISBANK", "yahoo": "AXISBANK.NS", "name": "Axis Bank", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "KOTAKBANK", "yahoo": "KOTAKBANK.NS", "name": "Kotak Mahindra Bank", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "HCLTECH", "yahoo": "HCLTECH.NS", "name": "HCL Technologies", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "SUNPHARMA", "yahoo": "SUNPHARMA.NS", "name": "Sun Pharmaceutical", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "BPCL", "yahoo": "BPCL.NS", "name": "Bharat Petroleum", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "ITC", "yahoo": "ITC.NS", "name": "ITC Limited", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "ZOMATO", "yahoo": "ZOMATO.NS", "name": "Zomato", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": "PAYTM", "yahoo": "PAYTM.NS", "name": "Paytm (One97)", "exchange": "NSE", "flag": "🇮🇳"},
+        # US Stocks & Indices
+        {"symbol": "AAPL", "yahoo": "AAPL", "name": "Apple Inc.", "exchange": "NASDAQ", "flag": "🇺🇸"},
+        {"symbol": "MSFT", "yahoo": "MSFT", "name": "Microsoft", "exchange": "NASDAQ", "flag": "🇺🇸"},
+        {"symbol": "GOOGL", "yahoo": "GOOGL", "name": "Alphabet (Google)", "exchange": "NASDAQ", "flag": "🇺🇸"},
+        {"symbol": "AMZN", "yahoo": "AMZN", "name": "Amazon", "exchange": "NASDAQ", "flag": "🇺🇸"},
+        {"symbol": "META", "yahoo": "META", "name": "Meta (Facebook)", "exchange": "NASDAQ", "flag": "🇺🇸"},
+        {"symbol": "NVDA", "yahoo": "NVDA", "name": "Nvidia", "exchange": "NASDAQ", "flag": "🇺🇸"},
+        {"symbol": "TSLA", "yahoo": "TSLA", "name": "Tesla", "exchange": "NASDAQ", "flag": "🇺🇸"},
+        {"symbol": "NFLX", "yahoo": "NFLX", "name": "Netflix", "exchange": "NASDAQ", "flag": "🇺🇸"},
+        {"symbol": "^DJI", "yahoo": "^DJI", "name": "Dow Jones Industrial", "exchange": "NYSE", "flag": "🇺🇸"},
+        {"symbol": "^IXIC", "yahoo": "^IXIC", "name": "NASDAQ Composite", "exchange": "NASDAQ", "flag": "🇺🇸"},
+        {"symbol": "^GSPC", "yahoo": "^GSPC", "name": "S&P 500", "exchange": "NYSE", "flag": "🇺🇸"},
+        # Global
+        {"symbol": "^FTSE", "yahoo": "^FTSE", "name": "FTSE 100 (UK)", "exchange": "LSE", "flag": "🇬🇧"},
+        {"symbol": "^N225", "yahoo": "^N225", "name": "Nikkei 225 (Japan)", "exchange": "TSE", "flag": "🇯🇵"},
+        {"symbol": "^GDAXI", "yahoo": "^GDAXI", "name": "DAX (Germany)", "exchange": "FSE", "flag": "🇩🇪"},
+        # Crypto & Commodities
+        {"symbol": "BTC-USD", "yahoo": "BTC-USD", "name": "Bitcoin", "exchange": "CRYPTO", "flag": "₿"},
+        {"symbol": "ETH-USD", "yahoo": "ETH-USD", "name": "Ethereum", "exchange": "CRYPTO", "flag": "Ξ"},
+        {"symbol": "GC=F", "yahoo": "GC=F", "name": "Gold Futures", "exchange": "COMEX", "flag": "🥇"},
+        {"symbol": "CL=F", "yahoo": "CL=F", "name": "Crude Oil (WTI)", "exchange": "NYMEX", "flag": "🛢️"},
+    ]
+    
+    matches = []
+    for stock in ALL_STOCKS:
+        name_lower = stock["name"].lower()
+        sym_lower = stock["symbol"].lower()
+        if query_lower in name_lower or query_lower in sym_lower or name_lower.startswith(query_lower):
+            matches.append(stock)
+        if len(matches) >= 6:
+            break
+    
+    return {"suggestions": matches, "query": q}
+
+
+@app.get("/api/markets/search")
+async def search_stock(q: str = Query(..., min_length=1, max_length=50)):
+    """Search for a stock by symbol or name via Yahoo Finance. Returns current price + meta."""
+    query_raw = q.strip()
+    query_lower = query_raw.lower()
+    
+    # 1. Check name→ticker map first
+    resolved_yahoo = COMPANY_NAME_MAP.get(query_lower)
+    
+    # 2. Build attempt list: resolved ticker first, then raw symbol variants
+    symbol_upper = query_raw.upper()
+    if resolved_yahoo:
+        attempts = [resolved_yahoo, symbol_upper, symbol_upper + ".NS", symbol_upper + ".BO"]
+    else:
+        attempts = [symbol_upper, symbol_upper + ".NS", symbol_upper + ".BO"]
+    
+    # Remove duplicates while preserving order
+    seen = set()
+    unique_attempts = []
+    for a in attempts:
+        if a not in seen:
+            seen.add(a)
+            unique_attempts.append(a)
+    
+    for attempt in unique_attempts:
         try:
             async with httpx.AsyncClient(timeout=6) as client:
                 resp = await client.get(
@@ -2207,10 +2416,11 @@ async def search_stock(q: str = Query(..., min_length=1, max_length=30)):
                         if price:
                             change = round(price - (prev_close or price), 2)
                             change_pct = round((change / prev_close) * 100, 2) if prev_close else 0.0
-                            flag = "🇮🇳" if ".NS" in attempt or ".BO" in attempt else "🌐"
+                            is_indian = ".NS" in attempt or ".BO" in attempt or attempt in {"^NSEI", "^BSESN", "^NSEBANK"}
+                            flag = "🇮🇳" if is_indian else ("₿" if "BTC" in attempt else ("Ξ" if "ETH" in attempt else "🌐"))
                             return {
                                 "found": True,
-                                "symbol": symbol,
+                                "symbol": symbol_upper,
                                 "yahoo_symbol": attempt,
                                 "name": long_name,
                                 "price": round(price, 2),
@@ -2223,7 +2433,11 @@ async def search_stock(q: str = Query(..., min_length=1, max_length=30)):
         except Exception:
             continue
     
-    return {"found": False, "symbol": symbol, "message": f"Could not find ticker '{symbol}'. Try the exact Yahoo Finance symbol (e.g., IOC.NS, RELIANCE.NS, AAPL)."}
+    return {
+        "found": False,
+        "symbol": symbol_upper,
+        "message": f"Could not find '{query_raw}'. Try the exact ticker symbol (e.g., IOC.NS, RELIANCE.NS, AAPL) or a company name like 'Indian Oil', 'Apple', 'Bitcoin'."
+    }
 
 
 @app.get("/api/social/reddit")

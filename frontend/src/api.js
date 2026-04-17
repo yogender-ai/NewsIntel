@@ -189,6 +189,25 @@ export async function fetchStockSearch(query) {
 }
 
 /**
+ * Get autocomplete suggestions for stock name/symbol
+ */
+export async function fetchStockSuggest(query) {
+  try {
+    const response = await fetch(`${API_BASE}/api/markets/suggest?q=${encodeURIComponent(query)}`, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' },
+    });
+    if (response.ok) {
+      return await response.json();
+    }
+  } catch {
+    // Silently fail
+  }
+  return { suggestions: [] };
+}
+
+
+/**
  * Detect user location from IP
  */
 export async function detectLocation() {
