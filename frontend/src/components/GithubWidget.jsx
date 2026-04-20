@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { MessageSquare, Star, X, CheckCircle, Send, Heart, Lightbulb, Frown, GitFork, Eye, ExternalLink, Sparkles, ArrowRight, Clock, LogIn, User, LogOut } from 'lucide-react';
-import { fetchGitHubStars, fetchGitHubStats, submitFeedback, fetchFeedbackList } from '../api';
+import { fetchGitHubStars, fetchGitHubStats, submitFeedback, fetchFeedbackList, API_BASE } from '../api';
 import './GithubWidget.css';
 
 const REPO_URL = 'https://github.com/yogender-ai/News-Intel-Feedback';
@@ -75,7 +75,7 @@ export default function GithubWidget() {
       // Exchange code for user info via backend
       (async () => {
         try {
-          const resp = await fetch(`${import.meta.env.VITE_API_URL || 'https://newsintel-xvhe.onrender.com'}/auth/github?code=${code}`);
+          const resp = await fetch(`${API_BASE}/auth/github?code=${code}`);
           if (resp.ok) {
             const user = await resp.json();
             if (user.login) {
