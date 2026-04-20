@@ -37,21 +37,18 @@ import itertools
 # ---------------------------------------------------------------------------
 load_dotenv()
 
-HF_TOKEN = os.getenv("HF_TOKEN").strip() if os.getenv("HF_TOKEN") else None
-
-# Multiple Gemini API keys for round-robin load balancing
-_gemini_keys = []
-for _k in ["GEMINI_API_KEY", "GEMINI_API_KEY_2", "GEMINI_API_KEY_3"]:
-    _v = os.getenv(_k)
-    if _v and _v.strip():
-        _gemini_keys.append(_v.strip())
-GEMINI_API_KEYS = _gemini_keys if _gemini_keys else []
+GATEWAY_SECRET = os.getenv("GATEWAY_SECRET", "").strip()
 logger_init = logging.getLogger("news-intel")
-logger_init = logging.getLogger("news-intel")
-logger_init.info(f"Loaded {len(GEMINI_API_KEYS)} Gemini API key(s)")
+if not GATEWAY_SECRET:
+    logger_init.warning("GATEWAY_SECRET is not set! API calls may fail.")
+else:
+    logger_init.info("Loaded Cloud Command Gateway config")
 
-HF_API_URL = "https://router.huggingface.co/hf-inference/models"
-HF_HEADERS = {"Authorization": f"Bearer {HF_TOKEN}"}
+HF_API_URL = "https://cloudcmd.yogender1.me/api/gateway/huggingface"
+HF_HEADERS = {
+    "X-Gateway-Secret": GATEWAY_SECRET,
+    "X-Project-Category": "News-Intel"
+}
 
 SUMMARIZATION_MODEL = "sshleifer/distilbart-cnn-12-6"
 SENTIMENT_MODEL = "cardiffnlp/twitter-roberta-base-sentiment-latest"
@@ -196,25 +193,23 @@ async def shutdown():
     await database.disconnect()
 
 # ---------------------------------------------------------------------------
-# Gemini client
+# Gemini client (Routed via Cloud Command Gateway)
 # ---------------------------------------------------------------------------
-_gemini_clients = []
-for _k in GEMINI_API_KEYS:
-    try:
-        _gemini_clients.append(genai.Client(api_key=_k))
-    except Exception as e:
-        logger_init.warning(f"Failed to initialize Gemini client: {e}")
-
-if not _gemini_clients:
-    _gemini_client_cycle = itertools.cycle([None])
-else:
-    _gemini_client_cycle = itertools.cycle(_gemini_clients)
-
 def get_gemini_client():
-    """Get next Gemini client from round-robin pool."""
-    client = next(_gemini_client_cycle)
-    if client is None:
-        raise ValueError("No valid Gemini API key configured.")
+    """Get Gemini client pointed to Cloud Command Gateway."""
+    if not GATEWAY_SECRET:
+        raise ValueError("No GATEWAY_SECRET configured.")
+        
+    client = genai.Client(
+        api_key=GATEWAY_SECRET,
+        http_options={
+            "base_url": "https://cloudcmd.yogender1.me/api/gateway/gemini",
+            "headers": {
+                "X-Gateway-Secret": GATEWAY_SECRET,
+                "X-Project-Category": "News-Intel"
+            }
+        }
+    )
     return client
 
 # ---------------------------------------------------------------------------
