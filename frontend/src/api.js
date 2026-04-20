@@ -35,7 +35,7 @@ async function fetchWithRetry(url, options = {}, retries = 2, backoff = 1000) {
 /**
  * Analyze a topic — hits the backend /analyze endpoint
  */
-export const analyzeTopic = async (topic, region = 'global', forceRefresh = false) => {
+export const analyzeTopic = async (topic, region = 'global', forceRefresh = true) => {
   const cacheKey = `${topic}-${region}`;
   
   if (!forceRefresh && inflightRequests.has(cacheKey)) {
