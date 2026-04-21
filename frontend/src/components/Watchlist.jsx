@@ -5,8 +5,8 @@ import { fetchStocks } from '../api';
 // Sparkline mini-chart using real data array
 function Sparkline({ prices = [], direction = 'up' }) {
   if (!prices || prices.length < 2) {
-    // Random fallback sparkline
-    const pts = Array.from({ length: 10 }, (_, i) => ({ x: i, y: 10 + Math.random() * 8 }));
+    // No data — show flat line (no fake random sparkline)
+    const pts = Array.from({ length: 10 }, (_, i) => ({ x: i, y: 10 }));
     return <SparklineSVG pts={pts} direction={direction} />;
   }
   const min = Math.min(...prices);

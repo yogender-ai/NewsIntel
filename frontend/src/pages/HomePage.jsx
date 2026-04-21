@@ -9,7 +9,7 @@ import AnalystOpinions from '../components/AnalystOpinions';
 import IntelligenceFeed from '../components/IntelligenceFeed';
 import AlertsPanel from '../components/AlertsPanel';
 import WorldMap from '../components/WorldMap';
-import { ArrowRight, Globe, Zap, Users, TrendingUp, Shield, MessageSquare, Eye, ChevronUp, ChevronDown, BarChart3, Radio, Flame } from 'lucide-react';
+import { ArrowRight, Globe, Zap, Users, Shield, MessageSquare, Eye, ChevronUp, ChevronDown, BarChart3, Radio, Flame } from 'lucide-react';
 
 
 
@@ -18,20 +18,10 @@ import { ArrowRight, Globe, Zap, Users, TrendingUp, Shield, MessageSquare, Eye, 
 
 export default function HomePage() {
   const [trending, setTrending] = useState(null);
-  const [sentiment, setSentiment] = useState(84);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const navigate = useNavigate();
 
-  // Oscillate sentiment every 6 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setSentiment(prev => {
-        const delta = Math.floor(Math.random() * 5) - 2;
-        return Math.max(60, Math.min(95, prev + delta));
-      });
-    }, 6000);
-    return () => clearInterval(interval);
-  }, []);
+  // No fake sentiment oscillation — sentiment comes from real API analysis only
 
   useEffect(() => {
     (async () => {
@@ -46,13 +36,9 @@ export default function HomePage() {
 
 
 
-
-
   const headlines = trending?.headlines || [];
   const heroHeadlines = headlines.slice(0, 8);
 
-  const sentimentLabel = sentiment >= 80 ? 'VERY BULLISH' : sentiment >= 65 ? 'BULLISH' : 'NEUTRAL';
-  const sentimentColor = sentiment >= 80 ? '#10b981' : sentiment >= 65 ? '#f59e0b' : '#94a3b8';
 
   return (
     <div className="home-preview-page" style={{ padding: '32px 24px 40px', maxWidth: '1600px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '18px', position: 'relative', zIndex: 1 }}>
@@ -225,16 +211,13 @@ export default function HomePage() {
 
         {/* Right Sidebar */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-          {/* Live Sentiment Gauge */}
-          <div style={{ padding: '20px', background: `linear-gradient(135deg, ${sentimentColor}11, ${sentimentColor}22)`, borderRadius: '16px', border: `1px solid ${sentimentColor}44`, boxShadow: `0 0 30px ${sentimentColor}15`, transition: 'all 0.8s ease' }}>
-            <div style={{ fontSize: '11px', color: sentimentColor, fontWeight: '700', letterSpacing: '1px', marginBottom: '4px', transition: 'color 0.8s' }}>MARKET SENTIMENT</div>
-            <div style={{ fontSize: '36px', fontWeight: '900', color: sentimentColor, display: 'flex', alignItems: 'center', justifyContent: 'space-between', transition: 'color 0.8s' }}>
-              {sentiment}% <TrendingUp size={28} color={sentimentColor} />
+          {/* Market Sentiment — shows real data from analysis, not fake oscillation */}
+          <div style={{ padding: '20px', background: 'linear-gradient(135deg, rgba(99,102,241,0.08), rgba(139,92,246,0.12))', borderRadius: '16px', border: '1px solid rgba(139,92,246,0.2)' }}>
+            <div style={{ fontSize: '11px', color: '#8b5cf6', fontWeight: '700', letterSpacing: '1px', marginBottom: '8px' }}>MARKET SENTIMENT</div>
+            <div style={{ fontSize: '13px', color: '#94a3b8', lineHeight: '1.5' }}>
+              Search a topic to see real AI-powered sentiment analysis
             </div>
-            <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px', transition: 'all 0.8s' }}>{sentimentLabel}</div>
-            <div style={{ marginTop: '8px', width: '100%', height: '4px', background: 'rgba(255,255,255,0.06)', borderRadius: '2px', overflow: 'hidden' }}>
-              <div style={{ width: `${sentiment}%`, height: '100%', background: sentimentColor, borderRadius: '2px', transition: 'width 0.8s ease, background 0.8s ease' }} />
-            </div>
+            <div style={{ marginTop: '10px', fontSize: '10px', color: '#64748b' }}>Powered by Gemini 2.5 Flash + RoBERTa</div>
           </div>
           <TrendsSidebar />
           <AlertsPanel />

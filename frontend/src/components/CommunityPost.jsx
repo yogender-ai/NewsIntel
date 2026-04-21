@@ -102,18 +102,23 @@ export default function CommunityPost({ post }) {
           </div>
           <div className="cpost-chart-sparkline">
             {/* Sparkline bars */}
-            {Array.from({ length: 20 }, (_, i) => (
-              <div
-                key={i}
-                className="spark-bar"
-                style={{
-                  height: `${20 + Math.random() * 60}%`,
-                  background: chartData.change > 0
-                    ? `rgba(52, 211, 153, ${0.3 + Math.random() * 0.5})`
-                    : `rgba(244, 63, 94, ${0.3 + Math.random() * 0.5})`,
-                }}
-              />
-            ))}
+            {Array.from({ length: 20 }, (_, i) => {
+              // Deterministic bar heights based on index (no random)
+              const h = 25 + ((i * 37 + 11) % 55);
+              const opacity = 0.3 + ((i * 19 + 7) % 40) / 100;
+              return (
+                <div
+                  key={i}
+                  className="spark-bar"
+                  style={{
+                    height: `${h}%`,
+                    background: chartData.change > 0
+                      ? `rgba(52, 211, 153, ${opacity})`
+                      : `rgba(244, 63, 94, ${opacity})`,
+                  }}
+                />
+              );
+            })}
           </div>
         </div>
       )}

@@ -305,21 +305,24 @@ export default function WorldMap() {
     return () => clearInterval(interval);
   }, []);
 
+  // Live blips now come from dynamicZones (real news coordinates), not random positions
   useEffect(() => {
-    if (zoomedCountryInfo || countries.length === 0) return;
+    if (zoomedCountryInfo || dynamicZones.length === 0) return;
     const interval = setInterval(() => {
-      const lon = -160 + Math.random() * 320;
-      const lat = -60 + Math.random() * 120;
-      const id = Date.now();
-      setLiveBlips(prev => [...prev.slice(-4), { id, coords: [lon, lat] }]);
+      // Use actual news zone coordinates for blips
+      if (dynamicZones.length > 0) {
+        const zone = dynamicZones[Math.floor(Date.now() / 2500) % dynamicZones.length];
+        const id = Date.now();
+        setLiveBlips(prev => [...prev.slice(-4), { id, coords: zone.coords }]);
+      }
     }, 2500);
     return () => clearInterval(interval);
-  }, [countries, zoomedCountryInfo]);
+  }, [dynamicZones, zoomedCountryInfo]);
 
   const loadLocalNews = () => {
     fetchTrending().then(d => {
       const allNews = d.headlines || [];
-      setStateNews([...allNews].sort(() => 0.5 - Math.random()));
+      setStateNews(allNews);
     });
   };
 

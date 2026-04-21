@@ -1,17 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Bell, AlertTriangle, ArrowUpRight, Shield } from 'lucide-react';
+import { Bell, AlertTriangle, Shield } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { fetchTrending } from '../api';
-
-function formatTime(mins) {
-  if (mins < 60) return `${mins}m ago`;
-  return `${Math.floor(mins / 60)}h ago`;
-}
-
-function formatEng(n) {
-  if (n >= 1000) return (n / 1000).toFixed(1) + 'k';
-  return n.toString();
-}
 
 export default function AlertsPanel({ alerts = null }) {
   const navigate = useNavigate();
@@ -29,26 +19,13 @@ export default function AlertsPanel({ alerts = null }) {
           title: hl.title,
           source: hl.source || 'Global',
           tags: [hl.event_label || 'BREAKING'].filter(t => t !== 'ALERT'),
-          time: Math.floor(Math.random() * 50) + 5,
-          engagement: Math.floor(Math.random() * 40000) + 5000,
+          time_ago: hl.time_ago || hl.published || '',
           urgent: hl.severity === 'critical',
           link: hl.link,
         }));
         setLiveAlerts(mapped);
       }
     }).catch(() => {});
-  }, []);
-
-  // Auto-update engagement
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setLiveAlerts(prev => prev.map(a => ({
-        ...a,
-        engagement: a.engagement + Math.floor(Math.random() * 100) + 10,
-        time: a.time + 1,
-      })));
-    }, 10000);
-    return () => clearInterval(interval);
   }, []);
 
   const displayAlerts = alerts || liveAlerts;
@@ -88,8 +65,7 @@ export default function AlertsPanel({ alerts = null }) {
               </div>
             </div>
             <div className="alert-card-right">
-              <span className="alert-engagement"><ArrowUpRight size={10} />{formatEng(alert.engagement)}</span>
-              <span className="alert-time">{formatTime(alert.time)}</span>
+              {alert.time_ago && <span className="alert-time">{alert.time_ago}</span>}
             </div>
           </div>
         ))}

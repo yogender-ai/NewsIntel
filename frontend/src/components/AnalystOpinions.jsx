@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react';
-import { MessageSquare, ThumbsUp, ThumbsDown, ExternalLink } from 'lucide-react';
+import { MessageSquare, ExternalLink } from 'lucide-react';
 import { fetchTrending } from '../api';
 
 export default function AnalystOpinions() {
   const [currentIdx, setCurrentIdx] = useState(0);
   const [opinionsData, setOpinionsData] = useState([]);
-  const [votes, setVotes] = useState([]);
 
   useEffect(() => {
     fetchTrending().then(data => {
@@ -17,11 +16,9 @@ export default function AnalystOpinions() {
            color: colors[i % colors.length],
            opinion: h.title,
            link: h.link || '#',
-           upvotes: 100 + Math.floor(Math.random() * 200),
-           downvotes: Math.floor(Math.random() * 20)
+           time_ago: h.time_ago || '',
         }));
         setOpinionsData(mapped);
-        setVotes(mapped.map(a => ({ up: a.upvotes, down: a.downvotes })));
       }
     }).catch(() => {});
   }, []);
@@ -35,21 +32,9 @@ export default function AnalystOpinions() {
     return () => clearInterval(interval);
   }, [opinionsData]);
 
-  // Simulate vote changes every 8 seconds
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setVotes(prev => prev.map(v => ({
-        up: v.up + Math.floor(Math.random() * 3),
-        down: v.down + (Math.random() > 0.7 ? 1 : 0),
-      })));
-    }, 8000);
-    return () => clearInterval(interval);
-  }, []);
-
   if (opinionsData.length === 0) return null;
 
   const analyst = opinionsData[currentIdx] || opinionsData[0];
-  const v = votes[currentIdx] || votes[0];
 
   return (
     <div className="analyst-opinions-panel">
@@ -70,7 +55,6 @@ export default function AnalystOpinions() {
               <div className="analyst-name">{analyst.name}</div>
               <div className="analyst-role">{analyst.role}</div>
             </div>
-            <span style={{ marginLeft: 'auto', fontSize: '12px', fontWeight: '700', color: '#10b981' }}>+{v.up}</span>
           </div>
 
           <p className="analyst-opinion-text">{analyst.opinion}</p>
@@ -83,13 +67,8 @@ export default function AnalystOpinions() {
           )}
 
           <div className="analyst-opinion-actions">
-            <button className="analyst-vote-btn" onClick={() => setVotes(prev => { const n = [...prev]; n[currentIdx] = { ...n[currentIdx], up: n[currentIdx].up + 1 }; return n; })}>
-              <ThumbsUp size={12} /><span>{v.up}</span>
-            </button>
-            <button className="analyst-vote-btn" onClick={() => setVotes(prev => { const n = [...prev]; n[currentIdx] = { ...n[currentIdx], down: n[currentIdx].down + 1 }; return n; })}>
-              <ThumbsDown size={12} /><span>{v.down}</span>
-            </button>
-            <span className="analyst-view-more" style={{ fontSize: '10px', color: '#64748b' }}>
+            {analyst.time_ago && <span style={{ fontSize: '10px', color: '#64748b' }}>{analyst.time_ago}</span>}
+            <span className="analyst-view-more" style={{ fontSize: '10px', color: '#64748b', marginLeft: 'auto' }}>
               {currentIdx + 1}/{opinionsData.length} · auto-rotating
             </span>
           </div>
