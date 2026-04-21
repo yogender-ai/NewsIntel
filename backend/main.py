@@ -53,7 +53,7 @@ else:
 
 # HuggingFace Spaces — both under YAsh213kadian account (1 HF token covers both)
 HF_SPACE_URL = os.getenv("HF_SPACE_URL", "YAsh213kadian/News_intel_HF_space_1")
-HF_SPACE_URL_2 = os.getenv("HF_SPACE_URL_2", "YAsh213kadian/News_Intel_HF_space_2")
+HF_SPACE_URL_2 = os.getenv("HF_SPACE_URL_2", "YAsh213kadian/News-Intel_HF_space_2")
 HF_TOKEN = os.getenv("HF_TOKEN", "")  # Same token works for both private spaces
 
 # YouTube API key
