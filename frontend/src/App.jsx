@@ -19,6 +19,7 @@ const CommunityPage = lazy(() => import('./pages/CommunityPage'));
 const MarketsPage = lazy(() => import('./pages/MarketsPage'));
 const CountryProfilePage = lazy(() => import('./pages/CountryProfilePage'));
 const MyIntelPage = lazy(() => import('./pages/MyIntelPage'));
+const OnboardingPage = lazy(() => import('./pages/OnboardingPage'));
 import React from 'react';
 import LoginModal from './components/LoginModal';
 import ParticleBackground from './components/ParticleBackground';
@@ -81,6 +82,7 @@ function AnimatedRoutes() {
         <Route path="/markets" element={<MarketsPage />} />
         <Route path="/country/:country" element={<CountryProfilePage />} />
         <Route path="/my-intel" element={<MyIntelPage />} />
+        <Route path="/onboarding" element={<OnboardingPage />} />
       </Routes>
     </div>
   );
@@ -125,10 +127,32 @@ function AppShell() {
   const { list: readingList, removeArticle, clearAll } = useReadingList();
   const { t } = useLanguage();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchFocused, setSearchFocused] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const { user, logout } = useAuth();
   const [headerTemp, setHeaderTemp] = useState(null);
+
+  // Auth gate: open login modal automatically for unauthenticated users
+  useEffect(() => {
+    if (!user && location.pathname !== '/onboarding') {
+      setIsLoginOpen(true);
+    }
+  }, [user, location.pathname]);
+
+  // Onboarding redirect: new users go to onboarding after first login
+  useEffect(() => {
+    if (user && !localStorage.getItem('onboarded') && location.pathname !== '/onboarding') {
+      navigate('/onboarding');
+    }
+  }, [user, location.pathname]);
+
+  // Listen for open-login events from other components
+  useEffect(() => {
+    const handler = () => setIsLoginOpen(true);
+    window.addEventListener('open-login', handler);
+    return () => window.removeEventListener('open-login', handler);
+  }, []);
 
   useEffect(() => {
     pingHealth();

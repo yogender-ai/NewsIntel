@@ -386,3 +386,45 @@ export const fetchEntityTracking = async (entity) => {
     return { tracking: [] };
   }
 };
+
+// ── User Preferences (Onboarding) ──
+
+export const fetchUserPreferences = async (firebaseUid) => {
+  try {
+    return await fetchWithRetry(`${API_BASE_URL}/api/user/preferences?firebase_uid=${encodeURIComponent(firebaseUid)}`);
+  } catch {
+    return null;
+  }
+};
+
+export const saveUserPreferences = async (firebaseUid, preferences) => {
+  try {
+    return await fetchWithRetry(`${API_BASE_URL}/api/user/preferences`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        firebase_uid: firebaseUid,
+        ...preferences,
+      }),
+    });
+  } catch (error) {
+    console.error('Failed to save preferences:', error);
+    throw error;
+  }
+};
+
+export const completeOnboarding = async (firebaseUid, preferences) => {
+  try {
+    return await fetchWithRetry(`${API_BASE_URL}/api/user/onboarding`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        firebase_uid: firebaseUid,
+        ...preferences,
+      }),
+    });
+  } catch (error) {
+    console.error('Failed to complete onboarding:', error);
+    throw error;
+  }
+};
