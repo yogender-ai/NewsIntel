@@ -236,7 +236,7 @@ def get_gemini_client():
     client = genai.Client(
         api_key=GATEWAY_SECRET,
         http_options={
-            "base_url": "https://cloudcmd.yogender1.me/api/gateway/gemini",
+            "base_url": os.getenv("GATEWAY_BASE_URL", "https://cloudcmd.yogender1.me/api/gateway/gemini").strip(),
             "headers": {
                 "X-Gateway-Secret": GATEWAY_SECRET,
                 "X-Project-Category": "News-Intel"
