@@ -51,9 +51,10 @@ if not GATEWAY_SECRET:
 else:
     logger_init.info("Loaded Cloud Command Gateway config")
 
-# HuggingFace Space URL — replace with your actual Space URL after deployment
-HF_SPACE_URL = os.getenv("HF_SPACE_URL", "yogender-ai/newsintel-nlp")
-HF_SPACE_URL_2 = os.getenv("HF_SPACE_URL_2", "")  # Backup Space on 2nd account
+# HuggingFace Spaces — both under YAsh213kadian account (1 HF token covers both)
+HF_SPACE_URL = os.getenv("HF_SPACE_URL", "YAsh213kadian/News_intel_HF_space_1")
+HF_SPACE_URL_2 = os.getenv("HF_SPACE_URL_2", "YAsh213kadian/News_Intel_HF_space_2")
+HF_TOKEN = os.getenv("HF_TOKEN", "")  # Same token works for both private spaces
 
 # YouTube API key
 YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "")
@@ -433,17 +434,17 @@ _hf_client = None
 _hf_client_backup = None
 
 def _get_hf_client():
-    """Lazy-init Gradio client for HF Space."""
+    """Lazy-init Gradio client for HF Space. Uses HF_TOKEN for private spaces."""
     global _hf_client, _hf_client_backup
     if _hf_client is None:
         try:
-            _hf_client = GradioClient(HF_SPACE_URL)
+            _hf_client = GradioClient(HF_SPACE_URL, hf_token=HF_TOKEN or None)
             logger.info(f"HF Space client connected: {HF_SPACE_URL}")
         except Exception as e:
             logger.error(f"Failed to connect to primary HF Space: {e}")
     if _hf_client_backup is None and HF_SPACE_URL_2:
         try:
-            _hf_client_backup = GradioClient(HF_SPACE_URL_2)
+            _hf_client_backup = GradioClient(HF_SPACE_URL_2, hf_token=HF_TOKEN or None)
             logger.info(f"HF Space backup client connected: {HF_SPACE_URL_2}")
         except Exception:
             pass
