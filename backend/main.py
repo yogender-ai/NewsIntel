@@ -25,6 +25,7 @@ import httpx
 from newspaper import Article
 from googlenewsdecoder import gnewsdecoder
 from fastapi import FastAPI, HTTPException, Query, Request, Body, Header
+from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from cachetools import TTLCache
 from dotenv import load_dotenv
@@ -1062,29 +1063,58 @@ async def get_cities():
 
 
 @app.get("/trending")
-async def get_trending():
-    """Return trending headlines from India + Global without NLP processing (fast ~2s)."""
-    cache_key = "trending_headlines"
+async def get_trending(categories: str = Query("", description="Comma-separated category IDs from onboarding")):
+    """Return trending headlines — personalized if categories are provided, global otherwise."""
+    
+    # Category-to-search-query mapping for Google News RSS
+    CATEGORY_QUERIES = {
+        "geopolitics": "geopolitics diplomacy sanctions international relations",
+        "technology": "technology AI artificial intelligence cybersecurity startup",
+        "markets": "stock market economy finance investment GDP inflation",
+        "defense": "defense military weapons security NATO",
+        "climate": "climate change energy renewable solar emissions",
+        "health": "health medical vaccine disease pandemic WHO",
+        "politics": "politics election government parliament policy",
+        "conflict": "conflict war ceasefire crisis humanitarian",
+        "entertainment": "entertainment movies music celebrity awards",
+        "breaking": "breaking news urgent developing alert",
+    }
+    
+    cat_list = [c.strip() for c in categories.split(",") if c.strip()] if categories else []
+    cache_key = f"trending_{'_'.join(sorted(cat_list)) if cat_list else 'global'}"
+    
     if cache_key in trending_cache:
-        logger.info("Trending cache hit")
+        logger.info(f"Trending cache hit: {cache_key}")
         return trending_cache[cache_key]
 
-    logger.info("Fetching trending headlines...")
+    logger.info(f"Fetching trending headlines (categories={cat_list or 'global'})...")
     headers = {"User-Agent": HTTP_USER_AGENT}
 
     async with httpx.AsyncClient(timeout=20, follow_redirects=True, headers=headers) as client:
         tasks = [
             fetch_rss_top_headlines("global", client),
             fetch_rss_top_headlines("in", client),
-            fetch_rss_top_headlines("gb", client),
-            fetch_rss_region("Africa Nigeria Kenya Ethiopia Somalia Sudan", "global", client),
-            fetch_rss_region("South America Brazil Argentina Colombia Venezuela", "global", client),
-            fetch_rss_region("Middle East Israel Iran Syria Lebanon Yemen", "global", client),
-            fetch_rss_region("Asia China Japan Korea Taiwan Philippines", "global", client),
-            fetch_rss_region("Russia Ukraine war conflict", "global", client),
-            fetch_rss_region("earthquake flood hurricane tornado disaster", "global", client),
-            fetch_rss_region("stock market crash economy recession", "global", client),
         ]
+        
+        if cat_list:
+            # Add category-specific searches
+            for cat in cat_list:
+                query = CATEGORY_QUERIES.get(cat)
+                if query:
+                    tasks.append(fetch_rss_region(query, "global", client))
+        else:
+            # Default global coverage (no personalization)
+            tasks.extend([
+                fetch_rss_top_headlines("gb", client),
+                fetch_rss_region("Africa Nigeria Kenya Ethiopia Somalia Sudan", "global", client),
+                fetch_rss_region("South America Brazil Argentina Colombia Venezuela", "global", client),
+                fetch_rss_region("Middle East Israel Iran Syria Lebanon Yemen", "global", client),
+                fetch_rss_region("Asia China Japan Korea Taiwan Philippines", "global", client),
+                fetch_rss_region("Russia Ukraine war conflict", "global", client),
+                fetch_rss_region("earthquake flood hurricane tornado disaster", "global", client),
+                fetch_rss_region("stock market crash economy recession", "global", client),
+            ])
+        
         results = await asyncio.gather(*tasks, return_exceptions=True)
 
     all_articles = []
@@ -1101,12 +1131,25 @@ async def get_trending():
             seen_titles.add(normalized)
             unique.append(art)
 
-    # Sort by quality + recency
+    # If user has categories, boost articles matching their interests
+    if cat_list:
+        category_keywords = set()
+        for cat in cat_list:
+            q = CATEGORY_QUERIES.get(cat, "")
+            category_keywords.update(q.lower().split())
+        
+        for art in unique:
+            title_lower = art["title"].lower()
+            match_count = sum(1 for kw in category_keywords if kw in title_lower)
+            art["relevance_boost"] = match_count
+    
+    # Sort by quality + recency + relevance
     def sort_key(a):
         dt = a.get("published_dt")
         ts = dt.timestamp() if dt else 0
         quality = a.get("quality_score", 0)
-        return (quality, ts)
+        relevance = a.get("relevance_boost", 0)
+        return (relevance, quality, ts)
 
     unique.sort(key=sort_key, reverse=True)
     selected = unique[:30]
@@ -1142,13 +1185,58 @@ async def get_trending():
         "headlines": formatted,
         "count": len(formatted),
         "has_breaking": has_breaking,
+        "personalized": len(cat_list) > 0,
+        "categories": cat_list,
         "fetched_at": datetime.now(timezone.utc).isoformat(),
         "city_suggestions": CITY_SUGGESTIONS,
     }
 
     trending_cache[cache_key] = response
-    logger.info(f"Trending: {len(formatted)} headlines")
+    logger.info(f"Trending: {len(formatted)} headlines (personalized={len(cat_list) > 0})")
     return response
+
+
+# ---------------------------------------------------------------------------
+# User Preferences & Onboarding
+# ---------------------------------------------------------------------------
+# In-memory store (with DB persistence as enhancement)
+_user_preferences: dict = {}
+
+class OnboardingRequest(BaseModel):
+    firebase_uid: str
+    preferred_categories: list = []
+    preferred_regions: list = ["global"]
+
+@app.post("/api/user/onboarding")
+async def user_onboarding(req: OnboardingRequest):
+    """Save user onboarding preferences."""
+    _user_preferences[req.firebase_uid] = {
+        "preferred_categories": req.preferred_categories,
+        "preferred_regions": req.preferred_regions,
+        "onboarded": True,
+        "onboarded_at": datetime.now(timezone.utc).isoformat(),
+    }
+    logger.info(f"User {req.firebase_uid[:8]}... onboarded: categories={req.preferred_categories}, regions={req.preferred_regions}")
+    return {"status": "ok", "message": "Onboarding complete"}
+
+@app.get("/api/user/preferences")
+async def get_user_preferences(firebase_uid: str = Query(...)):
+    """Get user preferences."""
+    prefs = _user_preferences.get(firebase_uid)
+    if prefs:
+        return {"status": "ok", "preferences": prefs}
+    return {"status": "not_found", "preferences": None}
+
+@app.post("/api/user/preferences")
+async def save_user_preferences(req: OnboardingRequest):
+    """Update user preferences."""
+    existing = _user_preferences.get(req.firebase_uid, {})
+    existing.update({
+        "preferred_categories": req.preferred_categories,
+        "preferred_regions": req.preferred_regions,
+    })
+    _user_preferences[req.firebase_uid] = existing
+    return {"status": "ok", "message": "Preferences updated"}
 
 
 @app.get("/weather")

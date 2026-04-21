@@ -56,11 +56,18 @@ export const analyzeTopic = async (topic, region = 'global', forceRefresh = true
 };
 
 /**
- * Fetch trending headlines (fast, no NLP)
+ * Fetch trending headlines — personalized if user has onboarded
  */
 export async function fetchTrending() {
   try {
-    const response = await fetch(`${API_BASE}/trending`, {
+    // Read user's preferred categories from localStorage (set during onboarding)
+    let catParam = '';
+    const prefs = localStorage.getItem('user_categories');
+    if (prefs) {
+      catParam = `?categories=${encodeURIComponent(prefs)}`;
+    }
+    
+    const response = await fetch(`${API_BASE}/trending${catParam}`, {
       method: 'GET',
       headers: { 'Accept': 'application/json' },
     });

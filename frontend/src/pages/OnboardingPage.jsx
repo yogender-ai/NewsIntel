@@ -59,11 +59,16 @@ export default function OnboardingPage() {
         preferred_categories: selectedCategories,
         preferred_regions: selectedRegions,
       });
+      // Save to localStorage so fetchTrending uses them for personalized feeds
       localStorage.setItem('onboarded', 'true');
+      localStorage.setItem('user_categories', selectedCategories.join(','));
+      localStorage.setItem('user_regions', selectedRegions.join(','));
       navigate('/');
     } catch (err) {
       // Even if the backend call fails, allow them through
       localStorage.setItem('onboarded', 'true');
+      localStorage.setItem('user_categories', selectedCategories.join(','));
+      localStorage.setItem('user_regions', selectedRegions.join(','));
       navigate('/');
     } finally {
       setSaving(false);
