@@ -229,28 +229,21 @@ async def shutdown():
 # Gemini client (Routed via Cloud Command Gateway)
 # ---------------------------------------------------------------------------
 def get_gemini_client():
-    """Get Gemini client. Attempts round-robin local keys to bypass gateway issues."""
-    global _gemini_key_cycle
-    
-    # Bypass Gateway since it is causing "temporarily unavailable"
-    if GEMINI_KEYS and _gemini_key_cycle:
-        api_key = next(_gemini_key_cycle)
-        logger.info(f"Using direct Gemini API key: {api_key[:8]}...")
-        return genai.Client(api_key=api_key)
+    """Get Gemini client pointed to Cloud Command Gateway with round-robin key rotation."""
+    if not GATEWAY_SECRET:
+        raise ValueError("No GATEWAY_SECRET configured.")
         
-    if GATEWAY_SECRET:
-        logger.info("Using Cloud Command Gateway for Gemini")
-        return genai.Client(
-            api_key=GATEWAY_SECRET,
-            http_options={
-                "base_url": "https://cloudcmd.yogender1.me/api/gateway/gemini",
-                "headers": {
-                    "X-Gateway-Secret": GATEWAY_SECRET,
-                    "X-Project-Category": "News-Intel"
-                }
+    client = genai.Client(
+        api_key=GATEWAY_SECRET,
+        http_options={
+            "base_url": "https://cloudcmd.yogender1.me/api/gateway/gemini",
+            "headers": {
+                "X-Gateway-Secret": GATEWAY_SECRET,
+                "X-Project-Category": "News-Intel"
             }
-        )
-    raise ValueError("No GEMINI_API_KEY or GATEWAY_SECRET configured.")
+        }
+    )
+    return client
 
 
 # ---------------------------------------------------------------------------
