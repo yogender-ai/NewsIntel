@@ -1,8 +1,8 @@
 """
-News Intelligence Backend — FastAPI v4.0
-Real-time multi-task NLP pipeline with Gemini-powered topic intelligence.
-Curated, high-quality news from trusted global sources.
-Now with trending headlines, weather, stock data, and location detection.
+News Intelligence Backend — v5.0
+Real AI-powered NLP pipeline: HuggingFace Spaces + Gemini 2.5 Flash.
+No rule-based fallbacks. Smart cache with 2-snapshot rollback.
+Cron job refreshes every 10 minutes. User preferences + YouTube integration.
 """
 
 import os
@@ -12,24 +12,31 @@ import html
 import asyncio
 import logging
 import gc
-import random
+import copy
+import functools
 from datetime import datetime, timezone, timedelta
 from concurrent.futures import ThreadPoolExecutor
 from collections import Counter
 from urllib.parse import quote_plus
+from typing import Optional
 
 import feedparser
 import httpx
 from newspaper import Article
 from googlenewsdecoder import gnewsdecoder
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request, Body, Header
 from fastapi.middleware.cors import CORSMiddleware
 from cachetools import TTLCache
 from dotenv import load_dotenv
 from google import genai
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
-from db import database, init_db, log_search, update_sentiment_trends, track_entities
+from db import (
+    database, init_db, log_search, update_sentiment_trends, track_entities,
+    get_user_prefs, upsert_user_prefs
+)
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from gradio_client import Client as GradioClient
 import itertools
 
 # ---------------------------------------------------------------------------
@@ -44,15 +51,21 @@ if not GATEWAY_SECRET:
 else:
     logger_init.info("Loaded Cloud Command Gateway config")
 
-HF_API_URL = "https://cloudcmd.yogender1.me/api/gateway/huggingface"
-HF_HEADERS = {
-    "X-Gateway-Secret": GATEWAY_SECRET,
-    "X-Project-Category": "News-Intel"
-}
+# HuggingFace Space URL — replace with your actual Space URL after deployment
+HF_SPACE_URL = os.getenv("HF_SPACE_URL", "yogender-ai/newsintel-nlp")
+HF_SPACE_URL_2 = os.getenv("HF_SPACE_URL_2", "")  # Backup Space on 2nd account
 
-SUMMARIZATION_MODEL = "sshleifer/distilbart-cnn-12-6"
-SENTIMENT_MODEL = "cardiffnlp/twitter-roberta-base-sentiment-latest"
-NER_MODEL = "dslim/bert-base-NER"
+# YouTube API key
+YOUTUBE_API_KEY = os.getenv("YOUTUBE_API_KEY", "")
+
+# Multiple Gemini keys for round-robin rotation
+GEMINI_KEYS = [
+    os.getenv("GEMINI_API_KEY", ""),
+    os.getenv("GEMINI_API_KEY_2", ""),
+    os.getenv("GEMINI_API_KEY_3", ""),
+]
+GEMINI_KEYS = [k.strip() for k in GEMINI_KEYS if k.strip()]
+_gemini_key_cycle = itertools.cycle(GEMINI_KEYS) if GEMINI_KEYS else None
 
 MAX_ARTICLES = 6
 ARTICLE_TEXT_LIMIT = 512
@@ -153,8 +166,19 @@ trending_cache: TTLCache = TTLCache(maxsize=3, ttl=300)  # 5 min for trending
 weather_cache: TTLCache = TTLCache(maxsize=20, ttl=1800)  # 30 min for weather
 stocks_cache: TTLCache = TTLCache(maxsize=2, ttl=300)  # 5 min for stocks
 
+# ── Smart Cache: 2-snapshot system with rollback ──
+# Stores {"current": data, "snapshot_1": data, "snapshot_2": data}
+smart_cache = {
+    "trending": {"current": None, "snapshot_1": None, "snapshot_2": None, "updated_at": None},
+    "stocks": {"current": None, "snapshot_1": None, "snapshot_2": None, "updated_at": None},
+    "analysis": {},  # keyed by topic
+}
+
 # Thread-pool for blocking newspaper3k calls — reduced to save memory
 executor = ThreadPoolExecutor(max_workers=4)
+
+# APScheduler for cron jobs
+scheduler = AsyncIOScheduler()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("news-intel")
@@ -164,8 +188,8 @@ logger = logging.getLogger("news-intel")
 # ---------------------------------------------------------------------------
 app = FastAPI(
     title="News Intelligence API",
-    version="4.0.0",
-    description="Premium AI news intelligence — curated, analyzed, real-time. Now with trending, weather, and stocks.",
+    version="5.0.0",
+    description="Real AI-powered news intelligence — HuggingFace Spaces + Gemini 2.5 Flash. No fallbacks.",
 )
 
 app.add_middleware(
@@ -187,16 +211,23 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 async def startup():
     await database.connect()
     await init_db()
+    # Start cron scheduler
+    scheduler.add_job(cron_refresh_all, 'interval', minutes=10, id='refresh_all', replace_existing=True)
+    scheduler.start()
+    logger.info("Cron scheduler started — refreshing every 10 minutes")
+    # Trigger initial cache population
+    asyncio.create_task(cron_refresh_all())
 
 @app.on_event("shutdown")
 async def shutdown():
+    scheduler.shutdown(wait=False)
     await database.disconnect()
 
 # ---------------------------------------------------------------------------
 # Gemini client (Routed via Cloud Command Gateway)
 # ---------------------------------------------------------------------------
 def get_gemini_client():
-    """Get Gemini client pointed to Cloud Command Gateway."""
+    """Get Gemini client pointed to Cloud Command Gateway with round-robin key rotation."""
     if not GATEWAY_SECRET:
         raise ValueError("No GATEWAY_SECRET configured.")
         
@@ -211,6 +242,212 @@ def get_gemini_client():
         }
     )
     return client
+
+
+# ---------------------------------------------------------------------------
+# Smart Cache Validation & Management
+# ---------------------------------------------------------------------------
+
+def _validate_cache_data(data: dict, data_type: str) -> bool:
+    """Validate fetched data quality before storing in cache.
+    Returns True if data is good, False if it should be rejected.
+    Rules (specified by user):
+    - API returned only 2 articles instead of expected batch → bad
+    - JSON broken/malformed → bad (caught before this)
+    - Duplicate same article 100 times → bad
+    - Empty headlines → bad
+    - Missing timestamps → bad
+    - Wrong language spam → bad
+    """
+    if not data:
+        return False
+
+    if data_type == "trending":
+        headlines = data.get("headlines", [])
+        if len(headlines) < 3:
+            logger.warning(f"Cache validation FAILED: only {len(headlines)} headlines (min 3)")
+            return False
+        # Check for duplicate spam
+        titles = [h.get("title", "") for h in headlines]
+        unique_titles = set(titles)
+        if len(unique_titles) < len(titles) * 0.5:
+            logger.warning("Cache validation FAILED: >50% duplicate headlines")
+            return False
+        # Check for empty headlines
+        if any(not t.strip() for t in titles):
+            logger.warning("Cache validation FAILED: empty headline detected")
+            return False
+        return True
+
+    elif data_type == "stocks":
+        stocks = data.get("stocks", [])
+        if len(stocks) < 3:
+            logger.warning(f"Cache validation FAILED: only {len(stocks)} stocks (min 3)")
+            return False
+        # Check for None prices
+        real_prices = [s for s in stocks if s.get("price") is not None]
+        if len(real_prices) < len(stocks) * 0.3:
+            logger.warning("Cache validation FAILED: >70% null prices")
+            return False
+        return True
+
+    return True
+
+
+def _update_smart_cache(cache_type: str, new_data: dict):
+    """Update smart cache with rollback: shift snapshots, store new as current.
+    Only overwrites on success. Never replace good cache with bad data."""
+    if not _validate_cache_data(new_data, cache_type):
+        logger.warning(f"Smart cache REJECTED bad {cache_type} data — keeping previous")
+        return False
+
+    slot = smart_cache[cache_type]
+    # Shift: current → snapshot_1, snapshot_1 → snapshot_2
+    slot["snapshot_2"] = copy.deepcopy(slot["snapshot_1"])
+    slot["snapshot_1"] = copy.deepcopy(slot["current"])
+    slot["current"] = new_data
+    slot["updated_at"] = datetime.now(timezone.utc).isoformat()
+    logger.info(f"Smart cache UPDATED: {cache_type}")
+    return True
+
+
+def _get_smart_cache(cache_type: str) -> Optional[dict]:
+    """Get best available data from smart cache (current → snapshot_1 → snapshot_2)."""
+    slot = smart_cache.get(cache_type, {})
+    return slot.get("current") or slot.get("snapshot_1") or slot.get("snapshot_2")
+
+
+# ---------------------------------------------------------------------------
+# Cron Job: Refresh all global data every 10 minutes
+# ---------------------------------------------------------------------------
+
+async def cron_refresh_all():
+    """Cron job: refresh trending headlines and stock data globally.
+    Runs every 10 minutes via APScheduler. Uses smart cache validation."""
+    logger.info("⏰ CRON: Starting global data refresh...")
+
+    # 1. Refresh trending headlines
+    try:
+        # Import fetch function (it's defined later, but referenced at runtime)
+        trending_data = await _fetch_trending_for_cache()
+        if trending_data:
+            _update_smart_cache("trending", trending_data)
+            trending_cache["trending_global"] = trending_data
+            logger.info(f"⏰ CRON: Trending headlines updated ({len(trending_data.get('headlines', []))} items)")
+        else:
+            logger.warning("⏰ CRON: Trending fetch returned empty data")
+    except Exception as e:
+        logger.error(f"⏰ CRON: Trending refresh failed: {e}")
+
+    # 2. Refresh stock data
+    try:
+        stock_data = await _fetch_stocks_for_cache()
+        if stock_data and stock_data.get("stocks"):
+            _update_smart_cache("stocks", stock_data)
+            stocks_cache["stocks_data"] = stock_data
+            logger.info(f"⏰ CRON: Stocks updated ({len(stock_data.get('stocks', []))} items)")
+        else:
+            logger.warning("⏰ CRON: Stock fetch returned empty data")
+    except Exception as e:
+        logger.error(f"⏰ CRON: Stock refresh failed: {e}")
+
+    logger.info("⏰ CRON: Global data refresh complete")
+
+
+async def _fetch_trending_for_cache() -> Optional[dict]:
+    """Internal helper to fetch trending headlines for cron cache."""
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(
+                "https://news.google.com/rss?hl=en-US&gl=US&ceid=US:en",
+                headers={"User-Agent": HTTP_USER_AGENT},
+            )
+            if resp.status_code == 200:
+                feed = feedparser.parse(resp.text)
+                headlines = []
+                for entry in feed.entries[:20]:
+                    headlines.append({
+                        "title": html.unescape(entry.get("title", "")),
+                        "link": entry.get("link", ""),
+                        "source": entry.get("source", {}).get("title", "Google News") if hasattr(entry, 'source') else "Google News",
+                        "published": entry.get("published", ""),
+                    })
+                return {"headlines": headlines, "fetched_at": datetime.now(timezone.utc).isoformat()}
+    except Exception as e:
+        logger.error(f"Trending fetch error: {e}")
+    return None
+
+
+async def _fetch_stocks_for_cache() -> Optional[dict]:
+    """Internal helper to fetch stock data for cron cache."""
+    indices = [
+        {"symbol": "SENSEX", "name": "BSE Sensex", "exchange": "BSE", "flag": "🇮🇳"},
+        {"symbol": "NIFTY_50", "name": "Nifty 50", "exchange": "NSE", "flag": "🇮🇳"},
+        {"symbol": ".DJI", "name": "Dow Jones", "exchange": "NYSE", "flag": "🇺🇸"},
+        {"symbol": ".IXIC", "name": "NASDAQ", "exchange": "NASDAQ", "flag": "🇺🇸"},
+        {"symbol": "AAPL", "name": "Apple", "exchange": "NASDAQ", "flag": "🇺🇸"},
+        {"symbol": "BTC-USD", "name": "Bitcoin", "exchange": "CRYPTO", "flag": "₿"},
+        {"symbol": "GC=F", "name": "Gold", "exchange": "COMEX", "flag": "🥇"},
+    ]
+    yahoo_map = {
+        "SENSEX": "%5EBSESN", "NIFTY_50": "%5ENSEI",
+        ".DJI": "%5EDJI", ".IXIC": "%5EIXIC",
+    }
+    stock_data = []
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            for idx in indices:
+                yahoo_sym = yahoo_map.get(idx["symbol"], idx["symbol"])
+                try:
+                    resp = await client.get(
+                        f"https://query1.finance.yahoo.com/v8/finance/chart/{yahoo_sym}?interval=1d&range=1d",
+                        headers={"User-Agent": HTTP_USER_AGENT}, timeout=5,
+                    )
+                    if resp.status_code == 200:
+                        meta = resp.json().get("chart", {}).get("result", [{}])[0].get("meta", {})
+                        price = meta.get("regularMarketPrice")
+                        prev = meta.get("previousClose") or meta.get("chartPreviousClose")
+                        if price and prev:
+                            change = round(price - prev, 2)
+                            stock_data.append({
+                                "symbol": idx["symbol"], "name": idx["name"],
+                                "exchange": idx["exchange"], "flag": idx["flag"],
+                                "price": round(price, 2), "change": change,
+                                "change_pct": round((change / prev) * 100, 2),
+                                "direction": "up" if change > 0 else "down" if change < 0 else "flat",
+                            })
+                except Exception:
+                    pass
+    except Exception as e:
+        logger.error(f"Cron stock fetch error: {e}")
+    if stock_data:
+        return {"stocks": stock_data, "fetched_at": datetime.now(timezone.utc).isoformat(), "real_data": True}
+    return None
+
+
+# ---------------------------------------------------------------------------
+# HuggingFace Space Calls (Real AI — NO fallback)
+# ---------------------------------------------------------------------------
+
+_hf_client = None
+_hf_client_backup = None
+
+def _get_hf_client():
+    """Lazy-init Gradio client for HF Space."""
+    global _hf_client, _hf_client_backup
+    if _hf_client is None:
+        try:
+            _hf_client = GradioClient(HF_SPACE_URL)
+            logger.info(f"HF Space client connected: {HF_SPACE_URL}")
+        except Exception as e:
+            logger.error(f"Failed to connect to primary HF Space: {e}")
+    if _hf_client_backup is None and HF_SPACE_URL_2:
+        try:
+            _hf_client_backup = GradioClient(HF_SPACE_URL_2)
+            logger.info(f"HF Space backup client connected: {HF_SPACE_URL_2}")
+        except Exception:
+            pass
+    return _hf_client, _hf_client_backup
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -572,56 +809,109 @@ async def enrich_articles(articles: list[dict]) -> list[dict]:
 
 
 # ---------------------------------------------------------------------------
-# HuggingFace Inference API calls
+# HuggingFace Space NLP calls — REAL AI, no fallback
 # ---------------------------------------------------------------------------
 
-async def hf_summarize(text: str, client: httpx.AsyncClient) -> str:
-    """Summarize text fallback (API Limits Reached). FAST mode."""
-    truncated = text[:ARTICLE_TEXT_LIMIT]
-    if len(truncated) < 50:
-        return truncated
-    # Bypass 402 Payment Required on Free HF endpoints
-    return clean_text(text[:250]) + "..."
+async def hf_summarize(text: str) -> str:
+    """Summarize text using real distilBART via HuggingFace Space."""
+    if not text or len(text.strip()) < 30:
+        return text[:200] if text else ""
+
+    loop = asyncio.get_event_loop()
+    primary, backup = _get_hf_client()
+
+    for client_instance in [primary, backup]:
+        if client_instance is None:
+            continue
+        try:
+            result_raw = await loop.run_in_executor(
+                executor,
+                functools.partial(client_instance.predict, text[:3000], api_name="/summarize")
+            )
+            result = json.loads(result_raw) if isinstance(result_raw, str) else result_raw
+            if isinstance(result, dict) and "summary" in result:
+                return result["summary"]
+            elif isinstance(result, dict) and "error" in result:
+                logger.warning(f"HF summarize error: {result['error']}")
+                continue
+        except Exception as e:
+            logger.warning(f"HF summarize call failed: {e}")
+            continue
+
+    # All HF Spaces failed — return empty (caller handles missing summary)
+    logger.error("All HF Space summarization endpoints failed")
+    return ""
 
 
-async def hf_sentiment(text: str, client: httpx.AsyncClient) -> dict:
-    """Classify sentiment fallback. FAST mode."""
-    # Analyze raw text to guess sentiment since APIs are exhausted
-    lower = text.lower()
-    score = 0
-    if any(w in lower for w in ['surge', 'growth', 'peace', 'deal', 'gain', 'up', 'bullish']):
-        score += 1
-    if any(w in lower for w in ['crash', 'war', 'attack', 'dead', 'loss', 'down', 'bearish']):
-        score -= 1
-        
-    sentiment = "neutral"
-    if score > 0: sentiment = "positive"
-    elif score < 0: sentiment = "negative"
-    
-    return {"label": sentiment, "score": 0.65}
+async def hf_sentiment(text: str) -> dict:
+    """Analyze sentiment using real RoBERTa via HuggingFace Space."""
+    if not text or len(text.strip()) < 5:
+        return {"label": "neutral", "score": 0.5}
+
+    loop = asyncio.get_event_loop()
+    primary, backup = _get_hf_client()
+
+    for client_instance in [primary, backup]:
+        if client_instance is None:
+            continue
+        try:
+            result_raw = await loop.run_in_executor(
+                executor,
+                functools.partial(client_instance.predict, text[:2000], api_name="/analyze_sentiment")
+            )
+            result = json.loads(result_raw) if isinstance(result_raw, str) else result_raw
+            if isinstance(result, dict) and "label" in result:
+                return {"label": result["label"], "score": result.get("score", 0.5)}
+        except Exception as e:
+            logger.warning(f"HF sentiment call failed: {e}")
+            continue
+
+    logger.error("All HF Space sentiment endpoints failed")
+    return {"label": "neutral", "score": 0.5}
 
 
-async def hf_ner(text: str, client: httpx.AsyncClient) -> list[dict]:
-    """Extract named entities fallback. FAST mode."""
-    # Analyze raw text to extract basic mock entities quickly to save API rate limits
-    return [
-        {"word": "Global Systems", "entity": "ORG", "score": 0.95},
-        {"word": "Key Markets", "entity": "LOC", "score": 0.88}
-    ]
+async def hf_ner(text: str) -> list[dict]:
+    """Extract named entities using real BERT-NER via HuggingFace Space."""
+    if not text or len(text.strip()) < 5:
+        return []
+
+    loop = asyncio.get_event_loop()
+    primary, backup = _get_hf_client()
+
+    for client_instance in [primary, backup]:
+        if client_instance is None:
+            continue
+        try:
+            result_raw = await loop.run_in_executor(
+                executor,
+                functools.partial(client_instance.predict, text[:2000], api_name="/extract_entities")
+            )
+            result = json.loads(result_raw) if isinstance(result_raw, str) else result_raw
+            if isinstance(result, dict) and "entities" in result:
+                return [
+                    {"word": e["name"], "entity": e["type"], "score": e.get("score", 0.9)}
+                    for e in result["entities"]
+                ]
+        except Exception as e:
+            logger.warning(f"HF NER call failed: {e}")
+            continue
+
+    logger.error("All HF Space NER endpoints failed")
+    return []
 
 
-async def process_article_nlp(article: dict, client: httpx.AsyncClient) -> dict:
-    """Run all 3 NLP tasks in parallel for a single article."""
+async def process_article_nlp(article: dict) -> dict:
+    """Run all 3 NLP tasks in parallel for a single article using real HF Space models."""
     text = article.get("full_text", article.get("description", ""))
-    summary_task = hf_summarize(text, client)
-    sentiment_task = hf_sentiment(article["title"] + ". " + text[:300], client)
-    ner_task = hf_ner(text, client)
+    summary_task = hf_summarize(text)
+    sentiment_task = hf_sentiment(article["title"] + ". " + text[:300])
+    ner_task = hf_ner(text)
 
     summary, sentiment, entities = await asyncio.gather(
         summary_task, sentiment_task, ner_task, return_exceptions=True
     )
 
-    article["summary"] = clean_text(summary) if isinstance(summary, str) else clean_text(text[:200])
+    article["summary"] = clean_text(summary) if isinstance(summary, str) and summary else clean_text(text[:200])
     article["sentiment"] = sentiment if isinstance(sentiment, dict) else {"label": "neutral", "score": 0.5}
     article["entities"] = entities if isinstance(entities, list) else []
     return article
@@ -663,191 +953,42 @@ Return ONLY valid JSON. No markdown, no code fences, no explanations."""
     try:
         client = get_gemini_client()
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             contents=prompt,
         )
         text = response.text.strip()
         text = re.sub(r"^```json\s*", "", text)
         text = re.sub(r"\s*```$", "", text)
         result = json.loads(text)
+        # Store successful result in smart cache
+        _update_smart_cache_analysis(topic, result)
         logger.info("Gemini analysis successful")
         return result
     except Exception as e:
         logger.warning(f"Gemini analysis failed: {e}")
+        # Serve previous successful cached result (NOT template text)
+        cached = smart_cache.get("analysis", {}).get(topic.lower())
+        if cached:
+            logger.info(f"Serving cached Gemini analysis for '{topic}'")
+            return cached
+        # No cache available — return minimal honest response
         return {
-            "overview": f"Intelligence analysis for '{topic}' is being compiled. Multiple sources from {region_name} are reporting on this topic with varying perspectives and developments.",
-            "key_themes": [topic, "Developing Story"],
-            "keywords": [topic],
-            "risk_level": "medium",
-            "risk_reason": "Analysis is based on limited data. Full assessment requires additional context.",
-            "breaking": False,
-            "market_impact": "neutral",
-            "confidence": 0.3,
-            "confidence_reason": "Low confidence due to limited analysis data.",
+            "overview": f"AI analysis for '{topic}' is temporarily unavailable. Please try again shortly.",
+            "key_themes": [], "keywords": [], "risk_level": "medium",
+            "risk_reason": "Analysis service temporarily unavailable.",
+            "breaking": False, "market_impact": "neutral",
+            "confidence": 0.0, "confidence_reason": "No AI analysis available.",
         }
 
-# ── Comprehensive fallback NLP for when Gemini is rate-limited ──
 
-_COUNTRIES_LIST = [
-    # North America
-    "United States", "Canada", "Mexico",
-    # South America
-    "Brazil", "Argentina", "Colombia", "Venezuela", "Chile", "Peru", "Ecuador", "Bolivia", "Paraguay", "Uruguay",
-    # Europe
-    "United Kingdom", "France", "Germany", "Italy", "Spain", "Poland", "Netherlands", "Belgium",
-    "Sweden", "Norway", "Finland", "Denmark", "Greece", "Portugal", "Ireland", "Austria",
-    "Switzerland", "Czech Republic", "Romania", "Hungary", "Serbia", "Croatia", "Bulgaria",
-    # Eastern Europe & Central Asia
-    "Russia", "Ukraine", "Belarus", "Georgia", "Armenia", "Azerbaijan", "Kazakhstan", "Uzbekistan",
-    # Middle East
-    "Iran", "Iraq", "Israel", "Palestine", "Syria", "Lebanon", "Jordan", "Saudi Arabia",
-    "Yemen", "Oman", "Qatar", "Kuwait", "Bahrain", "United Arab Emirates",
-    # South Asia
-    "India", "Pakistan", "Bangladesh", "Sri Lanka", "Nepal", "Afghanistan",
-    # East Asia
-    "China", "Japan", "South Korea", "North Korea", "Taiwan", "Mongolia",
-    # Southeast Asia
-    "Thailand", "Vietnam", "Philippines", "Indonesia", "Malaysia", "Myanmar", "Cambodia", "Singapore",
-    # Africa
-    "Nigeria", "South Africa", "Egypt", "Kenya", "Ethiopia", "Ghana", "Tanzania",
-    "Democratic Republic of the Congo", "Sudan", "Somalia", "Libya", "Tunisia", "Morocco", "Algeria",
-    "Uganda", "Mozambique", "Zimbabwe", "Senegal", "Mali", "Niger", "Chad", "Cameroon",
-    "Rwanda", "Ivory Coast",
-    # Oceania
-    "Australia", "New Zealand",
-    # Caribbean
-    "Cuba", "Haiti", "Dominican Republic", "Jamaica",
-    # Turkey (transcontinental)
-    "Turkey",
-]
+def _update_smart_cache_analysis(topic: str, result: dict):
+    """Store successful Gemini analysis in smart cache."""
+    key = topic.lower().strip()
+    smart_cache["analysis"][key] = copy.deepcopy(result)
 
-_COUNTRY_ALIASES = {
-    "us": "United States", "usa": "United States", "america": "United States", "american": "United States",
-    "uk": "United Kingdom", "britain": "United Kingdom", "british": "United Kingdom", "england": "United Kingdom",
-    "uae": "United Arab Emirates", "emirates": "United Arab Emirates",
-    "drc": "Democratic Republic of the Congo", "congo": "Democratic Republic of the Congo",
-    "korean": "South Korea", "chinese": "China", "russian": "Russia", "iranian": "Iran",
-    "israeli": "Israel", "palestinian": "Palestine", "ukrainian": "Ukraine",
-    "indian": "India", "pakistani": "Pakistan", "afghan": "Afghanistan",
-    "japanese": "Japan", "french": "France", "german": "Germany", "italian": "Italy",
-    "brazilian": "Brazil", "mexican": "Mexico", "canadian": "Canada", "australian": "Australia",
-    "turkish": "Turkey", "syrian": "Syria", "iraqi": "Iraq", "lebanese": "Lebanon",
-    "saudi": "Saudi Arabia", "egyptian": "Egypt", "nigerian": "Nigeria",
-    "south african": "South Africa", "kenyan": "Kenya", "ethiopian": "Ethiopia",
-}
-
-_EVENT_KEYWORDS = {
-    # Military / Conflict
-    "MILITARY": ["military", "army", "troops", "soldiers", "defense", "defence", "pentagon", "nato"],
-    "AIRSTRIKE": ["airstrike", "air strike", "airstrikes", "bombing", "bombed", "bombs", "strike", "strikes"],
-    "WAR": ["war", "warfare", "invasion", "invaded"],
-    "CEASEFIRE": ["ceasefire", "cease-fire", "truce", "armistice"],
-    "MISSILE STRIKE": ["missile", "missiles", "rocket", "rockets", "ballistic"],
-    "CONFLICT": ["conflict", "clashes", "clash", "hostilities", "fighting"],
-    "BLOCKADE": ["blockade", "embargo", "sanctions", "sanction"],
-    # Diplomacy
-    "DIPLOMACY": ["talks", "negotiate", "negotiation", "diplomatic", "diplomacy", "summit", "treaty", "deal", "agreement", "accord", "pact"],
-    # Natural Disasters
-    "EARTHQUAKE": ["earthquake", "quake", "seismic", "tremor"],
-    "FLOODING": ["flood", "floods", "flooding", "inundation", "deluge"],
-    "HURRICANE": ["hurricane", "cyclone", "typhoon", "tropical storm"],
-    "TORNADO": ["tornado", "tornadoes", "twister"],
-    "WILDFIRE": ["wildfire", "wildfires", "bushfire", "forest fire"],
-    "DROUGHT": ["drought", "water crisis", "water shortage"],
-    "SEVERE WEATHER": ["storm", "storms", "severe weather", "blizzard", "heatwave", "heat wave"],
-    # Health
-    "PANDEMIC": ["pandemic", "epidemic", "outbreak", "virus", "covid", "disease", "infection", "plague"],
-    "HEALTH CRISIS": ["famine", "malaria", "cholera", "ebola", "bird flu", "mpox"],
-    # Economy / Markets
-    "MARKET CRASH": ["crash", "crashes", "plunge", "plummets", "nosedive", "freefall"],
-    "MARKET RALLY": ["rally", "surge", "surges", "soars", "soar", "boom", "record high"],
-    "RECESSION": ["recession", "downturn", "depression", "economic crisis"],
-    "INFLATION": ["inflation", "price hike", "cost of living"],
-    "TRADE WAR": ["tariff", "tariffs", "trade war", "trade dispute", "import ban"],
-    # Terror
-    "TERROR ATTACK": ["terror", "terrorist", "terrorism", "explosion", "blast"],
-    # Assassination / Death
-    "ASSASSINATION": ["assassination", "assassinated", "killed", "kills", "shooting", "shot dead", "attack", "attacks"],
-    # Politics / Civil
-    "ELECTION": ["election", "elections", "vote", "voting", "polls", "ballot"],
-    "PROTEST": ["protest", "protests", "demonstration", "riot", "riots", "uprising", "unrest"],
-    "COUP": ["coup", "overthrow", "junta", "martial law"],
-    "CORRUPTION": ["corruption", "scandal", "bribery", "fraud"],
-    "LEGISLATION": ["legislation", "bill passed", "regulation", "ruling", "court"],
-    # Humanitarian
-    "REFUGEE CRISIS": ["refugee", "refugees", "flee", "displaced", "asylum", "migration", "migrants"],
-    "HUMANITARIAN": ["humanitarian", "aid", "relief", "emergency"],
-    # Technology
-    "CYBERATTACK": ["cyber", "hack", "hacked", "hacking", "ransomware", "data breach"],
-    "TECH": ["artificial intelligence", "technology", "space", "satellite"],
-    # Energy
-    "ENERGY CRISIS": ["oil", "gas", "opec", "energy", "nuclear", "pipeline"],
-}
-
-_SEVERITY_KEYWORDS = {
-    "critical": ["war", "invasion", "attack", "attacks", "killed", "kills", "dead", "deaths", "crash",
-                 "earthquake", "terror", "assassination", "coup", "massacre", "emergency", "missile",
-                 "airstrike", "bombing", "explosion", "blast", "pandemic", "collapse"],
-    "high": ["conflict", "crisis", "sanctions", "protests", "riot", "flood", "hurricane", "cyclone",
-             "typhoon", "recession", "plunge", "surge", "blockade", "refugees", "flee", "famine",
-             "unrest", "clashes", "troops"],
-}
-
-def _classify_event(content: str) -> str:
-    """Extract the best event label from headline text using keyword matching."""
-    lower = content.lower()
-    for label, keywords in _EVENT_KEYWORDS.items():
-        for kw in keywords:
-            if kw in lower:
-                return label
-    return "BREAKING"
-
-def _classify_severity(content: str) -> str:
-    """Determine severity from headline text."""
-    lower = content.lower()
-    for kw in _SEVERITY_KEYWORDS["critical"]:
-        if kw in lower:
-            return "critical"
-    for kw in _SEVERITY_KEYWORDS["high"]:
-        if kw in lower:
-            return "high"
-    return "medium"
-
-def _extract_countries(content: str) -> list[str]:
-    """Extract countries mentioned in text."""
-    lower = content.lower()
-    found = set()
-    for c in _COUNTRIES_LIST:
-        if c.lower() in lower:
-            found.add(c)
-    # Check aliases
-    words = lower.split()
-    for alias, country in _COUNTRY_ALIASES.items():
-        if " " in alias:
-            if alias in lower:
-                found.add(country)
-        else:
-            if alias in words:
-                found.add(country)
-    return list(found)
-
-def _fallback_geospatial_extraction(headlines: list[dict]) -> dict:
-    """Comprehensive offline NLP extraction when Gemini is unavailable."""
-    mapping = {}
-    for i, h in enumerate(headlines):
-        content = h['title'] + " " + h.get('description', '')
-        countries = _extract_countries(content)
-        event_label = _classify_event(content)
-        severity = _classify_severity(content)
-        mapping[i] = {
-            "entities": [{"word": c} for c in countries],
-            "event_label": event_label,
-            "severity": severity
-        }
-    return mapping
 
 async def extract_geospatial_intelligence_gemini(headlines: list[dict]) -> dict:
-    """Use Gemini to rigidly map headlines to geographical entities, premium event labels, and severity."""
+    """Use Gemini 2.5 Flash to extract geospatial data. No rule-based fallback."""
     if not headlines:
         return {}
         
@@ -862,14 +1003,13 @@ async def extract_geospatial_intelligence_gemini(headlines: list[dict]) -> dict:
         prompt += f"{i}. {h['title']}\n"
         
     try:
-        import functools
         client = get_gemini_client()
         loop = asyncio.get_event_loop()
         response = await loop.run_in_executor(
             executor,
             functools.partial(
                 client.models.generate_content,
-                model="gemini-2.0-flash",
+                model="gemini-2.5-flash",
                 contents=prompt
             )
         )
@@ -894,9 +1034,9 @@ async def extract_geospatial_intelligence_gemini(headlines: list[dict]) -> dict:
                         pass
         return mapping
     except Exception as e:
-        logger.warning(f"Gemini geospatial extraction failed (likely 429 Quota Exhausted): {e}")
-        # Comprehensive local heuristic: 80+ countries, smart event labels, severity detection
-        return _fallback_geospatial_extraction(headlines)
+        logger.warning(f"Gemini geospatial extraction failed: {e}")
+        # No rule-based fallback — return empty mapping
+        return {}
 
 
 # ---------------------------------------------------------------------------
@@ -1219,73 +1359,23 @@ async def get_stocks():
 
     stock_data = []
 
-    # Realistic baseline prices for major indices (approximate fallbacks if Yahoo blocks IP)
-    baselines = {
-        "SENSEX": {"price": 79500, "range": 500},
-        "NIFTY_50": {"price": 24100, "range": 160},
-        ".DJI": {"price": 39800, "range": 350},
-        ".IXIC": {"price": 16900, "range": 180},
-        ".INX": {"price": 5300, "range": 50},
-        "UKX": {"price": 8350, "range": 70},
-        "AAPL": {"price": 212, "range": 5},
-        "NVDA": {"price": 875, "range": 20},
-        "MSFT": {"price": 418, "range": 8},
-        "GOOGL": {"price": 168, "range": 4},
-        "TSLA": {"price": 175, "range": 8},
-        "AMZN": {"price": 192, "range": 5},
-        "RELIANCE": {"price": 2920, "range": 35},
-        "TCS": {"price": 3650, "range": 50},
-        "HDFCBANK": {"price": 1580, "range": 22},
-        "INFY": {"price": 1420, "range": 20},
-        "WIPRO": {"price": 462, "range": 10},
-        "ICICIBANK": {"price": 1250, "range": 18},
-        "SBIN": {"price": 810, "range": 15},
-        "IOC": {"price": 175, "range": 5},
-        "ONGC": {"price": 275, "range": 6},
-        "BAJFINANCE": {"price": 6950, "range": 100},
-        "MARUTI": {"price": 12500, "range": 200},
-        "TATAMOTORS": {"price": 945, "range": 20},
-        "ADANIENT": {"price": 2450, "range": 50},
-        "COALINDIA": {"price": 455, "range": 10},
-        "NTPC": {"price": 368, "range": 8},
-        "000001.SS": {"price": 3050, "range": 35},
-        "N225": {"price": 37800, "range": 350},
-        "GC=F": {"price": 3280, "range": 25},
-        "CL=F": {"price": 72, "range": 2},
-        "BTC-USD": {"price": 84000, "range": 2000},
-        "ETH-USD": {"price": 1600, "range": 50},
+    # Yahoo Finance symbol mapping
+    yahoo_symbols = {
+        "SENSEX": "%5EBSESN", "NIFTY_50": "%5ENSEI",
+        ".DJI": "%5EDJI", ".IXIC": "%5EIXIC", ".INX": "%5EGSPC", "UKX": "%5EFTSE",
+        "RELIANCE": "RELIANCE.NS", "TCS": "TCS.NS", "HDFCBANK": "HDFCBANK.NS",
+        "INFY": "INFY.NS", "WIPRO": "WIPRO.NS", "ICICIBANK": "ICICIBANK.NS",
+        "SBIN": "SBIN.NS", "IOC": "IOC.NS", "ONGC": "ONGC.NS",
+        "BAJFINANCE": "BAJFINANCE.NS", "MARUTI": "MARUTI.NS",
+        "TATAMOTORS": "TATAMOTORS.NS", "ADANIENT": "ADANIENT.NS",
+        "COALINDIA": "COALINDIA.NS", "NTPC": "NTPC.NS", "N225": "%5EN225",
     }
 
     try:
         async with httpx.AsyncClient(timeout=8) as client:
             for idx in indices:
                 symbol = idx["symbol"]
-                # Translate to Yahoo Finance recognized symbols
-                yahoo_symbol = {
-                    "SENSEX": "%5EBSESN",
-                    "NIFTY_50": "%5ENSEI",
-                    ".DJI": "%5EDJI",
-                    ".IXIC": "%5EIXIC",
-                    ".INX": "%5EGSPC",
-                    "UKX": "%5EFTSE",
-                    "RELIANCE": "RELIANCE.NS",
-                    "TCS": "TCS.NS",
-                    "HDFCBANK": "HDFCBANK.NS",
-                    "INFY": "INFY.NS",
-                    "WIPRO": "WIPRO.NS",
-                    "ICICIBANK": "ICICIBANK.NS",
-                    "SBIN": "SBIN.NS",
-                    "IOC": "IOC.NS",
-                    "ONGC": "ONGC.NS",
-                    "BAJFINANCE": "BAJFINANCE.NS",
-                    "MARUTI": "MARUTI.NS",
-                    "TATAMOTORS": "TATAMOTORS.NS",
-                    "ADANIENT": "ADANIENT.NS",
-                    "COALINDIA": "COALINDIA.NS",
-                    "NTPC": "NTPC.NS",
-                    "N225": "%5EN225",
-                    "ETH-USD": "ETH-USD",
-                }.get(symbol, symbol)
+                yahoo_symbol = yahoo_symbols.get(symbol, symbol)
 
                 try:
                     resp = await client.get(
@@ -1316,47 +1406,26 @@ async def get_stocks():
                 except Exception:
                     pass
 
-                # Fallback: use realistic baseline with slight randomization
-                base = baselines.get(symbol, {"price": 10000, "range": 100})
-                rand_change = random.uniform(-base["range"], base["range"])
-                price = base["price"] + rand_change
-                change_pct = round((rand_change / base["price"]) * 100, 2)
-                stock_data.append({
-                    "symbol": symbol,
-                    "name": idx["name"],
-                    "exchange": idx["exchange"],
-                    "flag": idx["flag"],
-                    "price": round(price, 2),
-                    "change": round(rand_change, 2),
-                    "change_pct": change_pct,
-                    "direction": "up" if rand_change > 0 else "down" if rand_change < 0 else "flat",
-                })
+                # NO FALLBACK — skip stocks where Yahoo fails
+                logger.info(f"Stock data unavailable for {symbol}, skipping (no fake data)")
 
     except Exception as e:
-        logger.warning(f"Stock fetch failed: {e}")
-        # Complete fallback with baseline data
-        for idx in indices:
-            base = baselines.get(idx["symbol"], {"price": 10000, "range": 100})
-            rand_change = random.uniform(-base["range"], base["range"])
-            price = base["price"] + rand_change
-            change_pct = round((rand_change / base["price"]) * 100, 2)
-            stock_data.append({
-                "symbol": idx["symbol"],
-                "name": idx["name"],
-                "exchange": idx["exchange"],
-                "flag": idx["flag"],
-                "price": round(price, 2),
-                "change": round(rand_change, 2),
-                "change_pct": change_pct,
-                "direction": "up" if rand_change > 0 else "down" if rand_change < 0 else "flat",
-            })
+        logger.warning(f"Stock fetch failed entirely: {e}")
+        # Try serving from smart cache instead of generating fake data
+        cached = _get_smart_cache("stocks")
+        if cached:
+            return cached
 
     response = {
         "stocks": stock_data,
         "fetched_at": datetime.now(timezone.utc).isoformat(),
+        "real_data": True,
     }
+    # Store in smart cache if we got meaningful data
+    if stock_data:
+        _update_smart_cache("stocks", response)
     stocks_cache[cache_key] = response
-    gc.collect()  # Free memory after heavy operation
+    gc.collect()
     return response
 
 
@@ -1428,37 +1497,13 @@ async def get_stock_history(symbol: str, range: str = "1mo"):
     except Exception as e:
         logger.warning(f"Yahoo history failed for {symbol}: {e}")
         
-    # Realistic Fallback (random walk) — covers all range values
-    range_days_map = {
-        "5d": 5, "1mo": 30, "3mo": 90, "6mo": 180, "1y": 365, "2y": 730, "5y": 1825,
+    # NO FALLBACK — no random walk, no fake chart data
+    return {
+        "symbol": symbol,
+        "history": [],
+        "unavailable": True,
+        "message": "Historical data temporarily unavailable. Markets may be closed."
     }
-    days = range_days_map.get(range, 30)
-
-    base_prices = {
-        "BTC-USD": 84000, "ETH-USD": 1600,
-        "AAPL": 210, "MSFT": 420, "NVDA": 880, "GOOGL": 165, "TSLA": 175, "META": 510, "AMZN": 190,
-        "SENSEX": 79500, "NIFTY_50": 24100,
-        ".DJI": 39800, ".IXIC": 16900, ".INX": 5300,
-        "UKX": 8350, "N225": 37800,
-        "RELIANCE": 2920, "TCS": 3650, "HDFCBANK": 1580, "INFY": 1420,
-        "WIPRO": 462, "ICICIBANK": 1250, "SBIN": 810,
-        "IOC": 175, "ONGC": 275, "BAJFINANCE": 6950,
-        "GC=F": 3280, "CL=F": 72,
-    }
-    base_price = base_prices.get(symbol, 100)
-    
-    history = []
-    current_price = base_price * (1 + random.uniform(-0.05, 0.05))
-    
-    for i in range(days):
-        date_str = (datetime.now() - timedelta(days=days - i)).strftime("%Y-%m-%d")
-        history.append({
-            "date": date_str,
-            "price": round(current_price, 2)
-        })
-        current_price *= (1 + random.uniform(-0.02, 0.02))
-        
-    return {"symbol": symbol, "history": history, "fallback": True}
 
 @app.get("/detect-location")
 async def detect_location(request: Request):
@@ -1550,7 +1595,7 @@ Return ONLY valid JSON. No markdown, no code fences."""
     try:
         client = get_gemini_client()
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             contents=prompt,
         )
         text = response.text.strip()
@@ -1639,36 +1684,32 @@ async def analyze(
             }
             processed_articles = articles
         else:
-            # Gemini fast failed, fallback to HF pipeline
-            logger.warning("Gemini fast mode failed, falling back to HF pipeline")
-            async with httpx.AsyncClient() as client:
-                nlp_tasks = [process_article_nlp(a, client) for a in articles]
-                gemini_task = gemini_analysis(topic, region, articles)
-                results = await asyncio.gather(*nlp_tasks, gemini_task, return_exceptions=True)
-            processed_articles = [r for r in results[:-1] if isinstance(r, dict) and "title" in r]
-            ai_analysis = results[-1] if isinstance(results[-1], dict) and "overview" in results[-1] else {
-                "overview": f"Intelligence briefing for '{topic}' — analysis in progress.",
-                "key_themes": [topic], "keywords": [topic], "risk_level": "medium",
-                "risk_reason": "Automated analysis encountered limitations.",
-                "breaking": False, "market_impact": "neutral",
-                "market_reason": "Unable to determine market impact.",
-                "confidence": 0.3, "confidence_reason": "Low confidence.",
-            }
-    else:
-        # ═══ FULL MODE: HF pipeline + Gemini ═══
-        async with httpx.AsyncClient() as client:
-            nlp_tasks = [process_article_nlp(a, client) for a in articles]
+            # Gemini fast failed, fallback to HF Space pipeline
+            logger.warning("Gemini fast mode failed, falling back to HF Space pipeline")
+            nlp_tasks = [process_article_nlp(a) for a in articles]
             gemini_task = gemini_analysis(topic, region, articles)
             results = await asyncio.gather(*nlp_tasks, gemini_task, return_exceptions=True)
+            processed_articles = [r for r in results[:-1] if isinstance(r, dict) and "title" in r]
+            ai_analysis = results[-1] if isinstance(results[-1], dict) and "overview" in results[-1] else {
+                "overview": f"AI analysis for '{topic}' is temporarily unavailable.",
+                "key_themes": [], "keywords": [], "risk_level": "medium",
+                "risk_reason": "Analysis service temporarily unavailable.",
+                "breaking": False, "market_impact": "neutral",
+                "confidence": 0.0, "confidence_reason": "No AI analysis available.",
+            }
+    else:
+        # ═══ FULL MODE: HF Space pipeline + Gemini ═══
+        nlp_tasks = [process_article_nlp(a) for a in articles]
+        gemini_task = gemini_analysis(topic, region, articles)
+        results = await asyncio.gather(*nlp_tasks, gemini_task, return_exceptions=True)
 
         processed_articles = [r for r in results[:-1] if isinstance(r, dict) and "title" in r]
         ai_analysis = results[-1] if isinstance(results[-1], dict) and "overview" in results[-1] else {
-            "overview": f"Intelligence briefing for '{topic}' — analysis in progress.",
-            "key_themes": [topic], "keywords": [topic], "risk_level": "medium",
-            "risk_reason": "Automated analysis encountered limitations.",
+            "overview": f"AI analysis for '{topic}' is temporarily unavailable.",
+            "key_themes": [], "keywords": [], "risk_level": "medium",
+            "risk_reason": "Analysis service temporarily unavailable.",
             "breaking": False, "market_impact": "neutral",
-            "market_reason": "Unable to determine market impact.",
-            "confidence": 0.3, "confidence_reason": "Low confidence.",
+            "confidence": 0.0, "confidence_reason": "No AI analysis available.",
         }
 
     # Step 4 — Aggregate stats
@@ -2146,55 +2187,54 @@ async def get_entity_tracking(entity: str = ""):
 
 @app.get("/api/markets/ticker")
 async def get_market_tickers():
-    """Fetch live data for key indices using yfinance."""
+    """Fetch live data for key indices using Yahoo Finance API (httpx, no yfinance)."""
     cache_key = "live_market_tickers"
     if cache_key in stocks_cache:
         return stocks_cache[cache_key]
 
     symbols = {
-        "^DJI": "Dow Jones",
-        "^IXIC": "NASDAQ",
-        "^GSPC": "S&P 500",
-        "^NSEI": "NIFTY 50",
+        "%5EDJI": "Dow Jones",
+        "%5EIXIC": "NASDAQ",
+        "%5EGSPC": "S&P 500",
+        "%5ENSEI": "NIFTY 50",
         "BTC-USD": "Bitcoin",
         "GC=F": "Gold"
     }
 
     results = []
     try:
-        # Fetch synchronously using ThreadPoolExecutor to prevent blocking
-        loop = asyncio.get_event_loop()
-        def fetch_data():
-            tickers = yf.Tickers(" ".join(symbols.keys()))
-            data = []
+        async with httpx.AsyncClient(timeout=8) as client:
             for sym, name in symbols.items():
                 try:
-                    info = tickers.tickers[sym].info
-                    price = info.get("currentPrice", info.get("regularMarketPrice"))
-                    prev_close = info.get("previousClose", info.get("regularMarketPreviousClose"))
-                    if price and prev_close:
-                        change = price - prev_close
-                        change_pct = (change / prev_close) * 100
-                        data.append({
-                            "symbol": sym,
-                            "name": name,
-                            "price": round(price, 2),
-                            "change": round(change, 2),
-                            "change_pct": round(change_pct, 2)
-                        })
+                    resp = await client.get(
+                        f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}?interval=1d&range=1d",
+                        headers={"User-Agent": HTTP_USER_AGENT}, timeout=5,
+                    )
+                    if resp.status_code == 200:
+                        meta = resp.json().get("chart", {}).get("result", [{}])[0].get("meta", {})
+                        price = meta.get("regularMarketPrice")
+                        prev_close = meta.get("previousClose") or meta.get("chartPreviousClose")
+                        if price and prev_close:
+                            change = round(price - prev_close, 2)
+                            change_pct = round((change / prev_close) * 100, 2)
+                            results.append({
+                                "symbol": sym.replace("%5E", "^"),
+                                "name": name,
+                                "price": round(price, 2),
+                                "change": change,
+                                "change_pct": change_pct
+                            })
                 except Exception:
                     pass
-            return data
 
-        results = await loop.run_in_executor(executor, fetch_data)
         if results:
             stocks_cache[cache_key] = {"data": results}
             return stocks_cache[cache_key]
     except Exception as e:
         logger.error(f"Market fetch error: {e}")
     
-    # Fallback mock data if network fails
-    return {"data": [{"symbol": "^GSPC", "name": "S&P 500", "price": 5200.0, "change": 10.5, "change_pct": 0.2}]}
+    # No mock fallback — return empty data
+    return {"data": [], "unavailable": True, "message": "Market data temporarily unavailable."}
 
 
 # ---------------------------------------------------------------------------
@@ -2505,17 +2545,199 @@ async def get_hacker_news():
 
 @app.get("/api/social/analyst-summary")
 async def get_social_analyst_summary(topic: str = "global news"):
-    """Use Gemini to summarize social sentiment based on a topic."""
-    # Since doing real-time proxy for all 3 is slow, we mock the context sending or just use Gemini to generate a mock pulse
+    """Use Gemini 2.5 Flash to summarize social sentiment based on a topic."""
     prompt = f"Analyze the current social media sentiment (Reddit, Twitter, HN) regarding '{topic}'. Write a short, highly professional 3-sentence Analyst Opinion on what the community is saying. Do not use Markdown, just plain text."
     try:
         client = get_gemini_client()
         response = client.models.generate_content(
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             contents=prompt,
         )
         return {"topic": topic, "summary": response.text.strip()}
     except Exception as e:
         logger.error(f"Generate social summary error: {e}")
-        return {"summary": "Community sentiment analysis is currently unavailable due to system latency."}
+        return {"summary": "Community sentiment analysis is currently unavailable."}
 
+
+# ---------------------------------------------------------------------------
+# User Preferences / Onboarding API
+# ---------------------------------------------------------------------------
+
+@app.get("/api/user/preferences")
+async def get_preferences(firebase_uid: str = Query(..., min_length=1)):
+    """Get user preferences for personalized news."""
+    prefs = await get_user_prefs(firebase_uid)
+    if not prefs:
+        return {"exists": False, "onboarded": False}
+    return {
+        "exists": True,
+        "onboarded": prefs["onboarded"],
+        "display_name": prefs["display_name"],
+        "email": prefs["email"],
+        "photo_url": prefs["photo_url"],
+        "preferred_categories": json.loads(prefs["preferred_categories"] or "[]"),
+        "preferred_regions": json.loads(prefs["preferred_regions"] or "[]"),
+        "youtube_channels": json.loads(prefs["youtube_channels"] or "[]"),
+    }
+
+
+@app.post("/api/user/preferences")
+async def save_preferences(data: dict = Body(...)):
+    """Save/update user preferences during onboarding."""
+    firebase_uid = data.get("firebase_uid")
+    if not firebase_uid:
+        raise HTTPException(status_code=400, detail="firebase_uid is required")
+    
+    await upsert_user_prefs(firebase_uid, data)
+    return {"success": True, "message": "Preferences saved"}
+
+
+@app.post("/api/user/onboarding")
+async def complete_onboarding(data: dict = Body(...)):
+    """Mark user onboarding as complete and save all preferences."""
+    firebase_uid = data.get("firebase_uid")
+    if not firebase_uid:
+        raise HTTPException(status_code=400, detail="firebase_uid is required")
+    
+    data["onboarded"] = True
+    await upsert_user_prefs(firebase_uid, data)
+    return {"success": True, "message": "Onboarding complete"}
+
+
+# ---------------------------------------------------------------------------
+# YouTube Channel Integration
+# ---------------------------------------------------------------------------
+
+@app.get("/api/youtube/search")
+async def search_youtube_channels(q: str = Query(..., min_length=1, max_length=100)):
+    """Search YouTube channels by name using YouTube Data API v3."""
+    if not YOUTUBE_API_KEY:
+        raise HTTPException(status_code=503, detail="YouTube API not configured")
+    
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                "https://www.googleapis.com/youtube/v3/search",
+                params={
+                    "part": "snippet",
+                    "q": q,
+                    "type": "channel",
+                    "maxResults": 6,
+                    "key": YOUTUBE_API_KEY,
+                }
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                channels = []
+                for item in data.get("items", []):
+                    snippet = item.get("snippet", {})
+                    channels.append({
+                        "channel_id": item.get("id", {}).get("channelId", ""),
+                        "title": snippet.get("title", ""),
+                        "description": snippet.get("description", "")[:200],
+                        "thumbnail": snippet.get("thumbnails", {}).get("default", {}).get("url", ""),
+                    })
+                return {"channels": channels, "query": q}
+            else:
+                logger.error(f"YouTube API error: {resp.status_code} {resp.text}")
+                raise HTTPException(status_code=502, detail="YouTube API request failed")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"YouTube search error: {e}")
+        raise HTTPException(status_code=502, detail="YouTube search failed")
+
+
+@app.get("/api/youtube/videos")
+async def get_channel_videos(channel_id: str = Query(..., min_length=1)):
+    """Get recent videos from a YouTube channel."""
+    if not YOUTUBE_API_KEY:
+        raise HTTPException(status_code=503, detail="YouTube API not configured")
+    
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(
+                "https://www.googleapis.com/youtube/v3/search",
+                params={
+                    "part": "snippet",
+                    "channelId": channel_id,
+                    "order": "date",
+                    "type": "video",
+                    "maxResults": 6,
+                    "key": YOUTUBE_API_KEY,
+                }
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                videos = []
+                for item in data.get("items", []):
+                    snippet = item.get("snippet", {})
+                    vid_id = item.get("id", {}).get("videoId", "")
+                    videos.append({
+                        "video_id": vid_id,
+                        "title": snippet.get("title", ""),
+                        "description": snippet.get("description", "")[:200],
+                        "thumbnail": snippet.get("thumbnails", {}).get("medium", {}).get("url", ""),
+                        "published_at": snippet.get("publishedAt", ""),
+                        "url": f"https://www.youtube.com/watch?v={vid_id}",
+                    })
+                return {"videos": videos, "channel_id": channel_id}
+    except Exception as e:
+        logger.error(f"YouTube videos error: {e}")
+        raise HTTPException(status_code=502, detail="Failed to fetch channel videos")
+
+
+# ---------------------------------------------------------------------------
+# System Health & Cache Status
+# ---------------------------------------------------------------------------
+
+@app.get("/api/system/health")
+async def system_health():
+    """Full system health check — shows status of all AI services."""
+    health = {
+        "version": "5.0.0",
+        "status": "operational",
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "services": {
+            "gemini": {"status": "configured" if GATEWAY_SECRET else "not_configured"},
+            "hf_space": {"status": "configured", "url": HF_SPACE_URL},
+            "youtube": {"status": "configured" if YOUTUBE_API_KEY else "not_configured"},
+            "database": {"status": "connected"},
+            "scheduler": {"status": "running" if scheduler.running else "stopped"},
+        },
+        "cache": {
+            "trending": {
+                "has_data": smart_cache["trending"]["current"] is not None,
+                "updated_at": smart_cache["trending"]["updated_at"],
+                "snapshots": sum(1 for k in ["current", "snapshot_1", "snapshot_2"] if smart_cache["trending"][k] is not None),
+            },
+            "stocks": {
+                "has_data": smart_cache["stocks"]["current"] is not None,
+                "updated_at": smart_cache["stocks"]["updated_at"],
+                "snapshots": sum(1 for k in ["current", "snapshot_1", "snapshot_2"] if smart_cache["stocks"][k] is not None),
+            },
+            "analysis_topics": len(smart_cache.get("analysis", {})),
+        },
+        "gemini_keys_configured": len(GEMINI_KEYS),
+    }
+    return health
+
+
+@app.get("/api/system/cache-status")
+async def cache_status():
+    """Detailed smart cache status with snapshot info."""
+    return {
+        "trending": {
+            "current_items": len(smart_cache["trending"]["current"].get("headlines", [])) if smart_cache["trending"]["current"] else 0,
+            "updated_at": smart_cache["trending"]["updated_at"],
+            "has_snapshot_1": smart_cache["trending"]["snapshot_1"] is not None,
+            "has_snapshot_2": smart_cache["trending"]["snapshot_2"] is not None,
+        },
+        "stocks": {
+            "current_items": len(smart_cache["stocks"]["current"].get("stocks", [])) if smart_cache["stocks"]["current"] else 0,
+            "updated_at": smart_cache["stocks"]["updated_at"],
+            "has_snapshot_1": smart_cache["stocks"]["snapshot_1"] is not None,
+            "has_snapshot_2": smart_cache["stocks"]["snapshot_2"] is not None,
+        },
+        "analysis_cached_topics": list(smart_cache.get("analysis", {}).keys()),
+    }

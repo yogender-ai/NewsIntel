@@ -1,4 +1,5 @@
 import os
+import json
 import logging
 from datetime import datetime, timezone
 import databases
@@ -60,6 +61,23 @@ feedback = sqlalchemy.Table(
     sqlalchemy.Column("rating", sqlalchemy.Integer, default=5),
     sqlalchemy.Column("github_issue_url", sqlalchemy.String(255), nullable=True),
     sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=lambda: datetime.now(timezone.utc)),
+)
+
+# User preferences table — stores onboarding choices per user
+user_preferences = sqlalchemy.Table(
+    "user_preferences",
+    metadata,
+    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
+    sqlalchemy.Column("firebase_uid", sqlalchemy.String(128), unique=True, nullable=False),
+    sqlalchemy.Column("display_name", sqlalchemy.String(100)),
+    sqlalchemy.Column("email", sqlalchemy.String(255)),
+    sqlalchemy.Column("photo_url", sqlalchemy.String(500)),
+    sqlalchemy.Column("preferred_categories", sqlalchemy.Text, default="[]"),  # JSON array
+    sqlalchemy.Column("preferred_regions", sqlalchemy.Text, default="[]"),      # JSON array
+    sqlalchemy.Column("youtube_channels", sqlalchemy.Text, default="[]"),       # JSON array
+    sqlalchemy.Column("onboarded", sqlalchemy.Boolean, default=False),
+    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=lambda: datetime.now(timezone.utc)),
+    sqlalchemy.Column("updated_at", sqlalchemy.DateTime, default=lambda: datetime.now(timezone.utc)),
 )
 
 engine = sqlalchemy.create_engine(DATABASE_URL)
@@ -127,3 +145,47 @@ async def track_entities(entity_list: list):
                 last_seen=datetime.now(timezone.utc)
             )
             await database.execute(insert_query)
+
+
+# ---------------------------------------------------------------------------
+# User Preferences CRUD
+# ---------------------------------------------------------------------------
+
+async def get_user_prefs(firebase_uid: str):
+    """Fetch user preferences by Firebase UID."""
+    query = user_preferences.select().where(
+        user_preferences.c.firebase_uid == firebase_uid
+    )
+    return await database.fetch_one(query)
+
+async def upsert_user_prefs(firebase_uid: str, data: dict):
+    """Create or update user preferences."""
+    existing = await get_user_prefs(firebase_uid)
+    if existing:
+        update_query = user_preferences.update().where(
+            user_preferences.c.firebase_uid == firebase_uid
+        ).values(
+            display_name=data.get("display_name", existing["display_name"]),
+            email=data.get("email", existing["email"]),
+            photo_url=data.get("photo_url", existing["photo_url"]),
+            preferred_categories=json.dumps(data.get("preferred_categories", json.loads(existing["preferred_categories"] or "[]"))),
+            preferred_regions=json.dumps(data.get("preferred_regions", json.loads(existing["preferred_regions"] or "[]"))),
+            youtube_channels=json.dumps(data.get("youtube_channels", json.loads(existing["youtube_channels"] or "[]"))),
+            onboarded=data.get("onboarded", existing["onboarded"]),
+            updated_at=datetime.now(timezone.utc),
+        )
+        await database.execute(update_query)
+    else:
+        insert_query = user_preferences.insert().values(
+            firebase_uid=firebase_uid,
+            display_name=data.get("display_name", ""),
+            email=data.get("email", ""),
+            photo_url=data.get("photo_url", ""),
+            preferred_categories=json.dumps(data.get("preferred_categories", [])),
+            preferred_regions=json.dumps(data.get("preferred_regions", [])),
+            youtube_channels=json.dumps(data.get("youtube_channels", [])),
+            onboarded=data.get("onboarded", False),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
+        )
+        await database.execute(insert_query)
