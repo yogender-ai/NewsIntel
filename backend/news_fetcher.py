@@ -15,8 +15,16 @@ from urllib.parse import quote
 
 import feedparser
 import httpx
+from html import unescape as html_unescape
 
 logger = logging.getLogger("news_fetcher")
+
+
+def _clean(text: str) -> str:
+    """Clean HTML entities and artifacts from text."""
+    text = html_unescape(text)  # &nbsp; &amp; etc.
+    text = re.sub(r'\s+', ' ', text)  # collapse whitespace
+    return text.strip()
 
 # Topic → Google News search query mapping
 TOPIC_QUERIES = {
@@ -165,9 +173,9 @@ async def _fetch_rss(query: str) -> list:
             published = entry.get("published", "")
 
             articles.append({
-                "title": title,
-                "text": desc if len(desc) > 30 else title,
-                "source": source,
+                "title": _clean(title),
+                "text": _clean(desc) if len(desc) > 30 else _clean(title),
+                "source": _clean(source),
                 "url": link,
                 "published": published,
             })

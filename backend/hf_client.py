@@ -89,29 +89,39 @@ async def _call_hf(endpoint: str, text: str) -> dict:
         return {"error": str(e)}
 
 
+# Models to try in order — if one 503s, try the next
+_GEMINI_MODELS = ["gemini-2.5-flash-lite", "gemini-2.5-flash"]
+
 async def _call_gemini(prompt: str, model: str = None) -> str:
-    """Call Gemini through Gateway. Clean, no retries. Cached."""
+    """Call Gemini through Gateway with automatic model fallback on 503."""
     k = _ck("gemini", prompt)
     c = _get(k)
     if c: return c
 
-    payload = {"contents": [{"parts": [{"text": prompt}]}]}
-    if model:
-        payload["model"] = model
+    models = [model] if model else _GEMINI_MODELS
 
-    try:
-        r = await _http.post(GEMINI_URL, headers=HEADERS, json=payload)
-        if r.status_code != 200:
-            logger.error(f"Gemini {r.status_code}: {r.text[:200]}")
-            return ""
-        data = r.json()
-        text = _extract(data)
-        if text:
-            _put(k, text)
-        return text
-    except Exception as e:
-        logger.error(f"Gemini: {e}")
-        return ""
+    for m in models:
+        payload = {"contents": [{"parts": [{"text": prompt}]}], "model": m}
+        try:
+            r = await _http.post(GEMINI_URL, headers=HEADERS, json=payload)
+            if r.status_code == 200:
+                data = r.json()
+                text = _extract(data)
+                if text:
+                    _put(k, text)
+                    return text
+            elif r.status_code == 503:
+                logger.warning(f"Gemini {m} → 503 high demand, trying next model...")
+                continue  # Try next model
+            else:
+                logger.error(f"Gemini {m} → {r.status_code}: {r.text[:200]}")
+                continue
+        except Exception as e:
+            logger.error(f"Gemini {m}: {e}")
+            continue
+
+    logger.error("All Gemini models exhausted.")
+    return ""
 
 
 def _extract(data) -> str:

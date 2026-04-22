@@ -2,7 +2,39 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 
-/* ── NO MORE HARDCODED ARTICLES! ──────────────────────────────── */
+/* ── Typewriter Hook — character by character ─────────────────── */
+function Typewriter({ text, speed = 18, delay = 0 }) {
+  const [displayed, setDisplayed] = useState('');
+  const [started, setStarted] = useState(false);
+
+  useEffect(() => {
+    const startTimer = setTimeout(() => setStarted(true), delay);
+    return () => clearTimeout(startTimer);
+  }, [delay]);
+
+  useEffect(() => {
+    if (!started || !text) return;
+    setDisplayed('');
+    let i = 0;
+    const timer = setInterval(() => {
+      i++;
+      setDisplayed(text.slice(0, i));
+      if (i >= text.length) clearInterval(timer);
+    }, speed);
+    return () => clearInterval(timer);
+  }, [text, speed, started]);
+
+  if (!started) return null;
+
+  return (
+    <span dangerouslySetInnerHTML={{
+      __html: displayed.replace(
+        /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b/g,
+        (m) => m.length > 3 ? `<strong style="color:var(--t1);font-weight:600">${m}</strong>` : m
+      )
+    }} />
+  );
+}
 
 function getUrg(s) {
   if (!s) return { l: 'low', c: 'var(--pos)' };
@@ -30,21 +62,24 @@ function TensionRadar({ entries }) {
       <div className="radar-ring radar-ring-2" />
       <div className="radar-ring radar-ring-3" />
       <div className="radar-sweep" />
+      {/* Cross hairs */}
+      <div style={{ position:'absolute', left:'50%', top:0, bottom:0, width:1, background:'rgba(0,212,255,0.05)' }} />
+      <div style={{ position:'absolute', top:'50%', left:0, right:0, height:1, background:'rgba(0,212,255,0.05)' }} />
       {entries.map(([name, score], i) => {
         const angle = angleStep * i - Math.PI / 2;
-        const radius = 35 + (score / maxScore) * 55;
+        const radius = 30 + (score / maxScore) * 60;
         const x = 50 + Math.cos(angle) * radius;
         const y = 50 + Math.sin(angle) * radius;
         const color = score >= 70 ? 'var(--neg)' : score >= 40 ? 'var(--warn)' : 'var(--pos)';
-        const lx = 50 + Math.cos(angle) * (radius + 14);
-        const ly = 50 + Math.sin(angle) * (radius + 14);
+        const lx = 50 + Math.cos(angle) * (radius + 16);
+        const ly = 50 + Math.sin(angle) * (radius + 16);
         return (
           <React.Fragment key={name}>
             <div className="radar-dot" style={{
               left: `${x}%`, top: `${y}%`, background: color,
-              width: 5 + (score / maxScore) * 5, height: 5 + (score / maxScore) * 5,
+              width: 4 + (score / maxScore) * 6, height: 4 + (score / maxScore) * 6,
             }} />
-            <div className="radar-label" style={{ left: `${lx}%`, top: `${ly}%` }}>
+            <div className="radar-label" style={{ left: `${lx}%`, top: `${ly}%`, color }}>
               {name.slice(0, 10)}
             </div>
           </React.Fragment>
@@ -54,18 +89,38 @@ function TensionRadar({ entries }) {
   );
 }
 
-/* ── Time ago helper ──────────────────────────────────────────── */
+/* ── Time ago ─────────────────────────────────────────────────── */
 function timeAgo(dateStr) {
   if (!dateStr) return '';
   try {
     const d = new Date(dateStr);
     const mins = Math.floor((Date.now() - d.getTime()) / 60000);
-    if (mins < 1) return 'just now';
-    if (mins < 60) return `${mins}m ago`;
+    if (mins < 1) return 'now';
+    if (mins < 60) return `${mins}m`;
     const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    return `${Math.floor(hrs / 24)}d ago`;
+    if (hrs < 24) return `${hrs}h`;
+    return `${Math.floor(hrs / 24)}d`;
   } catch { return ''; }
+}
+
+/* ── Signal Strength Bar ──────────────────────────────────────── */
+function SignalBar({ score }) {
+  const bars = 5;
+  const filled = Math.ceil((score || 0.5) * bars);
+  return (
+    <div style={{ display: 'flex', gap: 1, alignItems: 'flex-end', height: 14 }}>
+      {Array.from({ length: bars }).map((_, i) => (
+        <div key={i} style={{
+          width: 3,
+          height: 4 + i * 2.5,
+          borderRadius: 1,
+          background: i < filled ? 'var(--accent)' : 'var(--bg-elevated)',
+          transition: 'background 0.3s',
+          opacity: i < filled ? 1 : 0.3,
+        }} />
+      ))}
+    </div>
+  );
 }
 
 export default function Dashboard() {
@@ -80,12 +135,8 @@ export default function Dashboard() {
     fetched.current = true;
     setLoading(true);
     setError(null);
-    try {
-      // Send preferences (or empty = backend uses defaults/DB prefs)
-      setData(await api.getDashboard([], []));
-    } catch (e) {
-      setError(e.message);
-    }
+    try { setData(await api.getDashboard([], [])); }
+    catch (e) { setError(e.message); }
     setLoading(false);
   }, []);
 
@@ -94,38 +145,41 @@ export default function Dashboard() {
   const now = new Date();
   const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
 
-  /* ── Ticker ──────────────────────────────────────────────── */
   const tickerItems = useMemo(() => {
     if (!data?.articles) return [];
     return data.articles.map(a => ({
-      title: a.title,
-      sentiment: a.sentiment?.label,
-      source: a.source,
+      title: a.title, sentiment: a.sentiment?.label, source: a.source,
     }));
   }, [data]);
 
   /* ── Loading ─────────────────────────────────────────────── */
   if (loading) return (
     <div>
-      <div style={{ padding: '16px 0', marginBottom: 20 }}>
-        <div className="skel" style={{ width: 300, height: 20, marginBottom: 8 }} />
+      {/* Fake ticker shimmer */}
+      <div className="ticker-wrap" style={{ margin: '0 -32px 20px' }}>
+        <div style={{ display: 'flex', gap: 40, padding: '0 20px' }}>
+          {[1,2,3].map(i => <div key={i} className="skel" style={{ width: 300, height: 12, flexShrink: 0 }} />)}
+        </div>
+      </div>
+      <div style={{ padding: '0 0 20px' }}>
+        <div className="skel" style={{ width: 240, height: 22, marginBottom: 8 }} />
         <div className="skel" style={{ width: 180, height: 10 }} />
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 16, marginBottom: 24 }} className="g2">
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 16, marginBottom: 24 }} className="g2">
         <div className="panel" style={{ minHeight: 200, background: 'var(--bg-1)' }}>
           {[1,2,3,4].map(i => (
-            <div key={i} style={{ display: 'flex', gap: 14, marginBottom: 20 }}>
-              <div className="skel" style={{ width: 24, height: 14 }} />
-              <div className="skel" style={{ width: `${90 - i * 12}%`, height: 14 }} />
+            <div key={i} style={{ display: 'flex', gap: 14, marginBottom: 20, alignItems: 'center' }}>
+              <div className="skel" style={{ width: 24, height: 14, borderRadius: 4 }} />
+              <div className="skel" style={{ width: `${95 - i * 12}%`, height: 14 }} />
             </div>
           ))}
         </div>
-        <div className="panel" style={{ minHeight: 200, background: 'var(--bg-1)' }}>
-          <div className="skel" style={{ width: '100%', height: '100%', borderRadius: '50%', maxWidth: 180, maxHeight: 180, margin: '0 auto' }} />
+        <div className="panel" style={{ minHeight: 200, background: 'var(--bg-1)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+          <div className="skel" style={{ width: 160, height: 160, borderRadius: '50%' }} />
         </div>
       </div>
       {[1,2,3,4,5,6].map(i => (
-        <div key={i} className="skel" style={{ width: '100%', height: 48, marginBottom: 3, borderRadius: 6 }} />
+        <div key={i} className="skel wire-skel" style={{ width: '100%', height: 52, marginBottom: 3, borderRadius: 6 }} />
       ))}
     </div>
   );
@@ -152,7 +206,7 @@ export default function Dashboard() {
                 <span className="ticker-dot" style={{
                   background: item.sentiment === 'NEGATIVE' ? 'var(--neg)' : item.sentiment === 'POSITIVE' ? 'var(--pos)' : 'var(--t3)'
                 }} />
-                <span className="mono" style={{ fontSize: 9, color: 'var(--t3)', letterSpacing: 1 }}>{item.source}</span>
+                <span className="mono" style={{ fontSize: 9, color: 'var(--t4)', letterSpacing: 1 }}>{item.source}</span>
                 <span>{item.title}</span>
               </span>
             ))}
@@ -164,16 +218,19 @@ export default function Dashboard() {
       <div className="fin" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
-            <h1 style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.5px' }}>
+            <h1 className="glitch-text" data-text="INTELLIGENCE FEED" style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.5px' }}>
               INTELLIGENCE FEED
             </h1>
             <span className="badge-live">LIVE</span>
           </div>
           <p className="mono" style={{ fontSize: 10, color: 'var(--t3)', letterSpacing: 1.5 }}>
-            {time} · {data?.sources_count || 0} SOURCES · LIVE NEWS · GATEWAY
+            {time} · {data?.sources_count || 0} SOURCES · {data?.live ? 'LIVE NEWS' : 'CACHED'} · GATEWAY
           </p>
         </div>
-        <button className="btn" onClick={() => load(true)}>↻ REFRESH</button>
+        <button className="btn" onClick={() => load(true)}>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+          REFRESH
+        </button>
       </div>
 
       {error && (
@@ -183,27 +240,31 @@ export default function Dashboard() {
       )}
 
       {/* ══ ROW 1: BRIEF + RADAR ═══════════════════════════════ */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 16, marginBottom: 24 }} className="g2">
-        <div className="panel fin d1">
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 16, marginBottom: 24 }} className="g2">
+        <div className="panel fin d1" style={{ borderLeft: '2px solid var(--accent)' }}>
           <div className="panel-head">
             <div className="panel-title">
               <span style={{ color: 'var(--accent)' }}>▸</span> DAILY BRIEF
             </div>
-            <span className="label">GEMINI 2.5 FLASH LITE</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <SignalBar score={bullets.length / 5} />
+              <span className="label">GEMINI 2.5</span>
+            </div>
           </div>
+
           {bullets.length > 0 ? (
             <div>
               {bullets.map((b, i) => (
                 <div key={i} className="typewriter-line">
-                  <span className="mono" style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', width: 24, flexShrink: 0 }}>
+                  <span className="mono" style={{
+                    fontSize: 11, fontWeight: 700, color: 'var(--accent)',
+                    width: 24, flexShrink: 0, opacity: 0.7,
+                  }}>
                     {String(i + 1).padStart(2, '0')}
                   </span>
-                  <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--t2)' }} dangerouslySetInnerHTML={{
-                    __html: b.replace(
-                      /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b/g,
-                      (m) => m.length > 3 ? `<strong style="color:var(--t1);font-weight:600">${m}</strong>` : m
-                    )
-                  }} />
+                  <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--t2)' }}>
+                    <Typewriter text={b} speed={12} delay={i * 1200} />
+                  </p>
                 </div>
               ))}
               <span className="type-cursor" />
@@ -211,15 +272,19 @@ export default function Dashboard() {
           ) : brief ? (
             <p className="mono" style={{ fontSize: 12, lineHeight: 1.8, color: 'var(--t2)' }}>{brief}</p>
           ) : (
-            <p className="mono" style={{ fontSize: 10, color: 'var(--t4)' }}>SYNTHESIZING...</p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '16px 0' }}>
+              <div className="pulse-dot" />
+              <p className="mono" style={{ fontSize: 10, color: 'var(--t4)' }}>SYNTHESIZING INTELLIGENCE BRIEF...</p>
+            </div>
           )}
         </div>
 
         <div className="panel fin d2">
           <div className="panel-head">
             <div className="panel-title">
-              <span style={{ color: 'var(--warn)' }}>◉</span> TENSION RADAR
+              <span style={{ color: 'var(--warn)' }}>◉</span> RADAR
             </div>
+            <span className="label" style={{ color: 'var(--t4)' }}>TENSION</span>
           </div>
           <TensionRadar entries={tensionArr} />
         </div>
@@ -227,14 +292,16 @@ export default function Dashboard() {
 
       {/* ══ ROW 2: WIRE FEED ═══════════════════════════════════ */}
       <div className="fin d3" style={{ marginBottom: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div className="panel-title">
             <span style={{ color: 'var(--accent-2)' }}>◆</span> WIRE FEED
           </div>
-          <span className="label">{articles.length} LIVE STORIES</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span className="label">{articles.length} LIVE STORIES</span>
+          </div>
         </div>
 
-        <div>
+        <div className="wire-feed">
           {articles.map((a, i) => {
             const u = getUrg(a?.sentiment);
             const sentClass = a?.sentiment?.label === 'POSITIVE' ? 'pos' : a?.sentiment?.label === 'NEGATIVE' ? 'neg' : 'neutral';
@@ -242,7 +309,8 @@ export default function Dashboard() {
 
             return (
               <div key={a.id}
-                className="wire-strip"
+                className={`wire-strip wire-enter`}
+                style={{ animationDelay: `${0.1 + i * 0.06}s` }}
                 onClick={() => navigate('/story', { state: {
                   article: { id: a.id, title: a.title, text: a.text_preview || a.title, source: a.source, url: a.url }
                 }})}
@@ -250,7 +318,7 @@ export default function Dashboard() {
                 <div className={`urgency-bar urgency-bar-${u.l}`} />
                 <div style={{ minWidth: 0 }}>
                   <span className="wire-source">{a.source}</span>
-                  {ago && <span className="mono" style={{ fontSize: 8, color: 'var(--t4)', display: 'block', marginTop: 1 }}>{ago}</span>}
+                  {ago && <span className="wire-time">{ago}</span>}
                 </div>
                 <span className="wire-title">{a.title}</span>
                 {a?.sentiment && (
@@ -258,14 +326,11 @@ export default function Dashboard() {
                     {a.sentiment.label}
                   </span>
                 )}
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   {a.url && (
                     <a href={a.url} target="_blank" rel="noopener noreferrer"
                       onClick={(e) => e.stopPropagation()}
-                      className="btn-ghost" style={{ fontSize: 9, color: 'var(--t4)', padding: '2px 6px' }}
-                      title="Read original">
-                      ↗
-                    </a>
+                      className="wire-external" title="Read original">↗</a>
                   )}
                   <span className="wire-arrow">→</span>
                 </div>
@@ -277,7 +342,7 @@ export default function Dashboard() {
 
       {/* ══ ROW 3: IMPACT ══════════════════════════════════════ */}
       {impact && (impact.headline || impact.why_it_matters) && (
-        <div className="panel fin d5" style={{ borderLeft: '2px solid var(--accent-3)' }}>
+        <div className="panel panel-gradient fin d5" style={{ borderLeft: '2px solid var(--accent-3)' }}>
           <div className="panel-head">
             <div className="panel-title">
               <span style={{ color: 'var(--accent-3)' }}>⬡</span> PERSONAL IMPACT
@@ -312,12 +377,8 @@ export default function Dashboard() {
               {impact.actions?.length > 0 && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {impact.actions.map((a, i) => (
-                    <div key={i} className="mono" style={{
-                      padding: '6px 12px', borderRadius: 'var(--r-sm)',
-                      background: 'rgba(168,85,247,0.05)', border: '1px solid rgba(168,85,247,0.1)',
-                      fontSize: 10, color: 'var(--accent-3)', lineHeight: 1.5,
-                    }}>
-                      [{String(i + 1).padStart(2, '0')}] {a}
+                    <div key={i} className="action-item">
+                      <span className="action-num">[{String(i + 1).padStart(2, '0')}]</span> {a}
                     </div>
                   ))}
                 </div>
