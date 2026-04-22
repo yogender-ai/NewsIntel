@@ -42,7 +42,7 @@ export default function StoryView() {
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
           <span className="label">{article.source}</span>
           {sentLabel && !loading && (
-            <span className={`badge badge-${sentClass}`}>
+            <span className={`wire-badge wire-badge-${sentClass}`}>
               {sentLabel} · {Math.round(sentScore * 100)}%
             </span>
           )}
@@ -50,7 +50,13 @@ export default function StoryView() {
         <h1 style={{ fontSize: 26, fontWeight: 900, lineHeight: 1.3, letterSpacing: '-0.4px', marginBottom: 14 }}>
           {article.title}
         </h1>
-        <p style={{ fontSize: 15, lineHeight: 1.8, color: 'var(--t2)' }}>{article.text}</p>
+        <p style={{ fontSize: 15, lineHeight: 1.8, color: 'var(--t2)', marginBottom: 16 }}>{article.text}</p>
+        {article.url && (
+          <a href={article.url} target="_blank" rel="noopener noreferrer"
+            className="btn" style={{ fontSize: 11 }}>
+            ↗ READ ORIGINAL SOURCE
+          </a>
+        )}
       </div>
 
       {loading ? (

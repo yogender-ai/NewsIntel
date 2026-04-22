@@ -2,27 +2,20 @@ import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 
-const ARTICLES = [
-  { id: '1', title: 'US-China tech war escalates as new chip restrictions announced', text: 'The United States has imposed sweeping new restrictions on semiconductor exports to China, targeting advanced AI chips and manufacturing equipment. Beijing responded with threats of retaliatory measures against American companies operating in China. NVIDIA and AMD stocks dropped 3% in pre-market trading.', source: 'Reuters' },
-  { id: '2', title: 'Federal Reserve signals potential rate cut amid slowing growth', text: 'Federal Reserve officials indicated they are considering rate cuts as economic data points to slower growth in the US economy. Consumer spending declined for the second consecutive month. The dollar weakened against major currencies following the announcement.', source: 'Bloomberg' },
-  { id: '3', title: "India becomes world's third largest AI talent hub", text: "India has surpassed the UK and Germany to become the third largest hub for artificial intelligence talent globally. The country's tech sector saw a 340% increase in AI job postings. Google and Microsoft are doubling their AI research teams in Bangalore.", source: 'Economic Times' },
-  { id: '4', title: 'Middle East tensions spike after diplomatic talks collapse', text: 'Diplomatic negotiations in the Middle East have broken down. Oil futures jumped 4% as markets priced in supply disruptions. The UN Security Council called an emergency session. Defense stocks surged while airlines declined.', source: 'Al Jazeera' },
-  { id: '5', title: 'OpenAI launches GPT-5 with breakthrough reasoning', text: 'OpenAI unveiled GPT-5 with enhanced reasoning and multimodal capabilities. The model shows significant improvements in math, coding, and scientific analysis. Tech companies are scrambling to integrate it. AI safety debates intensified.', source: 'TechCrunch' },
-  { id: '6', title: 'ECB warns of eurozone financial stability risks', text: 'The ECB issued its strongest warning about financial stability, citing rising corporate defaults and commercial real estate vulnerabilities. Potential contagion from leveraged derivatives positions was highlighted. European bank stocks fell 2%.', source: 'Financial Times' },
-];
+/* ── NO MORE HARDCODED ARTICLES! ──────────────────────────────── */
 
 function getUrg(s) {
-  if (!s) return { l: 'low', c: 'var(--pos)', dot: 'var(--pos)' };
-  if (s.label === 'NEGATIVE' && s.confidence > 0.7) return { l: 'high', c: 'var(--neg)', dot: 'var(--neg)' };
-  if (s.label === 'NEGATIVE') return { l: 'med', c: 'var(--warn)', dot: 'var(--warn)' };
-  return { l: 'low', c: 'var(--pos)', dot: 'var(--pos)' };
+  if (!s) return { l: 'low', c: 'var(--pos)' };
+  if (s.label === 'NEGATIVE' && s.confidence > 0.7) return { l: 'high', c: 'var(--neg)' };
+  if (s.label === 'NEGATIVE') return { l: 'med', c: 'var(--warn)' };
+  return { l: 'low', c: 'var(--pos)' };
 }
 
-/* ── Radar Component ──────────────────────────────────────────── */
+/* ── Tension Radar ────────────────────────────────────────────── */
 function TensionRadar({ entries }) {
   if (entries.length === 0) return (
     <div style={{ textAlign: 'center', padding: '20px 0' }}>
-      <p style={{ fontSize: 10, color: 'var(--t4)', fontFamily: 'var(--mono)' }}>
+      <p className="mono" style={{ fontSize: 9, color: 'var(--t4)', letterSpacing: 1.5 }}>
         AWAITING GEOLOCATION DATA...
       </p>
     </div>
@@ -37,32 +30,42 @@ function TensionRadar({ entries }) {
       <div className="radar-ring radar-ring-2" />
       <div className="radar-ring radar-ring-3" />
       <div className="radar-sweep" />
-
       {entries.map(([name, score], i) => {
         const angle = angleStep * i - Math.PI / 2;
         const radius = 35 + (score / maxScore) * 55;
         const x = 50 + Math.cos(angle) * radius;
         const y = 50 + Math.sin(angle) * radius;
         const color = score >= 70 ? 'var(--neg)' : score >= 40 ? 'var(--warn)' : 'var(--pos)';
-        const labelX = 50 + Math.cos(angle) * (radius + 14);
-        const labelY = 50 + Math.sin(angle) * (radius + 14);
-
+        const lx = 50 + Math.cos(angle) * (radius + 14);
+        const ly = 50 + Math.sin(angle) * (radius + 14);
         return (
           <React.Fragment key={name}>
             <div className="radar-dot" style={{
-              left: `${x}%`, top: `${y}%`,
-              background: color,
-              width: 5 + (score / maxScore) * 5,
-              height: 5 + (score / maxScore) * 5,
+              left: `${x}%`, top: `${y}%`, background: color,
+              width: 5 + (score / maxScore) * 5, height: 5 + (score / maxScore) * 5,
             }} />
-            <div className="radar-label" style={{ left: `${labelX}%`, top: `${labelY}%` }}>
-              {name.slice(0, 8)}
+            <div className="radar-label" style={{ left: `${lx}%`, top: `${ly}%` }}>
+              {name.slice(0, 10)}
             </div>
           </React.Fragment>
         );
       })}
     </div>
   );
+}
+
+/* ── Time ago helper ──────────────────────────────────────────── */
+function timeAgo(dateStr) {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    const mins = Math.floor((Date.now() - d.getTime()) / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+  } catch { return ''; }
 }
 
 export default function Dashboard() {
@@ -77,8 +80,12 @@ export default function Dashboard() {
     fetched.current = true;
     setLoading(true);
     setError(null);
-    try { setData(await api.getDashboard(ARTICLES)); }
-    catch (e) { setError(e.message); }
+    try {
+      // Send preferences (or empty = backend uses defaults/DB prefs)
+      setData(await api.getDashboard([], []));
+    } catch (e) {
+      setError(e.message);
+    }
     setLoading(false);
   }, []);
 
@@ -87,22 +94,35 @@ export default function Dashboard() {
   const now = new Date();
   const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
 
-  /* ── Ticker items (duplicate for infinite scroll) ─────────── */
+  /* ── Ticker ──────────────────────────────────────────────── */
   const tickerItems = useMemo(() => {
     if (!data?.articles) return [];
     return data.articles.map(a => ({
-      title: ARTICLES.find(art => art.id === a.id)?.title || '',
+      title: a.title,
       sentiment: a.sentiment?.label,
       source: a.source,
     }));
   }, [data]);
 
-  /* ── Loading ──────────────────────────────────────────────── */
+  /* ── Loading ─────────────────────────────────────────────── */
   if (loading) return (
     <div>
       <div style={{ padding: '16px 0', marginBottom: 20 }}>
         <div className="skel" style={{ width: 300, height: 20, marginBottom: 8 }} />
         <div className="skel" style={{ width: 180, height: 10 }} />
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 16, marginBottom: 24 }} className="g2">
+        <div className="panel" style={{ minHeight: 200, background: 'var(--bg-1)' }}>
+          {[1,2,3,4].map(i => (
+            <div key={i} style={{ display: 'flex', gap: 14, marginBottom: 20 }}>
+              <div className="skel" style={{ width: 24, height: 14 }} />
+              <div className="skel" style={{ width: `${90 - i * 12}%`, height: 14 }} />
+            </div>
+          ))}
+        </div>
+        <div className="panel" style={{ minHeight: 200, background: 'var(--bg-1)' }}>
+          <div className="skel" style={{ width: '100%', height: '100%', borderRadius: '50%', maxWidth: 180, maxHeight: 180, margin: '0 auto' }} />
+        </div>
       </div>
       {[1,2,3,4,5,6].map(i => (
         <div key={i} className="skel" style={{ width: '100%', height: 48, marginBottom: 3, borderRadius: 6 }} />
@@ -125,7 +145,7 @@ export default function Dashboard() {
     <div>
       {/* ══ TICKER TAPE ════════════════════════════════════════ */}
       {tickerItems.length > 0 && (
-        <div className="ticker-wrap fin" style={{ margin: '0 -32px 20px', padding: '6px 0' }}>
+        <div className="ticker-wrap fin" style={{ margin: '0 -32px 20px' }}>
           <div className="ticker-track">
             {[...tickerItems, ...tickerItems].map((item, i) => (
               <span key={i} className="ticker-item">
@@ -144,13 +164,13 @@ export default function Dashboard() {
       <div className="fin" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 24 }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
-            <h1 style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.5px', fontFamily: 'var(--sans)' }}>
+            <h1 style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.5px' }}>
               INTELLIGENCE FEED
             </h1>
             <span className="badge-live">LIVE</span>
           </div>
           <p className="mono" style={{ fontSize: 10, color: 'var(--t3)', letterSpacing: 1.5 }}>
-            {time} UTC · {data?.sources_count || 0} SOURCES · 14 API CALLS · GATEWAY
+            {time} · {data?.sources_count || 0} SOURCES · LIVE NEWS · GATEWAY
           </p>
         </div>
         <button className="btn" onClick={() => load(true)}>↻ REFRESH</button>
@@ -164,8 +184,6 @@ export default function Dashboard() {
 
       {/* ══ ROW 1: BRIEF + RADAR ═══════════════════════════════ */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 16, marginBottom: 24 }} className="g2">
-
-        {/* ── Intelligence Brief — Typewriter ─────────────────── */}
         <div className="panel fin d1">
           <div className="panel-head">
             <div className="panel-title">
@@ -173,7 +191,6 @@ export default function Dashboard() {
             </div>
             <span className="label">GEMINI 2.5 FLASH LITE</span>
           </div>
-
           {bullets.length > 0 ? (
             <div>
               {bullets.map((b, i) => (
@@ -198,7 +215,6 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* ── Radar ────────────────────────────────────────────── */}
         <div className="panel fin d2">
           <div className="panel-head">
             <div className="panel-title">
@@ -215,30 +231,44 @@ export default function Dashboard() {
           <div className="panel-title">
             <span style={{ color: 'var(--accent-2)' }}>◆</span> WIRE FEED
           </div>
-          <span className="label">{articles.length} STORIES ANALYZED</span>
+          <span className="label">{articles.length} LIVE STORIES</span>
         </div>
 
         <div>
-          {ARTICLES.map((art, i) => {
-            const a = articles.find(s => s.id === art.id);
+          {articles.map((a, i) => {
             const u = getUrg(a?.sentiment);
             const sentClass = a?.sentiment?.label === 'POSITIVE' ? 'pos' : a?.sentiment?.label === 'NEGATIVE' ? 'neg' : 'neutral';
+            const ago = timeAgo(a.published);
 
             return (
-              <div key={art.id}
+              <div key={a.id}
                 className="wire-strip"
-                onClick={() => navigate('/story', { state: { article: art } })}
-                style={{ animationDelay: `${0.1 + i * 0.05}s` }}
+                onClick={() => navigate('/story', { state: {
+                  article: { id: a.id, title: a.title, text: a.text_preview || a.title, source: a.source, url: a.url }
+                }})}
               >
                 <div className={`urgency-bar urgency-bar-${u.l}`} />
-                <span className="wire-source">{art.source}</span>
-                <span className="wire-title">{art.title}</span>
+                <div style={{ minWidth: 0 }}>
+                  <span className="wire-source">{a.source}</span>
+                  {ago && <span className="mono" style={{ fontSize: 8, color: 'var(--t4)', display: 'block', marginTop: 1 }}>{ago}</span>}
+                </div>
+                <span className="wire-title">{a.title}</span>
                 {a?.sentiment && (
                   <span className={`wire-badge wire-badge-${sentClass}`}>
                     {a.sentiment.label}
                   </span>
                 )}
-                <span className="wire-arrow">→</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {a.url && (
+                    <a href={a.url} target="_blank" rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="btn-ghost" style={{ fontSize: 9, color: 'var(--t4)', padding: '2px 6px' }}
+                      title="Read original">
+                      ↗
+                    </a>
+                  )}
+                  <span className="wire-arrow">→</span>
+                </div>
               </div>
             );
           })}

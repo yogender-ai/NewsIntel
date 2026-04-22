@@ -6,30 +6,31 @@ async function request(path, options = {}) {
     headers: { 'Content-Type': 'application/json' },
     ...options,
   });
-  if (!res.ok) throw new Error(`API ${res.status}`);
+  if (!res.ok) {
+    const err = await res.text().catch(() => '');
+    throw new Error(`${res.status}: ${err.slice(0, 100)}`);
+  }
   return res.json();
 }
 
 export const api = {
-  // Single combined dashboard call (replaces 3 separate calls)
-  getDashboard: (articles) =>
+  // Dashboard now sends preferences, NOT articles. Backend fetches real news.
+  getDashboard: (topics = [], regions = []) =>
     request('/api/dashboard', {
       method: 'POST',
-      body: JSON.stringify({ articles }),
+      body: JSON.stringify({ topics, regions }),
     }),
 
-  // Story Deep Dive (only called when user clicks a story)
   storyDeepDive: (title, text, source) =>
     request('/api/stories/deep-dive', {
       method: 'POST',
       body: JSON.stringify({ title, text, source }),
     }),
 
-  // User Preferences
-  savePreferences: (data) =>
+  savePreferences: (prefs) =>
     request('/api/user/preferences', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(prefs),
     }),
 
   getPreferences: () => request('/api/user/preferences'),
