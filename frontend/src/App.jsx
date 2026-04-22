@@ -170,6 +170,7 @@ function App() {
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
         <ParticleField />
         <div className="ambient-layer" />
+        <div className="scanline" />
 
         <NavBar />
         <main style={{ flex: 1, padding: '28px 32px', maxWidth: 1300, margin: '0 auto', width: '100%' }}>

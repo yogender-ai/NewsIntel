@@ -1,9 +1,8 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 
-// ── Sample articles (HARDCODED — will be replaced with real news API) ───
-const SAMPLE_ARTICLES = [
+const ARTICLES = [
   { id: '1', title: 'US-China tech war escalates as new chip restrictions announced', text: 'The United States has imposed sweeping new restrictions on semiconductor exports to China, targeting advanced AI chips and manufacturing equipment. Beijing responded with threats of retaliatory measures against American companies operating in China. NVIDIA and AMD stocks dropped 3% in pre-market trading.', source: 'Reuters' },
   { id: '2', title: 'Federal Reserve signals potential rate cut amid slowing growth', text: 'Federal Reserve officials indicated they are considering rate cuts as economic data points to slower growth in the US economy. Consumer spending declined for the second consecutive month. The dollar weakened against major currencies following the announcement.', source: 'Bloomberg' },
   { id: '3', title: "India becomes world's third largest AI talent hub", text: "India has surpassed the UK and Germany to become the third largest hub for artificial intelligence talent globally. The country's tech sector saw a 340% increase in AI job postings. Google and Microsoft are doubling their AI research teams in Bangalore.", source: 'Economic Times' },
@@ -12,12 +11,58 @@ const SAMPLE_ARTICLES = [
   { id: '6', title: 'ECB warns of eurozone financial stability risks', text: 'The ECB issued its strongest warning about financial stability, citing rising corporate defaults and commercial real estate vulnerabilities. Potential contagion from leveraged derivatives positions was highlighted. European bank stocks fell 2%.', source: 'Financial Times' },
 ];
 
-function urgency(s) {
-  if (!s) return { l: 'low', t: 'Monitor', c: 'var(--pos)' };
-  if (s.label === 'NEGATIVE' && s.confidence > 0.7) return { l: 'high', t: 'Alert', c: 'var(--neg)' };
-  if (s.label === 'NEGATIVE') return { l: 'med', t: 'Watch', c: 'var(--warn)' };
-  if (s.label === 'POSITIVE') return { l: 'low', t: 'Positive', c: 'var(--pos)' };
-  return { l: 'low', t: 'Monitor', c: 'var(--t3)' };
+function getUrg(s) {
+  if (!s) return { l: 'low', c: 'var(--pos)', dot: 'var(--pos)' };
+  if (s.label === 'NEGATIVE' && s.confidence > 0.7) return { l: 'high', c: 'var(--neg)', dot: 'var(--neg)' };
+  if (s.label === 'NEGATIVE') return { l: 'med', c: 'var(--warn)', dot: 'var(--warn)' };
+  return { l: 'low', c: 'var(--pos)', dot: 'var(--pos)' };
+}
+
+/* ── Radar Component ──────────────────────────────────────────── */
+function TensionRadar({ entries }) {
+  if (entries.length === 0) return (
+    <div style={{ textAlign: 'center', padding: '20px 0' }}>
+      <p style={{ fontSize: 10, color: 'var(--t4)', fontFamily: 'var(--mono)' }}>
+        AWAITING GEOLOCATION DATA...
+      </p>
+    </div>
+  );
+
+  const maxScore = Math.max(...entries.map(([,v]) => v), 1);
+  const angleStep = (2 * Math.PI) / Math.max(entries.length, 1);
+
+  return (
+    <div className="radar-container">
+      <div className="radar-ring radar-ring-1" />
+      <div className="radar-ring radar-ring-2" />
+      <div className="radar-ring radar-ring-3" />
+      <div className="radar-sweep" />
+
+      {entries.map(([name, score], i) => {
+        const angle = angleStep * i - Math.PI / 2;
+        const radius = 35 + (score / maxScore) * 55;
+        const x = 50 + Math.cos(angle) * radius;
+        const y = 50 + Math.sin(angle) * radius;
+        const color = score >= 70 ? 'var(--neg)' : score >= 40 ? 'var(--warn)' : 'var(--pos)';
+        const labelX = 50 + Math.cos(angle) * (radius + 14);
+        const labelY = 50 + Math.sin(angle) * (radius + 14);
+
+        return (
+          <React.Fragment key={name}>
+            <div className="radar-dot" style={{
+              left: `${x}%`, top: `${y}%`,
+              background: color,
+              width: 5 + (score / maxScore) * 5,
+              height: 5 + (score / maxScore) * 5,
+            }} />
+            <div className="radar-label" style={{ left: `${labelX}%`, top: `${labelY}%` }}>
+              {name.slice(0, 8)}
+            </div>
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
 }
 
 export default function Dashboard() {
@@ -27,65 +72,44 @@ export default function Dashboard() {
   const fetched = useRef(false);
   const navigate = useNavigate();
 
-  const fetch = useCallback(async (force = false) => {
+  const load = useCallback(async (force = false) => {
     if (fetched.current && !force) return;
     fetched.current = true;
     setLoading(true);
     setError(null);
-    try {
-      setData(await api.getDashboard(SAMPLE_ARTICLES));
-    } catch (e) {
-      setError(e.message);
-    }
+    try { setData(await api.getDashboard(ARTICLES)); }
+    catch (e) { setError(e.message); }
     setLoading(false);
   }, []);
 
-  useEffect(() => { fetch(); }, [fetch]);
+  useEffect(() => { load(); }, [load]);
 
   const now = new Date();
-  const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-  const date = now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+  const time = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
 
-  /* ── Loading Skeleton ─────────────────────────────────────── */
-  if (loading) {
-    return (
-      <div>
-        <div style={{ marginBottom: 28 }}>
-          <div className="skel" style={{ width: 220, height: 24, marginBottom: 10 }} />
-          <div className="skel" style={{ width: 160, height: 12 }} />
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 18, marginBottom: 18 }} className="g2">
-          <div className="glass" style={{ minHeight: 220, background: 'var(--bg-card-solid)' }}>
-            {[1,2,3,4].map(i => (
-              <div key={i} style={{ display: 'flex', gap: 14, marginBottom: 20 }}>
-                <div className="skel" style={{ width: 24, height: 14 }} />
-                <div className="skel" style={{ width: `${90 - i * 10}%`, height: 14 }} />
-              </div>
-            ))}
-          </div>
-          <div className="glass" style={{ minHeight: 220, background: 'var(--bg-card-solid)' }}>
-            {[1,2,3].map(i => (
-              <div key={i} style={{ marginBottom: 22 }}>
-                <div className="skel" style={{ width: 100, height: 10, marginBottom: 10 }} />
-                <div className="skel" style={{ width: '100%', height: 6 }} />
-              </div>
-            ))}
-          </div>
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }} className="g3">
-          {[1,2,3,4,5,6].map(i => (
-            <div key={i} className="glass" style={{ minHeight: 140, background: 'var(--bg-card-solid)' }}>
-              <div className="skel" style={{ width: 60, height: 9, marginBottom: 14 }} />
-              <div className="skel" style={{ width: '100%', height: 14, marginBottom: 8 }} />
-              <div className="skel" style={{ width: '70%', height: 14 }} />
-            </div>
-          ))}
-        </div>
+  /* ── Ticker items (duplicate for infinite scroll) ─────────── */
+  const tickerItems = useMemo(() => {
+    if (!data?.articles) return [];
+    return data.articles.map(a => ({
+      title: ARTICLES.find(art => art.id === a.id)?.title || '',
+      sentiment: a.sentiment?.label,
+      source: a.source,
+    }));
+  }, [data]);
+
+  /* ── Loading ──────────────────────────────────────────────── */
+  if (loading) return (
+    <div>
+      <div style={{ padding: '16px 0', marginBottom: 20 }}>
+        <div className="skel" style={{ width: 300, height: 20, marginBottom: 8 }} />
+        <div className="skel" style={{ width: 180, height: 10 }} />
       </div>
-    );
-  }
+      {[1,2,3,4,5,6].map(i => (
+        <div key={i} className="skel" style={{ width: '100%', height: 48, marginBottom: 3, borderRadius: 6 }} />
+      ))}
+    </div>
+  );
 
-  /* ── Parse ─────────────────────────────────────────────────── */
   const brief = data?.daily_brief || '';
   const articles = data?.articles || [];
   const tension = data?.tension_index || {};
@@ -95,190 +119,153 @@ export default function Dashboard() {
     ? brief.split(/\n+/).map(s => s.replace(/^[\d.)\-•*]+\s*/, '').trim()).filter(s => s.length > 15).slice(0, 5)
     : [];
 
-  const tensionArr = Object.entries(tension).sort((a, b) => b[1] - a[1]).slice(0, 6);
-  const maxT = tensionArr.length > 0 ? Math.max(...tensionArr.map(([,v]) => v), 1) : 100;
-  const tColor = (s) => s >= 70 ? 'var(--neg)' : s >= 40 ? 'var(--warn)' : 'var(--pos)';
+  const tensionArr = Object.entries(tension).sort((a, b) => b[1] - a[1]).slice(0, 8);
 
   return (
     <div>
-      {/* ── Header ──────────────────────────────────────────── */}
-      <div className="fin" style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 24, fontWeight: 900, letterSpacing: '-0.7px', marginBottom: 3 }}>
-            Intelligence Dashboard
-          </h1>
-          <p style={{ fontSize: 12, color: 'var(--t3)' }}>
-            {date} · <span className="mono">{time}</span> · {data?.sources_count || 0} sources analyzed
-          </p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          <span className="badge badge-live">LIVE</span>
-          <button className="btn-ghost" onClick={() => fetch(true)} style={{ fontSize: 11 }}>↻ Refresh</button>
-        </div>
-      </div>
-
-      {error && (
-        <div className="glass fin" style={{ marginBottom: 16, padding: '12px 18px', borderColor: 'var(--neg)' }}>
-          <p style={{ fontSize: 12, color: 'var(--neg)' }}>⚠ {error}</p>
+      {/* ══ TICKER TAPE ════════════════════════════════════════ */}
+      {tickerItems.length > 0 && (
+        <div className="ticker-wrap fin" style={{ margin: '0 -32px 20px', padding: '6px 0' }}>
+          <div className="ticker-track">
+            {[...tickerItems, ...tickerItems].map((item, i) => (
+              <span key={i} className="ticker-item">
+                <span className="ticker-dot" style={{
+                  background: item.sentiment === 'NEGATIVE' ? 'var(--neg)' : item.sentiment === 'POSITIVE' ? 'var(--pos)' : 'var(--t3)'
+                }} />
+                <span className="mono" style={{ fontSize: 9, color: 'var(--t3)', letterSpacing: 1 }}>{item.source}</span>
+                <span>{item.title}</span>
+              </span>
+            ))}
+          </div>
         </div>
       )}
 
-      {/* ── Row 1: Brief + Tension ──────────────────────────── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 18, marginBottom: 18 }} className="g2">
+      {/* ══ HEADER ═════════════════════════════════════════════ */}
+      <div className="fin" style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 24 }}>
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
+            <h1 style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.5px', fontFamily: 'var(--sans)' }}>
+              INTELLIGENCE FEED
+            </h1>
+            <span className="badge-live">LIVE</span>
+          </div>
+          <p className="mono" style={{ fontSize: 10, color: 'var(--t3)', letterSpacing: 1.5 }}>
+            {time} UTC · {data?.sources_count || 0} SOURCES · 14 API CALLS · GATEWAY
+          </p>
+        </div>
+        <button className="btn" onClick={() => load(true)}>↻ REFRESH</button>
+      </div>
 
-        {/* Intelligence Brief */}
-        <div className="glass glass-accent fin d1">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-            <div className="section-head">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              Today's Brief
+      {error && (
+        <div className="panel fin" style={{ marginBottom: 16, padding: '10px 16px', borderColor: 'var(--neg)' }}>
+          <p className="mono" style={{ fontSize: 11, color: 'var(--neg)' }}>ERR: {error}</p>
+        </div>
+      )}
+
+      {/* ══ ROW 1: BRIEF + RADAR ═══════════════════════════════ */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 16, marginBottom: 24 }} className="g2">
+
+        {/* ── Intelligence Brief — Typewriter ─────────────────── */}
+        <div className="panel fin d1">
+          <div className="panel-head">
+            <div className="panel-title">
+              <span style={{ color: 'var(--accent)' }}>▸</span> DAILY BRIEF
             </div>
-            <span className="label">GEMINI 2.5 FLASH</span>
+            <span className="label">GEMINI 2.5 FLASH LITE</span>
           </div>
 
           {bullets.length > 0 ? (
             <div>
               {bullets.map((b, i) => (
-                <div key={i} className="insight">
-                  <span className="insight-num">{String(i + 1).padStart(2, '0')}</span>
-                  <p className="insight-text" dangerouslySetInnerHTML={{
+                <div key={i} className="typewriter-line">
+                  <span className="mono" style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent)', width: 24, flexShrink: 0 }}>
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                  <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--t2)' }} dangerouslySetInnerHTML={{
                     __html: b.replace(
                       /\b([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\b/g,
-                      (m) => m.length > 3 ? `<strong>${m}</strong>` : m
+                      (m) => m.length > 3 ? `<strong style="color:var(--t1);font-weight:600">${m}</strong>` : m
                     )
                   }} />
                 </div>
               ))}
+              <span className="type-cursor" />
             </div>
           ) : brief ? (
-            <p style={{ fontSize: 14, lineHeight: 1.8, color: 'var(--t2)' }}>{brief}</p>
+            <p className="mono" style={{ fontSize: 12, lineHeight: 1.8, color: 'var(--t2)' }}>{brief}</p>
           ) : (
-            <div style={{ textAlign: 'center', padding: '30px 0' }}>
-              <p style={{ fontSize: 13, color: 'var(--t4)' }}>Generating intelligence brief...</p>
-            </div>
+            <p className="mono" style={{ fontSize: 10, color: 'var(--t4)' }}>SYNTHESIZING...</p>
           )}
         </div>
 
-        {/* Tension */}
-        <div className="glass fin d2">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-            <div className="section-head">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--warn)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-              Tension Index
+        {/* ── Radar ────────────────────────────────────────────── */}
+        <div className="panel fin d2">
+          <div className="panel-head">
+            <div className="panel-title">
+              <span style={{ color: 'var(--warn)' }}>◉</span> TENSION RADAR
             </div>
-            <span className="label">ENTITY NER</span>
           </div>
-
-          {tensionArr.length > 0 ? tensionArr.map(([r, s]) => (
-            <div key={r} style={{ marginBottom: 14 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-                <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--t2)' }}>{r}</span>
-                <span className="mono" style={{ fontSize: 13, fontWeight: 700, color: tColor(s) }}>{s}</span>
-              </div>
-              <div className="tension-track">
-                <div className="tension-fill" style={{
-                  width: `${(s / maxT) * 100}%`,
-                  background: `linear-gradient(90deg, ${tColor(s)}44, ${tColor(s)})`,
-                  color: tColor(s),
-                }} />
-              </div>
-            </div>
-          )) : (
-            <div style={{ textAlign: 'center', padding: '24px 0' }}>
-              <p style={{ fontSize: 28, marginBottom: 8, filter: 'grayscale(0.5)' }}>📡</p>
-              <p style={{ fontSize: 11, color: 'var(--t4)', lineHeight: 1.6 }}>
-                Tension data populates when<br/>articles contain geographic entities
-              </p>
-            </div>
-          )}
+          <TensionRadar entries={tensionArr} />
         </div>
       </div>
 
-      {/* ── Row 2: Story Cards ──────────────────────────────── */}
-      <div style={{ marginBottom: 18 }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-          <div className="section-head">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--t3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-            Story Cards
+      {/* ══ ROW 2: WIRE FEED ═══════════════════════════════════ */}
+      <div className="fin d3" style={{ marginBottom: 24 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div className="panel-title">
+            <span style={{ color: 'var(--accent-2)' }}>◆</span> WIRE FEED
           </div>
-          <span className="label">{articles.length} ANALYZED</span>
+          <span className="label">{articles.length} STORIES ANALYZED</span>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14 }} className="g3">
-          {SAMPLE_ARTICLES.map((art, i) => {
+        <div>
+          {ARTICLES.map((art, i) => {
             const a = articles.find(s => s.id === art.id);
-            const u = urgency(a?.sentiment);
+            const u = getUrg(a?.sentiment);
             const sentClass = a?.sentiment?.label === 'POSITIVE' ? 'pos' : a?.sentiment?.label === 'NEGATIVE' ? 'neg' : 'neutral';
 
             return (
               <div key={art.id}
-                className={`glass glass-interactive fin d${Math.min(i + 1, 6)}`}
+                className="wire-strip"
                 onClick={() => navigate('/story', { state: { article: art } })}
+                style={{ animationDelay: `${0.1 + i * 0.05}s` }}
               >
-                {/* Source + Urgency */}
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <span className="label">{art.source}</span>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                    <span className={`urgency urgency-${u.l}`} />
-                    <span style={{ fontSize: 9, fontWeight: 700, color: u.c, letterSpacing: '0.6px', textTransform: 'uppercase' }}>
-                      {u.t}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Title */}
-                <h3 style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.5, marginBottom: 8, color: 'var(--t1)' }}>
-                  {art.title}
-                </h3>
-
-                {/* Preview */}
-                <p style={{ fontSize: 11, lineHeight: 1.6, color: 'var(--t3)', marginBottom: 12 }}>
-                  {art.text.slice(0, 80)}...
-                </p>
-
-                {/* Badges */}
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, alignItems: 'center' }}>
-                  {a?.sentiment && (
-                    <span className={`badge badge-${sentClass}`}>
-                      {a.sentiment.label}
-                    </span>
-                  )}
-                  {a?.entities?.slice(0, 2).map((e, j) => (
-                    <span key={j} className="etag">{e.name}</span>
-                  ))}
-                </div>
-
-                {/* Drill CTA */}
-                <div style={{ marginTop: 14, fontSize: 10, fontWeight: 600, color: 'var(--accent)', letterSpacing: '0.8px', opacity: 0.7 }}>
-                  DEEP DIVE →
-                </div>
+                <div className={`urgency-bar urgency-bar-${u.l}`} />
+                <span className="wire-source">{art.source}</span>
+                <span className="wire-title">{art.title}</span>
+                {a?.sentiment && (
+                  <span className={`wire-badge wire-badge-${sentClass}`}>
+                    {a.sentiment.label}
+                  </span>
+                )}
+                <span className="wire-arrow">→</span>
               </div>
             );
           })}
         </div>
       </div>
 
-      {/* ── Row 3: Personal Impact ──────────────────────────── */}
+      {/* ══ ROW 3: IMPACT ══════════════════════════════════════ */}
       {impact && (impact.headline || impact.why_it_matters) && (
-        <div className="glass glass-accent-purple fin d5">
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-            <div className="section-head">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-              So What For You?
+        <div className="panel fin d5" style={{ borderLeft: '2px solid var(--accent-3)' }}>
+          <div className="panel-head">
+            <div className="panel-title">
+              <span style={{ color: 'var(--accent-3)' }}>⬡</span> PERSONAL IMPACT
             </div>
-            <span className="label">PERSONALIZED IMPACT</span>
+            <span className="label">PERSONALIZED</span>
           </div>
 
           <div style={{ display: 'flex', gap: 24, alignItems: 'flex-start' }}>
             {impact.impact_score !== undefined && (
               <div className="impact-ring" style={{
                 background: `conic-gradient(var(--accent-3) ${(impact.impact_score || 0) * 360}deg, var(--bg-2) 0deg)`,
+                boxShadow: '0 0 30px rgba(168,85,247,0.15)',
               }}>
                 <div style={{
-                  width: 58, height: 58, borderRadius: '50%', background: 'var(--bg-card-solid)',
+                  width: 62, height: 62, borderRadius: '50%', background: 'var(--bg-1)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
-                  <span className="impact-ring-val" style={{ color: 'var(--accent-3)' }}>
+                  <span className="impact-val" style={{ color: 'var(--accent-3)' }}>
                     {Math.round((impact.impact_score || 0) * 100)}
                   </span>
                 </div>
@@ -287,22 +274,20 @@ export default function Dashboard() {
 
             <div style={{ flex: 1 }}>
               {impact.headline && (
-                <p style={{ fontSize: 16, fontWeight: 700, marginBottom: 6, lineHeight: 1.4 }}>{impact.headline}</p>
+                <p style={{ fontSize: 15, fontWeight: 700, marginBottom: 6, lineHeight: 1.4 }}>{impact.headline}</p>
               )}
               {impact.why_it_matters && (
-                <p style={{ fontSize: 13, lineHeight: 1.75, color: 'var(--t2)', marginBottom: 14 }}>
-                  {impact.why_it_matters}
-                </p>
+                <p style={{ fontSize: 12, lineHeight: 1.75, color: 'var(--t2)', marginBottom: 14 }}>{impact.why_it_matters}</p>
               )}
               {impact.actions?.length > 0 && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                   {impact.actions.map((a, i) => (
-                    <div key={i} style={{
-                      padding: '6px 14px', borderRadius: 'var(--r-md)',
-                      background: 'rgba(168,85,247,0.06)', border: '1px solid rgba(168,85,247,0.12)',
-                      fontSize: 11, fontWeight: 500, color: 'var(--accent-3)',
+                    <div key={i} className="mono" style={{
+                      padding: '6px 12px', borderRadius: 'var(--r-sm)',
+                      background: 'rgba(168,85,247,0.05)', border: '1px solid rgba(168,85,247,0.1)',
+                      fontSize: 10, color: 'var(--accent-3)', lineHeight: 1.5,
                     }}>
-                      → {a}
+                      [{String(i + 1).padStart(2, '0')}] {a}
                     </div>
                   ))}
                 </div>
