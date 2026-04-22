@@ -4,13 +4,15 @@ import { api } from '../api';
 
 const TOPICS = [
   { id: 'tech', label: 'Technology', icon: '⚡' },
-  { id: 'politics', label: 'Politics', icon: '🏛' },
-  { id: 'markets', label: 'Markets', icon: '📈' },
-  { id: 'ai', label: 'AI & ML', icon: '🤖' },
-  { id: 'climate', label: 'Climate', icon: '🌍' },
+  { id: 'politics', label: 'Geopolitics', icon: '🌐' },
+  { id: 'markets', label: 'Markets & Finance', icon: '📈' },
+  { id: 'ai', label: 'AI & Machine Learning', icon: '🧠' },
+  { id: 'climate', label: 'Climate & Energy', icon: '🌍' },
   { id: 'healthcare', label: 'Healthcare', icon: '🏥' },
-  { id: 'defense', label: 'Defense', icon: '🛡' },
-  { id: 'energy', label: 'Energy', icon: '⚛' },
+  { id: 'defense', label: 'Defense & Security', icon: '🛡' },
+  { id: 'crypto', label: 'Crypto & Web3', icon: '₿' },
+  { id: 'space', label: 'Space', icon: '🚀' },
+  { id: 'trade', label: 'Trade & Supply Chain', icon: '🚢' },
 ];
 
 const REGIONS = [
@@ -19,9 +21,11 @@ const REGIONS = [
   { id: 'india', label: 'India', flag: '🇮🇳' },
   { id: 'europe', label: 'Europe', flag: '🇪🇺' },
   { id: 'middle-east', label: 'Middle East', flag: '🌙' },
-  { id: 'russia', label: 'Russia', flag: '🇷🇺' },
-  { id: 'japan', label: 'Japan', flag: '🇯🇵' },
+  { id: 'russia', label: 'Russia & CIS', flag: '🇷🇺' },
+  { id: 'japan-korea', label: 'Japan & Korea', flag: '🇯🇵' },
   { id: 'latam', label: 'Latin America', flag: '🌎' },
+  { id: 'africa', label: 'Africa', flag: '🌍' },
+  { id: 'southeast-asia', label: 'Southeast Asia', flag: '🇸🇬' },
 ];
 
 export default function Onboarding() {
@@ -46,87 +50,80 @@ export default function Onboarding() {
         youtube_channels: [],
         onboarded: true,
       });
-    } catch (e) {
-      console.error('Save failed:', e);
-    }
+    } catch (e) { console.error('Save failed:', e); }
     setSaving(false);
     navigate('/dashboard');
   };
 
   return (
-    <div style={{ maxWidth: '560px', margin: '60px auto 0' }}>
-      {/* Progress indicator */}
-      <div style={{ display: 'flex', gap: '8px', marginBottom: '48px' }}>
+    <div style={{ maxWidth: 540, margin: '48px auto 0' }}>
+      {/* Step indicator */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 48 }}>
         {[1, 2].map(s => (
           <div key={s} style={{
-            flex: 1, height: '3px', borderRadius: '2px',
-            background: step >= s ? 'var(--cyan)' : 'var(--bg-tertiary)',
-            transition: 'background 0.3s var(--ease-out)',
+            flex: 1, height: 2, borderRadius: 1,
+            background: step >= s ? 'var(--accent)' : 'var(--bg-elevated)',
+            transition: 'background 0.4s var(--ease)',
           }} />
         ))}
       </div>
 
       {step === 1 && (
         <div className="fade-in">
-          <p className="label" style={{ marginBottom: '12px', color: 'var(--cyan)' }}>STEP 1 OF 2</p>
-          <h1 style={{ fontSize: '28px', fontWeight: 700, lineHeight: 1.2, marginBottom: '8px' }}>
-            What do you care about?
+          <p className="label" style={{ marginBottom: 12, color: 'var(--accent)' }}>STEP 1 · INTERESTS</p>
+          <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 6 }}>
+            What intelligence do you need?
           </h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '15px', marginBottom: '32px' }}>
-            We'll synthesize intelligence around these topics. Pick at least 2.
+          <p style={{ color: 'var(--t3)', fontSize: 14, marginBottom: 32, lineHeight: 1.6 }}>
+            We synthesize and filter news around these topics. Your feed will only contain what matters.
           </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '40px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 40 }}>
             {TOPICS.map(t => (
               <button
                 key={t.id}
                 className={`chip ${topics.includes(t.id) ? 'chip-selected' : ''}`}
                 onClick={() => toggle(t.id, topics, setTopics)}
               >
-                <span>{t.icon}</span> {t.label}
+                {t.icon} {t.label}
               </button>
             ))}
           </div>
-          <button
-            className="btn btn-primary"
-            style={{ width: '100%', padding: '14px', fontSize: '15px' }}
-            onClick={() => setStep(2)}
-            disabled={topics.length < 2}
-          >
+          <button className="btn btn-primary" style={{ width: '100%', padding: 14 }}
+            onClick={() => setStep(2)} disabled={topics.length < 2}>
             Continue
           </button>
+          {topics.length < 2 && (
+            <p style={{ fontSize: 11, color: 'var(--t4)', textAlign: 'center', marginTop: 8 }}>
+              Select at least 2 topics
+            </p>
+          )}
         </div>
       )}
 
       {step === 2 && (
         <div className="fade-in">
-          <p className="label" style={{ marginBottom: '12px', color: 'var(--cyan)' }}>STEP 2 OF 2</p>
-          <h1 style={{ fontSize: '28px', fontWeight: 700, lineHeight: 1.2, marginBottom: '8px' }}>
+          <p className="label" style={{ marginBottom: 12, color: 'var(--accent)' }}>STEP 2 · REGIONS</p>
+          <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 6 }}>
             Where in the world?
           </h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: '15px', marginBottom: '32px' }}>
-            Select regions to track. We'll surface tension and stories from these areas.
+          <p style={{ color: 'var(--t3)', fontSize: 14, marginBottom: 32, lineHeight: 1.6 }}>
+            We'll track tension levels and surface intelligence from these regions.
           </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px', marginBottom: '40px' }}>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 40 }}>
             {REGIONS.map(r => (
               <button
                 key={r.id}
                 className={`chip ${regions.includes(r.id) ? 'chip-selected' : ''}`}
                 onClick={() => toggle(r.id, regions, setRegions)}
               >
-                <span>{r.flag}</span> {r.label}
+                {r.flag} {r.label}
               </button>
             ))}
           </div>
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <button className="btn" style={{ flex: 1 }} onClick={() => setStep(1)}>
-              Back
-            </button>
-            <button
-              className="btn btn-primary"
-              style={{ flex: 2, padding: '14px', fontSize: '15px' }}
-              onClick={handleComplete}
-              disabled={regions.length < 1 || saving}
-            >
+          <div style={{ display: 'flex', gap: 12 }}>
+            <button className="btn" style={{ flex: '0 0 auto' }} onClick={() => setStep(1)}>← Back</button>
+            <button className="btn btn-primary" style={{ flex: 1, padding: 14 }}
+              onClick={handleComplete} disabled={regions.length < 1 || saving}>
               {saving ? 'Saving...' : 'Launch Dashboard →'}
             </button>
           </div>

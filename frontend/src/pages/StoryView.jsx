@@ -13,198 +13,196 @@ export default function StoryView() {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!article) {
-      navigate('/dashboard');
-      return;
-    }
-
-    async function fetchDeepDive() {
+    if (!article) { navigate('/dashboard'); return; }
+    (async () => {
       setLoading(true);
       try {
         const res = await api.storyDeepDive(article.title, article.text, article.source);
         setData(res);
-      } catch (e) {
-        setError(e.message);
-      }
+      } catch (e) { setError(e.message); }
       setLoading(false);
-    }
-
-    fetchDeepDive();
+    })();
   }, [article, navigate]);
 
   if (!article) return null;
 
   const perspectives = data?.perspectives || {};
   const currentPerspective = perspectives[activeTab] || {};
+  const sentimentLabel = (data?.sentiment?.label || '').toUpperCase();
+  const sentimentScore = data?.sentiment?.score || 0;
 
-  const sentimentLabel = data?.sentiment?.label || '';
-  const sentimentColor =
-    sentimentLabel === 'POSITIVE' ? 'var(--green)' :
-    sentimentLabel === 'NEGATIVE' ? 'var(--red)' : 'var(--text-secondary)';
+  const sentimentClass = sentimentLabel === 'POSITIVE' ? 'positive' : sentimentLabel === 'NEGATIVE' ? 'negative' : 'neutral';
 
   return (
-    <div style={{ maxWidth: '900px', margin: '0 auto' }}>
-      {/* Back button */}
-      <button
-        className="btn-ghost"
-        onClick={() => navigate('/dashboard')}
-        style={{ marginBottom: '24px', fontSize: '13px', color: 'var(--text-secondary)' }}
-      >
-        ← Back to Dashboard
+    <div style={{ maxWidth: 880, margin: '0 auto' }}>
+      {/* Back */}
+      <button className="btn-ghost" onClick={() => navigate('/dashboard')} style={{ marginBottom: 24 }}>
+        ← Dashboard
       </button>
 
-      {/* Story header */}
-      <div className="fade-in" style={{ marginBottom: '32px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-          <span className="label" style={{ color: 'var(--text-tertiary)' }}>{article.source}</span>
+      {/* Header */}
+      <div className="fade-in" style={{ marginBottom: 32 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+          <span className="label">{article.source}</span>
           {sentimentLabel && !loading && (
-            <span className="badge" style={{
-              background: sentimentLabel === 'POSITIVE' ? 'var(--green-dim)' :
-                sentimentLabel === 'NEGATIVE' ? 'var(--red-dim)' : 'rgba(255,255,255,0.04)',
-              color: sentimentColor,
-            }}>
-              {sentimentLabel} · {Math.round((data?.sentiment?.score || 0) * 100)}%
+            <span className={`badge badge-${sentimentClass}`}>
+              {sentimentLabel} · {Math.round(sentimentScore * 100)}%
             </span>
           )}
         </div>
-        <h1 style={{ fontSize: '28px', fontWeight: 700, lineHeight: 1.3, marginBottom: '16px' }}>
+        <h1 style={{ fontSize: 26, fontWeight: 800, lineHeight: 1.3, letterSpacing: '-0.3px', marginBottom: 16 }}>
           {article.title}
         </h1>
-        <p style={{ fontSize: '15px', lineHeight: 1.8, color: 'var(--text-secondary)' }}>
-          {article.text}
-        </p>
+        <p style={{ fontSize: 15, lineHeight: 1.8, color: 'var(--t2)' }}>{article.text}</p>
       </div>
 
       {loading ? (
-        <div>
-          <div className="card" style={{ marginBottom: '20px' }}>
-            <div className="skeleton" style={{ width: '180px', height: '14px', marginBottom: '20px' }} />
-            <div className="skeleton" style={{ width: '100%', height: '16px', marginBottom: '12px' }} />
-            <div className="skeleton" style={{ width: '80%', height: '16px', marginBottom: '12px' }} />
-            <div className="skeleton" style={{ width: '60%', height: '16px' }} />
+        <div style={{ display: 'grid', gap: 20 }}>
+          <div className="card">
+            <div className="skeleton" style={{ width: 150, height: 14, marginBottom: 20 }} />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {[1,2,3,4].map(i => <div key={i} className="skeleton" style={{ width: 90, height: 28, borderRadius: 6 }} />)}
+            </div>
           </div>
           <div className="card">
-            <div className="skeleton" style={{ width: '140px', height: '14px', marginBottom: '20px' }} />
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
-              {[1,2,3].map(i => <div key={i} className="skeleton" style={{ width: '80px', height: '36px', borderRadius: '8px' }} />)}
-            </div>
-            <div className="skeleton" style={{ width: '100%', height: '80px' }} />
+            <div className="skeleton" style={{ width: 180, height: 14, marginBottom: 20 }} />
+            <div className="skeleton" style={{ width: '100%', height: 100 }} />
           </div>
         </div>
       ) : error ? (
-        <div className="card" style={{ borderColor: 'var(--red)', background: 'var(--red-dim)' }}>
-          <p style={{ color: 'var(--red)', fontSize: '13px' }}>⚠ Deep dive failed: {error}</p>
+        <div className="card" style={{ borderColor: 'var(--negative)' }}>
+          <p style={{ color: 'var(--negative)', fontSize: 13 }}>Analysis failed: {error}</p>
         </div>
       ) : (
-        <>
-          {/* ── Entities ──────────────────────────────────────── */}
+        <div style={{ display: 'grid', gap: 20 }}>
+
+          {/* ── Key Entities ──────────────────────────────────── */}
           {data?.entities && data.entities.length > 0 && (
-            <div className="card fade-in" style={{ marginBottom: '20px' }}>
-              <div className="card-header">
-                <div className="card-title">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10" />
-                    <line x1="2" y1="12" x2="22" y2="12" />
-                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-                  </svg>
-                  Key Entities
+            <div className="card fade-in d1">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+                <div className="section-title">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                  Extracted Entities
                 </div>
                 <span className="label">{data.entities.length} DETECTED</span>
               </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {data.entities.map((e, i) => (
-                  <div key={i} style={{
-                    padding: '6px 14px',
-                    borderRadius: '8px',
-                    background: 'var(--bg-tertiary)',
-                    border: '1px solid var(--border)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                  }}>
-                    <span style={{ fontSize: '14px', fontWeight: 500 }}>{e.name}</span>
-                    <span className="mono" style={{
-                      fontSize: '10px',
-                      padding: '1px 6px',
-                      borderRadius: '4px',
-                      background: 'var(--cyan-dim)',
-                      color: 'var(--cyan)',
-                    }}>
-                      {e.type}
-                    </span>
+                  <div key={i} className="entity-tag">
+                    {e.name}
+                    <span className="entity-tag-type">{e.type}</span>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
+          {/* ── Sentiment Breakdown ──────────────────────────── */}
+          <div className="card fade-in d2">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+              <div className="section-title">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                Sentiment Analysis
+              </div>
+              <span className="label">AI MODEL</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+              {/* Score */}
+              <div style={{ textAlign: 'center' }}>
+                <div className="metric" style={{ color: `var(--${sentimentClass})`, marginBottom: 4 }}>
+                  {Math.round(sentimentScore * 100)}%
+                </div>
+                <span className="label" style={{ color: `var(--${sentimentClass})` }}>{sentimentLabel}</span>
+              </div>
+              {/* Bar */}
+              <div style={{ flex: 1 }}>
+                <div className="tension-track" style={{ height: 8 }}>
+                  <div className="tension-fill" style={{
+                    width: `${sentimentScore * 100}%`,
+                    background: `linear-gradient(90deg, var(--${sentimentClass})44, var(--${sentimentClass}))`,
+                  }} />
+                </div>
+                <p style={{ fontSize: 11, color: 'var(--t4)', marginTop: 6 }}>
+                  Confidence score from RoBERTa sentiment model via Hugging Face
+                </p>
+              </div>
+            </div>
+          </div>
+
           {/* ── Perspectives Panel ────────────────────────────── */}
-          <div className="card fade-in fade-in-delay-1">
-            <div className="card-header">
-              <div className="card-title">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--orange)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                  <circle cx="12" cy="12" r="3" />
-                </svg>
+          <div className="card fade-in d3">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+              <div className="section-title">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                 Perspectives Panel
               </div>
               <span className="label">FRAMING ANALYSIS</span>
             </div>
 
-            {/* Tabs */}
-            <div style={{ display: 'flex', gap: '6px', marginBottom: '24px', background: 'var(--bg-primary)', padding: '4px', borderRadius: 'var(--radius-md)' }}>
+            <div className="tab-group" style={{ marginBottom: 24 }}>
               {[
-                { key: 'left', label: '← Left', color: '#5b8def' },
-                { key: 'center', label: 'Center', color: 'var(--text-secondary)' },
-                { key: 'right', label: 'Right →', color: '#ef5b5b' },
+                { key: 'left', label: '← Left', color: '#60a5fa' },
+                { key: 'center', label: 'Center', color: 'var(--t2)' },
+                { key: 'right', label: 'Right →', color: '#f87171' },
               ].map(tab => (
                 <button
                   key={tab.key}
-                  className={`perspective-tab ${activeTab === tab.key ? 'active' : ''}`}
+                  className={`tab ${activeTab === tab.key ? 'active' : ''}`}
                   onClick={() => setActiveTab(tab.key)}
-                  style={{
-                    flex: 1,
-                    color: activeTab === tab.key ? tab.color : undefined,
-                  }}
+                  style={{ color: activeTab === tab.key ? tab.color : undefined }}
                 >
                   {tab.label}
                 </button>
               ))}
             </div>
 
-            {/* Content */}
             {currentPerspective.framing ? (
-              <div style={{ display: 'grid', gap: '16px' }}>
-                <div>
-                  <p className="label" style={{ marginBottom: '6px' }}>FRAMING</p>
-                  <p style={{ fontSize: '15px', lineHeight: 1.6 }}>{currentPerspective.framing}</p>
+              <div style={{ display: 'grid', gap: 20 }}>
+                {/* Framing */}
+                <div style={{ padding: 16, background: 'var(--bg-primary)', borderRadius: 'var(--r-md)', border: '1px solid var(--border-subtle)' }}>
+                  <p className="label" style={{ marginBottom: 8, color: activeTab === 'left' ? '#60a5fa' : activeTab === 'right' ? '#f87171' : 'var(--t3)' }}>
+                    HOW THEY FRAME IT
+                  </p>
+                  <p style={{ fontSize: 15, lineHeight: 1.7, fontWeight: 500 }}>{currentPerspective.framing}</p>
                 </div>
-                {currentPerspective.emphasis && (
-                  <div>
-                    <p className="label" style={{ marginBottom: '6px', color: 'var(--green)' }}>EMPHASIS</p>
-                    <p style={{ fontSize: '14px', lineHeight: 1.6, color: 'var(--text-secondary)' }}>{currentPerspective.emphasis}</p>
-                  </div>
-                )}
-                {currentPerspective.omission && (
-                  <div>
-                    <p className="label" style={{ marginBottom: '6px', color: 'var(--red)' }}>OMISSION</p>
-                    <p style={{ fontSize: '14px', lineHeight: 1.6, color: 'var(--text-secondary)' }}>{currentPerspective.omission}</p>
-                  </div>
-                )}
+
+                {/* Details grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }} className="grid-2">
+                  {currentPerspective.emphasis && (
+                    <div>
+                      <p className="label" style={{ marginBottom: 6, color: 'var(--positive)' }}>
+                        ● WHAT THEY EMPHASIZE
+                      </p>
+                      <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--t2)' }}>{currentPerspective.emphasis}</p>
+                    </div>
+                  )}
+                  {currentPerspective.omission && (
+                    <div>
+                      <p className="label" style={{ marginBottom: 6, color: 'var(--negative)' }}>
+                        ● WHAT THEY OMIT
+                      </p>
+                      <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--t2)' }}>{currentPerspective.omission}</p>
+                    </div>
+                  )}
+                </div>
+
                 {currentPerspective.tone && (
-                  <div>
-                    <p className="label" style={{ marginBottom: '6px' }}>TONE</p>
-                    <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>{currentPerspective.tone}</p>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span className="label">EMOTIONAL TONE:</span>
+                    <span style={{ fontSize: 13, color: 'var(--t2)', fontStyle: 'italic' }}>{currentPerspective.tone}</span>
                   </div>
                 )}
               </div>
             ) : (
-              <p style={{ fontSize: '13px', color: 'var(--text-tertiary)' }}>
-                Perspective analysis unavailable for this story.
-              </p>
+              <div style={{ textAlign: 'center', padding: '30px 0' }}>
+                <p style={{ fontSize: 28, marginBottom: 8 }}>🔍</p>
+                <p style={{ fontSize: 13, color: 'var(--t4)', maxWidth: 300, margin: '0 auto' }}>
+                  Perspective analysis is generated by Gemini via the Gateway. The AI analyzes how different political leanings would frame this story.
+                </p>
+              </div>
             )}
           </div>
-        </>
+        </div>
       )}
     </div>
   );

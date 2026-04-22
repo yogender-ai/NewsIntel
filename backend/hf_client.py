@@ -79,21 +79,46 @@ async def _call_gemini(prompt: str) -> str:
     }
 
     try:
+        logger.info(f"Calling Gemini gateway: {url}")
         response = await _http_client.post(url, headers=HEADERS, json=payload)
+        logger.info(f"Gemini gateway status: {response.status_code}")
+
         if response.status_code == 200:
             data = response.json()
-            # Gemini gateway response structure
+            logger.info(f"Gemini response type: {type(data).__name__}, keys: {list(data.keys()) if isinstance(data, dict) else 'N/A'}")
+
             if isinstance(data, dict):
+                # Standard Gemini API response
                 candidates = data.get("candidates", [])
                 if candidates:
                     parts = candidates[0].get("content", {}).get("parts", [])
                     if parts:
                         return parts[0].get("text", "")
-                # Fallback: maybe the gateway returns text directly
-                return data.get("text", data.get("response", json.dumps(data)))
+
+                # Gateway may wrap the response
+                if "result" in data:
+                    result = data["result"]
+                    if isinstance(result, dict):
+                        candidates = result.get("candidates", [])
+                        if candidates:
+                            parts = candidates[0].get("content", {}).get("parts", [])
+                            if parts:
+                                return parts[0].get("text", "")
+                    elif isinstance(result, str):
+                        return result
+
+                # Direct text response from gateway
+                for key in ("text", "response", "output", "generated_text", "message"):
+                    if key in data:
+                        return str(data[key])
+
+                # Last resort: return the full JSON for debugging
+                logger.warning(f"Gemini response had unexpected structure: {json.dumps(data)[:500]}")
+                return json.dumps(data)
+
             return str(data)
         else:
-            logger.error(f"Gemini gateway returned {response.status_code}: {response.text[:300]}")
+            logger.error(f"Gemini gateway returned {response.status_code}: {response.text[:500]}")
             return ""
     except Exception as e:
         logger.error(f"Gemini gateway call failed: {e}")
