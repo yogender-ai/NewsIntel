@@ -61,19 +61,19 @@ export default function StoryView() {
 
       {loading ? (
         <div style={{ display: 'grid', gap: 18 }}>
-          <div className="glass" style={{ background: 'var(--bg-card-solid)' }}>
+          <div className="panel" style={{ background: 'var(--bg-card-solid)' }}>
             <div className="skel" style={{ width: 140, height: 12, marginBottom: 18 }} />
             <div style={{ display: 'flex', gap: 8 }}>
               {[1,2,3,4].map(i => <div key={i} className="skel" style={{ width: 90, height: 28, borderRadius: 8 }} />)}
             </div>
           </div>
-          <div className="glass" style={{ background: 'var(--bg-card-solid)' }}>
+          <div className="panel" style={{ background: 'var(--bg-card-solid)' }}>
             <div className="skel" style={{ width: 180, height: 12, marginBottom: 18 }} />
             <div className="skel" style={{ width: '100%', height: 80 }} />
           </div>
         </div>
       ) : error ? (
-        <div className="glass" style={{ borderColor: 'var(--neg)' }}>
+        <div className="panel" style={{ borderColor: 'var(--neg)' }}>
           <p style={{ fontSize: 12, color: 'var(--neg)' }}>Analysis failed: {error}</p>
         </div>
       ) : (
@@ -81,7 +81,7 @@ export default function StoryView() {
 
           {/* ── Entities ─────────────────────────────────────── */}
           {data?.entities?.length > 0 && (
-            <div className="glass fin d1">
+            <div className="panel fin d1">
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                 <div className="section-head">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
@@ -101,7 +101,7 @@ export default function StoryView() {
           )}
 
           {/* ── Sentiment ────────────────────────────────────── */}
-          <div className="glass fin d2">
+          <div className="panel fin d2">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <div className="section-head">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--warn)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
@@ -131,7 +131,7 @@ export default function StoryView() {
           </div>
 
           {/* ── Perspectives ─────────────────────────────────── */}
-          <div className="glass fin d3">
+          <div className="panel fin d3">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <div className="section-head">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent-3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
