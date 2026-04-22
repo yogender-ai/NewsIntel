@@ -359,105 +359,60 @@ export default function Dashboard() {
             );
           })()}
 
-          {clusters.length > 0 ? (
-            clusters.map((cluster, ci) => {
-              const clusterArticles = cluster.article_ids
-                .map(id => articleMap[id])
-                .filter(Boolean);
-              const isMulti = clusterArticles.length > 1;
-
-              if (!isMulti) {
-                // Single article — render as normal wire strip
-                const a = clusterArticles[0];
-                if (!a) return null;
-                const u = getUrg(a?.sentiment);
-                const sentClass = a?.sentiment?.label === 'POSITIVE' ? 'pos' : a?.sentiment?.label === 'NEGATIVE' ? 'neg' : 'neutral';
-                const ago = timeAgo(a.published);
-                return (
-                  <div key={ci} className="cluster-single wire-enter" style={{ animationDelay: `${0.08 + ci * 0.06}s` }}>
-                    <div className="wire-strip"
-                      onClick={() => navigate('/story', { state: {
-                        article: { id: a.id, title: a.title, text: a.text_preview || a.title, source: a.source, url: a.url }
-                      }})}
-                    >
-                      <div className={`urgency-bar urgency-bar-${u.l}`} />
-                      <div style={{ minWidth: 0 }}>
-                        <span className="wire-source">{a.source}</span>
-                        {ago && <span className="wire-time">{ago}</span>}
-                      </div>
-                      <span className="wire-title">{a.title}</span>
-                      {a?.sentiment && <span className={`wire-badge wire-badge-${sentClass}`}>{a.sentiment.label}</span>}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        {a.url && <a href={a.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="wire-external">↗</a>}
-                        <span className="wire-arrow">→</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              }
-
-              return (
-                <div key={ci} className="cluster-thread wire-enter" style={{ animationDelay: `${0.08 + ci * 0.06}s` }}>
-                  <div className="cluster-head">
-                    <div className="cluster-icon">◆</div>
-                    <span className="cluster-title">{cluster.thread_title}</span>
-                    <span className="cluster-count">{clusterArticles.length} SOURCES</span>
-                    {cluster.summary && <span className="cluster-summary">{cluster.summary}</span>}
-                  </div>
-                  {clusterArticles.map((a, i) => {
-                    const u = getUrg(a?.sentiment);
-                    const sentClass = a?.sentiment?.label === 'POSITIVE' ? 'pos' : a?.sentiment?.label === 'NEGATIVE' ? 'neg' : 'neutral';
-                    const ago = timeAgo(a.published);
-                    return (
-                      <div key={a.id} className="wire-strip"
-                        onClick={() => navigate('/story', { state: {
-                          article: { id: a.id, title: a.title, text: a.text_preview || a.title, source: a.source, url: a.url }
-                        }})}
-                      >
-                        <div className={`urgency-bar urgency-bar-${u.l}`} />
-                        <div style={{ minWidth: 0 }}>
-                          <span className="wire-source">{a.source}</span>
-                          {ago && <span className="wire-time">{ago}</span>}
-                        </div>
-                        <span className="wire-title">{a.title}</span>
-                        {a?.sentiment && <span className={`wire-badge wire-badge-${sentClass}`}>{a.sentiment.label}</span>}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          {a.url && <a href={a.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="wire-external">↗</a>}
-                          <span className="wire-arrow">→</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              );
-            })
-          ) : (
-            // Fallback: unclustered
-            articles.map((a, i) => {
+          {(() => {
+            const WireItem = ({ a }) => {
               const u = getUrg(a?.sentiment);
               const sentClass = a?.sentiment?.label === 'POSITIVE' ? 'pos' : a?.sentiment?.label === 'NEGATIVE' ? 'neg' : 'neutral';
               const ago = timeAgo(a.published);
               return (
-                <div key={a.id} className="wire-strip wire-enter" style={{ animationDelay: `${0.1 + i * 0.06}s` }}
+                <div className="wire-strip"
                   onClick={() => navigate('/story', { state: {
                     article: { id: a.id, title: a.title, text: a.text_preview || a.title, source: a.source, url: a.url }
                   }})}
                 >
                   <div className={`urgency-bar urgency-bar-${u.l}`} />
-                  <div style={{ minWidth: 0 }}>
+                  <div className="wire-source-col">
                     <span className="wire-source">{a.source}</span>
                     {ago && <span className="wire-time">{ago}</span>}
                   </div>
                   <span className="wire-title">{a.title}</span>
-                  {a?.sentiment && <span className={`wire-badge wire-badge-${sentClass}`}>{a.sentiment.label}</span>}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <div className="wire-right">
+                    {a?.sentiment && <span className={`wire-badge wire-badge-${sentClass}`}>{a.sentiment.label}</span>}
                     {a.url && <a href={a.url} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="wire-external">↗</a>}
                     <span className="wire-arrow">→</span>
                   </div>
                 </div>
               );
-            })
-          )}
+            };
+
+            if (clusters.length > 0) {
+              return clusters.map((cluster, ci) => {
+                const ca = cluster.article_ids.map(id => articleMap[id]).filter(Boolean);
+                if (ca.length === 0) return null;
+                if (ca.length === 1) return (
+                  <div key={ci} className="cluster-single wire-enter" style={{ animationDelay: `${0.05 + ci * 0.05}s` }}>
+                    <WireItem a={ca[0]} />
+                  </div>
+                );
+                return (
+                  <div key={ci} className="cluster-thread wire-enter" style={{ animationDelay: `${0.05 + ci * 0.05}s` }}>
+                    <div className="cluster-head">
+                      <div className="cluster-icon">◆</div>
+                      <span className="cluster-title">{cluster.thread_title}</span>
+                      <span className="cluster-count">{ca.length} SOURCES</span>
+                      {cluster.summary && <span className="cluster-summary">{cluster.summary}</span>}
+                    </div>
+                    {ca.map(a => <WireItem key={a.id} a={a} />)}
+                  </div>
+                );
+              });
+            }
+            return articles.map((a, i) => (
+              <div key={a.id} className="wire-enter" style={{ animationDelay: `${0.05 + i * 0.04}s` }}>
+                <WireItem a={a} />
+              </div>
+            ));
+          })()}
         </div>
       </div>
 

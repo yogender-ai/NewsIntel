@@ -278,20 +278,19 @@ a { color: var(--accent); text-decoration: none; }
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   WIRE FEED — Story strips (NOT cards!)
+   WIRE FEED — Flex-based strips
    ══════════════════════════════════════════════════════════════════ */
 
 .wire-strip {
-  display: grid;
-  grid-template-columns: 5px 85px 1fr auto auto;
+  display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
+  gap: 14px;
+  padding: 14px 18px;
   background: var(--bg-strip);
   border: 1px solid transparent;
   border-radius: var(--r-sm);
   cursor: pointer;
-  transition: all 0.25s var(--ease);
+  transition: all 0.3s var(--ease);
   position: relative;
   overflow: hidden;
 }
@@ -301,50 +300,58 @@ a { color: var(--accent); text-decoration: none; }
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(0,212,255,0.03), transparent);
+  background: linear-gradient(90deg, transparent, rgba(0,212,255,0.04), transparent);
   opacity: 0;
   transition: opacity 0.4s;
 }
 .wire-strip:hover {
-  background: linear-gradient(90deg, rgba(18,25,40,0.8), rgba(12,17,28,0.6));
+  background: linear-gradient(135deg, rgba(18,25,40,0.9), rgba(12,17,28,0.6));
   border-color: var(--border-hover);
-  transform: translateX(6px);
-  box-shadow: -4px 0 20px rgba(0,212,255,0.05), 0 2px 15px rgba(0,0,0,0.3);
+  transform: translateX(4px);
+  box-shadow: -3px 0 20px rgba(0,212,255,0.06), 0 4px 20px rgba(0,0,0,0.3);
 }
 .wire-strip:hover::before { opacity: 1; }
-.wire-strip:active { transform: translateX(3px) scale(0.998); }
+.wire-strip:active { transform: translateX(2px) scale(0.998); }
 
+.wire-source-col {
+  flex-shrink: 0;
+  width: 80px;
+  min-width: 0;
+}
 .wire-source {
   font-family: var(--mono);
   font-size: 9px;
   font-weight: 700;
-  letter-spacing: 1.5px;
+  letter-spacing: 1px;
   color: var(--t3);
   text-transform: uppercase;
-  min-width: 0;
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .wire-title {
-  font-size: 12.5px;
+  flex: 1;
+  font-size: 13px;
   font-weight: 600;
   color: var(--t1);
-  line-height: 1.4;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  line-height: 1.45;
+  min-width: 0;
+}
+
+.wire-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .wire-badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
   padding: 2px 8px;
-  font-size: 9px;
+  font-size: 8px;
   font-weight: 700;
   border-radius: var(--r-full);
   letter-spacing: 0.8px;
@@ -363,6 +370,9 @@ a { color: var(--accent); text-decoration: none; }
 .wire-strip:hover .wire-arrow {
   color: var(--accent);
   transform: translateX(3px);
+}
+.wire-strip:hover .wire-title {
+  color: #fff;
 }
 
 /* ── Urgency bar (left edge) ───────────────────────────────────── */
@@ -664,8 +674,9 @@ a { color: var(--accent); text-decoration: none; }
 
 @media (max-width: 900px) {
   .g2 { grid-template-columns: 1fr !important; }
-  .wire-strip { grid-template-columns: 5px 50px 1fr auto; }
-  .wire-strip .wire-badge { display: none; }
+  .wire-source-col { width: 60px; }
+  .wire-badge { display: none; }
+  .cluster-summary { display: none; }
 }
 
 /* ══════════════════════════════════════════════════════════════════
