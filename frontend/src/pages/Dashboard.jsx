@@ -239,6 +239,43 @@ export default function Dashboard() {
         </div>
       )}
 
+      {/* ══ STATS STRIP ════════════════════════════════════════ */}
+      {(() => {
+        const pos = articles.filter(a => a.sentiment?.label === 'POSITIVE').length;
+        const neg = articles.filter(a => a.sentiment?.label === 'NEGATIVE').length;
+        const neu = articles.length - pos - neg;
+        const topTension = tensionArr[0];
+        return (
+          <div className="fin d1" style={{
+            display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12,
+            marginBottom: 20,
+          }}>
+            {[
+              { label: 'SOURCES', value: data?.sources_count || 0, color: 'var(--accent)', icon: '◈' },
+              { label: 'POSITIVE', value: pos, color: 'var(--pos)', icon: '▲' },
+              { label: 'NEGATIVE', value: neg, color: 'var(--neg)', icon: '▼' },
+              { label: 'TOP TENSION', value: topTension ? topTension[0].slice(0,8) : '—', color: 'var(--warn)', icon: '◉', sub: topTension ? topTension[1] : '' },
+            ].map((s, i) => (
+              <div key={i} style={{
+                padding: '12px 16px',
+                background: 'linear-gradient(145deg, rgba(10,15,24,0.5), rgba(7,11,20,0.7))',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--r-md)',
+                borderTop: `2px solid ${s.color}`,
+              }}>
+                <div className="mono" style={{ fontSize: 8, color: 'var(--t4)', letterSpacing: 1.5, marginBottom: 4 }}>
+                  {s.icon} {s.label}
+                </div>
+                <div className="mono" style={{ fontSize: 18, fontWeight: 800, color: s.color }}>
+                  {s.value}
+                </div>
+                {s.sub && <div className="mono" style={{ fontSize: 8, color: 'var(--t4)', marginTop: 2 }}>SCORE: {s.sub}</div>}
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
       {/* ══ ROW 1: BRIEF + RADAR ═══════════════════════════════ */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 16, marginBottom: 24 }} className="g2">
         <div className="panel fin d1" style={{ borderLeft: '2px solid var(--accent)' }}>
@@ -302,6 +339,20 @@ export default function Dashboard() {
         </div>
 
         <div className="wire-feed">
+          {/* Sentiment breakdown bar */}
+          {(() => {
+            const pos = articles.filter(a => a.sentiment?.label === 'POSITIVE').length;
+            const neg = articles.filter(a => a.sentiment?.label === 'NEGATIVE').length;
+            const total = articles.length || 1;
+            return (
+              <div style={{ display: 'flex', height: 3, borderRadius: 2, overflow: 'hidden', marginBottom: 8, gap: 2 }}>
+                <div style={{ width: `${(pos/total)*100}%`, background: 'var(--pos)', transition: 'width 0.6s var(--ease)' }} />
+                <div style={{ flex: 1, background: 'var(--t4)', opacity: 0.3 }} />
+                <div style={{ width: `${(neg/total)*100}%`, background: 'var(--neg)', transition: 'width 0.6s var(--ease)' }} />
+              </div>
+            );
+          })()}
+
           {articles.map((a, i) => {
             const u = getUrg(a?.sentiment);
             const sentClass = a?.sentiment?.label === 'POSITIVE' ? 'pos' : a?.sentiment?.label === 'NEGATIVE' ? 'neg' : 'neutral';
@@ -387,6 +438,22 @@ export default function Dashboard() {
           </div>
         </div>
       )}
+
+      {/* ══ STATUS BAR ═════════════════════════════════════════ */}
+      <div className="fin d6" style={{
+        marginTop: 32, padding: '10px 0',
+        borderTop: '1px solid var(--border)',
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+      }}>
+        <div className="mono" style={{ fontSize: 9, color: 'var(--t4)', display: 'flex', gap: 16 }}>
+          <span>PIPELINE: RSS → GATEWAY → HF + GEMINI</span>
+          <span>CACHE: 10MIN TTL</span>
+          <span>MODEL: GEMINI-2.5-FLASH</span>
+        </div>
+        <div className="mono" style={{ fontSize: 9, color: 'var(--t4)' }}>
+          {data?.generated_at ? `GENERATED: ${new Date(data.generated_at).toLocaleTimeString()}` : ''}
+        </div>
+      </div>
     </div>
   );
 }

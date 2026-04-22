@@ -93,13 +93,13 @@ function ParticleField() {
 function useMouseGlow() {
   useEffect(() => {
     const handler = (e) => {
-      const cards = document.querySelectorAll('.glass');
-      cards.forEach(card => {
-        const rect = card.getBoundingClientRect();
+      const panels = document.querySelectorAll('.panel');
+      panels.forEach(p => {
+        const rect = p.getBoundingClientRect();
         const x = ((e.clientX - rect.left) / rect.width) * 100;
         const y = ((e.clientY - rect.top) / rect.height) * 100;
-        card.style.setProperty('--mouse-x', `${x}%`);
-        card.style.setProperty('--mouse-y', `${y}%`);
+        p.style.setProperty('--mouse-x', `${x}%`);
+        p.style.setProperty('--mouse-y', `${y}%`);
       });
     };
     window.addEventListener('mousemove', handler);
@@ -117,16 +117,17 @@ function NavBar() {
       position: 'sticky', top: 0, zIndex: 100,
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       padding: '0 32px', height: 52,
-      background: 'rgba(2, 4, 9, 0.7)',
-      backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
+      background: 'rgba(2, 4, 9, 0.85)',
+      backdropFilter: 'blur(24px) saturate(1.3)', WebkitBackdropFilter: 'blur(24px)',
       borderBottom: '1px solid var(--border)',
+      boxShadow: '0 4px 30px rgba(0,0,0,0.4)',
     }}>
       <NavLink to="/dashboard" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{
           width: 28, height: 28, borderRadius: 8,
           background: 'linear-gradient(135deg, #00d4ff, #6366f1)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 2px 16px rgba(0, 212, 255, 0.25)',
+          boxShadow: '0 2px 16px rgba(0, 212, 255, 0.3)',
         }}>
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polygon points="12 2 2 7 12 12 22 7 12 2" />
@@ -137,24 +138,30 @@ function NavBar() {
         <span style={{ fontSize: 15, fontWeight: 800, letterSpacing: '-0.3px', color: 'var(--t1)' }}>
           News<span style={{ color: 'var(--accent)' }}>Intel</span>
         </span>
+        <span className="mono" style={{
+          fontSize: 8, padding: '2px 6px', borderRadius: 4,
+          background: 'var(--accent-dim)', color: 'var(--accent)',
+          letterSpacing: 1, fontWeight: 700,
+        }}>v4</span>
       </NavLink>
 
       {!isStory && (
         <div style={{ display: 'flex', gap: 2 }}>
           {[
-            { to: '/dashboard', label: 'Dashboard' },
-            { to: '/onboarding', label: 'Profile' },
+            { to: '/dashboard', label: 'Dashboard', icon: '◈' },
+            { to: '/onboarding', label: 'Profile', icon: '◎' },
           ].map(link => (
             <NavLink key={link.to} to={link.to}
               style={({ isActive }) => ({
-                padding: '6px 14px', fontSize: 12, fontWeight: 600,
+                padding: '6px 16px', fontSize: 11, fontWeight: 600,
                 borderRadius: 8,
-                color: isActive ? 'var(--t1)' : 'var(--t3)',
-                background: isActive ? 'rgba(255,255,255,0.04)' : 'transparent',
+                color: isActive ? 'var(--accent)' : 'var(--t3)',
+                background: isActive ? 'rgba(0,212,255,0.06)' : 'transparent',
+                border: isActive ? '1px solid rgba(0,212,255,0.1)' : '1px solid transparent',
                 textDecoration: 'none', transition: 'all 0.2s',
-                letterSpacing: '0.3px',
+                letterSpacing: '0.5px', fontFamily: 'var(--mono)',
               })}
-            >{link.label}</NavLink>
+            >{link.icon} {link.label}</NavLink>
           ))}
         </div>
       )}
@@ -184,10 +191,11 @@ function App() {
         <footer style={{
           padding: '14px 32px', borderTop: '1px solid var(--border)',
           display: 'flex', justifyContent: 'space-between',
-          fontSize: 10, color: 'var(--t4)', letterSpacing: '0.3px',
+          fontSize: 9, color: 'var(--t4)', letterSpacing: '0.5px',
+          fontFamily: 'var(--mono)',
         }}>
-          <span>News-Intel v3.0</span>
-          <span className="mono">Gateway → Gemini 2.5 Flash Lite + HF Space</span>
+          <span>◈ NEWS-INTEL v4.0 — INTELLIGENCE BRIEFING PLATFORM</span>
+          <span>RSS → GATEWAY → GEMINI 2.5 + HF SPACE</span>
         </footer>
       </div>
     </Router>
