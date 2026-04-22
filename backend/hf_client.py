@@ -233,3 +233,48 @@ Analyze the personal impact. Return ONLY valid JSON, no markdown:
         return json.loads(cleaned.strip())
     except Exception:
         return {"impact_score": 0.5, "headline": raw[:100], "actions": [], "why_it_matters": raw[:300]}
+
+
+async def cluster_stories(articles: list) -> list:
+    """
+    Phase 4: Cluster related articles into story threads.
+    Input: list of {id, title, source}
+    Output: list of clusters [{thread_title, article_ids, summary}]
+    """
+    if len(articles) <= 2:
+        return [{"thread_title": a["title"], "article_ids": [a["id"]], "summary": ""} for a in articles]
+
+    listing = "\n".join([f'{a["id"]}. [{a["source"]}] {a["title"]}' for a in articles])
+
+    prompt = f"""You are a news editor. Group these articles into story clusters. 
+Articles about the SAME event or topic go in the same cluster.
+
+Articles:
+{listing}
+
+Return ONLY valid JSON array, no markdown, no backticks:
+[{{"thread_title":"Short descriptive title for this story thread","article_ids":["1","3"],"summary":"One sentence synthesis of what this cluster covers"}}]
+
+Rules:
+- Each article ID must appear in exactly ONE cluster
+- Standalone articles get their own single-item cluster
+- thread_title should be a clear, concise topic label (not a full headline)
+- Maximum 2-4 clusters"""
+
+    raw = await _call_gemini(prompt)
+    if not raw:
+        return [{"thread_title": a["title"], "article_ids": [a["id"]], "summary": ""} for a in articles]
+
+    try:
+        cleaned = raw.strip()
+        if cleaned.startswith("```"):
+            cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned[3:]
+            cleaned = cleaned.rsplit("```", 1)[0]
+        clusters = json.loads(cleaned.strip())
+        if isinstance(clusters, list) and len(clusters) > 0:
+            return clusters
+    except Exception as e:
+        logger.warning(f"Cluster parse: {e}")
+
+    return [{"thread_title": a["title"], "article_ids": [a["id"]], "summary": ""} for a in articles]
+

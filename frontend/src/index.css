@@ -283,9 +283,9 @@ a { color: var(--accent); text-decoration: none; }
 
 .wire-strip {
   display: grid;
-  grid-template-columns: 7px 70px 1fr auto auto;
+  grid-template-columns: 7px 90px 1fr auto auto;
   align-items: center;
-  gap: 16px;
+  gap: 14px;
   padding: 14px 20px;
   background: var(--bg-strip);
   border: 1px solid transparent;

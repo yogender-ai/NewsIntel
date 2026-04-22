@@ -100,7 +100,7 @@ async def get_dashboard(request: DashboardRequest):
     articles = await news_fetcher.fetch_news(
         topics=topics,
         regions=regions,
-        max_articles=6,  # Keep at 6 to limit gateway calls
+        max_articles=10,  # Fetch more for better clustering
     )
 
     if not articles:
@@ -170,6 +170,10 @@ async def get_dashboard(request: DashboardRequest):
     for r in tension_scores:
         tension_scores[r] = max(0, min(100, tension_scores[r]))
 
+    # ── Step 5: Cluster stories ──────────────────────────────────
+    cluster_input = [{"id": a["id"], "title": a["title"], "source": a["source"]} for a in analysis_results]
+    clusters = await hf_client.cluster_stories(cluster_input)
+
     asyncio.create_task(_track_entities_bg(all_entities))
 
     return {
@@ -177,6 +181,7 @@ async def get_dashboard(request: DashboardRequest):
         "live": True,
         "daily_brief": brief_result,
         "articles": analysis_results,
+        "clusters": clusters,
         "tension_index": tension_scores,
         "impact": impact_result if isinstance(impact_result, dict) else {},
         "sources_count": len(articles),
