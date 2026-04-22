@@ -17,8 +17,7 @@ export default function StoryView() {
     (async () => {
       setLoading(true);
       try {
-        const res = await api.storyDeepDive(article.title, article.text, article.source);
-        setData(res);
+        setData(await api.storyDeepDive(article.title, article.text, article.source));
       } catch (e) { setError(e.message); }
       setLoading(false);
     })();
@@ -27,177 +26,163 @@ export default function StoryView() {
   if (!article) return null;
 
   const perspectives = data?.perspectives || {};
-  const currentPerspective = perspectives[activeTab] || {};
-  const sentimentLabel = (data?.sentiment?.label || '').toUpperCase();
-  const sentimentScore = data?.sentiment?.score || 0;
-
-  const sentimentClass = sentimentLabel === 'POSITIVE' ? 'positive' : sentimentLabel === 'NEGATIVE' ? 'negative' : 'neutral';
+  const persp = perspectives[activeTab] || {};
+  const sentLabel = (data?.sentiment?.label || '').toUpperCase();
+  const sentScore = data?.sentiment?.score || 0;
+  const sentClass = sentLabel === 'POSITIVE' ? 'pos' : sentLabel === 'NEGATIVE' ? 'neg' : 'neutral';
 
   return (
-    <div style={{ maxWidth: 880, margin: '0 auto' }}>
-      {/* Back */}
-      <button className="btn-ghost" onClick={() => navigate('/dashboard')} style={{ marginBottom: 24 }}>
+    <div style={{ maxWidth: 900, margin: '0 auto' }}>
+      <button className="btn-ghost" onClick={() => navigate('/dashboard')} style={{ marginBottom: 20 }}>
         ← Dashboard
       </button>
 
-      {/* Header */}
-      <div className="fade-in" style={{ marginBottom: 32 }}>
+      {/* ── Header ──────────────────────────────────────────── */}
+      <div className="fin" style={{ marginBottom: 28 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
           <span className="label">{article.source}</span>
-          {sentimentLabel && !loading && (
-            <span className={`badge badge-${sentimentClass}`}>
-              {sentimentLabel} · {Math.round(sentimentScore * 100)}%
+          {sentLabel && !loading && (
+            <span className={`badge badge-${sentClass}`}>
+              {sentLabel} · {Math.round(sentScore * 100)}%
             </span>
           )}
         </div>
-        <h1 style={{ fontSize: 26, fontWeight: 800, lineHeight: 1.3, letterSpacing: '-0.3px', marginBottom: 16 }}>
+        <h1 style={{ fontSize: 26, fontWeight: 900, lineHeight: 1.3, letterSpacing: '-0.4px', marginBottom: 14 }}>
           {article.title}
         </h1>
         <p style={{ fontSize: 15, lineHeight: 1.8, color: 'var(--t2)' }}>{article.text}</p>
       </div>
 
       {loading ? (
-        <div style={{ display: 'grid', gap: 20 }}>
-          <div className="card">
-            <div className="skeleton" style={{ width: 150, height: 14, marginBottom: 20 }} />
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {[1,2,3,4].map(i => <div key={i} className="skeleton" style={{ width: 90, height: 28, borderRadius: 6 }} />)}
+        <div style={{ display: 'grid', gap: 18 }}>
+          <div className="glass" style={{ background: 'var(--bg-card-solid)' }}>
+            <div className="skel" style={{ width: 140, height: 12, marginBottom: 18 }} />
+            <div style={{ display: 'flex', gap: 8 }}>
+              {[1,2,3,4].map(i => <div key={i} className="skel" style={{ width: 90, height: 28, borderRadius: 8 }} />)}
             </div>
           </div>
-          <div className="card">
-            <div className="skeleton" style={{ width: 180, height: 14, marginBottom: 20 }} />
-            <div className="skeleton" style={{ width: '100%', height: 100 }} />
+          <div className="glass" style={{ background: 'var(--bg-card-solid)' }}>
+            <div className="skel" style={{ width: 180, height: 12, marginBottom: 18 }} />
+            <div className="skel" style={{ width: '100%', height: 80 }} />
           </div>
         </div>
       ) : error ? (
-        <div className="card" style={{ borderColor: 'var(--negative)' }}>
-          <p style={{ color: 'var(--negative)', fontSize: 13 }}>Analysis failed: {error}</p>
+        <div className="glass" style={{ borderColor: 'var(--neg)' }}>
+          <p style={{ fontSize: 12, color: 'var(--neg)' }}>Analysis failed: {error}</p>
         </div>
       ) : (
-        <div style={{ display: 'grid', gap: 20 }}>
+        <div style={{ display: 'grid', gap: 18 }}>
 
-          {/* ── Key Entities ──────────────────────────────────── */}
-          {data?.entities && data.entities.length > 0 && (
-            <div className="card fade-in d1">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-                <div className="section-title">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-                  Extracted Entities
+          {/* ── Entities ─────────────────────────────────────── */}
+          {data?.entities?.length > 0 && (
+            <div className="glass fin d1">
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <div className="section-head">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+                  Entities
                 </div>
                 <span className="label">{data.entities.length} DETECTED</span>
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                 {data.entities.map((e, i) => (
-                  <div key={i} className="entity-tag">
+                  <div key={i} className="etag">
                     {e.name}
-                    <span className="entity-tag-type">{e.type}</span>
+                    <span className="etag-type">{e.type}</span>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* ── Sentiment Breakdown ──────────────────────────── */}
-          <div className="card fade-in d2">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-              <div className="section-title">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                Sentiment Analysis
+          {/* ── Sentiment ────────────────────────────────────── */}
+          <div className="glass fin d2">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div className="section-head">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--warn)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                Sentiment
               </div>
-              <span className="label">AI MODEL</span>
+              <span className="label">ROBERTA VIA GATEWAY</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-              {/* Score */}
               <div style={{ textAlign: 'center' }}>
-                <div className="metric" style={{ color: `var(--${sentimentClass})`, marginBottom: 4 }}>
-                  {Math.round(sentimentScore * 100)}%
+                <div className="metric" style={{ color: `var(--${sentClass})`, marginBottom: 4 }}>
+                  {Math.round(sentScore * 100)}%
                 </div>
-                <span className="label" style={{ color: `var(--${sentimentClass})` }}>{sentimentLabel}</span>
+                <span className="label" style={{ color: `var(--${sentClass})` }}>{sentLabel}</span>
               </div>
-              {/* Bar */}
               <div style={{ flex: 1 }}>
                 <div className="tension-track" style={{ height: 8 }}>
                   <div className="tension-fill" style={{
-                    width: `${sentimentScore * 100}%`,
-                    background: `linear-gradient(90deg, var(--${sentimentClass})44, var(--${sentimentClass}))`,
+                    width: `${sentScore * 100}%`,
+                    background: `linear-gradient(90deg, var(--${sentClass})44, var(--${sentClass}))`,
                   }} />
                 </div>
-                <p style={{ fontSize: 11, color: 'var(--t4)', marginTop: 6 }}>
-                  Confidence score from RoBERTa sentiment model via Hugging Face
+                <p style={{ fontSize: 10, color: 'var(--t4)', marginTop: 6 }}>
+                  RoBERTa sentiment model · Hugging Face Space via Cloud Command Gateway
                 </p>
               </div>
             </div>
           </div>
 
-          {/* ── Perspectives Panel ────────────────────────────── */}
-          <div className="card fade-in d3">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-              <div className="section-title">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                Perspectives Panel
+          {/* ── Perspectives ─────────────────────────────────── */}
+          <div className="glass fin d3">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div className="section-head">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent-3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                Perspectives
               </div>
-              <span className="label">FRAMING ANALYSIS</span>
+              <span className="label">GEMINI 2.5 FLASH</span>
             </div>
 
-            <div className="tab-group" style={{ marginBottom: 24 }}>
+            <div className="tab-group" style={{ marginBottom: 20 }}>
               {[
-                { key: 'left', label: '← Left', color: '#60a5fa' },
-                { key: 'center', label: 'Center', color: 'var(--t2)' },
-                { key: 'right', label: 'Right →', color: '#f87171' },
-              ].map(tab => (
-                <button
-                  key={tab.key}
-                  className={`tab ${activeTab === tab.key ? 'active' : ''}`}
-                  onClick={() => setActiveTab(tab.key)}
-                  style={{ color: activeTab === tab.key ? tab.color : undefined }}
-                >
-                  {tab.label}
-                </button>
+                { key: 'left', label: '← Left', c: '#60a5fa' },
+                { key: 'center', label: 'Center', c: 'var(--t2)' },
+                { key: 'right', label: 'Right →', c: '#f87171' },
+              ].map(t => (
+                <button key={t.key}
+                  className={`tab ${activeTab === t.key ? 'active' : ''}`}
+                  onClick={() => setActiveTab(t.key)}
+                  style={{ color: activeTab === t.key ? t.c : undefined }}
+                >{t.label}</button>
               ))}
             </div>
 
-            {currentPerspective.framing ? (
-              <div style={{ display: 'grid', gap: 20 }}>
-                {/* Framing */}
-                <div style={{ padding: 16, background: 'var(--bg-primary)', borderRadius: 'var(--r-md)', border: '1px solid var(--border-subtle)' }}>
-                  <p className="label" style={{ marginBottom: 8, color: activeTab === 'left' ? '#60a5fa' : activeTab === 'right' ? '#f87171' : 'var(--t3)' }}>
-                    HOW THEY FRAME IT
-                  </p>
-                  <p style={{ fontSize: 15, lineHeight: 1.7, fontWeight: 500 }}>{currentPerspective.framing}</p>
+            {persp.framing ? (
+              <div style={{ display: 'grid', gap: 18 }}>
+                <div style={{ padding: 16, background: 'var(--bg-1)', borderRadius: 'var(--r-md)', border: '1px solid var(--border)' }}>
+                  <p className="label" style={{
+                    marginBottom: 8,
+                    color: activeTab === 'left' ? '#60a5fa' : activeTab === 'right' ? '#f87171' : 'var(--t3)'
+                  }}>HOW THEY FRAME IT</p>
+                  <p style={{ fontSize: 15, lineHeight: 1.7, fontWeight: 500 }}>{persp.framing}</p>
                 </div>
-
-                {/* Details grid */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }} className="grid-2">
-                  {currentPerspective.emphasis && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }} className="g2">
+                  {persp.emphasis && (
                     <div>
-                      <p className="label" style={{ marginBottom: 6, color: 'var(--positive)' }}>
-                        ● WHAT THEY EMPHASIZE
-                      </p>
-                      <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--t2)' }}>{currentPerspective.emphasis}</p>
+                      <p className="label" style={{ marginBottom: 6, color: 'var(--pos)' }}>● EMPHASIZE</p>
+                      <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--t2)' }}>{persp.emphasis}</p>
                     </div>
                   )}
-                  {currentPerspective.omission && (
+                  {persp.omission && (
                     <div>
-                      <p className="label" style={{ marginBottom: 6, color: 'var(--negative)' }}>
-                        ● WHAT THEY OMIT
-                      </p>
-                      <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--t2)' }}>{currentPerspective.omission}</p>
+                      <p className="label" style={{ marginBottom: 6, color: 'var(--neg)' }}>● OMIT</p>
+                      <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--t2)' }}>{persp.omission}</p>
                     </div>
                   )}
                 </div>
-
-                {currentPerspective.tone && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <span className="label">EMOTIONAL TONE:</span>
-                    <span style={{ fontSize: 13, color: 'var(--t2)', fontStyle: 'italic' }}>{currentPerspective.tone}</span>
+                {persp.tone && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span className="label">TONE:</span>
+                    <span style={{ fontSize: 13, color: 'var(--t2)', fontStyle: 'italic' }}>{persp.tone}</span>
                   </div>
                 )}
               </div>
             ) : (
-              <div style={{ textAlign: 'center', padding: '30px 0' }}>
+              <div style={{ textAlign: 'center', padding: '28px 0' }}>
                 <p style={{ fontSize: 28, marginBottom: 8 }}>🔍</p>
-                <p style={{ fontSize: 13, color: 'var(--t4)', maxWidth: 300, margin: '0 auto' }}>
-                  Perspective analysis is generated by Gemini via the Gateway. The AI analyzes how different political leanings would frame this story.
+                <p style={{ fontSize: 12, color: 'var(--t4)', maxWidth: 280, margin: '0 auto', lineHeight: 1.5 }}>
+                  Perspective analysis powered by Gemini 2.5 Flash Lite via Cloud Command Gateway
                 </p>
               </div>
             )}
