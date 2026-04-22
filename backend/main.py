@@ -1,30 +1,36 @@
-import logging
-from contextlib import asynccontextmanager
-from typing import List, Dict, Any, Optional
+"""
+News-Intel Backend — FastAPI
+All AI routed through Cloud Command Gateway → HF Spaces + Gemini
+"""
 
-from fastapi import FastAPI, HTTPException, Depends
+import logging
+import json
+from contextlib import asynccontextmanager
+from typing import List, Optional
+from datetime import datetime, timezone
+
+from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 import db
 import hf_client
 
-# Configure logging
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("news-intel-api")
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("Starting up database...")
     await db.database.connect()
     await db.init_db()
+    logger.info("Database connected. News-Intel API ready.")
     yield
-    logger.info("Shutting down database...")
     await db.database.disconnect()
 
-app = FastAPI(title="News-Intel AI API", version="1.0.0", lifespan=lifespan)
 
-# CORS
+app = FastAPI(title="News-Intel AI API", version="2.0.0", lifespan=lifespan)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -33,172 +39,217 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# -----------------------------------------------------------------------------
-# Pydantic Models
-# -----------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Models
+# ---------------------------------------------------------------------------
+
 class ArticleInput(BaseModel):
     id: str
+    title: str = ""
     text: str
     source: str
+    url: str = ""
+    published_at: str = ""
 
-class ClusterRequest(BaseModel):
+
+class BriefRequest(BaseModel):
     articles: List[ArticleInput]
 
+
+class StoryDeepDiveRequest(BaseModel):
+    title: str
+    text: str
+    source: str = ""
+
+
 class UserPreferencesInput(BaseModel):
-    display_name: str
-    email: str
-    preferred_categories: List[str]
-    preferred_regions: List[str]
-    youtube_channels: List[str]
+    display_name: str = ""
+    email: str = ""
+    preferred_categories: List[str] = []
+    preferred_regions: List[str] = []
+    youtube_channels: List[str] = []
     onboarded: bool = True
+
 
 class ImpactRequest(BaseModel):
     story_text: str
 
-# -----------------------------------------------------------------------------
-# Layer 01: Daily Brief
-# -----------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Layer 01 — Daily Brief (Gemini narrative synthesis)
+# ---------------------------------------------------------------------------
+
 @app.post("/api/daily-brief")
-async def generate_daily_brief(request: ClusterRequest):
-    """
-    Synthesizes multiple articles into a single narrative brief using Hugging Face summarization.
-    """
+async def generate_daily_brief(request: BriefRequest):
     if not request.articles:
-        raise HTTPException(status_code=400, detail="No articles provided.")
-    
-    # Combine texts for the summarizer (in a real scenario, you'd chunk this smartly)
-    combined_text = "\n\n".join([f"Source: {a.source}\n{a.text}" for a in request.articles[:5]])
-    
-    # Use real Hugging Face model
-    summary_result = await hf_client.summarize_text(combined_text)
-    
-    if "summary" not in summary_result:
-        raise HTTPException(status_code=500, detail="Failed to generate summary.")
-        
+        raise HTTPException(400, "No articles provided.")
+
+    combined = "\n\n---\n\n".join(
+        [f"[{a.source}] {a.title}\n{a.text}" for a in request.articles[:8]]
+    )
+
+    # Primary: Gemini narrative synthesis (the real intelligence layer)
+    brief = await hf_client.generate_narrative_brief(combined)
+
+    # Fallback: HF summarization if Gemini fails
+    if not brief or len(brief) < 20:
+        hf_result = await hf_client.summarize_text(combined[:2000])
+        brief = hf_result.get("summary", "Brief generation temporarily unavailable.")
+
     return {
         "status": "success",
-        "daily_brief": summary_result["summary"],
-        "sources_used": len(request.articles)
+        "daily_brief": brief,
+        "sources_used": len(request.articles),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
     }
 
-# -----------------------------------------------------------------------------
-# Layer 02 & 03: Story Clustering & Tension Graph
-# -----------------------------------------------------------------------------
-@app.post("/api/stories/cluster")
-async def cluster_stories(request: ClusterRequest):
-    """
-    Analyzes multiple articles, extracts entities and sentiment, and clusters them.
-    """
+
+# ---------------------------------------------------------------------------
+# Layer 02 — Story Clustering + Sentiment + Entity Analysis
+# ---------------------------------------------------------------------------
+
+@app.post("/api/stories/analyze")
+async def analyze_stories(request: BriefRequest):
     if not request.articles:
-        raise HTTPException(status_code=400, detail="No articles provided.")
-    
+        raise HTTPException(400, "No articles provided.")
+
     results = []
-    global_sentiment_score = 0
-    
+    tension_scores = {}
+    all_entities = []
+
     for article in request.articles:
-        # Real AI Entity Extraction
-        ner_result = await hf_client.extract_entities(article.text)
+        # Real NER via HF through Gateway
+        ner_result = await hf_client.extract_entities(article.text[:1500])
         entities = ner_result.get("entities", [])
-        
-        # Real AI Sentiment Analysis
-        sentiment_result = await hf_client.analyze_sentiment(article.text)
-        sentiment_label = sentiment_result.get("label", "UNKNOWN")
-        sentiment_score = sentiment_result.get("score", 0.0)
-        
-        # Log entities to DB for trend tracking
+
+        # Real sentiment via HF through Gateway
+        sentiment_result = await hf_client.analyze_sentiment(article.text[:1500])
+        label = sentiment_result.get("label", "UNKNOWN").upper()
+        score = sentiment_result.get("score", 0.5)
+
+        # Track entities in DB
         await db.track_entities(entities)
-        
-        # Calculate a naive tension score contribution (Negative = higher tension)
-        if sentiment_label.upper() == "NEGATIVE":
-            global_sentiment_score += sentiment_score
-        elif sentiment_label.upper() == "POSITIVE":
-            global_sentiment_score -= (sentiment_score * 0.5)
+
+        # Build per-region tension contributions
+        for ent in entities:
+            if ent.get("type") in ("LOC", "GPE", "location"):
+                region = ent["name"]
+                if region not in tension_scores:
+                    tension_scores[region] = 0
+                if label == "NEGATIVE":
+                    tension_scores[region] += score * 100
+                elif label == "POSITIVE":
+                    tension_scores[region] -= score * 30
+
+        all_entities.extend(entities)
 
         results.append({
             "id": article.id,
+            "title": article.title,
             "source": article.source,
             "entities": entities,
-            "sentiment": {
-                "label": sentiment_label,
-                "confidence": sentiment_score
-            }
+            "sentiment": {"label": label, "confidence": round(score, 3)},
         })
-        
+
+    # Deduplicate entities by name
+    seen = set()
+    unique_entities = []
+    for e in all_entities:
+        key = e["name"].lower()
+        if key not in seen:
+            seen.add(key)
+            unique_entities.append(e)
+
+    # Normalize tension scores to 0-100
+    for region in tension_scores:
+        tension_scores[region] = max(0, min(100, int(tension_scores[region])))
+
     return {
         "status": "success",
-        "tension_index": round(global_sentiment_score, 2),
-        "analyzed_articles": results
+        "articles": results,
+        "tension_index": tension_scores,
+        "key_entities": unique_entities[:20],
+        "analyzed_at": datetime.now(timezone.utc).isoformat(),
     }
 
-# -----------------------------------------------------------------------------
-# User Preferences (Mock Auth)
-# -----------------------------------------------------------------------------
+
+# ---------------------------------------------------------------------------
+# Layer 03 — Story Deep Dive (Perspectives + Timeline)
+# ---------------------------------------------------------------------------
+
+@app.post("/api/stories/deep-dive")
+async def story_deep_dive(request: StoryDeepDiveRequest):
+    # Parallel intelligence: entities, sentiment, perspectives
+    entities_result = await hf_client.extract_entities(request.text[:1500])
+    sentiment_result = await hf_client.analyze_sentiment(request.text[:1500])
+    perspectives = await hf_client.analyze_perspectives(request.text[:2000])
+
+    return {
+        "status": "success",
+        "title": request.title,
+        "entities": entities_result.get("entities", []),
+        "sentiment": sentiment_result,
+        "perspectives": perspectives,
+        "analyzed_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Layer 05 — Personal Relevance Engine ("So What?")
+# ---------------------------------------------------------------------------
+
+@app.post("/api/personalize/impact")
+async def personalize_impact(request: ImpactRequest):
+    mock_uid = "local_user_123"
+    prefs = await db.get_user_prefs(mock_uid)
+
+    user_categories = []
+    user_regions = []
+
+    if prefs:
+        user_categories = json.loads(prefs["preferred_categories"] or "[]")
+        user_regions = json.loads(prefs["preferred_regions"] or "[]")
+
+    # Gemini-powered personalized impact analysis
+    impact = await hf_client.generate_so_what(
+        request.story_text, user_categories, user_regions
+    )
+
+    return {
+        "status": "success",
+        **impact,
+    }
+
+
+# ---------------------------------------------------------------------------
+# User Preferences
+# ---------------------------------------------------------------------------
+
 @app.post("/api/user/preferences")
 async def save_preferences(prefs: UserPreferencesInput):
-    """
-    Saves user onboarding data. Mocks Firebase UID for now.
-    """
     mock_uid = "local_user_123"
     await db.upsert_user_prefs(mock_uid, prefs.dict())
     return {"status": "success", "message": "Preferences saved."}
 
+
 @app.get("/api/user/preferences")
 async def get_preferences():
-    """
-    Gets user onboarding data. Mocks Firebase UID for now.
-    """
     mock_uid = "local_user_123"
     prefs = await db.get_user_prefs(mock_uid)
     if not prefs:
         return {"status": "not_found", "data": None}
-    
-    # Convert Record to dict
     return {"status": "success", "data": dict(prefs)}
 
-# -----------------------------------------------------------------------------
-# Layer 05: Personal Relevance Engine (So What?)
-# -----------------------------------------------------------------------------
-@app.post("/api/personalize/impact")
-async def personalize_impact(request: ImpactRequest):
-    """
-    Cross-references story entities with user preferences to generate an impact score.
-    """
-    # Get user preferences
-    mock_uid = "local_user_123"
-    prefs = await db.get_user_prefs(mock_uid)
-    
-    # Extract entities from the story
-    ner_result = await hf_client.extract_entities(request.story_text)
-    entities = ner_result.get("entities", [])
-    entity_names = [e["name"].lower() for e in entities]
-    
-    impact_items = []
-    relevance_score = 0.0
-    
-    if prefs:
-        import json
-        saved_regions = [r.lower() for r in json.loads(prefs["preferred_regions"] or "[]")]
-        saved_categories = [c.lower() for c in json.loads(prefs["preferred_categories"] or "[]")]
-        
-        # Naive matching logic based on real AI extracted entities
-        for ent in entity_names:
-            if ent in saved_regions:
-                impact_items.append(f"This involves a region you track ({ent.title()}).")
-                relevance_score += 0.3
-            if ent in saved_categories:
-                impact_items.append(f"This matches your category interests ({ent.title()}).")
-                relevance_score += 0.2
-                
-    if not impact_items:
-        impact_items.append("No direct impact detected based on your current watchlist.")
-        
-    return {
-        "status": "success",
-        "relevance_score": min(1.0, relevance_score),
-        "impact_items": list(set(impact_items)),
-        "detected_entities": entities
-    }
+
+# ---------------------------------------------------------------------------
+# Health
+# ---------------------------------------------------------------------------
 
 @app.get("/health")
 async def health_check():
-    return {"status": "online", "ai_pipeline": "hugging_face"}
+    return {
+        "status": "online",
+        "version": "2.0.0",
+        "pipeline": "cloud-command-gateway → hf-space + gemini",
+    }
