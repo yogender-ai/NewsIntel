@@ -11,26 +11,19 @@ function NavBar() {
 
   return (
     <nav style={{
-      position: 'sticky',
-      top: 0,
-      zIndex: 100,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      padding: '0 32px',
-      height: 52,
-      background: 'rgba(5, 6, 10, 0.8)',
-      backdropFilter: 'blur(20px)',
-      WebkitBackdropFilter: 'blur(20px)',
+      position: 'sticky', top: 0, zIndex: 100,
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      padding: '0 32px', height: 52,
+      background: 'rgba(4, 6, 11, 0.75)',
+      backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)',
       borderBottom: '1px solid var(--border)',
     }}>
-      {/* Logo */}
       <NavLink to="/dashboard" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10 }}>
         <div style={{
           width: 26, height: 26, borderRadius: 7,
           background: 'linear-gradient(135deg, #00d4ff, #6366f1)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
-          boxShadow: '0 2px 8px rgba(0, 212, 255, 0.2)',
+          boxShadow: '0 2px 12px rgba(0, 212, 255, 0.2)',
         }}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <polygon points="12 2 2 7 12 12 22 7 12 2" />
@@ -43,30 +36,22 @@ function NavBar() {
         </span>
       </NavLink>
 
-      {/* Nav Links */}
       {!isStory && (
         <div style={{ display: 'flex', gap: 2 }}>
           {[
             { to: '/dashboard', label: 'Dashboard' },
             { to: '/onboarding', label: 'Profile' },
           ].map(link => (
-            <NavLink
-              key={link.to}
-              to={link.to}
+            <NavLink key={link.to} to={link.to}
               style={({ isActive }) => ({
-                padding: '6px 14px',
-                fontSize: 12,
-                fontWeight: 600,
+                padding: '6px 14px', fontSize: 12, fontWeight: 600,
                 borderRadius: 7,
                 color: isActive ? 'var(--t1)' : 'var(--t3)',
                 background: isActive ? 'rgba(255,255,255,0.05)' : 'transparent',
-                textDecoration: 'none',
-                transition: 'all 0.15s',
+                textDecoration: 'none', transition: 'all 0.15s',
                 letterSpacing: '0.3px',
               })}
-            >
-              {link.label}
-            </NavLink>
+            >{link.label}</NavLink>
           ))}
         </div>
       )}
@@ -78,6 +63,9 @@ function App() {
   return (
     <Router>
       <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+        {/* Animated background */}
+        <div className="ambient-bg" />
+
         <NavBar />
         <main style={{ flex: 1, padding: '28px 32px', maxWidth: 1280, margin: '0 auto', width: '100%' }}>
           <Routes>
@@ -88,15 +76,12 @@ function App() {
           </Routes>
         </main>
         <footer style={{
-          padding: '16px 32px',
-          borderTop: '1px solid var(--border-subtle)',
-          display: 'flex',
-          justifyContent: 'space-between',
-          fontSize: 11,
-          color: 'var(--t4)',
+          padding: '16px 32px', borderTop: '1px solid var(--border)',
+          display: 'flex', justifyContent: 'space-between',
+          fontSize: 11, color: 'var(--t4)',
         }}>
-          <span>News-Intel v2.0</span>
-          <span className="mono">Pipeline: Cloud Command Gateway → HF Space + Gemini</span>
+          <span>News-Intel v3.0 — AI Intelligence Platform</span>
+          <span className="mono">Cloud Command Gateway</span>
         </footer>
       </div>
     </Router>

@@ -2,46 +2,27 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
 async function request(path, options = {}) {
   const url = `${API_BASE}${path}`;
-  const config = {
+  const res = await fetch(url, {
     headers: { 'Content-Type': 'application/json' },
     ...options,
-  };
-
-  const res = await fetch(url, config);
-  if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`API ${res.status}: ${text}`);
-  }
+  });
+  if (!res.ok) throw new Error(`API ${res.status}`);
   return res.json();
 }
 
 export const api = {
-  // Layer 01 — Daily Brief
-  getDailyBrief: (articles) =>
-    request('/api/daily-brief', {
+  // Single combined dashboard call (replaces 3 separate calls)
+  getDashboard: (articles) =>
+    request('/api/dashboard', {
       method: 'POST',
       body: JSON.stringify({ articles }),
     }),
 
-  // Layer 02 — Analyze & Cluster Stories
-  analyzeStories: (articles) =>
-    request('/api/stories/analyze', {
-      method: 'POST',
-      body: JSON.stringify({ articles }),
-    }),
-
-  // Layer 03 — Story Deep Dive
+  // Story Deep Dive (only called when user clicks a story)
   storyDeepDive: (title, text, source) =>
     request('/api/stories/deep-dive', {
       method: 'POST',
       body: JSON.stringify({ title, text, source }),
-    }),
-
-  // Layer 05 — Personal Impact
-  getImpact: (story_text) =>
-    request('/api/personalize/impact', {
-      method: 'POST',
-      body: JSON.stringify({ story_text }),
     }),
 
   // User Preferences
@@ -52,7 +33,4 @@ export const api = {
     }),
 
   getPreferences: () => request('/api/user/preferences'),
-
-  // Health
-  health: () => request('/health'),
 };
