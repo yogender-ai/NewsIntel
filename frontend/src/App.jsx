@@ -11,8 +11,8 @@ export const AppContext = createContext({ headlines: [], setHeadlines: () => {},
 /* ── Loading Screen ─────────────── */
 const AuthLoading = () => (
   <div className="auth-loading">
-    <div className="pulse-glow" style={{ width: 16, height: 16, background: 'var(--theme-main)', borderRadius: '50%' }} />
-    <span className="mono" style={{ fontSize: 11, color: 'var(--theme-main)', letterSpacing: 2 }}>INITIALIZING SECURE SESSION...</span>
+    <div className="pulse-glow" style={{ width: 16, height: 16, background: 'var(--accent)', borderRadius: '50%' }} />
+    <span className="mono" style={{ fontSize: 11, color: 'var(--accent)', letterSpacing: 2 }}>INITIALIZING SECURE SESSION...</span>
   </div>
 );
 
@@ -91,8 +91,8 @@ const TopBar = () => {
           <span style={{ color: 'var(--accent)', fontWeight: 700 }}>UTC</span> {time}
         </span>
         {user && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderLeft: '1px solid var(--theme-border)', paddingLeft: 16 }}>
-            {user.photoURL && <img src={user.photoURL} alt="" style={{ width: 22, height: 22, borderRadius: '50%', border: '1px solid var(--theme-border)' }} />}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderLeft: '1px solid var(--accent-border)', paddingLeft: 16 }}>
+            {user.photoURL && <img src={user.photoURL} alt="" style={{ width: 22, height: 22, borderRadius: '50%', border: '1px solid var(--accent-border)' }} />}
             <div>
               <div className="mono" style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-1)' }}>{user.displayName?.toUpperCase()}</div>
               <button onClick={logout} style={{
