@@ -470,7 +470,7 @@ async def _background_scheduler():
     await asyncio.sleep(3)
     logger.info("Background scheduler: initial full pipeline run...")
     try:
-        topics, regions = await _get_user_topics_regions()
+        topics, regions = await _get_broad_topics()
         news_fetcher.force_refresh()
         payload = await _build_intelligence(topics, regions, run_llm=True)
         async with _cache_lock:
@@ -486,7 +486,7 @@ async def _background_scheduler():
             await asyncio.sleep(FAST_INTERVAL)
             cycle_count += 1
 
-            topics, regions = await _get_user_topics_regions()
+            topics, regions = await _get_broad_topics()
             news_fetcher.force_refresh()
 
             # Every 3rd cycle (15 min) = full LLM refresh, otherwise fast
@@ -515,24 +515,48 @@ async def _background_scheduler():
 # ---------------------------------------------------------------------------
 
 @app.get("/api/dashboard")
-async def get_cached_dashboard():
+async def get_cached_dashboard(request: Request):
     """
-    Serve cached intelligence INSTANTLY. This is the primary endpoint.
-    If cache is stale, triggers a silent background refresh.
+    Serve cached intelligence INSTANTLY, personalized per user.
+    Reads X-User-Id header to personalize exposure scores and delta.
     """
     global _cached_payload, _cached_at
+
+    # Get this user's preferences
+    user_topics, user_regions, uid = await _get_user_prefs_from_header(request)
 
     if _cached_payload:
         now = datetime.now(timezone.utc)
         age_seconds = (now - _cached_at).total_seconds() if _cached_at else 9999
 
-        # Add freshness metadata
+        # Personalize the response for this user
         response = {**_cached_payload}
+
+        # Re-score clusters with THIS user's preferences
+        if uid and response.get("clusters"):
+            clusters = []
+            for c in response["clusters"]:
+                c_copy = {**c}
+                cluster_text = f"{c.get('thread_title', '')} {c.get('summary', '')} {c.get('impact_line', '')}"
+                c_copy["exposure_score"] = compute_exposure_score(cluster_text, user_topics, user_regions)
+                clusters.append(c_copy)
+            response["clusters"] = clusters
+
+            # Recalculate aggregate exposure for this user
+            signal_clusters = [c for c in clusters if c.get("signal_tier") in ("CRITICAL", "SIGNAL")]
+            response["exposure_score"] = round(sum(c["exposure_score"] for c in signal_clusters) / len(signal_clusters)) if signal_clusters else 50
+
+        # Personalize daily delta with user's topics
+        if uid:
+            try:
+                response["daily_delta"] = await compute_daily_delta(user_topics, response.get("clusters", []))
+            except Exception:
+                pass
+
         response["cache_age_seconds"] = int(age_seconds)
         response["cached_at"] = _cached_at.isoformat() if _cached_at else None
         response["is_stale"] = age_seconds > STALE_THRESHOLD
 
-        # If stale, trigger silent background refresh (non-blocking)
         if age_seconds > STALE_THRESHOLD:
             logger.info(f"Cache stale ({int(age_seconds)}s old) — triggering background refresh")
             asyncio.create_task(_silent_refresh())
@@ -541,7 +565,7 @@ async def get_cached_dashboard():
 
     # No cache yet — run full pipeline synchronously (first load only)
     logger.info("No cache available — running initial pipeline...")
-    topics, regions = await _get_user_topics_regions()
+    topics, regions = await _get_broad_topics()
     payload = await _build_intelligence(topics, regions, run_llm=True)
     async with _cache_lock:
         _cached_payload = payload
@@ -563,8 +587,6 @@ async def force_refresh_dashboard(request: DashboardRequest):
 
     topics = request.topics or ["tech", "ai", "markets"]
     regions = request.regions or []
-    if not request.topics:
-        topics, regions = await _get_user_topics_regions()
 
     payload = await _build_intelligence(topics, regions, run_llm=True)
     async with _cache_lock:
@@ -582,7 +604,7 @@ async def _silent_refresh():
     global _cached_payload, _cached_at
     async with _cache_lock:
         try:
-            topics, regions = await _get_user_topics_regions()
+            topics, regions = await _get_broad_topics()
             news_fetcher.force_refresh()
             payload = await _build_intelligence(topics, regions, run_llm=True)
             _cached_payload = payload
@@ -620,13 +642,16 @@ async def story_deep_dive(request: StoryDeepDiveRequest):
 # User Preferences
 # ---------------------------------------------------------------------------
 @app.post("/api/user/preferences")
-async def save_preferences(prefs: UserPreferencesInput):
-    await db.upsert_user_prefs("local_user_123", prefs.dict())
+async def save_preferences(request: Request, prefs: UserPreferencesInput):
+    uid = request.headers.get("X-User-Id", "").strip() or "local_user_123"
+    await db.upsert_user_prefs(uid, prefs.dict())
+    logger.info(f"Saved preferences for user {uid}: {prefs.preferred_categories}")
     return {"status": "success"}
 
 @app.get("/api/user/preferences")
-async def get_preferences():
-    prefs = await db.get_user_prefs("local_user_123")
+async def get_preferences(request: Request):
+    uid = request.headers.get("X-User-Id", "").strip() or "local_user_123"
+    prefs = await db.get_user_prefs(uid)
     if not prefs:
         return {"status": "not_found", "data": None}
     return {"status": "success", "data": dict(prefs)}
