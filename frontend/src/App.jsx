@@ -1,72 +1,121 @@
-import React, { useState, useEffect, createContext, useContext } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useState, useEffect, createContext } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, NavLink } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard';
 import Onboarding from './pages/Onboarding';
 import StoryView from './pages/StoryView';
 import './index.css';
 
-/* ── Global State ── */
-export const AppContext = createContext();
+export const AppContext = createContext({ headlines: [], setHeadlines: () => {} });
 
+/* ── Loading Screen (shown while Firebase initializes) ─────────────── */
+const AuthLoading = () => (
+  <div className="auth-loading">
+    <div className="pulse-glow" style={{ width: 16, height: 16, background: 'var(--theme-main)', borderRadius: '50%' }} />
+    <span className="mono" style={{ fontSize: 11, color: 'var(--theme-main)', letterSpacing: 2 }}>
+      INITIALIZING SECURE SESSION...
+    </span>
+  </div>
+);
+
+/* ── Login Page ────────────────────────────────────────────────────── */
 const Login = () => {
-  const { login, user } = useAuth();
+  const { login, user, loading } = useAuth();
+  if (loading) return <AuthLoading />;
   if (user) return <Navigate to="/dashboard" />;
 
   return (
     <div className="auth-overlay">
       <div className="login-card panel">
-        <div className="label" style={{ marginBottom: 24 }}>System Authorization</div>
-        <h1 style={{ marginBottom: 16 }}>NEWS<span style={{ color: 'var(--theme-main)' }}>INTEL</span></h1>
-        <p style={{ color: 'var(--text-2)', fontSize: 13, marginBottom: 32 }}>Access the Global Intelligence Command Center</p>
+        <div style={{ marginBottom: 32 }}>
+          <div style={{ fontSize: 36, fontWeight: 900, letterSpacing: '-2px', marginBottom: 8 }}>
+            NEWS<span style={{ color: 'var(--theme-main)' }}>INTEL</span>
+          </div>
+          <div className="label" style={{ color: 'var(--text-3)', marginBottom: 24 }}>Strategic Intelligence Command</div>
+          <p style={{ color: 'var(--text-2)', fontSize: 13, lineHeight: 1.6 }}>
+            Real-time geopolitical monitoring powered by AI.
+            Sign in to access the command center.
+          </p>
+        </div>
         <button onClick={login} className="btn-premium" style={{ width: '100%' }}>
-          Authorize with Google
+          ▸ Authorize with Google
         </button>
+        <p className="mono" style={{ fontSize: 9, color: 'var(--text-3)', marginTop: 16 }}>
+          ENCRYPTED // END-TO-END FIREBASE AUTH
+        </p>
       </div>
     </div>
   );
 };
 
+/* ── Protected Route ───────────────────────────────────────────────── */
 const Protected = ({ children }) => {
   const { user, loading } = useAuth();
-  if (loading) return null;
+  if (loading) return <AuthLoading />;
   return user ? children : <Navigate to="/login" />;
 };
 
+/* ── Top Bar ───────────────────────────────────────────────────────── */
 const TopBar = () => {
   const { user, logout } = useAuth();
   const [time, setTime] = useState('');
 
   useEffect(() => {
-    const it = setInterval(() => setTime(new Date().toLocaleTimeString('en-US', { hour12: false })), 1000);
-    return () => clearInterval(it);
+    const update = () => setTime(new Date().toLocaleTimeString('en-US', { hour12: false }));
+    update();
+    const timer = setInterval(update, 1000);
+    return () => clearInterval(timer);
   }, []);
 
   return (
-    <div className="top-bar">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
-        <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '-1px' }}>
-          NEWS<span style={{ color: 'var(--theme-main)' }}>INTEL</span>
+    <>
+      <div className="top-bar">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <div style={{ fontSize: 17, fontWeight: 900, letterSpacing: '-0.5px' }}>
+            NEWS<span style={{ color: 'var(--theme-main)' }}>INTEL</span>
+          </div>
+          <div className="mono" style={{ fontSize: 9, color: 'var(--text-3)', letterSpacing: 1 }}>
+            v10 // COMMAND CENTER
+          </div>
         </div>
-        <div className="label" style={{ opacity: 0.5 }}>v10 // STRATEGIC COMMAND</div>
+
+        <div className="nav-links">
+          <NavLink to="/dashboard" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>DASHBOARD</NavLink>
+          <NavLink to="/onboarding" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>SETUP</NavLink>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <span className="mono" style={{ fontSize: 11, color: 'var(--text-2)' }}>
+            <span style={{ color: 'var(--theme-main)', fontWeight: 700 }}>UTC</span> {time}
+          </span>
+          {user && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderLeft: '1px solid var(--theme-border)', paddingLeft: 16 }}>
+              {user.photoURL && <img src={user.photoURL} alt="" style={{ width: 22, height: 22, borderRadius: '50%', border: '1px solid var(--theme-border)' }} />}
+              <div>
+                <div className="mono" style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-1)' }}>{user.displayName?.toUpperCase()}</div>
+                <button onClick={logout} style={{
+                  background: 'none', border: 'none', color: 'var(--text-3)', fontSize: 8,
+                  fontFamily: 'var(--mono)', cursor: 'pointer', padding: 0,
+                }}>LOGOUT</button>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-        <div className="mono" style={{ fontSize: 11, color: 'var(--text-2)' }}>{time} <span style={{ color: 'var(--theme-main)' }}>UTC</span></div>
-        {user && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderLeft: '1px solid var(--theme-border)', paddingLeft: 24 }}>
-            <img src={user.photoURL} alt="" style={{ width: 24, height: 24, borderRadius: '50%' }} />
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <span className="mono" style={{ fontSize: 10, fontWeight: 700 }}>{user.displayName?.toUpperCase()}</span>
-              <button onClick={logout} style={{ background: 'none', border: 'none', color: 'var(--theme-main)', fontSize: 9, textAlign: 'left', padding: 0 }}>SIGNOUT</button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+      {/* Headline Ticker */}
+      <HeadlineTicker />
+    </>
   );
 };
 
+/* ── Headline Ticker ───────────────────────────────────────────────── */
+const HeadlineTicker = () => {
+  // This will be fed by Dashboard via AppContext
+  return null; // Rendered inside Dashboard instead for proper data flow
+};
+
+/* ── App Root ────────────────────────────────────────────────────────── */
 function App() {
   const [headlines, setHeadlines] = useState([]);
 
