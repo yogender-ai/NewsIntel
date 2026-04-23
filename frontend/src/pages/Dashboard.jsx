@@ -145,7 +145,8 @@ export default function Dashboard() {
   const { user } = useAuth();
   const { setHeadlines, mode } = useContext(AppContext);
   const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [checkingPrefs, setCheckingPrefs] = useState(true); // Phase 1: quick prefs check
+  const [loading, setLoading] = useState(false); // Phase 2: actual pipeline load
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [expandedWatch, setExpandedWatch] = useState(false);
@@ -180,30 +181,39 @@ export default function Dashboard() {
     applyTheme(res);
   };
 
-  // PRIMARY LOAD: Check onboarding, then GET cached data instantly
+  // PHASE 1: Quick prefs check — runs instantly, no loading screen
+  useEffect(() => {
+    if (!user) return;
+    (async () => {
+      try {
+        const prefsRes = await api.getPreferences();
+        if (prefsRes.status === 'not_found' || !prefsRes.data?.onboarded) {
+          navigate('/onboarding');
+          return;
+        }
+      } catch (e) {
+        // Prefs check failed — let them through to dashboard
+      }
+      setCheckingPrefs(false); // User is onboarded, proceed to Phase 2
+    })();
+  }, [user, navigate]);
+
+  // PHASE 2: Load dashboard data (only after prefs check passes)
   const load = useCallback(async () => {
-    if (fetched.current) return;
+    if (fetched.current || checkingPrefs) return;
     fetched.current = true;
     setLoading(true); setError(null);
     try {
-      // Check if user has completed onboarding
-      const prefsRes = await api.getPreferences();
-      if (prefsRes.status === 'not_found' || !prefsRes.data?.onboarded) {
-        navigate('/onboarding');
-        return;
-      }
-
       const res = await api.getDashboard([], [], false);  // GET = instant cache
       setData(res);
       processResponse(res);
 
-      // If backend says data is stale, it already triggered bg refresh
       if (res.is_stale) {
         showToast('Intelligence is being refreshed in the background...');
       }
     } catch (e) { setError(e.message); }
     setLoading(false);
-  }, [setHeadlines, mode, navigate]);
+  }, [setHeadlines, mode, checkingPrefs]);
 
   // MANUAL FORCE REFRESH: POST triggers full pipeline
   const forceRefresh = async () => {
@@ -224,7 +234,7 @@ export default function Dashboard() {
     setRefreshing(false);
   };
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (!checkingPrefs) load(); }, [checkingPrefs, load]);
 
   // Live freshness timer — ticks every 30s
   const [liveAge, setLiveAge] = useState(0);
@@ -262,7 +272,14 @@ export default function Dashboard() {
   const neuC = articles.length - posC - negC;
   const entCount = articles.reduce((s, a) => s + (a.entities?.length || 0), 0);
 
-  /* ── Loading State — transparent pipeline ──── */
+  /* ── Phase 1: Checking if user is onboarded (blank, instant) ── */
+  if (checkingPrefs) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '70vh' }}>
+      <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)', letterSpacing: 2 }}>CHECKING SESSION...</span>
+    </div>
+  );
+
+  /* ── Phase 2: Loading pipeline (only after prefs confirmed) ── */
   if (loading && !data) return <PipelineLoader />;
 
   return (
