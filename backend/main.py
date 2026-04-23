@@ -1,9 +1,10 @@
 """
-News-Intel Backend v4 — LIVE NEWS
-- Real news from Google News RSS (no more hardcoded articles)
-- All AI via Cloud Command Gateway
+News-Intel Backend v5 — OPTIMIZED PIPELINE
+- Real news from Google News RSS
+- ALL AI via Cloud Command Gateway
+- ONE consolidated Gemini call (brief + clusters + impact)
+- HF Space for NER + Sentiment (free, unlimited)
 - Parallel processing with asyncio.gather
-- Single combined dashboard endpoint
 """
 
 import logging
@@ -29,12 +30,12 @@ logger = logging.getLogger("news-intel-api")
 async def lifespan(app: FastAPI):
     await db.database.connect()
     await db.init_db()
-    logger.info("News-Intel API v4 — LIVE NEWS ready.")
+    logger.info("News-Intel API v5 — OPTIMIZED PIPELINE ready.")
     yield
     await db.database.disconnect()
 
 
-app = FastAPI(title="News-Intel AI API", version="4.0.0", lifespan=lifespan)
+app = FastAPI(title="News-Intel AI API", version="5.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -50,16 +51,13 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 
 class DashboardRequest(BaseModel):
-    """Dashboard now fetches its OWN news. Frontend just sends preferences."""
     topics: List[str] = []
     regions: List[str] = []
-
 
 class StoryDeepDiveRequest(BaseModel):
     title: str
     text: str
     source: str = ""
-
 
 class UserPreferencesInput(BaseModel):
     display_name: str = ""
@@ -71,19 +69,16 @@ class UserPreferencesInput(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# LIVE NEWS DASHBOARD
+# DASHBOARD — Optimized Pipeline
+#
+# API CALL BUDGET:
+#   HF Space (FREE): 10 sentiment + 10 NER = 20 calls (no limit)
+#   Gemini (RATE LIMITED): 1 consolidated call (was 3)
+#   Total Gemini calls: 1 per dashboard load ✓
 # ---------------------------------------------------------------------------
 
 @app.post("/api/dashboard")
 async def get_dashboard(request: DashboardRequest, force: bool = False):
-    """
-    1. Fetches REAL news from Google News RSS based on user preferences
-    2. Runs AI analysis on all articles in parallel
-    3. Returns everything the dashboard needs in ONE response
-    
-    ?force=true clears all caches and fetches fresh data.
-    """
-    # Force refresh: clear ALL caches so everything is fresh
     if force:
         news_fetcher.force_refresh()
         hf_client.clear_cache()
@@ -92,7 +87,7 @@ async def get_dashboard(request: DashboardRequest, force: bool = False):
     topics = request.topics or ["tech", "ai", "markets"]
     regions = request.regions or []
 
-    # If no prefs sent, try DB
+    # Try DB for saved preferences
     if not request.topics:
         try:
             prefs = await db.get_user_prefs("local_user_123")
@@ -108,7 +103,7 @@ async def get_dashboard(request: DashboardRequest, force: bool = False):
     articles = await news_fetcher.fetch_news(
         topics=topics,
         regions=regions,
-        max_articles=10,  # Fetch more for better clustering
+        max_articles=10,
     )
 
     if not articles:
@@ -116,14 +111,17 @@ async def get_dashboard(request: DashboardRequest, force: bool = False):
 
     logger.info(f"Fetched {len(articles)} live articles for topics={topics}")
 
-    # ── Step 2: Analyze all articles in parallel ─────────────────
+    # ── Step 2: HF analysis (FREE — run in parallel) ─────────────
     async def analyze_one(article):
         text = article["text"][:1000]
         if len(text) < 30:
             text = article["title"]
 
+        # Send MORE text to sentiment for better accuracy (not just 30 chars)
+        sent_text = f"{article['title']}. {article['text'][:500]}"
+
         ner_task = hf_client.extract_entities(text)
-        sent_task = hf_client.analyze_sentiment(text)
+        sent_task = hf_client.analyze_sentiment(sent_text)
         ner_result, sent_result = await asyncio.gather(ner_task, sent_task)
 
         return {
@@ -132,35 +130,29 @@ async def get_dashboard(request: DashboardRequest, force: bool = False):
             "source": article["source"],
             "url": article.get("url", ""),
             "published": article.get("published", ""),
-            "text_preview": article["text"][:200],
+            "text_preview": article["text"][:300],
             "entities": ner_result.get("entities", []),
             "sentiment": {
-                "label": sent_result.get("label", "UNKNOWN").upper(),
+                "label": sent_result.get("label", "NEUTRAL").upper(),
                 "confidence": round(sent_result.get("score", 0.5), 3),
             },
         }
 
     analysis_results = await asyncio.gather(*[analyze_one(a) for a in articles])
 
-    # ── Step 3: Brief + Impact in parallel ───────────────────────
+    # ── Step 3: ONE consolidated Gemini call ──────────────────────
+    # This replaces 3 separate calls (brief + clustering + impact)
     combined_text = "\n\n".join([f"[{a['source']}] {a['title']}\n{a['text']}" for a in articles])
+    article_index = [{"id": a["id"], "title": a["title"], "source": a["source"]} for a in analysis_results]
 
-    async def get_brief():
-        brief = await hf_client.generate_narrative_brief(combined_text)
-        if not brief or len(brief) < 20:
-            hf_result = await hf_client.summarize_text(combined_text[:2000])
-            return hf_result.get("summary", "")
-        return brief
+    intelligence = await hf_client.generate_full_intelligence(
+        articles_text=combined_text,
+        article_list=article_index,
+        user_categories=topics,
+        user_regions=regions,
+    )
 
-    async def get_impact():
-        prefs = await db.get_user_prefs("local_user_123")
-        cats = json.loads(prefs["preferred_categories"] or "[]") if prefs else topics
-        regs = json.loads(prefs["preferred_regions"] or "[]") if prefs else regions
-        return await hf_client.generate_so_what(combined_text[:1500], cats, regs)
-
-    brief_result, impact_result = await asyncio.gather(get_brief(), get_impact())
-
-    # ── Step 4: Build tension index from entities ────────────────
+    # ── Step 4: Build tension index from entities + sentiment ────
     tension_scores = {}
     all_entities = []
     for result in analysis_results:
@@ -169,31 +161,31 @@ async def get_dashboard(request: DashboardRequest, force: bool = False):
             if ent.get("type") in ("LOC", "GPE", "ORG", "location"):
                 region = ent["name"]
                 if region not in tension_scores:
-                    tension_scores[region] = 0
+                    tension_scores[region] = 30  # Base tension (not zero)
                 if result["sentiment"]["label"] == "NEGATIVE":
-                    tension_scores[region] += int(result["sentiment"]["confidence"] * 100)
+                    tension_scores[region] += int(result["sentiment"]["confidence"] * 50)
                 elif result["sentiment"]["label"] == "POSITIVE":
-                    tension_scores[region] -= int(result["sentiment"]["confidence"] * 30)
+                    tension_scores[region] -= int(result["sentiment"]["confidence"] * 20)
+                else:
+                    tension_scores[region] += 5  # Neutral adds small amount
 
     for r in tension_scores:
-        tension_scores[r] = max(0, min(100, tension_scores[r]))
-
-    # ── Step 5: Cluster stories ──────────────────────────────────
-    cluster_input = [{"id": a["id"], "title": a["title"], "source": a["source"]} for a in analysis_results]
-    clusters = await hf_client.cluster_stories(cluster_input)
+        tension_scores[r] = max(10, min(95, tension_scores[r]))
 
     asyncio.create_task(_track_entities_bg(all_entities))
 
     return {
         "status": "success",
         "live": True,
-        "daily_brief": brief_result,
+        "daily_brief": intelligence.get("daily_brief", ""),
         "articles": analysis_results,
-        "clusters": clusters,
+        "clusters": intelligence.get("clusters", []),
         "tension_index": tension_scores,
-        "impact": impact_result if isinstance(impact_result, dict) else {},
+        "impact": intelligence.get("impact", {}),
         "sources_count": len(articles),
         "topics_used": topics,
+        "model_used": "gemini-2.5-flash (consolidated)",
+        "gemini_calls": 1,
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
 
@@ -206,14 +198,21 @@ async def _track_entities_bg(entities):
 
 
 # ---------------------------------------------------------------------------
-# Story Deep Dive
+# Story Deep Dive (1 Gemini call for perspectives)
 # ---------------------------------------------------------------------------
 
 @app.post("/api/stories/deep-dive")
 async def story_deep_dive(request: StoryDeepDiveRequest):
-    ner_task = hf_client.extract_entities(request.text[:1500])
-    sent_task = hf_client.analyze_sentiment(request.text[:1500])
-    persp_task = hf_client.analyze_perspectives(request.text[:2000])
+    """
+    Deep dive uses data already computed on dashboard (entities, sentiment).
+    Only makes 1 Gemini call for perspectives analysis.
+    """
+    text = request.text[:2000] if len(request.text) > 30 else request.title
+
+    # HF calls (free) + 1 Gemini call for perspectives
+    ner_task = hf_client.extract_entities(text)
+    sent_task = hf_client.analyze_sentiment(f"{request.title}. {text}")
+    persp_task = hf_client.analyze_perspectives(text)
 
     entities_result, sentiment_result, perspectives = await asyncio.gather(
         ner_task, sent_task, persp_task
@@ -223,8 +222,11 @@ async def story_deep_dive(request: StoryDeepDiveRequest):
         "status": "success",
         "title": request.title,
         "entities": entities_result.get("entities", []),
-        "sentiment": sentiment_result,
-        "perspectives": perspectives,
+        "sentiment": {
+            "label": sentiment_result.get("label", "NEUTRAL").upper(),
+            "score": round(sentiment_result.get("score", 0.5), 3),
+        },
+        "perspectives": perspectives if isinstance(perspectives, list) else [],
     }
 
 
@@ -236,7 +238,6 @@ async def story_deep_dive(request: StoryDeepDiveRequest):
 async def save_preferences(prefs: UserPreferencesInput):
     await db.upsert_user_prefs("local_user_123", prefs.dict())
     return {"status": "success"}
-
 
 @app.get("/api/user/preferences")
 async def get_preferences():
@@ -254,7 +255,14 @@ async def get_preferences():
 async def health_check():
     return {
         "status": "online",
-        "version": "4.0.0",
-        "pipeline": "RSS→Gateway→HF+Gemini",
-        "features": ["live_news", "sentiment", "ner", "perspectives", "impact"],
+        "version": "5.0.0",
+        "pipeline": "RSS → HF(free) → Gemini(1 call)",
+        "optimization": "Consolidated: 3 Gemini calls → 1",
+        "models": {
+            "primary": "gemini-2.5-flash",
+            "fallback_1": "gemini-2.5-flash-lite",
+            "fallback_2": "gemini-2.0-flash",
+            "sentiment": "HF RoBERTa",
+            "ner": "HF BERT-NER",
+        },
     }

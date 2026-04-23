@@ -1,17 +1,18 @@
 """
-hf_client.py — Cloud Command Gateway Integration v4
+hf_client.py — Cloud Command Gateway Integration v5
 
 ALL AI routed through Cloud Command Gateway:
-  - HF Space: sentiment, NER, summarization
-  - Gemini 2.5 Flash Lite: narrative synthesis, perspectives, impact
+  - HF Space: sentiment, NER, summarization (FREE, unlimited)
+  - Gemini: ONE consolidated call per dashboard load (saves quota)
 
-Optimized: cached, no retries, no duplicate calls.
+Model chain: gemini-2.5-flash → gemini-2.5-flash-lite → gemini-2.0-flash
 """
 
 import os
 import json
 import logging
 import time
+import asyncio
 import httpx
 from dotenv import load_dotenv
 
@@ -45,13 +46,13 @@ HEADERS = {
 if not GATEWAY_SECRET:
     logger.error("GATEWAY_SECRET is missing — AI calls will fail.")
 
-_http = httpx.AsyncClient(timeout=45.0)
+_http = httpx.AsyncClient(timeout=60.0)
 
 # ---------------------------------------------------------------------------
-# Cache with TTL (fixes stale news bug)
+# Cache with TTL
 # ---------------------------------------------------------------------------
-_cache = {}  # key -> (timestamp, value)
-_CACHE_TTL = 300  # 5 minutes — cache expires, forcing fresh AI analysis
+_cache = {}
+_CACHE_TTL = 300  # 5 minutes
 
 def _ck(prefix, text):
     return f"{prefix}:{hash(text[:200])}"
@@ -62,12 +63,11 @@ def _get(k):
         return None
     ts, val = entry
     if time.time() - ts > _CACHE_TTL:
-        del _cache[k]  # Expired
+        del _cache[k]
         return None
     return val
 
 def _put(k, v):
-    # Evict oldest entries if cache grows too large
     if len(_cache) > 80:
         oldest = sorted(_cache.items(), key=lambda x: x[1][0])[:40]
         for ok, _ in oldest:
@@ -75,9 +75,9 @@ def _put(k, v):
     _cache[k] = (time.time(), v)
 
 def clear_cache():
-    """Clear all cached AI results. Called on forced refresh."""
+    """Clear all cached AI results."""
     _cache.clear()
-    logger.info("AI cache cleared — next requests will hit models fresh.")
+    logger.info("AI cache cleared.")
 
 
 # ---------------------------------------------------------------------------
@@ -106,11 +106,14 @@ async def _call_hf(endpoint: str, text: str) -> dict:
         return {"error": str(e)}
 
 
-# Models to try in order — if one 503s, try the next
-_GEMINI_MODELS = ["gemini-2.5-flash-lite", "gemini-2.5-flash"]
+# Better model → worse model fallback chain
+# gemini-2.5-flash gives higher quality text (no spelling errors)
+# flash-lite is faster but lower quality
+# 2.0-flash is old but very available
+_GEMINI_MODELS = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.0-flash"]
 
 async def _call_gemini(prompt: str, model: str = None) -> str:
-    """Call Gemini through Gateway with automatic model fallback on 503."""
+    """Call Gemini through Gateway with automatic model fallback on 503/429."""
     k = _ck("gemini", prompt)
     c = _get(k)
     if c: return c
@@ -126,10 +129,12 @@ async def _call_gemini(prompt: str, model: str = None) -> str:
                 text = _extract(data)
                 if text:
                     _put(k, text)
+                    logger.info(f"Gemini {m} → success ({len(text)} chars)")
                     return text
-            elif r.status_code == 503:
-                logger.warning(f"Gemini {m} → 503 high demand, trying next model...")
-                continue  # Try next model
+            elif r.status_code in (503, 429):
+                logger.warning(f"Gemini {m} → {r.status_code}, trying next model...")
+                await asyncio.sleep(0.5)  # Brief pause before retry
+                continue
             else:
                 logger.error(f"Gemini {m} → {r.status_code}: {r.text[:200]}")
                 continue
@@ -146,7 +151,6 @@ def _extract(data) -> str:
     if isinstance(data, str): return data
     if not isinstance(data, dict): return str(data) if data else ""
 
-    # Standard: {candidates: [{content: {parts: [{text: "..."}]}}]}
     for container in [data, data.get("result", {})]:
         if not isinstance(container, dict): continue
         candidates = container.get("candidates", [])
@@ -155,7 +159,6 @@ def _extract(data) -> str:
             if parts:
                 return parts[0].get("text", "")
 
-    # Direct fields
     for key in ("text", "response", "output", "generated_text", "message"):
         if key in data and isinstance(data[key], str):
             return data[key]
@@ -163,8 +166,17 @@ def _extract(data) -> str:
     return ""
 
 
+def _clean_json(raw: str) -> str:
+    """Strip markdown code fences from Gemini JSON output."""
+    cleaned = raw.strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned[3:]
+        cleaned = cleaned.rsplit("```", 1)[0]
+    return cleaned.strip()
+
+
 # ---------------------------------------------------------------------------
-# HF Space Endpoints
+# HF Space Endpoints (FREE — unlimited calls)
 # ---------------------------------------------------------------------------
 
 async def summarize_text(text: str) -> dict:
@@ -181,117 +193,137 @@ async def extract_entities(text: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Gemini Intelligence Layers
+# CONSOLIDATED GEMINI CALL — One call does EVERYTHING
 # ---------------------------------------------------------------------------
 
-async def generate_narrative_brief(articles_text: str) -> str:
-    """Generate a scannable intelligence brief."""
-    prompt = f"""You are an elite intelligence analyst. Create exactly 4 key insights from these news sources.
+async def generate_full_intelligence(articles_text: str, article_list: list,
+                                      user_categories: list, user_regions: list) -> dict:
+    """
+    ONE Gemini call that generates:
+    1. Daily brief (4 insights)
+    2. Story clusters
+    3. Impact analysis
 
-Rules:
-- Exactly 4 insights, one per line
-- Each insight is ONE clear, specific sentence
-- Use names, numbers, percentages — be precise
-- Connect cause to effect where possible
-- No filler phrases like "In today's news" or "It is worth noting"
-- No bullet points or numbering — just plain sentences
-
-Sources:
-{articles_text[:3000]}
-
-4 insights:"""
-    return await _call_gemini(prompt)
-
-
-async def analyze_perspectives(text: str) -> dict:
-    """Analyze story from Left/Center/Right perspectives."""
-    prompt = f"""Analyze this news story from 3 political perspectives. Be specific and insightful.
-
-Story: {text[:2000]}
-
-Return ONLY valid JSON, no markdown, no backticks, no explanation:
-{{"left":{{"framing":"How progressive media frames this in 1-2 sentences","emphasis":"What they highlight","omission":"What they downplay","tone":"The emotional tone used"}},"center":{{"framing":"How centrist media frames this in 1-2 sentences","emphasis":"What they highlight","omission":"What they downplay","tone":"The emotional tone used"}},"right":{{"framing":"How conservative media frames this in 1-2 sentences","emphasis":"What they highlight","omission":"What they downplay","tone":"The emotional tone used"}}}}"""
-
-    raw = await _call_gemini(prompt)
-    if not raw:
-        return {}
-    try:
-        cleaned = raw.strip()
-        # Strip markdown code fences if present
-        if cleaned.startswith("```"):
-            cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned[3:]
-            cleaned = cleaned.rsplit("```", 1)[0]
-        return json.loads(cleaned.strip())
-    except Exception as e:
-        logger.warning(f"Perspective parse: {e}")
-        return {}
-
-
-async def generate_so_what(story_text: str, user_categories: list, user_regions: list) -> dict:
-    """Generate personalized impact analysis."""
+    This replaces 3 separate calls, cutting API usage by 66%.
+    """
     cats = ", ".join(user_categories) if user_categories else "technology, finance, geopolitics"
     regs = ", ".join(user_regions) if user_regions else "global"
 
-    prompt = f"""A professional interested in [{cats}] tracking [{regs}] just read this news:
+    listing = "\n".join([f'{a["id"]}. [{a["source"]}] {a["title"]}' for a in article_list])
 
-{story_text[:1500]}
+    prompt = f"""You are an elite intelligence analyst. Analyze these news sources and produce a structured intelligence report.
 
-Analyze the personal impact. Return ONLY valid JSON, no markdown:
-{{"impact_score":0.75,"headline":"One sentence: how this directly affects the reader","why_it_matters":"2-3 sentences explaining personal relevance with specifics","actions":["Concrete action 1","Concrete action 2","Concrete action 3"]}}"""
+NEWS SOURCES:
+{articles_text[:3500]}
 
-    raw = await _call_gemini(prompt)
-    if not raw:
-        return {"impact_score": 0.5, "headline": "Analysis temporarily unavailable", "actions": [], "why_it_matters": ""}
-    try:
-        cleaned = raw.strip()
-        if cleaned.startswith("```"):
-            cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned[3:]
-            cleaned = cleaned.rsplit("```", 1)[0]
-        return json.loads(cleaned.strip())
-    except Exception:
-        return {"impact_score": 0.5, "headline": raw[:100], "actions": [], "why_it_matters": raw[:300]}
-
-
-async def cluster_stories(articles: list) -> list:
-    """
-    Phase 4: Cluster related articles into story threads.
-    Input: list of {id, title, source}
-    Output: list of clusters [{thread_title, article_ids, summary}]
-    """
-    if len(articles) <= 2:
-        return [{"thread_title": a["title"], "article_ids": [a["id"]], "summary": ""} for a in articles]
-
-    listing = "\n".join([f'{a["id"]}. [{a["source"]}] {a["title"]}' for a in articles])
-
-    prompt = f"""You are a news editor. Group these articles into story clusters. 
-Articles about the SAME event or topic go in the same cluster.
-
-Articles:
+ARTICLE INDEX:
 {listing}
 
-Return ONLY valid JSON array, no markdown, no backticks:
-[{{"thread_title":"Short descriptive title for this story thread","article_ids":["1","3"],"summary":"One sentence synthesis of what this cluster covers"}}]
+READER PROFILE: Professional interested in [{cats}], tracking [{regs}].
 
-Rules:
+PRODUCE ALL THREE SECTIONS in ONE JSON response. Use proper English with correct spelling and grammar.
+
+Return ONLY valid JSON, no markdown fences, no explanation:
+{{
+  "daily_brief": "Write exactly 4 key insights as a single paragraph. Each insight is ONE clear sentence with names, numbers, and specifics. Separate sentences with line breaks. No filler phrases. No bullet points.",
+  "clusters": [
+    {{
+      "thread_title": "Short clear topic label",
+      "article_ids": ["1", "3"],
+      "summary": "One sentence synthesis of what this cluster covers"
+    }}
+  ],
+  "impact": {{
+    "impact_score": 0.75,
+    "headline": "One sentence: how this directly affects the reader",
+    "why_it_matters": "2-3 sentences explaining personal relevance with specifics",
+    "actions": ["Concrete action 1", "Concrete action 2", "Concrete action 3"]
+  }}
+}}
+
+CLUSTERING RULES:
+- Articles about the SAME event go in the same cluster
 - Each article ID must appear in exactly ONE cluster
 - Standalone articles get their own single-item cluster
-- thread_title should be a clear, concise topic label (not a full headline)
-- Maximum 2-4 clusters"""
+- thread_title should be concise (not a full headline)
+- Maximum 2-5 clusters
+
+QUALITY RULES:
+- Use correct English spelling and grammar
+- Be precise: include names, percentages, dollar amounts
+- The daily_brief must have exactly 4 sentences separated by newlines
+- impact.headline must be one actionable sentence"""
 
     raw = await _call_gemini(prompt)
     if not raw:
-        return [{"thread_title": a["title"], "article_ids": [a["id"]], "summary": ""} for a in articles]
+        return _fallback_intelligence(article_list)
 
     try:
-        cleaned = raw.strip()
-        if cleaned.startswith("```"):
-            cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned[3:]
-            cleaned = cleaned.rsplit("```", 1)[0]
-        clusters = json.loads(cleaned.strip())
-        if isinstance(clusters, list) and len(clusters) > 0:
-            return clusters
-    except Exception as e:
-        logger.warning(f"Cluster parse: {e}")
+        parsed = json.loads(_clean_json(raw))
+        # Validate structure
+        result = {}
+        result["daily_brief"] = parsed.get("daily_brief", "")
+        result["clusters"] = parsed.get("clusters", [])
+        result["impact"] = parsed.get("impact", {})
 
+        # Validate clusters have required fields
+        if not isinstance(result["clusters"], list) or len(result["clusters"]) == 0:
+            result["clusters"] = _fallback_clusters(article_list)
+
+        # Validate impact
+        if not isinstance(result["impact"], dict) or "headline" not in result["impact"]:
+            result["impact"] = {"impact_score": 0.5, "headline": "Analysis temporarily unavailable", "actions": [], "why_it_matters": ""}
+
+        return result
+    except Exception as e:
+        logger.warning(f"Intelligence parse error: {e} — raw: {raw[:200]}")
+        return _fallback_intelligence(article_list)
+
+
+def _fallback_clusters(articles):
     return [{"thread_title": a["title"], "article_ids": [a["id"]], "summary": ""} for a in articles]
 
+def _fallback_intelligence(articles):
+    return {
+        "daily_brief": "Intelligence analysis temporarily unavailable due to API limits. The system is processing real news from Google News RSS. Sentiment and entity analysis from HuggingFace are still active. Try refreshing in a few minutes when API quota resets.",
+        "clusters": _fallback_clusters(articles),
+        "impact": {"impact_score": 0.5, "headline": "Gemini API temporarily at capacity — refresh in 1-2 minutes", "actions": ["Wait for API quota to reset", "Check Cloud Command dashboard for error logs"], "why_it_matters": "The free tier Gemini API has a limit of 15 requests per minute and 1000 per day."},
+    }
+
+
+# ---------------------------------------------------------------------------
+# Perspective Analysis (for Story Deep Dive — 1 call)
+# ---------------------------------------------------------------------------
+
+async def analyze_perspectives(text: str) -> dict:
+    """Analyze story from Left/Center/Right perspectives."""
+    prompt = f"""Analyze this news story from 3 political perspectives. Be specific and insightful. Use correct English spelling and grammar.
+
+Story: {text[:2000]}
+
+Return ONLY valid JSON, no markdown, no backticks:
+[
+  {{"viewpoint": "Progressive", "framing": "How progressive media frames this in 1-2 sentences", "emphasis": "What they highlight", "omission": "What they downplay"}},
+  {{"viewpoint": "Centrist", "framing": "How centrist media frames this in 1-2 sentences", "emphasis": "What they highlight", "omission": "What they downplay"}},
+  {{"viewpoint": "Conservative", "framing": "How conservative media frames this in 1-2 sentences", "emphasis": "What they highlight", "omission": "What they downplay"}}
+]"""
+
+    raw = await _call_gemini(prompt)
+    if not raw:
+        return []
+    try:
+        parsed = json.loads(_clean_json(raw))
+        if isinstance(parsed, list):
+            return parsed
+        elif isinstance(parsed, dict):
+            # Old format: {left: {}, center: {}, right: {}}
+            result = []
+            for label, data in parsed.items():
+                if isinstance(data, dict):
+                    data["viewpoint"] = label.capitalize()
+                    result.append(data)
+            return result
+        return []
+    except Exception as e:
+        logger.warning(f"Perspective parse: {e}")
+        return []

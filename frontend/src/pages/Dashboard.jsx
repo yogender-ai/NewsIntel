@@ -4,7 +4,7 @@ import { api } from '../api';
 import { AppContext } from '../App';
 
 /* ── Typewriter Hook ─────────────────────────────────────────────────── */
-function useTypewriter(text, speed = 12) {
+function useTypewriter(text, speed = 14) {
   const [displayed, setDisplayed] = useState('');
   const [typing, setTyping] = useState(false);
   const ref = useRef(null);
@@ -25,18 +25,17 @@ function useTypewriter(text, speed = 12) {
   return { displayed, typing };
 }
 
-/* ── Time Ago ────────────────────────────────────────────────────────── */
+/* ── Helpers ──────────────────────────────────────────────────────────── */
 function timeAgo(dateStr) {
   if (!dateStr) return '';
   const min = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
-  if (min < 0) return 'just now';
+  if (min < 0) return 'now';
   if (min < 60) return `${min}m`;
   const hrs = Math.floor(min / 60);
   if (hrs < 24) return `${hrs}h`;
   return `${Math.floor(hrs / 24)}d`;
 }
 
-/* ── Sentiment color helper ──────────────────────────────────────────── */
 function sentColor(label) {
   if (!label) return 'var(--text-3)';
   const l = label.toUpperCase();
@@ -45,12 +44,20 @@ function sentColor(label) {
   return 'var(--text-2)';
 }
 
+function sentClass(label) {
+  if (!label) return 'neu';
+  const l = label.toUpperCase();
+  if (l === 'POSITIVE') return 'positive';
+  if (l === 'NEGATIVE') return 'negative';
+  return 'neutral';
+}
+
 export default function Dashboard() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [pipeline, setPipeline] = useState(0);
-  const [expandedClusters, setExpandedClusters] = useState({});
+  const [expanded, setExpanded] = useState({});
   const navigate = useNavigate();
   const fetched = useRef(false);
   const { setHeadlines } = useContext(AppContext);
@@ -63,21 +70,26 @@ export default function Dashboard() {
     setPipeline(1);
 
     try {
-      const t1 = setTimeout(() => setPipeline(2), 600);
-      const t2 = setTimeout(() => setPipeline(3), 1200);
+      const t1 = setTimeout(() => setPipeline(2), 500);
+      const t2 = setTimeout(() => setPipeline(3), 1000);
+      const t3 = setTimeout(() => setPipeline(4), 1800);
 
       const res = await api.getDashboard([], [], force);
-      clearTimeout(t1);
-      clearTimeout(t2);
+      clearTimeout(t1); clearTimeout(t2); clearTimeout(t3);
       setData(res);
       setPipeline(5);
 
-      // Feed headlines to the global ticker
+      // Feed ticker
       if (res.clusters?.length) {
-        setHeadlines(res.clusters.map(c => c.thread_title || c.title || ''));
+        setHeadlines(res.clusters.map(c => c.thread_title || '').filter(Boolean));
       } else if (res.articles?.length) {
-        setHeadlines(res.articles.slice(0, 5).map(a => a.title));
+        setHeadlines(res.articles.slice(0, 6).map(a => a.title));
       }
+
+      // Default expand all clusters
+      const exp = {};
+      (res.clusters || []).forEach((_, i) => { exp[i] = true; });
+      setExpanded(exp);
     } catch (e) {
       setError(e.message);
       setPipeline(0);
@@ -87,7 +99,7 @@ export default function Dashboard() {
 
   useEffect(() => { load(); }, [load]);
 
-  // ── Derived data ──
+  // ── Derived ──
   const brief = data?.daily_brief || '';
   const articles = data?.articles || [];
   const clusters = data?.clusters || [];
@@ -95,163 +107,154 @@ export default function Dashboard() {
   const impact = data?.impact || {};
   const { displayed: briefText, typing } = useTypewriter(brief);
 
-  // Build article lookup for cluster rendering
-  const articleMap = {};
-  articles.forEach(a => { articleMap[a.id] = a; });
+  // Article lookup
+  const artMap = {};
+  articles.forEach(a => { artMap[String(a.id)] = a; });
 
-  // Sentiment stats
+  // Sentiment counts
   const posCount = articles.filter(a => a.sentiment?.label === 'POSITIVE').length;
   const negCount = articles.filter(a => a.sentiment?.label === 'NEGATIVE').length;
   const neuCount = articles.length - posCount - negCount;
 
-  // Toggle cluster expand
-  const toggleCluster = (i) => setExpandedClusters(prev => ({ ...prev, [i]: !prev[i] }));
+  const toggle = (i) => setExpanded(p => ({ ...p, [i]: !p[i] }));
 
-  // ── Pipeline stages ──
   const stages = [
-    { num: '01', label: 'GATEWAY CONNECTION' },
-    { num: '02', label: 'INGEST NEWS RSS' },
-    { num: '03', label: 'HUGGINGFACE NLP' },
-    { num: '04', label: 'GEMINI SYNTHESIS' },
-    { num: '05', label: 'INTEL READY' },
+    { n: '01', label: 'GATEWAY CONNECT', detail: 'Cloud Command' },
+    { n: '02', label: 'NEWS INGEST', detail: 'Google News RSS' },
+    { n: '03', label: 'NLP ANALYSIS', detail: 'HuggingFace (free)' },
+    { n: '04', label: 'AI SYNTHESIS', detail: data?.model_used || 'Gemini 2.5 Flash' },
+    { n: '05', label: 'INTEL READY', detail: `${data?.gemini_calls || 1} Gemini call` },
   ];
 
   return (
     <div className="dashboard-grid">
 
-      {/* ════════ ZONE 1: LEFT — Operations Panel ════════ */}
+      {/* ════════ LEFT — Operations ════════ */}
       <div className="zone-pipeline">
 
-        {/* Pipeline */}
         <div className="panel">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-            <span className="mono-label">SYSTEM STATUS</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+            <span className="mono-label">PIPELINE</span>
             <button onClick={() => load(true)} disabled={loading} className="wire-btn">
-              {loading ? '⟳ REFRESHING...' : '⟳ FORCE REFRESH'}
+              {loading ? '⟳ LOADING...' : '⟳ REFRESH'}
             </button>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            {stages.map((s, i) => (
-              <div key={i} className={`pipeline-stage ${pipeline >= i + 1 ? 'active' : ''}`}>
-                <div className="stage-num">{s.num}</div>
+
+          {stages.map((s, i) => (
+            <div key={i} className={`pipeline-stage ${pipeline >= i + 1 ? 'active' : ''}`}>
+              <div className="stage-num">{s.n}</div>
+              <div style={{ flex: 1 }}>
                 <div className="stage-desc">{s.label}</div>
+                <div style={{ fontSize: 9, color: 'var(--text-3)', fontFamily: 'var(--mono)', marginTop: 2 }}>{s.detail}</div>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
 
-        {/* Stats */}
+        {/* Metrics */}
         {data && (
           <div className="panel fin">
-            <span className="mono-label" style={{ marginBottom: 16, display: 'block' }}>FEED METRICS</span>
-            <div style={{ display: 'grid', gap: 10 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 12, color: 'var(--text-2)' }}>Sources ingested</span>
-                <span className="mono" style={{ fontSize: 13, color: 'var(--theme-main)' }}>{data.sources_count || articles.length}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 12, color: 'var(--text-2)' }}>Story threads</span>
-                <span className="mono" style={{ fontSize: 13, color: 'var(--theme-main)' }}>{clusters.length}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ fontSize: 12, color: 'var(--text-2)' }}>Sentiment</span>
-                <span style={{ display: 'flex', gap: 8 }}>
-                  <span className="mono" style={{ fontSize: 11, color: 'var(--pos)' }}>+{posCount}</span>
-                  <span className="mono" style={{ fontSize: 11, color: 'var(--text-2)' }}>~{neuCount}</span>
-                  <span className="mono" style={{ fontSize: 11, color: 'var(--neg)' }}>-{negCount}</span>
-                </span>
+            <span className="mono-label" style={{ marginBottom: 14, display: 'block' }}>METRICS</span>
+            <div style={{ display: 'grid', gap: 8 }}>
+              {[
+                ['Sources', data.sources_count || articles.length],
+                ['Threads', clusters.length],
+                ['Entities', articles.reduce((s, a) => s + (a.entities?.length || 0), 0)],
+              ].map(([k, v]) => (
+                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 11, color: 'var(--text-2)' }}>{k}</span>
+                  <span className="mono" style={{ fontSize: 14, color: 'var(--theme-main)', fontWeight: 700 }}>{v}</span>
+                </div>
+              ))}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: 11, color: 'var(--text-2)' }}>Sentiment</span>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <span className="badge positive" style={{ fontSize: 10 }}>▲ {posCount}</span>
+                  <span className="badge neutral" style={{ fontSize: 10 }}>— {neuCount}</span>
+                  <span className="badge negative" style={{ fontSize: 10 }}>▼ {negCount}</span>
+                </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* Radar */}
-        {data && (
+        {/* Tension */}
+        {data && Object.keys(tension).length > 0 && (
           <div className="panel fin">
-            <span className="mono-label" style={{ marginBottom: 14, display: 'block' }}>TENSION RADAR</span>
-            <div className="radar-ring" style={{ width: 160, height: 160, margin: '0 auto' }}>
-              <div className="radar-sweep" />
-              {Object.entries(tension).slice(0, 5).map(([region, score], i) => {
-                const angle = (i / 5) * Math.PI * 2;
-                const r = 30 + (score / 100) * 35;
-                return (
-                  <div key={region} className="radar-dot" title={`${region}: ${score}`} style={{
-                    top: `${50 + Math.sin(angle) * r}%`,
-                    left: `${50 + Math.cos(angle) * r}%`,
-                    color: score > 60 ? 'var(--neg)' : score > 30 ? 'var(--warn)' : 'var(--pos)',
-                    background: 'currentColor',
-                  }} />
-                );
-              })}
-            </div>
-            {Object.keys(tension).length > 0 && (
-              <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center' }}>
-                {Object.entries(tension).slice(0, 5).map(([region, score]) => (
-                  <span key={region} className="mono" style={{
-                    fontSize: 9, padding: '2px 6px',
-                    background: 'var(--bg-elevated)', borderRadius: 3,
-                    color: score > 60 ? 'var(--neg)' : score > 30 ? 'var(--warn)' : 'var(--pos)',
-                  }}>
-                    {region} {score}
-                  </span>
+            <span className="mono-label" style={{ marginBottom: 14, display: 'block' }}>TENSION INDEX</span>
+            <div style={{ display: 'grid', gap: 6 }}>
+              {Object.entries(tension)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 8)
+                .map(([region, score]) => (
+                  <div key={region} style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span className="mono" style={{ fontSize: 10, color: 'var(--text-2)', minWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {region}
+                    </span>
+                    <div style={{ flex: 1, height: 4, background: 'var(--bg-elevated)', borderRadius: 2, overflow: 'hidden' }}>
+                      <div style={{
+                        height: '100%',
+                        width: `${score}%`,
+                        background: score > 65 ? 'var(--neg)' : score > 35 ? 'var(--warn)' : 'var(--pos)',
+                        borderRadius: 2,
+                        transition: 'width 0.8s var(--ease)',
+                      }} />
+                    </div>
+                    <span className="mono" style={{ fontSize: 10, color: score > 65 ? 'var(--neg)' : score > 35 ? 'var(--warn)' : 'var(--pos)', minWidth: 20 }}>
+                      {score}
+                    </span>
+                  </div>
                 ))}
-              </div>
-            )}
+            </div>
           </div>
         )}
       </div>
 
-      {/* ════════ ZONE 2: CENTER — Cluster Intelligence Feed ════════ */}
+      {/* ════════ CENTER — Intelligence Feed ════════ */}
       <div className="zone-clusters">
 
         {loading ? (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: 300, gap: 16 }}>
-            <div className="pulse-glow" style={{ width: 16, height: 16, background: 'var(--theme-main)', borderRadius: '50%' }} />
-            <span className="mono" style={{ fontSize: 12, color: 'var(--theme-main)', letterSpacing: 2 }}>PROCESSING INTELLIGENCE FEED...</span>
+            <div className="pulse-glow" style={{ width: 14, height: 14, background: 'var(--theme-main)', borderRadius: '50%' }} />
+            <span className="mono" style={{ fontSize: 11, color: 'var(--theme-main)', letterSpacing: 2 }}>PROCESSING INTELLIGENCE...</span>
           </div>
         ) : error ? (
           <div className="panel" style={{ borderColor: 'var(--neg)' }}>
-            <span className="mono-label" style={{ color: 'var(--neg)' }}>SYSTEM ERROR</span>
+            <span className="mono-label" style={{ color: 'var(--neg)' }}>ERROR</span>
             <p style={{ marginTop: 8, fontSize: 13, color: 'var(--text-2)' }}>{error}</p>
             <button onClick={() => load(true)} className="wire-btn" style={{ marginTop: 12 }}>RETRY</button>
           </div>
         ) : clusters.length > 0 ? (
           clusters.map((cluster, ci) => {
-            const clusterArticles = (cluster.article_ids || [])
-              .map(id => articleMap[String(id)])
-              .filter(Boolean);
-            const isExpanded = expandedClusters[ci] !== false; // default expanded
+            const cArts = (cluster.article_ids || []).map(id => artMap[String(id)]).filter(Boolean);
+            const isOpen = expanded[ci];
 
             return (
-              <div key={ci} className="cluster-thread" style={{ animation: `fadeIn 0.4s var(--ease) forwards ${ci * 0.08}s`, opacity: 0 }}>
-                <div className="cluster-header" onClick={() => toggleCluster(ci)}>
+              <div key={ci} className="cluster-thread" style={{ animation: `fadeIn 0.4s var(--ease) forwards ${ci * 0.06}s`, opacity: 0 }}>
+                <div className="cluster-header" onClick={() => toggle(ci)}>
                   <div style={{ flex: 1 }}>
-                    <div className="cluster-meta" style={{ marginBottom: 8 }}>
-                      <span className="badge sources">{clusterArticles.length} SOURCE{clusterArticles.length !== 1 ? 'S' : ''}</span>
+                    <div className="cluster-meta" style={{ marginBottom: 6 }}>
+                      <span className="badge sources">{cArts.length} SOURCE{cArts.length !== 1 ? 'S' : ''}</span>
                     </div>
                     <div className="cluster-title">{cluster.thread_title}</div>
                     {cluster.summary && <div className="cluster-summary">{cluster.summary}</div>}
                   </div>
-                  <span style={{ fontSize: 14, color: 'var(--text-3)', transition: '0.3s', transform: isExpanded ? 'rotate(90deg)' : 'rotate(0)' }}>▸</span>
+                  <span className="mono" style={{ fontSize: 16, color: 'var(--text-3)', transition: '0.3s', transform: isOpen ? 'rotate(90deg)' : 'none', display: 'inline-block' }}>▸</span>
                 </div>
 
-                {isExpanded && clusterArticles.length > 0 && (
+                {isOpen && cArts.length > 0 && (
                   <div className="cluster-body">
-                    {clusterArticles.map((art, j) => (
+                    {cArts.map((art, j) => (
                       <div key={j} className="wire-strip">
                         <div className="wire-source">{art.source?.substring(0, 14)}</div>
                         <div className="wire-title" style={{ cursor: 'pointer' }} onClick={() => navigate('/story', { state: { article: art } })}>
                           {art.title}
                         </div>
-                        <span className="badge" style={{
-                          background: art.sentiment?.label === 'POSITIVE' ? 'rgba(0,230,118,0.1)' : art.sentiment?.label === 'NEGATIVE' ? 'rgba(255,51,102,0.1)' : 'rgba(120,120,140,0.1)',
-                          color: sentColor(art.sentiment?.label),
-                          border: 'none', fontSize: 8,
-                        }}>
-                          {art.sentiment?.label || 'N/A'}
+                        <span className={`badge ${sentClass(art.sentiment?.label)}`} style={{ fontSize: 8 }}>
+                          {art.sentiment?.label || '—'}
                         </span>
                         <div className="wire-time">{timeAgo(art.published)}</div>
-                        <a href={art.url} target="_blank" rel="noopener noreferrer" className="wire-btn" title="Original Source">↗</a>
+                        <a href={art.url} target="_blank" rel="noopener noreferrer" className="wire-btn" title="Original">↗</a>
                       </div>
                     ))}
                   </div>
@@ -260,38 +263,41 @@ export default function Dashboard() {
             );
           })
         ) : articles.length > 0 ? (
-          /* Fallback: no clusters, show articles flat */
-          articles.map((art, i) => (
-            <div key={i} className="wire-strip" style={{ marginBottom: 4, animation: `fadeIn 0.3s ease forwards ${i * 0.05}s`, opacity: 0 }}>
-              <div className="wire-source">{art.source?.substring(0, 14)}</div>
-              <div className="wire-title" style={{ cursor: 'pointer' }} onClick={() => navigate('/story', { state: { article: art } })}>
-                {art.title}
+          <div>
+            <span className="mono-label" style={{ display: 'block', marginBottom: 12 }}>UNCLUSTERED FEED</span>
+            {articles.map((art, i) => (
+              <div key={i} className="wire-strip" style={{ marginBottom: 4, animation: `fadeIn 0.3s ease forwards ${i * 0.04}s`, opacity: 0 }}>
+                <div className="wire-source">{art.source?.substring(0, 14)}</div>
+                <div className="wire-title" style={{ cursor: 'pointer' }} onClick={() => navigate('/story', { state: { article: art } })}>
+                  {art.title}
+                </div>
+                <span className={`badge ${sentClass(art.sentiment?.label)}`} style={{ fontSize: 8 }}>{art.sentiment?.label || '—'}</span>
+                <div className="wire-time">{timeAgo(art.published)}</div>
+                <a href={art.url} target="_blank" rel="noopener noreferrer" className="wire-btn">↗</a>
               </div>
-              <div className="wire-time">{timeAgo(art.published)}</div>
-              <a href={art.url} target="_blank" rel="noopener noreferrer" className="wire-btn">↗</a>
-            </div>
-          ))
+            ))}
+          </div>
         ) : (
           <div className="panel" style={{ textAlign: 'center', padding: 40 }}>
-            <span className="mono" style={{ fontSize: 12, color: 'var(--text-3)' }}>NO INTELLIGENCE DATA AVAILABLE</span>
+            <span className="mono" style={{ color: 'var(--text-3)' }}>NO DATA</span>
           </div>
         )}
       </div>
 
-      {/* ════════ ZONE 3: RIGHT — Synthesis Terminal ════════ */}
+      {/* ════════ RIGHT — Synthesis ════════ */}
       <div className="zone-brief">
 
-        {/* Daily Brief */}
-        <div className="panel" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        {/* Brief */}
+        <div className="panel" style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 200 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <span className="mono-label">DAILY BRIEF</span>
-            <span className="mono" style={{ fontSize: 9, color: 'var(--theme-main)', opacity: 0.7 }}>GEMINI 2.5 FLASH</span>
+            <span className="mono" style={{ fontSize: 9, color: 'var(--text-3)' }}>{data?.model_used || 'GEMINI'}</span>
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {loading ? (
               <div style={{ display: 'grid', gap: 8 }}>
-                {[200, 160, 180, 140, 120].map((w, i) => (
-                  <div key={i} className="skel" style={{ width: `${w}px`, height: 12 }} />
+                {[180, 150, 170, 130, 110].map((w, i) => (
+                  <div key={i} className="skel" style={{ width: w, maxWidth: '100%', height: 11 }} />
                 ))}
               </div>
             ) : brief ? (
@@ -300,33 +306,47 @@ export default function Dashboard() {
                 {typing && <span className="typewriter-cursor" />}
               </div>
             ) : (
-              <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>[No brief generated]</span>
+              <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>[Brief unavailable — API quota may be exceeded]</span>
             )}
           </div>
         </div>
 
-        {/* Impact / So What */}
-        {impact?.headline && (
+        {/* Impact */}
+        {impact?.headline && impact.headline !== 'Analysis temporarily unavailable' && (
           <div className="panel fin">
-            <span className="mono-label" style={{ marginBottom: 12, display: 'block' }}>IMPACT ANALYSIS</span>
-            <p style={{ fontSize: 14, fontWeight: 600, marginBottom: 10, lineHeight: 1.4 }}>{impact.headline}</p>
+            <span className="mono-label" style={{ marginBottom: 10, display: 'block' }}>SO WHAT?</span>
+            <p style={{ fontSize: 14, fontWeight: 600, marginBottom: 8, lineHeight: 1.4 }}>{impact.headline}</p>
             {impact.why_it_matters && (
-              <p style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.6, marginBottom: 12 }}>{impact.why_it_matters}</p>
+              <p style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.6, marginBottom: 10 }}>{impact.why_it_matters}</p>
             )}
             {impact.actions?.length > 0 && (
-              <div style={{ display: 'grid', gap: 6 }}>
-                {impact.actions.map((action, i) => (
+              <div style={{ display: 'grid', gap: 5 }}>
+                {impact.actions.map((a, i) => (
                   <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                    <span className="mono" style={{ fontSize: 10, color: 'var(--theme-main)', marginTop: 2 }}>→</span>
-                    <span style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.5 }}>{action}</span>
+                    <span style={{ color: 'var(--theme-main)', fontSize: 11 }}>→</span>
+                    <span style={{ fontSize: 11, color: 'var(--text-2)', lineHeight: 1.5 }}>{a}</span>
                   </div>
                 ))}
               </div>
             )}
           </div>
         )}
+
+        {/* API Transparency */}
+        {data && (
+          <div className="panel fin" style={{ fontSize: 10, fontFamily: 'var(--mono)' }}>
+            <span className="mono-label" style={{ marginBottom: 8, display: 'block', fontSize: 9 }}>TRANSPARENCY</span>
+            <div style={{ color: 'var(--text-3)', display: 'grid', gap: 4 }}>
+              <div>MODEL: <span style={{ color: 'var(--text-2)' }}>{data.model_used || 'gemini-2.5-flash'}</span></div>
+              <div>GEMINI CALLS: <span style={{ color: 'var(--pos)' }}>{data.gemini_calls || 1}</span></div>
+              <div>TOPICS: <span style={{ color: 'var(--text-2)' }}>{(data.topics_used || []).join(', ')}</span></div>
+              <div>GENERATED: <span style={{ color: 'var(--text-2)' }}>{data.generated_at ? new Date(data.generated_at).toLocaleTimeString() : '—'}</span></div>
+            </div>
+          </div>
+        )}
       </div>
 
+      <style>{`@keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }`}</style>
     </div>
   );
 }

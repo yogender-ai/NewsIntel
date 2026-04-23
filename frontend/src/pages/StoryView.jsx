@@ -3,11 +3,11 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 
 export default function StoryView() {
-  const location = useLocation();
+  const { state } = useLocation();
   const navigate = useNavigate();
-  const article = location.state?.article;
+  const article = state?.article;
 
-  const [data, setData] = useState(null);
+  const [deepData, setDeepData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -15,7 +15,7 @@ export default function StoryView() {
     if (!article) { navigate('/dashboard'); return; }
     window.scrollTo(0, 0);
 
-    const loadData = async () => {
+    (async () => {
       setLoading(true);
       try {
         const result = await api.storyDeepDive(
@@ -23,154 +23,153 @@ export default function StoryView() {
           article.text_preview || article.text || article.title,
           article.source
         );
-        setData(result);
+        setDeepData(result);
       } catch (err) {
         setError(err.message);
       }
       setLoading(false);
-    };
-    loadData();
+    })();
   }, [article, navigate]);
 
   if (!article) return null;
 
-  const sentimentLabel = article.sentiment?.label || data?.sentiment?.label;
-  const sentimentConf = article.sentiment?.confidence || data?.sentiment?.score;
+  // Use article data (always available) + deep data (may fail)
+  const entities = deepData?.entities?.length > 0 ? deepData.entities : (article.entities || []);
+  const sentLabel = article.sentiment?.label || deepData?.sentiment?.label || 'NEUTRAL';
+  const sentConf = article.sentiment?.confidence || deepData?.sentiment?.score || 0.5;
+  const perspectives = deepData?.perspectives || [];
 
   return (
-    <div style={{ maxWidth: 1000, margin: '0 auto', paddingBottom: 60 }}>
+    <div style={{ maxWidth: 1100, margin: '0 auto', paddingBottom: 60 }}>
 
-      {/* ── Navigation ── */}
+      {/* ── Nav ── */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-        <button onClick={() => navigate('/dashboard')} className="wire-btn">← BACK TO DASHBOARD</button>
-        <span className="mono-label" style={{ color: 'var(--text-3)' }}>DEEP DIVE</span>
+        <button onClick={() => navigate('/dashboard')} className="wire-btn">← DASHBOARD</button>
+        <span className="mono-label" style={{ color: 'var(--text-3)' }}>ARTICLE DEEP DIVE</span>
       </div>
 
-      {/* ── Article Header ── */}
+      {/* ── Header Panel ── */}
       <div className="panel" style={{ marginBottom: 20 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 20 }}>
           <div style={{ flex: 1 }}>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 14 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
               <span className="mono-label">{article.source}</span>
-              <span style={{ fontSize: 11, color: 'var(--text-3)' }}>•</span>
-              <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{new Date(article.published).toLocaleString()}</span>
+              <span style={{ color: 'var(--text-3)' }}>•</span>
+              <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{article.published ? new Date(article.published).toLocaleString() : ''}</span>
             </div>
             <h1 style={{ fontSize: 22, lineHeight: 1.35, marginBottom: 14 }}>{article.title}</h1>
             <p style={{ fontSize: 14, color: 'var(--text-2)', lineHeight: 1.7 }}>
-              {article.text_preview || article.text}
+              {article.text_preview || article.text || ''}
             </p>
           </div>
           <a href={article.url} target="_blank" rel="noopener noreferrer" className="wire-btn" style={{ flexShrink: 0 }}>
-            READ ORIGINAL ↗
+            ORIGINAL ↗
           </a>
         </div>
-
-        {/* Inline sentiment from article data */}
-        {sentimentLabel && (
-          <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: 12 }}>
-            <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)' }}>SENTIMENT</span>
-            <span className={`badge ${sentimentLabel.toLowerCase()}`}>{sentimentLabel}</span>
-            {sentimentConf && (
-              <div style={{ flex: 1, maxWidth: 200, height: 3, background: 'var(--bg-elevated)', borderRadius: 2, overflow: 'hidden' }}>
-                <div style={{
-                  height: '100%',
-                  width: `${(sentimentConf) * 100}%`,
-                  background: sentimentLabel === 'POSITIVE' ? 'var(--pos)' : sentimentLabel === 'NEGATIVE' ? 'var(--neg)' : 'var(--text-2)',
-                }} />
-              </div>
-            )}
-            <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)' }}>{sentimentConf ? `${(sentimentConf * 100).toFixed(0)}%` : ''}</span>
-          </div>
-        )}
-
-        {/* Inline entities from article data */}
-        {article.entities?.length > 0 && (
-          <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {article.entities.map((e, i) => (
-              <span key={i} style={{
-                padding: '3px 8px', fontSize: 10,
-                background: 'var(--bg-elevated)', border: '1px solid rgba(255,255,255,0.06)',
-                borderRadius: 3, fontFamily: 'var(--mono)',
-              }}>
-                {e.name} <span style={{ color: 'var(--text-3)', fontSize: 8 }}>{e.type}</span>
-              </span>
-            ))}
-          </div>
-        )}
       </div>
 
-      {/* ── Deep Analysis ── */}
+      {/* ── Analysis Grid (shows immediately from article data) ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>
+
+        {/* Sentiment */}
+        <div className="panel fin">
+          <span className="mono-label" style={{ marginBottom: 14, display: 'block' }}>SENTIMENT</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{
+              width: 48, height: 48, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              fontSize: 20,
+              background: sentLabel === 'POSITIVE' ? 'rgba(0,230,118,0.1)' : sentLabel === 'NEGATIVE' ? 'rgba(255,51,102,0.1)' : 'rgba(120,120,140,0.1)',
+              border: `2px solid ${sentLabel === 'POSITIVE' ? 'var(--pos)' : sentLabel === 'NEGATIVE' ? 'var(--neg)' : 'var(--text-3)'}`,
+            }}>
+              {sentLabel === 'POSITIVE' ? '▲' : sentLabel === 'NEGATIVE' ? '▼' : '—'}
+            </div>
+            <div>
+              <div style={{ fontSize: 18, fontWeight: 700, color: sentLabel === 'POSITIVE' ? 'var(--pos)' : sentLabel === 'NEGATIVE' ? 'var(--neg)' : 'var(--text-2)' }}>
+                {sentLabel}
+              </div>
+              <div className="mono" style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 2 }}>
+                {(sentConf * 100).toFixed(1)}% confidence
+              </div>
+            </div>
+          </div>
+          {/* Confidence bar */}
+          <div style={{ marginTop: 14, height: 4, background: 'var(--bg-elevated)', borderRadius: 2, overflow: 'hidden' }}>
+            <div style={{
+              height: '100%', width: `${sentConf * 100}%`, borderRadius: 2,
+              background: sentLabel === 'POSITIVE' ? 'var(--pos)' : sentLabel === 'NEGATIVE' ? 'var(--neg)' : 'var(--text-2)',
+              transition: 'width 0.6s var(--ease)',
+            }} />
+          </div>
+        </div>
+
+        {/* Entities */}
+        <div className="panel fin">
+          <span className="mono-label" style={{ marginBottom: 14, display: 'block' }}>
+            ENTITIES {entities.length > 0 ? `(${entities.length})` : ''}
+          </span>
+          {entities.length > 0 ? (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {entities.map((e, i) => (
+                <span key={i} style={{
+                  padding: '4px 10px', fontSize: 11,
+                  background: 'var(--bg-base)', border: '1px solid rgba(255,255,255,0.06)',
+                  borderRadius: 'var(--br)', display: 'inline-flex', gap: 5, alignItems: 'center',
+                }}>
+                  <span style={{ color: 'var(--text-1)' }}>{e.name}</span>
+                  <span className="mono" style={{ color: 'var(--text-3)', fontSize: 8, textTransform: 'uppercase' }}>{e.type}</span>
+                </span>
+              ))}
+            </div>
+          ) : (
+            <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>No entities detected</span>
+          )}
+        </div>
+      </div>
+
+      {/* ── Perspectives (from deep-dive Gemini call) ── */}
       {loading ? (
-        <div style={{ textAlign: 'center', padding: 50 }}>
-          <div className="pulse-glow" style={{ width: 14, height: 14, background: 'var(--theme-main)', borderRadius: '50%', margin: '0 auto 16px' }} />
-          <span className="mono" style={{ fontSize: 11, color: 'var(--theme-main)', letterSpacing: 2 }}>RUNNING DEEP ANALYSIS...</span>
+        <div className="panel" style={{ textAlign: 'center', padding: 30 }}>
+          <div className="pulse-glow" style={{ width: 12, height: 12, background: 'var(--theme-main)', borderRadius: '50%', margin: '0 auto 12px' }} />
+          <span className="mono" style={{ fontSize: 11, color: 'var(--theme-main)', letterSpacing: 1 }}>
+            RUNNING PERSPECTIVE ANALYSIS (1 Gemini call)...
+          </span>
+        </div>
+      ) : perspectives.length > 0 ? (
+        <div className="panel fin" style={{ marginBottom: 20 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+            <span className="mono-label">NARRATIVE PERSPECTIVES</span>
+            <span className="mono" style={{ fontSize: 9, color: 'var(--text-3)' }}>GEMINI 2.5 FLASH</span>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 14 }}>
+            {perspectives.map((p, i) => (
+              <div key={i} style={{
+                background: 'var(--bg-base)', padding: 18,
+                borderRadius: 'var(--br)', border: '1px solid rgba(255,255,255,0.06)',
+                borderTop: `2px solid ${i === 0 ? 'var(--pos)' : i === 2 ? 'var(--neg)' : 'var(--theme-main)'}`,
+              }}>
+                <div className="mono-label" style={{ marginBottom: 12, color: 'var(--text-1)', fontSize: 11 }}>
+                  {(p.viewpoint || ['Progressive', 'Centrist', 'Conservative'][i] || 'Perspective').toUpperCase()}
+                </div>
+                {p.framing && <p style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.6, marginBottom: 10 }}>
+                  <strong style={{ color: 'var(--text-1)' }}>Framing:</strong> {p.framing}
+                </p>}
+                {p.emphasis && <p style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.6, marginBottom: 10 }}>
+                  <strong style={{ color: 'var(--text-1)' }}>Emphasis:</strong> {p.emphasis}
+                </p>}
+                {p.omission && <p style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.6 }}>
+                  <strong style={{ color: 'var(--text-1)' }}>Omission:</strong> {p.omission}
+                </p>}
+              </div>
+            ))}
+          </div>
         </div>
       ) : error ? (
-        <div className="panel" style={{ borderColor: 'var(--neg)' }}>
-          <span className="mono-label" style={{ color: 'var(--neg)' }}>ANALYSIS FAILED</span>
-          <p style={{ marginTop: 8, fontSize: 12, color: 'var(--text-2)' }}>{error}</p>
-        </div>
-      ) : data ? (
-        <div style={{ display: 'grid', gap: 20 }}>
-
-          {/* Deep entities */}
-          {data.entities?.length > 0 && (
-            <div className="panel fin">
-              <span className="mono-label" style={{ marginBottom: 14, display: 'block' }}>ENTITIES DETECTED ({data.entities.length})</span>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {data.entities.map((e, i) => (
-                  <span key={i} style={{
-                    padding: '4px 10px', fontSize: 11,
-                    background: 'var(--bg-base)', border: '1px solid var(--theme-border)',
-                    borderRadius: 'var(--br)', display: 'inline-flex', gap: 6, alignItems: 'center',
-                  }}>
-                    <span style={{ color: 'var(--text-1)' }}>{e.name}</span>
-                    <span style={{ color: 'var(--text-3)', fontSize: 8, fontFamily: 'var(--mono)', textTransform: 'uppercase' }}>{e.type}</span>
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Perspectives */}
-          {data.perspectives && data.perspectives.length > 0 && (
-            <div className="panel fin">
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-                <span className="mono-label">NARRATIVE ANALYSIS</span>
-                <span className="mono" style={{ fontSize: 9, color: 'var(--theme-main)', opacity: 0.7 }}>GEMINI 2.5</span>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 14 }}>
-                {data.perspectives.map((p, i) => (
-                  <div key={i} style={{
-                    background: 'var(--bg-base)', padding: 16,
-                    borderRadius: 'var(--br)', border: '1px solid rgba(255,255,255,0.06)',
-                  }}>
-                    <div className="mono-label" style={{ marginBottom: 10, color: 'var(--text-1)', fontSize: 11 }}>
-                      {p.viewpoint?.toUpperCase()}
-                    </div>
-                    {p.framing && <p style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.6, marginBottom: 8 }}>
-                      <strong style={{ color: 'var(--text-1)' }}>Framing:</strong> {p.framing}
-                    </p>}
-                    {p.emphasis && <p style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.6, marginBottom: 8 }}>
-                      <strong style={{ color: 'var(--text-1)' }}>Emphasis:</strong> {p.emphasis}
-                    </p>}
-                    {p.omission && <p style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.6 }}>
-                      <strong style={{ color: 'var(--text-1)' }}>Omission:</strong> {p.omission}
-                    </p>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Impact */}
-          {data.impact && (
-            <div className="panel fin">
-              <span className="mono-label" style={{ marginBottom: 14, display: 'block' }}>PERSONAL IMPACT</span>
-              {data.impact.headline && <p style={{ fontSize: 15, fontWeight: 600, marginBottom: 10, lineHeight: 1.4 }}>{data.impact.headline}</p>}
-              {data.impact.why_it_matters && <p style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.6 }}>{data.impact.why_it_matters}</p>}
-            </div>
-          )}
+        <div className="panel" style={{ borderColor: 'var(--warn)' }}>
+          <span className="mono-label" style={{ color: 'var(--warn)' }}>PERSPECTIVE ANALYSIS UNAVAILABLE</span>
+          <p style={{ marginTop: 6, fontSize: 12, color: 'var(--text-2)' }}>
+            Gemini API returned an error ({error}). This usually means rate limits were hit.
+            Sentiment and entities above are still from HuggingFace (free).
+          </p>
         </div>
       ) : null}
     </div>
