@@ -180,12 +180,19 @@ export default function Dashboard() {
     applyTheme(res);
   };
 
-  // PRIMARY LOAD: GET cached data instantly (stale-while-revalidate)
+  // PRIMARY LOAD: Check onboarding, then GET cached data instantly
   const load = useCallback(async () => {
     if (fetched.current) return;
     fetched.current = true;
     setLoading(true); setError(null);
     try {
+      // Check if user has completed onboarding
+      const prefsRes = await api.getPreferences();
+      if (prefsRes.status === 'not_found' || !prefsRes.data?.onboarded) {
+        navigate('/onboarding');
+        return;
+      }
+
       const res = await api.getDashboard([], [], false);  // GET = instant cache
       setData(res);
       processResponse(res);
@@ -196,7 +203,7 @@ export default function Dashboard() {
       }
     } catch (e) { setError(e.message); }
     setLoading(false);
-  }, [setHeadlines, mode]);
+  }, [setHeadlines, mode, navigate]);
 
   // MANUAL FORCE REFRESH: POST triggers full pipeline
   const forceRefresh = async () => {
