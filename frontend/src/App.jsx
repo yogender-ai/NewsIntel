@@ -1,97 +1,95 @@
-import React, { useEffect, useState, createContext, useContext } from 'react';
-import { BrowserRouter as Router, Routes, Route, NavLink, useLocation } from 'react-router-dom';
+import React, { useState, useEffect, createContext, useContext } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard';
 import Onboarding from './pages/Onboarding';
 import StoryView from './pages/StoryView';
 import './index.css';
 
-/* ── Shared Context: ticker gets headlines from Dashboard data ──────── */
-export const AppContext = createContext({ headlines: [], setHeadlines: () => {} });
+/* ── Global State ── */
+export const AppContext = createContext();
 
-/* ── Headline Ticker ────────────────────────────────────────────────── */
-const HeadlineTicker = () => {
-  const { headlines } = useContext(AppContext);
-  const items = headlines.length > 0
-    ? headlines
-    : ["AWAITING INTELLIGENCE FEED...", "ESTABLISHING GATEWAY CONNECTION..."];
+const Login = () => {
+  const { login, user } = useAuth();
+  if (user) return <Navigate to="/dashboard" />;
 
   return (
-    <div className="ticker-wrap">
-      <div className="ticker-tag">LIVE</div>
-      <div className="ticker-move">
-        {[...items, ...items].map((text, i) => (
-          <div key={i} className="ticker-item">
-            <span className="ticker-sep">//</span> {text}
-          </div>
-        ))}
+    <div className="auth-overlay">
+      <div className="login-card panel">
+        <div className="label" style={{ marginBottom: 24 }}>System Authorization</div>
+        <h1 style={{ marginBottom: 16 }}>NEWS<span style={{ color: 'var(--theme-main)' }}>INTEL</span></h1>
+        <p style={{ color: 'var(--text-2)', fontSize: 13, marginBottom: 32 }}>Access the Global Intelligence Command Center</p>
+        <button onClick={login} className="btn-premium" style={{ width: '100%' }}>
+          Authorize with Google
+        </button>
       </div>
     </div>
   );
 };
 
-/* ── Top Navigation Bar ─────────────────────────────────────────────── */
+const Protected = ({ children }) => {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  return user ? children : <Navigate to="/login" />;
+};
+
 const TopBar = () => {
+  const { user, logout } = useAuth();
   const [time, setTime] = useState('');
 
   useEffect(() => {
-    const update = () => {
-      const now = new Date();
-      setTime(now.toLocaleTimeString('en-US', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-    };
-    update();
-    const timer = setInterval(update, 1000);
-    return () => clearInterval(timer);
+    const it = setInterval(() => setTime(new Date().toLocaleTimeString('en-US', { hour12: false })), 1000);
+    return () => clearInterval(it);
   }, []);
 
   return (
-    <>
-      <div className="top-bar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-1)', letterSpacing: '0.5px' }}>
-            NEWS<span style={{ color: 'var(--theme-main)' }}>INTEL</span>
-          </div>
-          <div className="mono" style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '1px' }}>
-            v9 // COMMAND CENTER
-          </div>
+    <div className="top-bar">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 20 }}>
+        <div style={{ fontSize: 18, fontWeight: 900, letterSpacing: '-1px' }}>
+          NEWS<span style={{ color: 'var(--theme-main)' }}>INTEL</span>
         </div>
-
-        <div className="nav-links">
-          <NavLink to="/onboarding" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>SETUP</NavLink>
-          <NavLink to="/dashboard" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>DASHBOARD</NavLink>
-        </div>
-
-        <div className="mono" style={{ fontSize: 11, color: 'var(--text-2)', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: 'var(--theme-main)', fontWeight: 700 }}>UTC</span>
-          {time}
-        </div>
+        <div className="label" style={{ opacity: 0.5 }}>v10 // STRATEGIC COMMAND</div>
       </div>
-      <HeadlineTicker />
-    </>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
+        <div className="mono" style={{ fontSize: 11, color: 'var(--text-2)' }}>{time} <span style={{ color: 'var(--theme-main)' }}>UTC</span></div>
+        {user && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderLeft: '1px solid var(--theme-border)', paddingLeft: 24 }}>
+            <img src={user.photoURL} alt="" style={{ width: 24, height: 24, borderRadius: '50%' }} />
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span className="mono" style={{ fontSize: 10, fontWeight: 700 }}>{user.displayName?.toUpperCase()}</span>
+              <button onClick={logout} style={{ background: 'none', border: 'none', color: 'var(--theme-main)', fontSize: 9, textAlign: 'left', padding: 0 }}>SIGNOUT</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 
-/* ── App Root ────────────────────────────────────────────────────────── */
 function App() {
   const [headlines, setHeadlines] = useState([]);
 
   return (
-    <AppContext.Provider value={{ headlines, setHeadlines }}>
-      <Router>
-        <div className="app-container theme-tech">
-          <div className="ambient-layer" />
-          <div className="scanline" />
-          <TopBar />
-          <div className="main-content">
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/onboarding" element={<Onboarding />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/story" element={<StoryView />} />
-            </Routes>
+    <AuthProvider>
+      <AppContext.Provider value={{ headlines, setHeadlines }}>
+        <Router>
+          <div className="app-container theme-tech">
+            <div className="scanline" />
+            <TopBar />
+            <div className="main-content">
+              <Routes>
+                <Route path="/login" element={<Login />} />
+                <Route path="/" element={<Protected><Dashboard /></Protected>} />
+                <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
+                <Route path="/onboarding" element={<Protected><Onboarding /></Protected>} />
+                <Route path="/story" element={<Protected><StoryView /></Protected>} />
+              </Routes>
+            </div>
           </div>
-        </div>
-      </Router>
-    </AppContext.Provider>
+        </Router>
+      </AppContext.Provider>
+    </AuthProvider>
   );
 }
 
