@@ -30,6 +30,35 @@ const SignalBadge = ({ tier }) => {
   return <span className={cls}>{labels[t] || t}</span>;
 };
 
+/* ── Exposure Ring (SVG Gauge) ───────────────── */
+const ExposureGauge = ({ score }) => {
+  const r = 30;
+  const circ = 2 * Math.PI * r;
+  const offset = circ - (score / 100) * circ;
+  const desc = score >= 70 ? 'High personal relevance — these signals directly affect your tracked interests.'
+    : score >= 40 ? 'Moderate relevance — some overlap with your intelligence profile.'
+    : 'Low overlap — consider expanding your tracked topics.';
+
+  return (
+    <div className="exposure-gauge fin fin-d1">
+      <div className="exposure-ring">
+        <svg viewBox="0 0 72 72">
+          <circle className="exposure-ring-bg" cx="36" cy="36" r={r} />
+          <circle className="exposure-ring-fill" cx="36" cy="36" r={r}
+            strokeDasharray={circ} strokeDashoffset={offset}
+            style={{ stroke: score >= 70 ? 'var(--accent)' : score >= 40 ? 'var(--warn)' : 'var(--neg)' }}
+          />
+        </svg>
+        <div className="exposure-ring-number">{score}</div>
+      </div>
+      <div className="exposure-info">
+        <div className="exposure-title">YOUR EXPOSURE SCORE</div>
+        <div className="exposure-desc">{desc}</div>
+      </div>
+    </div>
+  );
+};
+
 /* ── Sentiment Sparkline ─────────────────────── */
 const SentimentSpark = ({ pos, neu, neg }) => {
   const total = pos + neu + neg || 1;
@@ -41,7 +70,7 @@ const SentimentSpark = ({ pos, neu, neg }) => {
         { val: neg, color: 'var(--neg)', icon: '▼' },
       ].map(({ val, color, icon }, i) => (
         <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, gap: 3 }}>
-          <div className="sparkline-bar" style={{ width: '100%', height: `${(val / total) * 100}%`, background: color, minHeight: 2 }} />
+          <div style={{ width: '100%', height: `${(val / total) * 100}%`, background: color, minHeight: 2, borderRadius: 2 }} />
           <span className="mono" style={{ fontSize: 8, color }}>{icon}{val}</span>
         </div>
       ))}
@@ -72,48 +101,127 @@ const TensionIndex = ({ tension }) => {
   );
 };
 
+/* ── Loading Pipeline ────────────────────────── */
+const PIPELINE_STAGES = [
+  { key: 'rss', label: 'Fetching News Sources', icon: '📡', desc: 'Google News RSS' },
+  { key: 'nlp', label: 'Entity & Sentiment Analysis', icon: '🔬', desc: 'HuggingFace (free)' },
+  { key: 'ai', label: 'Intelligence Synthesis', icon: '🧠', desc: 'OpenRouter → Gemini' },
+  { key: 'classify', label: 'Signal Classification', icon: '⚡', desc: 'Deterministic Tiering' },
+  { key: 'delta', label: 'Computing Daily Delta', icon: '📊', desc: 'vs 24h Snapshot' },
+];
+
+const PipelineLoader = () => {
+  const [active, setActive] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setActive(p => p < PIPELINE_STAGES.length - 1 ? p + 1 : p), 1800);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '70vh', gap: 20 }}>
+      <div className="pulse-glow" style={{ width: 16, height: 16, background: 'var(--accent)', borderRadius: '50%' }} />
+      <span className="mono" style={{ fontSize: 11, color: 'var(--accent)', letterSpacing: 3 }}>SYNCHRONIZING INTELLIGENCE</span>
+      <div className="pipeline-steps">
+        {PIPELINE_STAGES.map((s, i) => (
+          <div key={s.key} className={`pipeline-step ${i < active ? 'done' : i === active ? 'active' : 'pending'}`}>
+            <div className="pipeline-step-icon">{i < active ? '✓' : i === active ? s.icon : '○'}</div>
+            <span className="pipeline-step-label">{s.label}</span>
+            <span className="mono" style={{ fontSize: 8, color: 'var(--text-3)' }}>{s.desc}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 /* ══════════════════════════════════════════════ */
 export default function Dashboard() {
   const { user } = useAuth();
   const { setHeadlines, mode } = useContext(AppContext);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [expandedWatch, setExpandedWatch] = useState(false);
+  const [toast, setToast] = useState(null);
   const navigate = useNavigate();
   const fetched = useRef(false);
 
-  const load = useCallback(async (force = false) => {
-    if (fetched.current && !force) return;
+  // Show toast for X seconds
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 5000);
+  };
+
+  // Apply dynamic theme based on content
+  const applyTheme = (res) => {
+    if (!res?.articles?.length) return;
+    const txt = JSON.stringify(res.articles.map(a => a.title)).toLowerCase();
+    const el = document.querySelector('.app-container');
+    if (!el) return;
+    const calmCls = mode === 'calm' ? ' calm-mode' : '';
+    if (txt.match(/market|stock|econom|financ|invest/)) el.className = `app-container theme-markets${calmCls}`;
+    else if (txt.match(/trump|china|nato|election|politic|congress|senate/)) el.className = `app-container theme-politics${calmCls}`;
+    else if (txt.match(/\bai\b|openai|deepseek|llm|neural|machine learn/)) el.className = `app-container theme-ai${calmCls}`;
+    else if (txt.match(/military|war|defense|missile|army|weapon/)) el.className = `app-container theme-defense${calmCls}`;
+    else el.className = `app-container theme-tech${calmCls}`;
+  };
+
+  // Process a response (update headlines, theme, etc.)
+  const processResponse = (res) => {
+    if (res.clusters?.length) setHeadlines(res.clusters.map(c => c.thread_title).filter(Boolean));
+    else if (res.articles?.length) setHeadlines(res.articles.slice(0, 6).map(a => a.title));
+    applyTheme(res);
+  };
+
+  // PRIMARY LOAD: GET cached data instantly (stale-while-revalidate)
+  const load = useCallback(async () => {
+    if (fetched.current) return;
     fetched.current = true;
     setLoading(true); setError(null);
     try {
-      const res = await api.getDashboard([], [], force);
+      const res = await api.getDashboard([], [], false);  // GET = instant cache
       setData(res);
-      if (res.clusters?.length) setHeadlines(res.clusters.map(c => c.thread_title).filter(Boolean));
-      else if (res.articles?.length) setHeadlines(res.articles.slice(0, 6).map(a => a.title));
+      processResponse(res);
 
-      // Dynamic theme from content
-      if (res.articles?.length) {
-        const txt = JSON.stringify(res.articles.map(a => a.title)).toLowerCase();
-        const el = document.querySelector('.app-container');
-        if (el) {
-          const calmCls = mode === 'calm' ? ' calm-mode' : '';
-          if (txt.match(/market|stock|econom|financ|invest/)) el.className = `app-container theme-markets${calmCls}`;
-          else if (txt.match(/trump|china|nato|election|politic|congress|senate/)) el.className = `app-container theme-politics${calmCls}`;
-          else if (txt.match(/\bai\b|openai|deepseek|llm|neural|machine learn/)) el.className = `app-container theme-ai${calmCls}`;
-          else if (txt.match(/military|war|defense|missile|army|weapon/)) el.className = `app-container theme-defense${calmCls}`;
-          else el.className = `app-container theme-tech${calmCls}`;
-        }
+      // If backend says data is stale, it already triggered bg refresh
+      if (res.is_stale) {
+        showToast('Intelligence is being refreshed in the background...');
       }
     } catch (e) { setError(e.message); }
     setLoading(false);
   }, [setHeadlines, mode]);
 
+  // MANUAL FORCE REFRESH: POST triggers full pipeline
+  const forceRefresh = async () => {
+    setRefreshing(true); setError(null);
+    try {
+      const res = await api.getDashboard([], [], true);  // POST = force
+      const oldSignalCount = (data?.clusters || []).filter(c => c.signal_tier === 'CRITICAL' || c.signal_tier === 'SIGNAL').length;
+      const newSignalCount = (res.clusters || []).filter(c => c.signal_tier === 'CRITICAL' || c.signal_tier === 'SIGNAL').length;
+      setData(res);
+      processResponse(res);
+
+      if (newSignalCount > oldSignalCount) {
+        showToast(`Feed updated — ${newSignalCount - oldSignalCount} new signal${newSignalCount - oldSignalCount > 1 ? 's' : ''} detected`);
+      } else {
+        showToast('Intelligence refreshed — feed is current');
+      }
+    } catch (e) { setError(e.message); }
+    setRefreshing(false);
+  };
+
   useEffect(() => { load(); }, [load]);
+
+  // Freshness tracking
+  const cacheAge = data?.cache_age_seconds || 0;
+  const cachedAt = data?.cached_at;
+  const freshLabel = cacheAge < 60 ? 'Just now'
+    : cacheAge < 3600 ? `${Math.floor(cacheAge / 60)}m ago`
+    : `${Math.floor(cacheAge / 3600)}h ago`;
 
   const articles = data?.articles || [];
   const clusters = data?.clusters || [];
+  // HARD RULE: only top 3 signals ever visible
   const topSignals = clusters.filter(c => c.signal_tier === 'CRITICAL' || c.signal_tier === 'SIGNAL').slice(0, 3);
   const watchSignals = clusters.filter(c => c.signal_tier === 'WATCH');
   const delta = data?.daily_delta || [];
@@ -130,18 +238,8 @@ export default function Dashboard() {
   const neuC = articles.length - posC - negC;
   const entCount = articles.reduce((s, a) => s + (a.entities?.length || 0), 0);
 
-  /* ── Loading State ─────────────────────────── */
-  if (loading && !data) return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '70vh', gap: 20 }}>
-      <div className="pulse-glow" style={{ width: 16, height: 16, background: 'var(--accent)', borderRadius: '50%' }} />
-      <span className="mono" style={{ fontSize: 11, color: 'var(--accent)', letterSpacing: 3 }}>SYNCHRONIZING INTELLIGENCE...</span>
-      <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
-        {['RSS', 'NLP', 'AI', 'CLASSIFY'].map((s, i) => (
-          <span key={s} className="badge" style={{ background: 'var(--accent-dim)', color: 'var(--accent)', animationDelay: `${i * 0.15}s` }}>{s}</span>
-        ))}
-      </div>
-    </div>
-  );
+  /* ── Loading State — transparent pipeline ──── */
+  if (loading && !data) return <PipelineLoader />;
 
   return (
     <div className="dashboard-grid">
@@ -149,7 +247,6 @@ export default function Dashboard() {
       {/* ═══════ LEFT PANEL ═══════ */}
       <div className="left-panel" style={{ display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto', paddingBottom: 20 }}>
 
-        {/* Command + Refresh */}
         <div className="panel fin" style={{ padding: 18 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <div className="label">COMMAND</div>
@@ -168,7 +265,6 @@ export default function Dashboard() {
           )}
         </div>
 
-        {/* Feed Metrics */}
         {data && (
           <div className="panel panel-accent fin fin-d1" style={{ padding: 18 }}>
             <div className="label" style={{ marginBottom: 14 }}>FEED METRICS</div>
@@ -186,10 +282,8 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Tension Index */}
         <TensionIndex tension={tension} />
 
-        {/* Pipeline */}
         {data && (
           <div className="panel fin fin-d4" style={{ padding: 16 }}>
             <div className="label" style={{ marginBottom: 10, fontSize: 9 }}>PIPELINE</div>
@@ -198,7 +292,7 @@ export default function Dashboard() {
                 ['AI', 'OpenRouter → Gemini'],
                 ['NLP', 'HuggingFace (free)'],
                 ['NEWS', 'Google RSS'],
-                ['TIER', 'Deterministic Classification'],
+                ['TIER', 'Deterministic'],
                 ['GEN', data.generated_at ? new Date(data.generated_at).toLocaleTimeString() : '—'],
               ].map(([k, v]) => (
                 <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -214,26 +308,23 @@ export default function Dashboard() {
       {/* ═══════ CENTER FEED ═══════ */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto', paddingBottom: 20 }}>
 
-        {/* Daily Delta Strip */}
+        {/* ▬▬▬ DAILY DELTA TAPE ▬▬▬ — the first thing users see */}
         {delta.length > 0 && (
-          <div className="delta-strip fin">
+          <div className="delta-tape fin">
             {delta.map((d, i) => (
-              <div key={i} className="delta-card">
-                <span className="delta-topic">{d.label}</span>
-                <span className={`delta-value ${d.delta > 0 ? 'delta-up' : d.delta < 0 ? 'delta-down' : 'delta-flat'}`}>
+              <div key={i} className={`delta-cell ${d.delta > 0 ? 'delta-up-cell' : d.delta < 0 ? 'delta-down-cell' : 'delta-flat-cell'}`}>
+                <span className="delta-cell-topic">{d.label}</span>
+                <span className={`delta-cell-value ${d.delta > 0 ? 'delta-up' : d.delta < 0 ? 'delta-down' : 'delta-flat'}`}>
                   {d.delta > 0 ? '▲+' : d.delta < 0 ? '▼' : '—'}{d.delta !== 0 ? Math.abs(d.delta) : ''}
                 </span>
+                <span className="delta-cell-pulse">P:{d.current}</span>
               </div>
             ))}
-            {/* Exposure inline at end of delta strip */}
-            {exposure !== null && (
-              <div className="delta-card" style={{ borderColor: 'var(--accent-border)', background: 'var(--accent-dim)' }}>
-                <span className="delta-topic" style={{ color: 'var(--accent)' }}>EXPOSURE</span>
-                <span className="delta-value" style={{ color: 'var(--accent)' }}>{exposure}<span style={{ fontSize: 10, color: 'var(--text-3)' }}>/100</span></span>
-              </div>
-            )}
           </div>
         )}
+
+        {/* ▬▬▬ EXPOSURE GAUGE ▬▬▬ — circular, central, prominent */}
+        {exposure !== null && <ExposureGauge score={exposure} />}
 
         {/* Ticker */}
         {articles.length > 0 && (
@@ -256,13 +347,22 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Top 3 Signals */}
-        <div className="label" style={{ margin: '4px 0' }}>
-          TOP SIGNALS
-          <span className="mono" style={{ fontSize: 9, color: 'var(--text-3)', marginLeft: 10, fontWeight: 400 }}>
-            {topSignals.length} of {clusters.length} threads surfaced
-          </span>
+        {/* ▬▬▬ TOP 3 SIGNALS ▬▬▬ — hard capped, never more */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '4px 0' }}>
+          <div className="label">
+            TOP SIGNALS
+            <span className="mono" style={{ fontSize: 9, color: 'var(--text-3)', marginLeft: 10, fontWeight: 400 }}>
+              {topSignals.length} of {clusters.length} threads surfaced
+            </span>
+          </div>
+          {/* Signal Legend */}
+          <div className="signal-legend">
+            <div className="signal-legend-item"><span className="signal-legend-dot critical" /> Critical</div>
+            <div className="signal-legend-item"><span className="signal-legend-dot signal" /> Signal</div>
+            <div className="signal-legend-item"><span className="signal-legend-dot watch" /> Watch</div>
+          </div>
         </div>
+
         {topSignals.length > 0 ? topSignals.map((cluster, i) => (
           <div key={i}
             className={`signal-card tier-${cluster.signal_tier?.toLowerCase()}-card fin`}
@@ -292,7 +392,7 @@ export default function Dashboard() {
           </div>
         ) : null}
 
-        {/* Developing (Watch Tier — collapsed) */}
+        {/* Developing (Watch Tier — collapsed by default) */}
         {watchSignals.length > 0 && (
           <div className="fin fin-d3" style={{ marginTop: 4 }}>
             <div className="label"
@@ -323,8 +423,8 @@ export default function Dashboard() {
           <div className="panel fin fin-d4" style={{ padding: '16px 0', marginTop: 6 }}>
             <div className="label" style={{ padding: '0 16px', marginBottom: 10 }}>
               MONITORING QUEUE
-              <span className="mono" style={{ fontSize: 9, color: 'var(--text-3)', marginLeft: 8, fontWeight: 400, letterSpacing: 0 }}>
-                Next assessment cycle in ~2h
+              <span className="mono" style={{ fontSize: 9, color: 'var(--text-3)', marginLeft: 8, fontWeight: 400 }}>
+                Next assessment ~2h
               </span>
             </div>
             {queue.slice(0, 4).map((q, i) => (
@@ -341,20 +441,13 @@ export default function Dashboard() {
       {/* ═══════ RIGHT PANEL ═══════ */}
       <div className="right-panel" style={{ display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto', paddingBottom: 20 }}>
 
-        {/* Strategic Brief */}
         <div className="panel panel-accent fin fin-d1" style={{ flex: 1, padding: 24, display: 'flex', flexDirection: 'column', minHeight: 200 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
             <div className="label">STRATEGIC BRIEF</div>
             <span className="mono" style={{ fontSize: 9, color: 'var(--text-3)' }}>AI SYNTHESIS</span>
           </div>
           <div style={{ flex: 1, overflowY: 'auto' }}>
-            {loading && !data ? (
-              <div style={{ display: 'grid', gap: 10 }}>
-                {[200, 160, 180, 140, 120].map((w, i) => (
-                  <div key={i} className="skel" style={{ width: w, maxWidth: '100%', height: 12 }} />
-                ))}
-              </div>
-            ) : data?.daily_brief ? (
+            {data?.daily_brief ? (
               <div className="typewriter">{briefText}{typing && <span className="typewriter-cursor" />}</div>
             ) : (
               <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>[Awaiting AI synthesis...]</span>
@@ -362,7 +455,6 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Opportunity Radar */}
         {(radar.top_risk || radar.top_opportunity) && (
           <div className="radar-split fin fin-d2">
             <div className="radar-half">
@@ -376,7 +468,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Executive Impact */}
         {impact?.headline && (
           <div className="panel fin fin-d2" style={{ padding: 20 }}>
             <div className="label" style={{ marginBottom: 12 }}>EXECUTIVE IMPACT</div>
@@ -401,7 +492,6 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Key Entities */}
         {articles.length > 0 && (() => {
           const ents = {};
           articles.forEach(a => (a.entities || []).forEach(e => {

@@ -14,12 +14,22 @@ async function request(path, options = {}) {
 }
 
 export const api = {
-  // Dashboard now sends preferences, NOT articles. Backend fetches real news.
-  getDashboard: (topics = [], regions = [], force = false) =>
-    request(`/api/dashboard${force ? '?force=true' : ''}`, {
+  // GET: Serve cached intelligence INSTANTLY (stale-while-revalidate)
+  getCachedDashboard: () =>
+    request('/api/dashboard', { method: 'GET' }),
+
+  // POST: Force full pipeline refresh (user-triggered)
+  forceDashboardRefresh: (topics = [], regions = []) =>
+    request('/api/dashboard', {
       method: 'POST',
       body: JSON.stringify({ topics, regions }),
     }),
+
+  // Legacy alias (used by Dashboard.jsx)
+  getDashboard: (topics = [], regions = [], force = false) =>
+    force
+      ? request('/api/dashboard', { method: 'POST', body: JSON.stringify({ topics, regions }) })
+      : request('/api/dashboard', { method: 'GET' }),
 
   storyDeepDive: (title, text, source) =>
     request('/api/stories/deep-dive', {

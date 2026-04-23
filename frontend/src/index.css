@@ -510,68 +510,137 @@ a:hover { opacity: 0.8; }
   font-size: 12px; color: var(--text-2); line-height: 1.5; margin-top: 6px;
 }
 
-/* ── Daily Delta Strip ───────────────────────────── */
-.delta-strip {
-  display: flex; gap: 8px; padding: 12px 0;
-  overflow-x: auto; scrollbar-width: none;
-}
-.delta-strip::-webkit-scrollbar { display: none; }
-
-.delta-card {
-  flex-shrink: 0;
-  background: var(--bg-card);
+/* ── Daily Delta Intelligence Tape ────────────── */
+.delta-tape {
+  display: flex; gap: 0; padding: 0;
+  background: linear-gradient(135deg, rgba(12,14,28,0.95), rgba(16,18,36,0.9));
   border: 1px solid rgba(255,255,255,0.06);
-  border-radius: var(--br);
-  padding: 10px 16px;
-  min-width: 130px;
-  display: flex; flex-direction: column; gap: 4px;
+  border-radius: var(--br-lg);
+  overflow: hidden;
+  position: relative;
+}
+.delta-tape::before {
+  content: 'DAILY DELTA';
+  position: absolute; top: 8px; left: 14px;
+  font-family: var(--mono); font-size: 8px; font-weight: 700;
+  letter-spacing: 2px; color: var(--text-3);
+}
+.delta-cell {
+  flex: 1;
+  padding: 28px 16px 14px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  border-right: 1px solid rgba(255,255,255,0.03);
   transition: all 0.2s var(--ease);
-  backdrop-filter: blur(12px) saturate(1.1);
+  cursor: default;
 }
-.delta-card:hover {
-  border-color: var(--accent-border);
-  background: var(--bg-hover);
-  transform: translateY(-1px);
-}
-.delta-topic {
+.delta-cell:last-child { border-right: none; }
+.delta-cell:hover { background: rgba(255,255,255,0.02); }
+.delta-cell-topic {
   font-family: var(--mono); font-size: 9px; font-weight: 700;
-  letter-spacing: 1px; text-transform: uppercase; color: var(--text-2);
+  letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-2);
 }
-.delta-value {
-  font-family: var(--mono); font-size: 18px; font-weight: 800;
+.delta-cell-value {
+  font-family: var(--mono); font-size: 24px; font-weight: 900;
+  line-height: 1;
+}
+.delta-cell-pulse {
+  font-family: var(--mono); font-size: 8px; color: var(--text-3);
+  letter-spacing: 0.5px; margin-top: 2px;
 }
 .delta-up { color: #ef4444; }
 .delta-down { color: #10b981; }
 .delta-flat { color: var(--text-3); }
+.delta-cell.delta-up-cell { border-bottom: 2px solid rgba(239,68,68,0.3); }
+.delta-cell.delta-down-cell { border-bottom: 2px solid rgba(16,185,129,0.3); }
+.delta-cell.delta-flat-cell { border-bottom: 2px solid rgba(74,85,104,0.2); }
 
-/* ── Exposure Score ──────────────────────────────── */
-.exposure-card {
+/* ── Exposure Gauge (circular) ───────────────── */
+.exposure-gauge {
   background: var(--bg-card);
   border: 1px solid rgba(255,255,255,0.06);
   border-radius: var(--br-lg);
-  padding: 16px 20px;
-  display: flex; align-items: center; gap: 16px;
+  padding: 20px 24px;
+  display: flex; align-items: center; gap: 20px;
   backdrop-filter: blur(16px) saturate(1.1);
 }
-.exposure-number {
-  font-family: var(--mono); font-size: 32px; font-weight: 900;
+.exposure-ring {
+  position: relative; width: 72px; height: 72px; flex-shrink: 0;
+}
+.exposure-ring svg { width: 72px; height: 72px; transform: rotate(-90deg); }
+.exposure-ring-bg { fill: none; stroke: rgba(255,255,255,0.04); stroke-width: 5; }
+.exposure-ring-fill {
+  fill: none; stroke: var(--accent); stroke-width: 5;
+  stroke-linecap: round; transition: stroke-dashoffset 1.2s var(--ease);
+}
+.exposure-ring-number {
+  position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  font-family: var(--mono); font-size: 22px; font-weight: 900;
   color: var(--accent); line-height: 1;
 }
-.exposure-label {
+.exposure-info { flex: 1; }
+.exposure-title {
   font-family: var(--mono); font-size: 9px; font-weight: 700;
-  letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-3);
+  letter-spacing: 2px; text-transform: uppercase; color: var(--text-3);
+  margin-bottom: 4px;
 }
-.exposure-bar {
-  flex: 1; height: 4px; background: rgba(255,255,255,0.04);
-  border-radius: 2px; overflow: hidden;
-}
-.exposure-fill {
-  height: 100%; border-radius: 2px;
-  background: linear-gradient(90deg, var(--pos), var(--warn), var(--neg));
-  transition: width 1s var(--ease);
+.exposure-desc {
+  font-size: 12px; color: var(--text-2); line-height: 1.5;
 }
 
-/* ── Mode Toggle ─────────────────────────────────── */
+/* ── Signal Legend ────────────────────────────── */
+.signal-legend {
+  display: flex; gap: 14px; padding: 6px 0;
+  flex-wrap: wrap;
+}
+.signal-legend-item {
+  display: flex; align-items: center; gap: 5px;
+  font-family: var(--mono); font-size: 9px; font-weight: 600;
+  letter-spacing: 0.5px; color: var(--text-3);
+}
+.signal-legend-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+}
+.signal-legend-dot.critical { background: #ff3b5c; box-shadow: 0 0 6px rgba(255,59,92,0.5); }
+.signal-legend-dot.signal { background: #f0b429; box-shadow: 0 0 6px rgba(240,180,41,0.4); }
+.signal-legend-dot.watch { background: #5b8def; }
+
+/* ── Loading Pipeline Steps ──────────────────── */
+.pipeline-steps {
+  display: flex; flex-direction: column; gap: 10px;
+  margin-top: 20px; width: 280px;
+}
+.pipeline-step {
+  display: flex; align-items: center; gap: 12px;
+  padding: 10px 16px;
+  background: var(--bg-card);
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: var(--br);
+  transition: all 0.5s var(--ease);
+}
+.pipeline-step.active {
+  border-color: var(--accent-border);
+  background: var(--accent-dim);
+}
+.pipeline-step.done {
+  border-color: rgba(16,185,129,0.2);
+}
+.pipeline-step-icon {
+  width: 20px; height: 20px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; flex-shrink: 0;
+}
+.pipeline-step.pending .pipeline-step-icon { background: rgba(74,85,104,0.2); color: var(--text-3); }
+.pipeline-step.active .pipeline-step-icon { background: var(--accent-dim); color: var(--accent); animation: criticalPulse 1.5s infinite; }
+.pipeline-step.done .pipeline-step-icon { background: rgba(16,185,129,0.15); color: var(--pos); }
+.pipeline-step-label {
+  font-family: var(--mono); font-size: 10px; font-weight: 600;
+  letter-spacing: 1px; text-transform: uppercase;
+  color: var(--text-3); flex: 1;
+}
+.pipeline-step.active .pipeline-step-label { color: var(--accent); }
+.pipeline-step.done .pipeline-step-label { color: var(--pos); }
+
+/* ── Mode Toggle ─────────────────────────────── */
 .mode-toggle {
   display: flex; background: var(--bg-elevated);
   border: 1px solid rgba(255,255,255,0.06);
@@ -588,7 +657,7 @@ a:hover { opacity: 0.8; }
 }
 .mode-btn:hover:not(.active) { color: var(--text-1); }
 
-/* ── Monitoring Queue ────────────────────────────── */
+/* ── Monitoring Queue ────────────────────────── */
 .monitoring-item {
   display: flex; justify-content: space-between; align-items: center;
   padding: 10px 16px;
@@ -604,7 +673,7 @@ a:hover { opacity: 0.8; }
   letter-spacing: 0.5px; flex-shrink: 0; margin-left: 12px;
 }
 
-/* ── Opportunity Radar ───────────────────────────── */
+/* ── Opportunity Radar ───────────────────────── */
 .radar-split {
   display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
   background: rgba(255,255,255,0.04); border-radius: var(--br-lg); overflow: hidden;
@@ -621,8 +690,7 @@ a:hover { opacity: 0.8; }
 .radar-label.opp  { color: var(--pos); }
 .radar-text { font-size: 12px; color: var(--text-2); line-height: 1.55; }
 
-/* ── Calm Mode Overrides ─────────────────────────── */
-/* calm-mode is applied to .app-container, which is an ancestor of .dashboard-grid */
+/* ── Calm Mode Overrides ─────────────────────── */
 .app-container.calm-mode .dashboard-grid {
   grid-template-columns: 1fr;
   max-width: 800px;
@@ -638,10 +706,11 @@ a:hover { opacity: 0.8; }
 .app-container.calm-mode .signal-card-meta > *:nth-child(n+4) { display: none; }
 .app-container.calm-mode .panel { padding: 14px; }
 .app-container.calm-mode .typewriter { font-size: 13px; line-height: 2; }
-.app-container.calm-mode .delta-card { min-width: 100px; padding: 8px 12px; }
-.app-container.calm-mode .delta-value { font-size: 15px; }
+.app-container.calm-mode .delta-cell-value { font-size: 18px; }
+.app-container.calm-mode .delta-cell { padding: 24px 12px 10px; }
+.app-container.calm-mode .signal-legend { display: none; }
 
-/* ── Responsive ──────────────────────────────────── */
+/* ── Responsive ──────────────────────────────── */
 @media (max-width: 1400px) {
   .dashboard-grid { grid-template-columns: 260px 1fr 300px; }
 }
@@ -654,7 +723,10 @@ a:hover { opacity: 0.8; }
   .main-content { padding: 10px; }
   .top-bar { padding: 0 12px; }
   .right-panel { display: none; }
-  .delta-card { min-width: 110px; padding: 8px 12px; }
   .nav-links { display: none; }
+  .delta-tape { flex-wrap: wrap; }
+  .delta-cell { min-width: 80px; padding: 24px 10px 10px; }
+  .delta-cell-value { font-size: 18px; }
+  .exposure-gauge { flex-direction: column; text-align: center; }
 }
 
