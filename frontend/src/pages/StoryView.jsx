@@ -2,6 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 
+const SignalBadge = ({ tier }) => {
+  const cls = `tier-badge tier-${(tier || 'NOISE').toLowerCase()}`;
+  return <span className={cls}>{tier === 'CRITICAL' ? '🔴 CRITICAL' : tier}</span>;
+};
+
 export default function StoryView() {
   const { state } = useLocation();
   const navigate = useNavigate();
@@ -33,7 +38,6 @@ export default function StoryView() {
 
   if (!article) return null;
 
-  // Use article data (always available) + deep data (may fail)
   const entities = deepData?.entities?.length > 0 ? deepData.entities : (article.entities || []);
   const sentLabel = article.sentiment?.label || deepData?.sentiment?.label || 'NEUTRAL';
   const sentConf = article.sentiment?.confidence || deepData?.sentiment?.score || 0.5;
@@ -45,7 +49,12 @@ export default function StoryView() {
       {/* Nav */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <button onClick={() => navigate('/dashboard')} className="wire-btn">← DASHBOARD</button>
-        <span className="label" style={{ color: 'var(--text-3)' }}>ARTICLE DEEP DIVE</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {article.source !== 'Watch' && article.source !== 'Intelligence Synthesis' && (
+            <SignalBadge tier="SIGNAL" /> /* Mock badge for raw articles if accessed directly */
+          )}
+          <span className="label" style={{ color: 'var(--text-3)' }}>INVESTIGATE THREAD</span>
+        </div>
       </div>
 
       {/* Header */}
@@ -53,18 +62,18 @@ export default function StoryView() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 20 }}>
           <div style={{ flex: 1 }}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 12 }}>
-              <span className="label">{article.source}</span>
-              <span style={{ color: 'var(--text-3)' }}>•</span>
-              <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{article.published ? new Date(article.published).toLocaleString() : ''}</span>
+              <span className="label" style={{ color: 'var(--accent)' }}>{article.source.toUpperCase()}</span>
             </div>
             <h1 style={{ fontSize: 24, lineHeight: 1.3, marginBottom: 16 }}>{article.title}</h1>
             <p style={{ fontSize: 14, color: 'var(--text-2)', lineHeight: 1.7 }}>
               {article.text_preview || article.text || ''}
             </p>
           </div>
-          <a href={article.url} target="_blank" rel="noopener noreferrer" className="btn-premium" style={{ flexShrink: 0 }}>
-            ORIGINAL ↗
-          </a>
+          {article.url && (
+            <a href={article.url} target="_blank" rel="noopener noreferrer" className="btn-premium" style={{ flexShrink: 0 }}>
+              ORIGINAL ↗
+            </a>
+          )}
         </div>
       </div>
 
@@ -78,7 +87,7 @@ export default function StoryView() {
             <div style={{
               width: 50, height: 50, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 22,
-              background: sentLabel === 'POSITIVE' ? 'rgba(0,230,118,0.1)' : sentLabel === 'NEGATIVE' ? 'rgba(255,51,102,0.1)' : 'rgba(136,146,164,0.1)',
+              background: sentLabel === 'POSITIVE' ? 'rgba(16,185,129,0.1)' : sentLabel === 'NEGATIVE' ? 'rgba(239,68,68,0.1)' : 'rgba(136,146,164,0.1)',
               border: `2px solid ${sentLabel === 'POSITIVE' ? 'var(--pos)' : sentLabel === 'NEGATIVE' ? 'var(--neg)' : 'var(--text-3)'}`,
             }}>
               {sentLabel === 'POSITIVE' ? '▲' : sentLabel === 'NEGATIVE' ? '▼' : '—'}
@@ -94,12 +103,6 @@ export default function StoryView() {
                 {(sentConf * 100).toFixed(1)}% confidence
               </div>
             </div>
-          </div>
-          <div style={{ marginTop: 14, height: 4, background: 'var(--bg-elevated)', borderRadius: 2, overflow: 'hidden' }}>
-            <div style={{
-              height: '100%', width: `${sentConf * 100}%`, borderRadius: 2,
-              background: sentLabel === 'POSITIVE' ? 'var(--pos)' : sentLabel === 'NEGATIVE' ? 'var(--neg)' : 'var(--text-2)',
-            }} />
           </div>
         </div>
 
@@ -130,8 +133,8 @@ export default function StoryView() {
       {/* Perspectives */}
       {loading ? (
         <div className="panel" style={{ textAlign: 'center', padding: 30 }}>
-          <div className="pulse-glow" style={{ width: 12, height: 12, background: 'var(--theme-main)', borderRadius: '50%', margin: '0 auto 12px' }} />
-          <span className="mono" style={{ fontSize: 11, color: 'var(--theme-main)', letterSpacing: 1 }}>
+          <div className="pulse-glow" style={{ width: 12, height: 12, background: 'var(--accent)', borderRadius: '50%', margin: '0 auto 12px' }} />
+          <span className="mono" style={{ fontSize: 11, color: 'var(--accent)', letterSpacing: 1 }}>
             ANALYZING NARRATIVE PERSPECTIVES...
           </span>
         </div>
@@ -146,7 +149,7 @@ export default function StoryView() {
               <div key={i} style={{
                 background: 'var(--bg-base)', padding: 20, borderRadius: 'var(--br)',
                 border: '1px solid rgba(255,255,255,0.06)',
-                borderTop: `2px solid ${i === 0 ? 'var(--pos)' : i === 2 ? 'var(--neg)' : 'var(--theme-main)'}`,
+                borderTop: `2px solid ${i === 0 ? 'var(--pos)' : i === 2 ? 'var(--neg)' : 'var(--accent)'}`,
               }}>
                 <div className="label" style={{ marginBottom: 12, color: 'var(--text-1)', fontSize: 11 }}>
                   {(p.viewpoint || ['Progressive', 'Centrist', 'Conservative'][i] || 'View').toUpperCase()}
@@ -163,13 +166,6 @@ export default function StoryView() {
               </div>
             ))}
           </div>
-        </div>
-      ) : error ? (
-        <div className="panel" style={{ borderColor: 'var(--warn)', padding: 20 }}>
-          <div className="label" style={{ color: 'var(--warn)' }}>PERSPECTIVE ANALYSIS UNAVAILABLE</div>
-          <p style={{ marginTop: 6, fontSize: 12, color: 'var(--text-2)' }}>
-            AI provider returned an error. Sentiment and entities above are from HuggingFace (free, always available).
-          </p>
         </div>
       ) : null}
     </div>

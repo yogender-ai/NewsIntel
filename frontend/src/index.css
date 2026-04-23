@@ -446,15 +446,204 @@ a:hover { opacity: 0.8; }
 ::-webkit-scrollbar-thumb { background: var(--accent-border); border-radius: 10px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
 
+/* ══════════════════════════════════════════════════════
+   PHASE 4 — SIGNAL INTELLIGENCE SYSTEM
+   ══════════════════════════════════════════════════════ */
+
+/* ── Signal Tier Badges ──────────────────────────── */
+.tier-badge {
+  padding: 3px 10px; border-radius: var(--br);
+  font-size: 9px; font-family: var(--mono); font-weight: 800;
+  letter-spacing: 1px; text-transform: uppercase;
+  display: inline-flex; align-items: center; gap: 5px;
+}
+.tier-critical {
+  color: #ff3b5c; background: rgba(255,59,92,0.1);
+  border: 1px solid rgba(255,59,92,0.25);
+  animation: criticalPulse 2s ease-in-out infinite;
+}
+.tier-signal {
+  color: #f0b429; background: rgba(240,180,41,0.1);
+  border: 1px solid rgba(240,180,41,0.25);
+}
+.tier-watch {
+  color: #5b8def; background: rgba(91,141,239,0.06);
+  border: 1px solid rgba(91,141,239,0.15);
+}
+.tier-noise {
+  color: var(--text-3); background: rgba(136,146,164,0.05);
+  border: 1px solid rgba(136,146,164,0.1);
+}
+@keyframes criticalPulse {
+  0%, 100% { box-shadow: 0 0 4px rgba(255,59,92,0.2); }
+  50% { box-shadow: 0 0 16px rgba(255,59,92,0.4), 0 0 32px rgba(255,59,92,0.1); }
+}
+
+/* ── Signal Card (replaces cluster-thread for top signals) ── */
+.signal-card {
+  background: var(--bg-card);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: var(--br-lg);
+  padding: 20px 24px;
+  margin-bottom: 10px;
+  transition: all 0.3s var(--ease);
+  cursor: pointer;
+  position: relative;
+}
+.signal-card:hover {
+  border-color: var(--accent-border);
+  box-shadow: 0 4px 24px rgba(0,0,0,0.2), 0 0 20px var(--accent-dim);
+  transform: translateY(-1px);
+}
+.signal-card.tier-critical-card { border-left: 3px solid #ff3b5c; }
+.signal-card.tier-signal-card  { border-left: 3px solid #f0b429; }
+.signal-card.tier-watch-card   { border-left: 3px solid rgba(91,141,239,0.3); }
+
+.signal-card-header {
+  display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
+  margin-bottom: 8px;
+}
+.signal-card-meta {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px;
+}
+.signal-impact {
+  font-size: 12px; color: var(--text-2); line-height: 1.5; margin-top: 6px;
+}
+
+/* ── Daily Delta Strip ───────────────────────────── */
+.delta-strip {
+  display: flex; gap: 8px; padding: 12px 0;
+  overflow-x: auto; scrollbar-width: none;
+}
+.delta-strip::-webkit-scrollbar { display: none; }
+
+.delta-card {
+  flex-shrink: 0;
+  background: var(--bg-card);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: var(--br);
+  padding: 10px 16px;
+  min-width: 130px;
+  display: flex; flex-direction: column; gap: 4px;
+  transition: all 0.2s var(--ease);
+}
+.delta-card:hover {
+  border-color: var(--accent-border);
+  background: var(--bg-hover);
+}
+.delta-topic {
+  font-family: var(--mono); font-size: 9px; font-weight: 700;
+  letter-spacing: 1px; text-transform: uppercase; color: var(--text-2);
+}
+.delta-value {
+  font-family: var(--mono); font-size: 18px; font-weight: 800;
+}
+.delta-up { color: #ef4444; }
+.delta-down { color: #10b981; }
+.delta-flat { color: var(--text-3); }
+
+/* ── Exposure Score ──────────────────────────────── */
+.exposure-card {
+  background: var(--bg-card);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: var(--br-lg);
+  padding: 16px 20px;
+  display: flex; align-items: center; gap: 16px;
+}
+.exposure-number {
+  font-family: var(--mono); font-size: 32px; font-weight: 900;
+  color: var(--accent); line-height: 1;
+}
+.exposure-label {
+  font-family: var(--mono); font-size: 9px; font-weight: 700;
+  letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-3);
+}
+.exposure-bar {
+  flex: 1; height: 4px; background: rgba(255,255,255,0.04);
+  border-radius: 2px; overflow: hidden;
+}
+.exposure-fill {
+  height: 100%; border-radius: 2px;
+  background: linear-gradient(90deg, var(--pos), var(--warn), var(--neg));
+  transition: width 1s var(--ease);
+}
+
+/* ── Mode Toggle ─────────────────────────────────── */
+.mode-toggle {
+  display: flex; background: var(--bg-elevated);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: var(--br); overflow: hidden;
+}
+.mode-btn {
+  padding: 5px 14px; font-family: var(--mono); font-size: 9px; font-weight: 700;
+  letter-spacing: 1px; text-transform: uppercase;
+  color: var(--text-3); background: transparent; border: none; cursor: pointer;
+  transition: all 0.2s var(--ease);
+}
+.mode-btn.active {
+  color: var(--accent); background: var(--accent-dim);
+}
+.mode-btn:hover:not(.active) { color: var(--text-1); }
+
+/* ── Monitoring Queue ────────────────────────────── */
+.monitoring-item {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 10px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.025);
+  font-size: 12px;
+}
+.monitoring-item:last-child { border-bottom: none; }
+.monitoring-title { color: var(--text-2); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.monitoring-eta {
+  font-family: var(--mono); font-size: 9px; color: var(--text-3);
+  letter-spacing: 0.5px; flex-shrink: 0; margin-left: 12px;
+}
+
+/* ── Opportunity Radar ───────────────────────────── */
+.radar-split {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+  background: rgba(255,255,255,0.04); border-radius: var(--br-lg); overflow: hidden;
+}
+.radar-half {
+  padding: 16px; background: var(--bg-card);
+}
+.radar-label {
+  font-family: var(--mono); font-size: 9px; font-weight: 700;
+  letter-spacing: 1.5px; text-transform: uppercase; margin-bottom: 8px;
+}
+.radar-label.risk { color: var(--neg); }
+.radar-label.opp  { color: var(--pos); }
+.radar-text { font-size: 12px; color: var(--text-2); line-height: 1.55; }
+
+/* ── Calm Mode Overrides ─────────────────────────── */
+.calm-mode .dashboard-grid {
+  grid-template-columns: 1fr;
+  max-width: 800px;
+  margin: 0 auto;
+  gap: 14px;
+}
+.calm-mode .left-panel,
+.calm-mode .right-panel { display: none; }
+.calm-mode .signal-card { padding: 16px 20px; }
+.calm-mode .signal-impact { display: none; }
+.calm-mode .cluster-body { display: none; }
+.calm-mode .ticker-wrap { display: none; }
+.calm-mode .signal-card-meta > *:nth-child(n+4) { display: none; }
+.calm-mode .panel { padding: 14px; }
+.calm-mode .typewriter { font-size: 13px; line-height: 2; }
+
 /* ── Responsive ──────────────────────────────────── */
 @media (max-width: 1400px) {
   .dashboard-grid { grid-template-columns: 260px 1fr 300px; }
 }
 @media (max-width: 1100px) {
   .dashboard-grid { grid-template-columns: 1fr 1fr; }
+  .left-panel { display: none; }
 }
 @media (max-width: 768px) {
   .dashboard-grid { grid-template-columns: 1fr; }
   .main-content { padding: 10px; }
   .top-bar { padding: 0 12px; }
+  .right-panel { display: none; }
+  .delta-card { min-width: 110px; padding: 8px 12px; }
 }

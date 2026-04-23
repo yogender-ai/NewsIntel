@@ -63,6 +63,18 @@ feedback = sqlalchemy.Table(
     sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=lambda: datetime.now(timezone.utc)),
 )
 
+# Pulse snapshots — stores topic-level pulse scores for Daily Delta
+pulse_snapshots = sqlalchemy.Table(
+    "pulse_snapshots",
+    metadata,
+    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
+    sqlalchemy.Column("topic", sqlalchemy.String(255), nullable=False),
+    sqlalchemy.Column("pulse_score", sqlalchemy.Float, default=50.0),
+    sqlalchemy.Column("source_count", sqlalchemy.Integer, default=0),
+    sqlalchemy.Column("neg_ratio", sqlalchemy.Float, default=0.0),
+    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=lambda: datetime.now(timezone.utc)),
+)
+
 # User preferences table — stores onboarding choices per user
 user_preferences = sqlalchemy.Table(
     "user_preferences",
@@ -189,3 +201,44 @@ async def upsert_user_prefs(firebase_uid: str, data: dict):
             updated_at=datetime.now(timezone.utc),
         )
         await database.execute(insert_query)
+
+
+# ---------------------------------------------------------------------------
+# Pulse Snapshots (for Daily Delta)
+# ---------------------------------------------------------------------------
+
+async def save_pulse_snapshot(topic: str, pulse: float, source_count: int = 0, neg_ratio: float = 0.0):
+    """Save a pulse score snapshot for a topic."""
+    query = pulse_snapshots.insert().values(
+        topic=topic.lower().strip(),
+        pulse_score=pulse,
+        source_count=source_count,
+        neg_ratio=neg_ratio,
+        created_at=datetime.now(timezone.utc),
+    )
+    await database.execute(query)
+
+
+async def get_pulse_snapshot_24h(topic: str):
+    """Get the most recent pulse snapshot for a topic that is at least 20h old (allows some flex)."""
+    from datetime import timedelta
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=20)
+    query = (
+        pulse_snapshots.select()
+        .where(pulse_snapshots.c.topic == topic.lower().strip())
+        .where(pulse_snapshots.c.created_at <= cutoff)
+        .order_by(pulse_snapshots.c.created_at.desc())
+        .limit(1)
+    )
+    return await database.fetch_one(query)
+
+
+async def get_latest_pulse_snapshot(topic: str):
+    """Get the most recent pulse snapshot for a topic (any age)."""
+    query = (
+        pulse_snapshots.select()
+        .where(pulse_snapshots.c.topic == topic.lower().strip())
+        .order_by(pulse_snapshots.c.created_at.desc())
+        .limit(1)
+    )
+    return await database.fetch_one(query)

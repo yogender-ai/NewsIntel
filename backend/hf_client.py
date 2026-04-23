@@ -251,14 +251,19 @@ Return ONLY valid JSON (no markdown fences, no explanation):
     {{
       "thread_title": "Short descriptive topic label",
       "article_ids": ["1", "3"],
-      "summary": "One sentence synthesis",
-      "pulse_score": 75
+      "summary": "One sentence synthesis of the thread",
+      "pulse_score": 75,
+      "impact_line": "One sentence: how this could affect the reader",
+      "risk_type": "risk OR opportunity OR neutral",
+      "opportunity_counter": "If risk: one sentence describing the counter-opportunity. If opportunity or neutral: empty string"
     }}
   ],
   "impact": {{
     "headline": "One sentence: how this affects the reader directly",
     "why_it_matters": "2-3 sentences with specifics",
-    "actions": ["Concrete step 1", "Concrete step 2"]
+    "actions": ["Concrete step 1", "Concrete step 2"],
+    "top_risk": "One sentence: the single biggest risk signal today",
+    "top_opportunity": "One sentence: the single biggest opportunity signal today"
   }}
 }}
 
@@ -266,6 +271,8 @@ RULES:
 - Each article ID must appear in exactly ONE cluster
 - pulse_score: 0-100 based on urgency and scale
 - Maximum 2-5 clusters
+- risk_type must be exactly "risk", "opportunity", or "neutral"
+- opportunity_counter: only for risk clusters, describe what the counter-play is
 - Use correct English spelling and grammar
 - Be precise: include names, percentages, dollar amounts where available"""
 
