@@ -11,6 +11,7 @@ Optimized: cached, no retries, no duplicate calls.
 import os
 import json
 import logging
+import time
 import httpx
 from dotenv import load_dotenv
 
@@ -47,20 +48,36 @@ if not GATEWAY_SECRET:
 _http = httpx.AsyncClient(timeout=45.0)
 
 # ---------------------------------------------------------------------------
-# Cache
+# Cache with TTL (fixes stale news bug)
 # ---------------------------------------------------------------------------
-_cache = {}
+_cache = {}  # key -> (timestamp, value)
+_CACHE_TTL = 300  # 5 minutes — cache expires, forcing fresh AI analysis
 
 def _ck(prefix, text):
     return f"{prefix}:{hash(text[:200])}"
 
 def _get(k):
-    return _cache.get(k)
+    entry = _cache.get(k)
+    if entry is None:
+        return None
+    ts, val = entry
+    if time.time() - ts > _CACHE_TTL:
+        del _cache[k]  # Expired
+        return None
+    return val
 
 def _put(k, v):
+    # Evict oldest entries if cache grows too large
     if len(_cache) > 80:
-        _cache.clear()
-    _cache[k] = v
+        oldest = sorted(_cache.items(), key=lambda x: x[1][0])[:40]
+        for ok, _ in oldest:
+            del _cache[ok]
+    _cache[k] = (time.time(), v)
+
+def clear_cache():
+    """Clear all cached AI results. Called on forced refresh."""
+    _cache.clear()
+    logger.info("AI cache cleared — next requests will hit models fresh.")
 
 
 # ---------------------------------------------------------------------------

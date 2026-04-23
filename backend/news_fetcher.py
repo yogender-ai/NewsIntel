@@ -59,9 +59,15 @@ _http = httpx.AsyncClient(
     headers={"User-Agent": "Mozilla/5.0 (compatible; NewsIntel/1.0)"},
 )
 
-# In-memory cache: avoid re-fetching same topics within 10 min
+# In-memory cache: avoid re-fetching same topics within 2 min
 _news_cache = {}
-_CACHE_TTL = 600  # 10 minutes
+_CACHE_TTL = 120  # 2 minutes — short TTL so news stays fresh
+
+
+def force_refresh():
+    """Clear news cache. Called on manual refresh."""
+    _news_cache.clear()
+    logger.info("News cache cleared — next fetch will hit Google News RSS fresh.")
 
 
 def _cache_key(topics, regions):

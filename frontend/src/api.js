@@ -15,8 +15,8 @@ async function request(path, options = {}) {
 
 export const api = {
   // Dashboard now sends preferences, NOT articles. Backend fetches real news.
-  getDashboard: (topics = [], regions = []) =>
-    request('/api/dashboard', {
+  getDashboard: (topics = [], regions = [], force = false) =>
+    request(`/api/dashboard${force ? '?force=true' : ''}`, {
       method: 'POST',
       body: JSON.stringify({ topics, regions }),
     }),

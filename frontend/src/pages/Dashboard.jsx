@@ -135,7 +135,7 @@ export default function Dashboard() {
     fetched.current = true;
     setLoading(true);
     setError(null);
-    try { setData(await api.getDashboard([], [])); }
+    try { setData(await api.getDashboard([], [], force)); }
     catch (e) { setError(e.message); }
     setLoading(false);
   }, []);

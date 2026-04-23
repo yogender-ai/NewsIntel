@@ -75,12 +75,20 @@ class UserPreferencesInput(BaseModel):
 # ---------------------------------------------------------------------------
 
 @app.post("/api/dashboard")
-async def get_dashboard(request: DashboardRequest):
+async def get_dashboard(request: DashboardRequest, force: bool = False):
     """
     1. Fetches REAL news from Google News RSS based on user preferences
     2. Runs AI analysis on all articles in parallel
     3. Returns everything the dashboard needs in ONE response
+    
+    ?force=true clears all caches and fetches fresh data.
     """
+    # Force refresh: clear ALL caches so everything is fresh
+    if force:
+        news_fetcher.force_refresh()
+        hf_client.clear_cache()
+        logger.info("Force refresh: all caches cleared")
+
     topics = request.topics or ["tech", "ai", "markets"]
     regions = request.regions or []
 
