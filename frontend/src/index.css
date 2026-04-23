@@ -526,10 +526,12 @@ a:hover { opacity: 0.8; }
   min-width: 130px;
   display: flex; flex-direction: column; gap: 4px;
   transition: all 0.2s var(--ease);
+  backdrop-filter: blur(12px) saturate(1.1);
 }
 .delta-card:hover {
   border-color: var(--accent-border);
   background: var(--bg-hover);
+  transform: translateY(-1px);
 }
 .delta-topic {
   font-family: var(--mono); font-size: 9px; font-weight: 700;
@@ -549,6 +551,7 @@ a:hover { opacity: 0.8; }
   border-radius: var(--br-lg);
   padding: 16px 20px;
   display: flex; align-items: center; gap: 16px;
+  backdrop-filter: blur(16px) saturate(1.1);
 }
 .exposure-number {
   font-family: var(--mono); font-size: 32px; font-weight: 900;
@@ -591,7 +594,9 @@ a:hover { opacity: 0.8; }
   padding: 10px 16px;
   border-bottom: 1px solid rgba(255,255,255,0.025);
   font-size: 12px;
+  transition: background 0.15s var(--ease);
 }
+.monitoring-item:hover { background: var(--bg-hover); }
 .monitoring-item:last-child { border-bottom: none; }
 .monitoring-title { color: var(--text-2); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .monitoring-eta {
@@ -606,6 +611,7 @@ a:hover { opacity: 0.8; }
 }
 .radar-half {
   padding: 16px; background: var(--bg-card);
+  backdrop-filter: blur(12px) saturate(1.1);
 }
 .radar-label {
   font-family: var(--mono); font-size: 9px; font-weight: 700;
@@ -616,21 +622,24 @@ a:hover { opacity: 0.8; }
 .radar-text { font-size: 12px; color: var(--text-2); line-height: 1.55; }
 
 /* ── Calm Mode Overrides ─────────────────────────── */
-.calm-mode .dashboard-grid {
+/* calm-mode is applied to .app-container, which is an ancestor of .dashboard-grid */
+.app-container.calm-mode .dashboard-grid {
   grid-template-columns: 1fr;
   max-width: 800px;
   margin: 0 auto;
   gap: 14px;
 }
-.calm-mode .left-panel,
-.calm-mode .right-panel { display: none; }
-.calm-mode .signal-card { padding: 16px 20px; }
-.calm-mode .signal-impact { display: none; }
-.calm-mode .cluster-body { display: none; }
-.calm-mode .ticker-wrap { display: none; }
-.calm-mode .signal-card-meta > *:nth-child(n+4) { display: none; }
-.calm-mode .panel { padding: 14px; }
-.calm-mode .typewriter { font-size: 13px; line-height: 2; }
+.app-container.calm-mode .left-panel,
+.app-container.calm-mode .right-panel { display: none; }
+.app-container.calm-mode .signal-card { padding: 16px 20px; }
+.app-container.calm-mode .signal-impact { display: none; }
+.app-container.calm-mode .cluster-body { display: none; }
+.app-container.calm-mode .ticker-wrap { display: none; }
+.app-container.calm-mode .signal-card-meta > *:nth-child(n+4) { display: none; }
+.app-container.calm-mode .panel { padding: 14px; }
+.app-container.calm-mode .typewriter { font-size: 13px; line-height: 2; }
+.app-container.calm-mode .delta-card { min-width: 100px; padding: 8px 12px; }
+.app-container.calm-mode .delta-value { font-size: 15px; }
 
 /* ── Responsive ──────────────────────────────────── */
 @media (max-width: 1400px) {
@@ -646,4 +655,6 @@ a:hover { opacity: 0.8; }
   .top-bar { padding: 0 12px; }
   .right-panel { display: none; }
   .delta-card { min-width: 110px; padding: 8px 12px; }
+  .nav-links { display: none; }
 }
+
