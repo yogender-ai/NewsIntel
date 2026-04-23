@@ -54,25 +54,26 @@ export default function Onboarding() {
 
   return (
     <div style={{ maxWidth: 540, margin: '60px auto 0' }}>
-      {/* Progress */}
+
+      {/* Progress bar */}
       <div style={{ display: 'flex', gap: 6, marginBottom: 48 }}>
         {[1, 2].map(s => (
           <div key={s} style={{
             flex: 1, height: 2, borderRadius: 1,
-            background: step >= s ? 'var(--accent)' : 'var(--bg-elevated)',
+            background: step >= s ? 'var(--theme-main)' : 'var(--bg-elevated)',
             transition: 'background 0.4s var(--ease)',
-            boxShadow: step >= s ? '0 0 8px rgba(0,212,255,0.2)' : 'none',
+            boxShadow: step >= s ? '0 0 8px var(--theme-glow)' : 'none',
           }} />
         ))}
       </div>
 
       {step === 1 && (
         <div className="fin">
-          <p className="label" style={{ marginBottom: 12, color: 'var(--accent)' }}>STEP 1 · INTERESTS</p>
-          <h1 style={{ fontSize: 28, fontWeight: 900, letterSpacing: '-0.6px', marginBottom: 6 }}>
+          <span className="mono-label" style={{ marginBottom: 12, display: 'block' }}>STEP 01 · INTERESTS</span>
+          <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 8 }}>
             What intelligence do you need?
           </h1>
-          <p style={{ color: 'var(--t3)', fontSize: 14, marginBottom: 32, lineHeight: 1.6 }}>
+          <p style={{ color: 'var(--text-2)', fontSize: 14, marginBottom: 32, lineHeight: 1.6 }}>
             Your feed will only surface stories relevant to these topics.
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 40 }}>
@@ -83,23 +84,23 @@ export default function Onboarding() {
               >{t.icon} {t.label}</button>
             ))}
           </div>
-          <button className="btn btn-primary" style={{ width: '100%', padding: 14 }}
+          <button className="btn btn-primary" style={{ width: '100%', padding: 14, fontSize: 14 }}
             onClick={() => setStep(2)} disabled={topics.length < 2}>
             Continue →
           </button>
           {topics.length < 2 && (
-            <p style={{ fontSize: 10, color: 'var(--t4)', textAlign: 'center', marginTop: 8 }}>Select at least 2</p>
+            <p style={{ fontSize: 10, color: 'var(--text-3)', textAlign: 'center', marginTop: 8 }}>Select at least 2</p>
           )}
         </div>
       )}
 
       {step === 2 && (
         <div className="fin">
-          <p className="label" style={{ marginBottom: 12, color: 'var(--accent)' }}>STEP 2 · REGIONS</p>
-          <h1 style={{ fontSize: 28, fontWeight: 900, letterSpacing: '-0.6px', marginBottom: 6 }}>
+          <span className="mono-label" style={{ marginBottom: 12, display: 'block' }}>STEP 02 · REGIONS</span>
+          <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 8 }}>
             Where in the world?
           </h1>
-          <p style={{ color: 'var(--t3)', fontSize: 14, marginBottom: 32, lineHeight: 1.6 }}>
+          <p style={{ color: 'var(--text-2)', fontSize: 14, marginBottom: 32, lineHeight: 1.6 }}>
             We track tension levels and surface intelligence from these regions.
           </p>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 40 }}>
@@ -112,9 +113,9 @@ export default function Onboarding() {
           </div>
           <div style={{ display: 'flex', gap: 12 }}>
             <button className="btn" onClick={() => setStep(1)}>← Back</button>
-            <button className="btn btn-primary" style={{ flex: 1, padding: 14 }}
+            <button className="btn btn-primary" style={{ flex: 1, padding: 14, fontSize: 14 }}
               onClick={handleComplete} disabled={regions.length < 1 || saving}>
-              {saving ? 'Saving...' : 'Launch Dashboard →'}
+              {saving ? 'Launching...' : 'Launch Dashboard →'}
             </button>
           </div>
         </div>

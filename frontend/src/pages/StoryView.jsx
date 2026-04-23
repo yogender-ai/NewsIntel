@@ -7,194 +7,172 @@ export default function StoryView() {
   const navigate = useNavigate();
   const article = location.state?.article;
 
-  const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
-  const [activeTab, setActiveTab] = useState('left');
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     if (!article) { navigate('/dashboard'); return; }
-    (async () => {
+    window.scrollTo(0, 0);
+
+    const loadData = async () => {
       setLoading(true);
       try {
-        setData(await api.storyDeepDive(article.title, article.text, article.source));
-      } catch (e) { setError(e.message); }
+        const result = await api.storyDeepDive(
+          article.title,
+          article.text_preview || article.text || article.title,
+          article.source
+        );
+        setData(result);
+      } catch (err) {
+        setError(err.message);
+      }
       setLoading(false);
-    })();
+    };
+    loadData();
   }, [article, navigate]);
 
   if (!article) return null;
 
-  const perspectives = data?.perspectives || {};
-  const persp = perspectives[activeTab] || {};
-  const sentLabel = (data?.sentiment?.label || '').toUpperCase();
-  const sentScore = data?.sentiment?.score || 0;
-  const sentClass = sentLabel === 'POSITIVE' ? 'pos' : sentLabel === 'NEGATIVE' ? 'neg' : 'neutral';
+  const sentimentLabel = article.sentiment?.label || data?.sentiment?.label;
+  const sentimentConf = article.sentiment?.confidence || data?.sentiment?.score;
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto' }}>
-      <button className="btn-ghost" onClick={() => navigate('/dashboard')} style={{ marginBottom: 20 }}>
-        ← Dashboard
-      </button>
+    <div style={{ maxWidth: 1000, margin: '0 auto', paddingBottom: 60 }}>
 
-      {/* ── Header ──────────────────────────────────────────── */}
-      <div className="fin" style={{ marginBottom: 28 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-          <span className="label">{article.source}</span>
-          {sentLabel && !loading && (
-            <span className={`wire-badge wire-badge-${sentClass}`}>
-              {sentLabel} · {Math.round(sentScore * 100)}%
-            </span>
-          )}
-        </div>
-        <h1 style={{ fontSize: 26, fontWeight: 900, lineHeight: 1.3, letterSpacing: '-0.4px', marginBottom: 14 }}>
-          {article.title}
-        </h1>
-        <p style={{ fontSize: 15, lineHeight: 1.8, color: 'var(--t2)', marginBottom: 16 }}>{article.text}</p>
-        {article.url && (
-          <a href={article.url} target="_blank" rel="noopener noreferrer"
-            className="btn" style={{ fontSize: 11 }}>
-            ↗ READ ORIGINAL SOURCE
+      {/* ── Navigation ── */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <button onClick={() => navigate('/dashboard')} className="wire-btn">← BACK TO DASHBOARD</button>
+        <span className="mono-label" style={{ color: 'var(--text-3)' }}>DEEP DIVE</span>
+      </div>
+
+      {/* ── Article Header ── */}
+      <div className="panel" style={{ marginBottom: 20 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 20 }}>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 14 }}>
+              <span className="mono-label">{article.source}</span>
+              <span style={{ fontSize: 11, color: 'var(--text-3)' }}>•</span>
+              <span style={{ fontSize: 11, color: 'var(--text-3)' }}>{new Date(article.published).toLocaleString()}</span>
+            </div>
+            <h1 style={{ fontSize: 22, lineHeight: 1.35, marginBottom: 14 }}>{article.title}</h1>
+            <p style={{ fontSize: 14, color: 'var(--text-2)', lineHeight: 1.7 }}>
+              {article.text_preview || article.text}
+            </p>
+          </div>
+          <a href={article.url} target="_blank" rel="noopener noreferrer" className="wire-btn" style={{ flexShrink: 0 }}>
+            READ ORIGINAL ↗
           </a>
+        </div>
+
+        {/* Inline sentiment from article data */}
+        {sentimentLabel && (
+          <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)' }}>SENTIMENT</span>
+            <span className={`badge ${sentimentLabel.toLowerCase()}`}>{sentimentLabel}</span>
+            {sentimentConf && (
+              <div style={{ flex: 1, maxWidth: 200, height: 3, background: 'var(--bg-elevated)', borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{
+                  height: '100%',
+                  width: `${(sentimentConf) * 100}%`,
+                  background: sentimentLabel === 'POSITIVE' ? 'var(--pos)' : sentimentLabel === 'NEGATIVE' ? 'var(--neg)' : 'var(--text-2)',
+                }} />
+              </div>
+            )}
+            <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)' }}>{sentimentConf ? `${(sentimentConf * 100).toFixed(0)}%` : ''}</span>
+          </div>
+        )}
+
+        {/* Inline entities from article data */}
+        {article.entities?.length > 0 && (
+          <div style={{ marginTop: 12, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+            {article.entities.map((e, i) => (
+              <span key={i} style={{
+                padding: '3px 8px', fontSize: 10,
+                background: 'var(--bg-elevated)', border: '1px solid rgba(255,255,255,0.06)',
+                borderRadius: 3, fontFamily: 'var(--mono)',
+              }}>
+                {e.name} <span style={{ color: 'var(--text-3)', fontSize: 8 }}>{e.type}</span>
+              </span>
+            ))}
+          </div>
         )}
       </div>
 
+      {/* ── Deep Analysis ── */}
       {loading ? (
-        <div style={{ display: 'grid', gap: 18 }}>
-          <div className="panel" style={{ background: 'var(--bg-card-solid)' }}>
-            <div className="skel" style={{ width: 140, height: 12, marginBottom: 18 }} />
-            <div style={{ display: 'flex', gap: 8 }}>
-              {[1,2,3,4].map(i => <div key={i} className="skel" style={{ width: 90, height: 28, borderRadius: 8 }} />)}
-            </div>
-          </div>
-          <div className="panel" style={{ background: 'var(--bg-card-solid)' }}>
-            <div className="skel" style={{ width: 180, height: 12, marginBottom: 18 }} />
-            <div className="skel" style={{ width: '100%', height: 80 }} />
-          </div>
+        <div style={{ textAlign: 'center', padding: 50 }}>
+          <div className="pulse-glow" style={{ width: 14, height: 14, background: 'var(--theme-main)', borderRadius: '50%', margin: '0 auto 16px' }} />
+          <span className="mono" style={{ fontSize: 11, color: 'var(--theme-main)', letterSpacing: 2 }}>RUNNING DEEP ANALYSIS...</span>
         </div>
       ) : error ? (
         <div className="panel" style={{ borderColor: 'var(--neg)' }}>
-          <p style={{ fontSize: 12, color: 'var(--neg)' }}>Analysis failed: {error}</p>
+          <span className="mono-label" style={{ color: 'var(--neg)' }}>ANALYSIS FAILED</span>
+          <p style={{ marginTop: 8, fontSize: 12, color: 'var(--text-2)' }}>{error}</p>
         </div>
-      ) : (
-        <div style={{ display: 'grid', gap: 18 }}>
+      ) : data ? (
+        <div style={{ display: 'grid', gap: 20 }}>
 
-          {/* ── Entities ─────────────────────────────────────── */}
-          {data?.entities?.length > 0 && (
-            <div className="panel fin d1">
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                <div className="section-head">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
-                  Entities
-                </div>
-                <span className="label">{data.entities.length} DETECTED</span>
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          {/* Deep entities */}
+          {data.entities?.length > 0 && (
+            <div className="panel fin">
+              <span className="mono-label" style={{ marginBottom: 14, display: 'block' }}>ENTITIES DETECTED ({data.entities.length})</span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                 {data.entities.map((e, i) => (
-                  <div key={i} className="etag">
-                    {e.name}
-                    <span className="etag-type">{e.type}</span>
+                  <span key={i} style={{
+                    padding: '4px 10px', fontSize: 11,
+                    background: 'var(--bg-base)', border: '1px solid var(--theme-border)',
+                    borderRadius: 'var(--br)', display: 'inline-flex', gap: 6, alignItems: 'center',
+                  }}>
+                    <span style={{ color: 'var(--text-1)' }}>{e.name}</span>
+                    <span style={{ color: 'var(--text-3)', fontSize: 8, fontFamily: 'var(--mono)', textTransform: 'uppercase' }}>{e.type}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Perspectives */}
+          {data.perspectives && data.perspectives.length > 0 && (
+            <div className="panel fin">
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
+                <span className="mono-label">NARRATIVE ANALYSIS</span>
+                <span className="mono" style={{ fontSize: 9, color: 'var(--theme-main)', opacity: 0.7 }}>GEMINI 2.5</span>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 14 }}>
+                {data.perspectives.map((p, i) => (
+                  <div key={i} style={{
+                    background: 'var(--bg-base)', padding: 16,
+                    borderRadius: 'var(--br)', border: '1px solid rgba(255,255,255,0.06)',
+                  }}>
+                    <div className="mono-label" style={{ marginBottom: 10, color: 'var(--text-1)', fontSize: 11 }}>
+                      {p.viewpoint?.toUpperCase()}
+                    </div>
+                    {p.framing && <p style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.6, marginBottom: 8 }}>
+                      <strong style={{ color: 'var(--text-1)' }}>Framing:</strong> {p.framing}
+                    </p>}
+                    {p.emphasis && <p style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.6, marginBottom: 8 }}>
+                      <strong style={{ color: 'var(--text-1)' }}>Emphasis:</strong> {p.emphasis}
+                    </p>}
+                    {p.omission && <p style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.6 }}>
+                      <strong style={{ color: 'var(--text-1)' }}>Omission:</strong> {p.omission}
+                    </p>}
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* ── Sentiment ────────────────────────────────────── */}
-          <div className="panel fin d2">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <div className="section-head">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--warn)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                Sentiment
-              </div>
-              <span className="label">ROBERTA VIA GATEWAY</span>
+          {/* Impact */}
+          {data.impact && (
+            <div className="panel fin">
+              <span className="mono-label" style={{ marginBottom: 14, display: 'block' }}>PERSONAL IMPACT</span>
+              {data.impact.headline && <p style={{ fontSize: 15, fontWeight: 600, marginBottom: 10, lineHeight: 1.4 }}>{data.impact.headline}</p>}
+              {data.impact.why_it_matters && <p style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.6 }}>{data.impact.why_it_matters}</p>}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-              <div style={{ textAlign: 'center' }}>
-                <div className="metric" style={{ color: `var(--${sentClass})`, marginBottom: 4 }}>
-                  {Math.round(sentScore * 100)}%
-                </div>
-                <span className="label" style={{ color: `var(--${sentClass})` }}>{sentLabel}</span>
-              </div>
-              <div style={{ flex: 1 }}>
-                <div className="tension-track" style={{ height: 8 }}>
-                  <div className="tension-fill" style={{
-                    width: `${sentScore * 100}%`,
-                    background: `linear-gradient(90deg, var(--${sentClass})44, var(--${sentClass}))`,
-                  }} />
-                </div>
-                <p style={{ fontSize: 10, color: 'var(--t4)', marginTop: 6 }}>
-                  RoBERTa sentiment model · Hugging Face Space via Cloud Command Gateway
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {/* ── Perspectives ─────────────────────────────────── */}
-          <div className="panel fin d3">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-              <div className="section-head">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--accent-3)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                Perspectives
-              </div>
-              <span className="label">GEMINI 2.5 FLASH</span>
-            </div>
-
-            <div className="tab-group" style={{ marginBottom: 20 }}>
-              {[
-                { key: 'left', label: '← Left', c: '#60a5fa' },
-                { key: 'center', label: 'Center', c: 'var(--t2)' },
-                { key: 'right', label: 'Right →', c: '#f87171' },
-              ].map(t => (
-                <button key={t.key}
-                  className={`tab ${activeTab === t.key ? 'active' : ''}`}
-                  onClick={() => setActiveTab(t.key)}
-                  style={{ color: activeTab === t.key ? t.c : undefined }}
-                >{t.label}</button>
-              ))}
-            </div>
-
-            {persp.framing ? (
-              <div style={{ display: 'grid', gap: 18 }}>
-                <div style={{ padding: 16, background: 'var(--bg-1)', borderRadius: 'var(--r-md)', border: '1px solid var(--border)' }}>
-                  <p className="label" style={{
-                    marginBottom: 8,
-                    color: activeTab === 'left' ? '#60a5fa' : activeTab === 'right' ? '#f87171' : 'var(--t3)'
-                  }}>HOW THEY FRAME IT</p>
-                  <p style={{ fontSize: 15, lineHeight: 1.7, fontWeight: 500 }}>{persp.framing}</p>
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }} className="g2">
-                  {persp.emphasis && (
-                    <div>
-                      <p className="label" style={{ marginBottom: 6, color: 'var(--pos)' }}>● EMPHASIZE</p>
-                      <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--t2)' }}>{persp.emphasis}</p>
-                    </div>
-                  )}
-                  {persp.omission && (
-                    <div>
-                      <p className="label" style={{ marginBottom: 6, color: 'var(--neg)' }}>● OMIT</p>
-                      <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--t2)' }}>{persp.omission}</p>
-                    </div>
-                  )}
-                </div>
-                {persp.tone && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span className="label">TONE:</span>
-                    <span style={{ fontSize: 13, color: 'var(--t2)', fontStyle: 'italic' }}>{persp.tone}</span>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div style={{ textAlign: 'center', padding: '28px 0' }}>
-                <p style={{ fontSize: 28, marginBottom: 8 }}>🔍</p>
-                <p style={{ fontSize: 12, color: 'var(--t4)', maxWidth: 280, margin: '0 auto', lineHeight: 1.5 }}>
-                  Perspective analysis powered by Gemini 2.5 Flash Lite via Cloud Command Gateway
-                </p>
-              </div>
-            )}
-          </div>
+          )}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
