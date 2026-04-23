@@ -37,6 +37,9 @@ _cached_payload: Optional[dict] = None       # Latest full dashboard payload
 _cached_at: Optional[datetime] = None        # When it was generated
 _cache_lock = asyncio.Lock()                 # Prevent concurrent refreshes
 _bg_task: Optional[asyncio.Task] = None      # Background scheduler handle
+_profile_cache: dict = {}                    # Personalized payloads keyed by profile
+_profile_locks: dict = {}                    # Prevent duplicate refreshes per profile
+MAX_PROFILE_CACHES = 24
 
 FAST_INTERVAL = 300    # 5 min — RSS + NLP + tiers
 FULL_INTERVAL = 900    # 15 min — + LLM synthesis
@@ -95,6 +98,7 @@ class StoryDeepDiveRequest(BaseModel):
 class UserPreferencesInput(BaseModel):
     display_name: str = ""
     email: str = ""
+    photo_url: str = ""
     preferred_categories: List[str] = []
     preferred_regions: List[str] = []
     youtube_channels: List[str] = []
@@ -164,6 +168,82 @@ REGION_KEYWORDS = {
     "canada": ["canada", "canadian", "toronto", "ottawa", "trudeau"],
     "australia": ["australia", "australian", "sydney", "melbourne", "new zealand"],
 }
+
+
+def _normalize_profile_values(values: list) -> list:
+    normalized = []
+    seen = set()
+    for value in values or []:
+        cleaned = str(value or "").strip().lower()
+        if cleaned and cleaned not in seen:
+            seen.add(cleaned)
+            normalized.append(cleaned)
+    return normalized
+
+
+def _profile_cache_key(topics: list, regions: list) -> str:
+    return json.dumps(
+        {
+            "topics": sorted(_normalize_profile_values(topics)),
+            "regions": sorted(_normalize_profile_values(regions)),
+        },
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+
+
+def _get_profile_lock(cache_key: str) -> asyncio.Lock:
+    if cache_key not in _profile_locks:
+        _profile_locks[cache_key] = asyncio.Lock()
+    return _profile_locks[cache_key]
+
+
+def _prune_profile_cache():
+    if len(_profile_cache) <= MAX_PROFILE_CACHES:
+        return
+
+    oldest_first = sorted(
+        _profile_cache.items(),
+        key=lambda item: item[1].get("cached_at") or datetime.min.replace(tzinfo=timezone.utc),
+    )
+    while len(_profile_cache) > MAX_PROFILE_CACHES and oldest_first:
+        cache_key, _ = oldest_first.pop(0)
+        _profile_cache.pop(cache_key, None)
+        _profile_locks.pop(cache_key, None)
+
+
+def _attach_cache_metadata(payload: dict, cached_at: Optional[datetime], personalized: bool) -> dict:
+    age_seconds = (datetime.now(timezone.utc) - cached_at).total_seconds() if cached_at else 0
+    response = {**payload}
+    response["cache_age_seconds"] = max(0, int(age_seconds))
+    response["cached_at"] = cached_at.isoformat() if cached_at else None
+    response["is_stale"] = age_seconds > STALE_THRESHOLD
+    response["personalization_mode"] = "profile" if personalized else "shared"
+    return response
+
+
+async def _refresh_profile_cache(topics: list, regions: list, force_refresh_news: bool = False,
+                                 clear_model_cache: bool = False):
+    normalized_topics = _normalize_profile_values(topics)
+    normalized_regions = _normalize_profile_values(regions)
+    cache_key = _profile_cache_key(normalized_topics, normalized_regions)
+
+    async with _get_profile_lock(cache_key):
+        if force_refresh_news:
+            news_fetcher.force_refresh()
+        if clear_model_cache:
+            hf_client._cache.clear()
+
+        payload = await _build_intelligence(normalized_topics, normalized_regions, run_llm=True)
+        cached_at = datetime.now(timezone.utc)
+        _profile_cache[cache_key] = {
+            "payload": payload,
+            "cached_at": cached_at,
+            "topics": normalized_topics,
+            "regions": normalized_regions,
+        }
+        _prune_profile_cache()
+        return payload, cached_at, cache_key
 
 
 def compute_exposure_score(cluster_text: str, user_topics: list, user_regions: list) -> int:
@@ -414,6 +494,7 @@ async def _build_intelligence(topics: list, regions: list, run_llm: bool = True)
         "monitoring_queue": monitoring_queue,
         "sources_count": len(articles),
         "topics_used": topics,
+        "regions_used": regions,
         "generated_at": now.isoformat(),
         "refresh_type": "full" if run_llm else "fast",
         "next_refresh_at": (now + timedelta(seconds=FAST_INTERVAL)).isoformat(),
@@ -445,19 +526,27 @@ async def _get_user_prefs_from_header(request: Request):
     """Extract user's Firebase UID from X-User-Id header and return their preferences."""
     uid = request.headers.get("X-User-Id", "").strip()
     if not uid:
-        return ["tech", "ai", "markets"], [], uid
+        return ["tech", "ai", "markets"], [], uid, False
 
     try:
         prefs = await db.get_user_prefs(uid)
         if prefs:
-            topics = json.loads(prefs["preferred_categories"] or "[]")
-            regions = json.loads(prefs["preferred_regions"] or "[]")
-            if topics:
-                return topics, regions, uid
+            topics = _normalize_profile_values(json.loads(prefs["preferred_categories"] or "[]"))
+            regions = _normalize_profile_values(json.loads(prefs["preferred_regions"] or "[]"))
+            if topics or regions:
+                return topics, regions, uid, True
     except Exception as e:
         logger.warning(f"Prefs lookup for {uid}: {e}")
 
-    return ["tech", "ai", "markets"], [], uid
+    return ["tech", "ai", "markets"], [], uid, False
+
+
+async def _silent_refresh_profile(topics: list, regions: list):
+    try:
+        await _refresh_profile_cache(topics, regions, force_refresh_news=True)
+        logger.info("Silent personalized refresh complete.")
+    except Exception as e:
+        logger.error(f"Silent personalized refresh failed: {e}")
 
 
 async def _background_scheduler():
@@ -527,16 +616,36 @@ async def get_cached_dashboard(request: Request):
     global _cached_payload, _cached_at
 
     # Get this user's preferences
-    user_topics, user_regions, uid = await _get_user_prefs_from_header(request)
+    user_topics, user_regions, uid, has_saved_profile = await _get_user_prefs_from_header(request)
+
+    if has_saved_profile:
+        cache_key = _profile_cache_key(user_topics, user_regions)
+        cached_profile = _profile_cache.get(cache_key)
+
+        if cached_profile:
+            response = _attach_cache_metadata(
+                cached_profile["payload"],
+                cached_profile.get("cached_at"),
+                personalized=True,
+            )
+            if response["is_stale"]:
+                logger.info(f"Profile cache stale for {uid or cache_key}; triggering refresh")
+                asyncio.create_task(_silent_refresh_profile(user_topics, user_regions))
+            return response
+
+        logger.info(f"No personalized cache for {uid or cache_key}; building profile feed")
+        payload, cached_at, _ = await _refresh_profile_cache(user_topics, user_regions)
+        return _attach_cache_metadata(payload, cached_at, personalized=True)
 
     if _cached_payload:
-        now = datetime.now(timezone.utc)
-        age_seconds = (now - _cached_at).total_seconds() if _cached_at else 9999
+        response = _attach_cache_metadata(_cached_payload, _cached_at, personalized=False)
+        if response["is_stale"]:
+            logger.info(f"Shared cache stale ({response['cache_age_seconds']}s old); triggering refresh")
+            asyncio.create_task(_silent_refresh())
+        return response
+        """Legacy shared-personalization path removed in favor of profile-scoped feeds.
 
-        # Personalize the response for this user
-        response = {**_cached_payload}
 
-        # Re-score clusters with THIS user's preferences + re-classify tiers
         if uid and response.get("clusters"):
             clusters = []
             for c in response["clusters"]:
@@ -583,37 +692,45 @@ async def get_cached_dashboard(request: Request):
 
     # No cache yet — run full pipeline synchronously (first load only)
     logger.info("No cache available — running initial pipeline...")
+        """
     topics, regions = await _get_broad_topics()
     payload = await _build_intelligence(topics, regions, run_llm=True)
     async with _cache_lock:
         _cached_payload = payload
         _cached_at = datetime.now(timezone.utc)
-    payload["cache_age_seconds"] = 0
-    payload["cached_at"] = _cached_at.isoformat()
-    payload["is_stale"] = False
-    return payload
+    return _attach_cache_metadata(payload, _cached_at, personalized=False)
 
 
 @app.post("/api/dashboard")
-async def force_refresh_dashboard(request: DashboardRequest):
-    """Force a full pipeline refresh. Used when user explicitly hits REFRESH."""
+async def force_refresh_dashboard(request: Request, payload_request: DashboardRequest):
+    """Force a refresh. Uses requested topics or the saved profile when available."""
     global _cached_payload, _cached_at
+
+    user_topics, user_regions, _, has_saved_profile = await _get_user_prefs_from_header(request)
+    requested_topics = _normalize_profile_values(payload_request.topics)
+    requested_regions = _normalize_profile_values(payload_request.regions)
+    effective_topics = requested_topics or (user_topics if has_saved_profile else [])
+    effective_regions = requested_regions or (user_regions if has_saved_profile else [])
 
     news_fetcher.force_refresh()
     hf_client._cache.clear()
     logger.info("Force refresh triggered by user.")
 
-    topics, regions = await _get_broad_topics()
+    if effective_topics or effective_regions:
+        payload, cached_at, _ = await _refresh_profile_cache(
+            effective_topics,
+            effective_regions,
+            clear_model_cache=False,
+        )
+        return _attach_cache_metadata(payload, cached_at, personalized=True)
 
+    topics, regions = await _get_broad_topics()
     payload = await _build_intelligence(topics, regions, run_llm=True)
     async with _cache_lock:
         _cached_payload = payload
         _cached_at = datetime.now(timezone.utc)
 
-    payload["cache_age_seconds"] = 0
-    payload["cached_at"] = _cached_at.isoformat()
-    payload["is_stale"] = False
-    return payload
+    return _attach_cache_metadata(payload, _cached_at, personalized=False)
 
 
 async def _silent_refresh():
@@ -694,6 +811,7 @@ async def health_check():
         "version": "12.0.0",
         "pipeline": "Background Scheduler → Cached Response",
         "cache_available": _cached_payload is not None,
+        "profile_cache_entries": len(_profile_cache),
         "cached_at": _cached_at.isoformat() if _cached_at else None,
         "fast_interval_sec": FAST_INTERVAL,
         "full_interval_sec": FULL_INTERVAL,

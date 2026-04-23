@@ -264,6 +264,8 @@ export default function Dashboard() {
   const tension = data?.tension_index || {};
   const impact = data?.impact || {};
   const queue = data?.monitoring_queue || [];
+  const activeTopics = data?.topics_used || [];
+  const activeRegions = data?.regions_used || [];
   const { displayed: briefText, typing } = useTypewriter(data?.daily_brief);
 
   // Sentiment counts
@@ -345,6 +347,27 @@ export default function Dashboard() {
           </div>
         )}
 
+        {data && (
+          <div className="panel fin fin-d2" style={{ padding: 16 }}>
+            <div className="label" style={{ marginBottom: 10, fontSize: 9 }}>ACTIVE PROFILE</div>
+            <div className="mono" style={{ fontSize: 9, color: 'var(--text-3)', marginBottom: 8 }}>
+              {data.personalization_mode === 'profile' ? 'PERSONALIZED FEED' : 'SHARED GLOBAL FEED'}
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: activeRegions.length ? 10 : 0 }}>
+              {activeTopics.map(topic => (
+                <span key={topic} className="chip chip-sel" style={{ fontSize: 10, padding: '4px 8px' }}>{topic}</span>
+              ))}
+            </div>
+            {activeRegions.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {activeRegions.map(region => (
+                  <span key={region} className="chip" style={{ fontSize: 10, padding: '4px 8px' }}>{region}</span>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         <TensionIndex tension={tension} />
 
         {data && (
@@ -355,6 +378,7 @@ export default function Dashboard() {
                 ['AI', 'OpenRouter → Gemini'],
                 ['NLP', 'HuggingFace (free)'],
                 ['NEWS', 'Google RSS'],
+                ['CACHE', data.personalization_mode === 'profile' ? 'Profile-scoped' : 'Shared'],
                 ['TIER', 'Deterministic'],
                 ['GEN', data.generated_at ? new Date(data.generated_at).toLocaleTimeString() : '—'],
               ].map(([k, v]) => (

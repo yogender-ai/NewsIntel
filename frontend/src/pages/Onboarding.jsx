@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
+import { useAuth } from '../context/AuthContext';
 
 const TOPICS = [
   { id: 'tech', label: 'Technology', icon: '⚡' },
@@ -39,6 +40,7 @@ const REGIONS = [
 ];
 
 export default function Onboarding() {
+  const { user } = useAuth();
   const [step, setStep] = useState(1);
   const [topics, setTopics] = useState([]);
   const [regions, setRegions] = useState([]);
@@ -62,12 +64,14 @@ export default function Onboarding() {
     setSaving(true);
     try {
       await api.savePreferences({
-        display_name: '', email: '',
+        display_name: user?.displayName || '',
+        email: user?.email || '',
+        photo_url: user?.photoURL || '',
         preferred_categories: topics, preferred_regions: regions,
         youtube_channels: [], onboarded: true,
       });
-      // Force a full pipeline refresh so the cache rebuilds with the user's actual topics
-      api.forceDashboardRefresh(topics, regions).catch(() => {});
+      // Warm the personalized dashboard cache before landing on the feed.
+      await api.forceDashboardRefresh(topics, regions);
     } catch (e) { console.error(e); }
     setSaving(false);
     navigate('/dashboard');
