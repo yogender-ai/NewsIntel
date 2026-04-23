@@ -431,10 +431,14 @@ async def _track_entities_bg(entities):
 # Background Scheduler
 # ---------------------------------------------------------------------------
 
-async def _get_broad_topics():
-    """Get a broad set of topics for the background scheduler.
-    Fetches across ALL popular categories so cache works for any user."""
-    return ["tech", "ai", "markets", "politics", "defense", "climate", "space", "trade"], []
+async def _get_broad_topics(cycle: int = 0):
+    """Get topic categories for the background scheduler.
+    Alternates between two batches to cover ALL categories within 2 cycles."""
+    all_topics = list(TOPIC_KEYWORDS.keys())  # All 16 categories
+    mid = len(all_topics) // 2
+    # Even cycles: first half, Odd cycles: second half
+    batch = all_topics[:mid] if (cycle % 2 == 0) else all_topics[mid:]
+    return batch, []
 
 
 async def _get_user_prefs_from_header(request: Request):
@@ -486,7 +490,7 @@ async def _background_scheduler():
             await asyncio.sleep(FAST_INTERVAL)
             cycle_count += 1
 
-            topics, regions = await _get_broad_topics()
+            topics, regions = await _get_broad_topics(cycle_count)
             news_fetcher.force_refresh()
 
             # Every 3rd cycle (15 min) = full LLM refresh, otherwise fast
@@ -532,14 +536,28 @@ async def get_cached_dashboard(request: Request):
         # Personalize the response for this user
         response = {**_cached_payload}
 
-        # Re-score clusters with THIS user's preferences
+        # Re-score clusters with THIS user's preferences + re-classify tiers
         if uid and response.get("clusters"):
             clusters = []
             for c in response["clusters"]:
                 c_copy = {**c}
                 cluster_text = f"{c.get('thread_title', '')} {c.get('summary', '')} {c.get('impact_line', '')}"
-                c_copy["exposure_score"] = compute_exposure_score(cluster_text, user_topics, user_regions)
+                user_exposure = compute_exposure_score(cluster_text, user_topics, user_regions)
+                c_copy["exposure_score"] = user_exposure
+
+                # Re-classify signal tier with THIS USER's exposure score
+                c_copy["signal_tier"] = classify_signal_tier(
+                    c.get("pulse_score", 50),
+                    c.get("source_count", 1),
+                    c.get("source_diversity", 0.5),
+                    c.get("sentiment_intensity", 0.5),
+                    user_exposure  # <-- per-user, not global
+                )
                 clusters.append(c_copy)
+
+            # Re-sort: CRITICAL first, then SIGNAL, then by pulse_score
+            tier_order = {"CRITICAL": 0, "SIGNAL": 1, "WATCH": 2, "NOISE": 3}
+            clusters.sort(key=lambda c: (tier_order.get(c.get("signal_tier", "NOISE"), 3), -c.get("pulse_score", 0)))
             response["clusters"] = clusters
 
             # Recalculate aggregate exposure for this user
@@ -585,8 +603,7 @@ async def force_refresh_dashboard(request: DashboardRequest):
     hf_client._cache.clear()
     logger.info("Force refresh triggered by user.")
 
-    topics = request.topics or ["tech", "ai", "markets"]
-    regions = request.regions or []
+    topics, regions = await _get_broad_topics()
 
     payload = await _build_intelligence(topics, regions, run_llm=True)
     async with _cache_lock:

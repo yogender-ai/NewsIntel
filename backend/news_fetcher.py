@@ -105,7 +105,7 @@ async def fetch_news(topics: list = None, regions: list = None, max_articles: in
 
     # Build queries from topics
     queries = []
-    for t in topics[:4]:  # Max 4 topics to limit requests
+    for t in topics[:8]:  # Cover up to 8 topics per fetch cycle
         q = TOPIC_QUERIES.get(t, t)
         # Add region boost if specified
         if regions:
