@@ -66,6 +66,8 @@ export default function Onboarding() {
         preferred_categories: topics, preferred_regions: regions,
         youtube_channels: [], onboarded: true,
       });
+      // Force a full pipeline refresh so the cache rebuilds with the user's actual topics
+      api.forceDashboardRefresh(topics, regions).catch(() => {});
     } catch (e) { console.error(e); }
     setSaving(false);
     navigate('/dashboard');

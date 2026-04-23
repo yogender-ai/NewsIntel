@@ -35,9 +35,9 @@ const ExposureGauge = ({ score }) => {
   const r = 30;
   const circ = 2 * Math.PI * r;
   const offset = circ - (score / 100) * circ;
-  const desc = score >= 70 ? 'High personal relevance — these signals directly affect your tracked interests.'
-    : score >= 40 ? 'Moderate relevance — some overlap with your intelligence profile.'
-    : 'Low overlap — consider expanding your tracked topics.';
+  const desc = score >= 70 ? 'Today\'s top stories are highly relevant to your tracked interests.'
+    : score >= 40 ? 'Some of today\'s stories match your interests. Others are global signals.'
+    : 'Most stories today are outside your tracked topics. Consider adding more interests.';
 
   return (
     <div className="exposure-gauge fin fin-d1">
@@ -52,7 +52,7 @@ const ExposureGauge = ({ score }) => {
         <div className="exposure-ring-number">{score}</div>
       </div>
       <div className="exposure-info">
-        <div className="exposure-title">YOUR EXPOSURE SCORE</div>
+        <div className="exposure-title">RELEVANCE TO YOU</div>
         <div className="exposure-desc">{desc}</div>
       </div>
     </div>
@@ -103,23 +103,24 @@ const TensionIndex = ({ tension }) => {
 
 /* ── Loading Pipeline ────────────────────────── */
 const PIPELINE_STAGES = [
-  { key: 'rss', label: 'Fetching News Sources', icon: '📡', desc: 'Google News RSS' },
-  { key: 'nlp', label: 'Entity & Sentiment Analysis', icon: '🔬', desc: 'HuggingFace (free)' },
-  { key: 'ai', label: 'Intelligence Synthesis', icon: '🧠', desc: 'OpenRouter → Gemini' },
-  { key: 'classify', label: 'Signal Classification', icon: '⚡', desc: 'Deterministic Tiering' },
-  { key: 'delta', label: 'Computing Daily Delta', icon: '📊', desc: 'vs 24h Snapshot' },
+  { key: 'rss', label: 'Connecting to Sources', icon: '📡', desc: 'Google News RSS' },
+  { key: 'nlp', label: 'Reading & Analyzing', icon: '🔬', desc: 'AI Entity Detection' },
+  { key: 'ai', label: 'Generating Intelligence', icon: '🧠', desc: 'AI Synthesis Engine' },
+  { key: 'classify', label: 'Classifying Signals', icon: '⚡', desc: 'Priority Tiering' },
+  { key: 'ready', label: 'Preparing Your Feed', icon: '✓', desc: 'Personalized' },
 ];
 
 const PipelineLoader = () => {
   const [active, setActive] = useState(0);
   useEffect(() => {
-    const t = setInterval(() => setActive(p => p < PIPELINE_STAGES.length - 1 ? p + 1 : p), 1800);
+    // Step through at 400ms each = 2 seconds total for 5 steps
+    const t = setInterval(() => setActive(p => p < PIPELINE_STAGES.length - 1 ? p + 1 : p), 400);
     return () => clearInterval(t);
   }, []);
   return (
     <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '70vh', gap: 20 }}>
       <div className="pulse-glow" style={{ width: 16, height: 16, background: 'var(--accent)', borderRadius: '50%' }} />
-      <span className="mono" style={{ fontSize: 11, color: 'var(--accent)', letterSpacing: 3 }}>SYNCHRONIZING INTELLIGENCE</span>
+      <span className="mono" style={{ fontSize: 11, color: 'var(--accent)', letterSpacing: 3 }}>BUILDING YOUR INTELLIGENCE FEED</span>
       <div className="pipeline-steps">
         {PIPELINE_STAGES.map((s, i) => (
           <div key={s.key} className={`pipeline-step ${i < active ? 'done' : i === active ? 'active' : 'pending'}`}>
@@ -212,12 +213,22 @@ export default function Dashboard() {
 
   useEffect(() => { load(); }, [load]);
 
-  // Freshness tracking
-  const cacheAge = data?.cache_age_seconds || 0;
-  const cachedAt = data?.cached_at;
-  const freshLabel = cacheAge < 60 ? 'Just now'
-    : cacheAge < 3600 ? `${Math.floor(cacheAge / 60)}m ago`
-    : `${Math.floor(cacheAge / 3600)}h ago`;
+  // Live freshness timer — ticks every 30s
+  const [liveAge, setLiveAge] = useState(0);
+  useEffect(() => {
+    if (!data?.cached_at) return;
+    const baseAge = data.cache_age_seconds || 0;
+    const loadedAt = Date.now();
+    setLiveAge(baseAge);
+    const t = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - loadedAt) / 1000);
+      setLiveAge(baseAge + elapsed);
+    }, 30000);
+    return () => clearInterval(t);
+  }, [data?.cached_at]);
+  const freshLabel = liveAge < 60 ? 'Just now'
+    : liveAge < 3600 ? `${Math.floor(liveAge / 60)}m ago`
+    : `${Math.floor(liveAge / 3600)}h ago`;
 
   const articles = data?.articles || [];
   const clusters = data?.clusters || [];
@@ -272,13 +283,8 @@ export default function Dashboard() {
           {data && (
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
               <span className="mono" style={{ fontSize: 9, color: data?.is_stale ? 'var(--warn)' : 'var(--pos)', letterSpacing: 0.5 }}>
-                {data?.is_stale ? '⚠ STALE' : '● FRESH'} · Updated {freshLabel}
+                ● Updated {freshLabel}
               </span>
-              {data?.refresh_type && (
-                <span className="mono" style={{ fontSize: 8, color: 'var(--text-3)', letterSpacing: 0.5 }}>
-                  {data.refresh_type.toUpperCase()}
-                </span>
-              )}
             </div>
           )}
           {user && (
@@ -296,7 +302,7 @@ export default function Dashboard() {
           <div className="panel panel-accent fin fin-d1" style={{ padding: 18 }}>
             <div className="label" style={{ marginBottom: 14 }}>FEED METRICS</div>
             <div className="stat-row"><span className="stat-label">Sources Ingested</span><span className="stat-value">{data.sources_count || articles.length}</span></div>
-            <div className="stat-row"><span className="stat-label">Story Threads</span><span className="stat-value">{clusters.length}</span></div>
+            <div className="stat-row"><span className="stat-label">Stories Found</span><span className="stat-value">{clusters.length}</span></div>
             <div className="stat-row"><span className="stat-label">Entities Detected</span><span className="stat-value">{entCount}</span></div>
             <div className="stat-row"><span className="stat-label">Signal / Watch / Noise</span>
               <span className="stat-value-sm" style={{ color: 'var(--text-1)' }}>
@@ -344,18 +350,18 @@ export default function Dashboard() {
                 <span className={`delta-cell-value ${d.delta > 0 ? 'delta-up' : d.delta < 0 ? 'delta-down' : 'delta-flat'}`}>
                   {d.delta > 0 ? '▲+' : d.delta < 0 ? '▼' : '—'}{d.delta !== 0 ? Math.abs(d.delta) : ''}
                 </span>
-                <span className="delta-cell-pulse">P:{d.current}</span>
+                <span className="delta-cell-pulse">Pulse {d.current}</span>
               </div>
             ))}
           </div>
         )}
 
-        {/* ▬▬▬ EXPOSURE GAUGE ▬▬▬ — circular, central, prominent */}
+        {/* Relevance Gauge */}
         {exposure !== null && <ExposureGauge score={exposure} />}
 
-        {/* Ticker */}
+        {/* Live Headlines */}
         {articles.length > 0 && (
-          <div className="ticker-wrap" style={{ borderRadius: 'var(--br)' }}>
+          <div className="ticker-wrap" style={{ borderRadius: 'var(--br)', marginTop: 4 }}>
             <div className="ticker-tag">LIVE</div>
             <div className="ticker-move">
               {[...articles, ...articles].map((a, i) => (
@@ -370,16 +376,16 @@ export default function Dashboard() {
           <div className="panel" style={{ borderColor: 'var(--neg)', padding: 24 }}>
             <div className="label" style={{ color: 'var(--neg)', marginBottom: 8 }}>PIPELINE ERROR</div>
             <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 14 }}>{error}</p>
-            <button onClick={() => load(true)} className="wire-btn">RETRY SYNC</button>
+            <button onClick={forceRefresh} className="wire-btn">RETRY</button>
           </div>
         )}
 
-        {/* ▬▬▬ TOP 3 SIGNALS ▬▬▬ — hard capped, never more */}
+        {/* Top Stories */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '4px 0' }}>
           <div className="label">
-            TOP SIGNALS
+            TOP STORIES
             <span className="mono" style={{ fontSize: 9, color: 'var(--text-3)', marginLeft: 10, fontWeight: 400 }}>
-              {topSignals.length} of {clusters.length} threads surfaced
+              {topSignals.length} of {clusters.length} stories surfaced
             </span>
           </div>
           {/* Signal Legend */}
@@ -394,28 +400,35 @@ export default function Dashboard() {
           <div key={i}
             className={`signal-card tier-${cluster.signal_tier?.toLowerCase()}-card fin`}
             style={{ animationDelay: `${i * 0.06}s` }}
-            onClick={() => navigate('/story', { state: { article: { title: cluster.thread_title, text: cluster.summary, text_preview: cluster.summary, source: 'Intelligence Synthesis' } } })}
+            onClick={() => navigate('/story', { state: { article: { title: cluster.thread_title, text: cluster.summary, text_preview: cluster.summary, source: 'Intelligence Synthesis', exposure_score: cluster.exposure_score } } })}
           >
             <div className="signal-card-header">
               <div style={{ flex: 1 }}>
-                <SignalBadge tier={cluster.signal_tier} />
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span className="mono" style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-3)', width: 18 }}>#{i + 1}</span>
+                  <SignalBadge tier={cluster.signal_tier} />
+                </div>
                 <h3 style={{ fontSize: 16, marginTop: 8, color: 'var(--text-0)', lineHeight: 1.35, letterSpacing: '-0.01em' }}>
                   {cluster.thread_title}
                 </h3>
                 <p className="signal-impact">{cluster.impact_line || cluster.summary}</p>
+                {cluster.why_it_matters && (
+                  <p style={{ fontSize: 11, color: 'var(--accent)', marginTop: 6, fontStyle: 'italic', lineHeight: 1.5 }}>
+                    Why it matters: {cluster.why_it_matters}
+                  </p>
+                )}
               </div>
             </div>
             <div className="signal-card-meta">
               <span className="badge pulse">⚡ {cluster.pulse_score}</span>
-              <span className="badge sources">{cluster.source_count} SRC</span>
-              <span className="mono" style={{ fontSize: 9, color: 'var(--text-3)' }}>EXP {cluster.exposure_score}/100</span>
-              {cluster.risk_type === 'risk' && <span className="badge neg" style={{ fontSize: 8 }}>RISK</span>}
-              {cluster.risk_type === 'opportunity' && <span className="badge pos" style={{ fontSize: 8 }}>OPP</span>}
+              <span className="badge sources">{cluster.source_count} sources</span>
+              {cluster.risk_type === 'risk' && <span className="badge neg" style={{ fontSize: 8 }}>⚠ Risk</span>}
+              {cluster.risk_type === 'opportunity' && <span className="badge pos" style={{ fontSize: 8 }}>▲ Opportunity</span>}
             </div>
           </div>
         )) : !loading ? (
           <div className="panel" style={{ textAlign: 'center', padding: 40 }}>
-            <span className="mono" style={{ color: 'var(--text-3)', letterSpacing: 2, fontSize: 11 }}>NO CRITICAL SIGNALS DETECTED</span>
+            <span className="mono" style={{ color: 'var(--text-3)', letterSpacing: 2, fontSize: 11 }}>NO CRITICAL STORIES DETECTED</span>
           </div>
         ) : null}
 
@@ -426,7 +439,7 @@ export default function Dashboard() {
               style={{ marginBottom: 8, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0' }}
               onClick={() => setExpandedWatch(!expandedWatch)}
             >
-              <span>DEVELOPING · {watchSignals.length} WATCH THREADS</span>
+              <span>DEVELOPING · {watchSignals.length} stories being monitored</span>
               <span style={{ fontSize: 14, color: 'var(--text-3)', transition: 'transform 0.3s', transform: expandedWatch ? 'rotate(90deg)' : 'none', display: 'inline-block' }}>▸</span>
             </div>
             {expandedWatch && watchSignals.map((cluster, i) => (
@@ -457,8 +470,8 @@ export default function Dashboard() {
             {queue.slice(0, 4).map((q, i) => (
               <div key={i} className="monitoring-item">
                 <span className="monitoring-title">{q.thread_title}</span>
-                <span className="mono" style={{ fontSize: 9, color: 'var(--text-3)', marginRight: 8 }}>P:{q.pulse_score}</span>
-                <span className="monitoring-eta">{q.source_count} SRC</span>
+                <span className="mono" style={{ fontSize: 9, color: 'var(--text-3)', marginRight: 8 }}>Pulse {q.pulse_score}</span>
+                <span className="monitoring-eta">{q.source_count} sources</span>
               </div>
             ))}
           </div>
@@ -500,7 +513,7 @@ export default function Dashboard() {
             <div className="label" style={{ marginBottom: 12 }}>EXECUTIVE IMPACT</div>
             <p style={{ fontSize: 14, fontWeight: 700, marginBottom: 8, lineHeight: 1.4, color: 'var(--text-0)' }}>{impact.headline}</p>
             {impact.why_it_matters && (
-              <p style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.65, marginBottom: 12 }}>{impact.why_it_matters}</p>
+              <p style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.65, marginBottom: 12 }}>{typeof impact.why_it_matters === 'string' ? impact.why_it_matters.slice(0, 300) : ''}{impact.why_it_matters?.length > 300 ? '...' : ''}</p>
             )}
             {impact.actions?.length > 0 && (
               <>

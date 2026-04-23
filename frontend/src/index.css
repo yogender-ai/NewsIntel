@@ -495,9 +495,18 @@ a:hover { opacity: 0.8; }
   box-shadow: 0 4px 24px rgba(0,0,0,0.2), 0 0 20px var(--accent-dim);
   transform: translateY(-1px);
 }
-.signal-card.tier-critical-card { border-left: 3px solid #ff3b5c; }
+.signal-card.tier-critical-card {
+  border-left: 4px solid #ff3b5c;
+  box-shadow: inset 4px 0 12px rgba(255,59,92,0.06), 0 0 20px rgba(255,59,92,0.04);
+  animation: criticalCardPulse 3s ease-in-out infinite;
+}
 .signal-card.tier-signal-card  { border-left: 3px solid #f0b429; }
 .signal-card.tier-watch-card   { border-left: 3px solid rgba(91,141,239,0.3); }
+
+@keyframes criticalCardPulse {
+  0%, 100% { box-shadow: inset 4px 0 12px rgba(255,59,92,0.06), 0 0 20px rgba(255,59,92,0.04); }
+  50% { box-shadow: inset 4px 0 16px rgba(255,59,92,0.1), 0 0 30px rgba(255,59,92,0.08); }
+}
 
 .signal-card-header {
   display: flex; justify-content: space-between; align-items: flex-start; gap: 12px;
@@ -542,6 +551,11 @@ a:hover { opacity: 0.8; }
 .delta-cell-value {
   font-family: var(--mono); font-size: 24px; font-weight: 900;
   line-height: 1;
+  animation: deltaSlideIn 0.6s var(--ease) both;
+}
+@keyframes deltaSlideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 .delta-cell-pulse {
   font-family: var(--mono); font-size: 8px; color: var(--text-3);

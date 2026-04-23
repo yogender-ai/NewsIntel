@@ -3,8 +3,10 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 
 const SignalBadge = ({ tier }) => {
-  const cls = `tier-badge tier-${(tier || 'NOISE').toLowerCase()}`;
-  return <span className={cls}>{tier === 'CRITICAL' ? '🔴 CRITICAL' : tier}</span>;
+  const t = (tier || 'NOISE').toUpperCase();
+  const cls = `tier-badge tier-${t.toLowerCase()}`;
+  const labels = { CRITICAL: '● CRITICAL', SIGNAL: '◆ SIGNAL', WATCH: '○ WATCH', NOISE: '· NOISE' };
+  return <span className={cls}>{labels[t] || t}</span>;
 };
 
 export default function StoryView() {
@@ -76,6 +78,14 @@ export default function StoryView() {
           )}
         </div>
       </div>
+
+      {/* Relevance badge */}
+      {article.exposure_score && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16, padding: '10px 16px', background: 'var(--accent-dim)', borderRadius: 'var(--br)', border: '1px solid var(--accent-border)', width: 'fit-content' }}>
+          <span className="mono" style={{ fontSize: 13, color: 'var(--accent)', fontWeight: 700 }}>{article.exposure_score}/100</span>
+          <span style={{ fontSize: 12, color: 'var(--text-2)' }}>relevance to your interests</span>
+        </div>
+      )}
 
       {/* Analysis Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginBottom: 20 }}>

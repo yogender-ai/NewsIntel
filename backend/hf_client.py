@@ -254,6 +254,7 @@ Return ONLY valid JSON (no markdown fences, no explanation):
       "summary": "One sentence synthesis of the thread",
       "pulse_score": 75,
       "impact_line": "One sentence: how this could affect the reader",
+      "why_it_matters": "One sentence: why should the reader care about this right now",
       "risk_type": "risk OR opportunity OR neutral",
       "opportunity_counter": "If risk: one sentence describing the counter-opportunity. If opportunity or neutral: empty string"
     }}
