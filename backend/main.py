@@ -656,6 +656,16 @@ async def get_preferences(request: Request):
         return {"status": "not_found", "data": None}
     return {"status": "success", "data": dict(prefs)}
 
+@app.delete("/api/user/account")
+async def delete_account(request: Request):
+    """Delete user preferences and reset account. User will see onboarding again."""
+    uid = request.headers.get("X-User-Id", "").strip()
+    if not uid:
+        raise HTTPException(status_code=400, detail="No user ID provided")
+    await db.delete_user_prefs(uid)
+    logger.info(f"Deleted account data for user {uid}")
+    return {"status": "success", "message": "Account data deleted"}
+
 
 # ---------------------------------------------------------------------------
 # Health

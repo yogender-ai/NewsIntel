@@ -54,4 +54,7 @@ export const api = {
     }),
 
   getPreferences: () => request('/api/user/preferences'),
+
+  deleteAccount: () =>
+    request('/api/user/account', { method: 'DELETE' }),
 };

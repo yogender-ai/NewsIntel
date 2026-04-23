@@ -202,6 +202,13 @@ async def upsert_user_prefs(firebase_uid: str, data: dict):
         )
         await database.execute(insert_query)
 
+async def delete_user_prefs(firebase_uid: str):
+    """Delete user preferences — used for account reset/delete."""
+    query = user_preferences.delete().where(
+        user_preferences.c.firebase_uid == firebase_uid
+    )
+    await database.execute(query)
+
 
 # ---------------------------------------------------------------------------
 # Pulse Snapshots (for Daily Delta)

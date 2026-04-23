@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard';
 import Onboarding from './pages/Onboarding';
 import StoryView from './pages/StoryView';
+import Settings from './pages/Settings';
 import './index.css';
 
 export const AppContext = createContext({ headlines: [], setHeadlines: () => {}, mode: 'command', setMode: () => {} });
@@ -83,7 +84,7 @@ const TopBar = () => {
         <span className="nav-link" style={{opacity: 0.4, cursor: 'not-allowed'}}>GRAPH</span>
         <span className="nav-link" style={{opacity: 0.4, cursor: 'not-allowed'}}>HEATMAP</span>
         <span className="nav-link" style={{opacity: 0.4, cursor: 'not-allowed'}}>ALERTS</span>
-        <NavLink to="/onboarding" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>SETTINGS</NavLink>
+        <NavLink to="/settings" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>SETTINGS</NavLink>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -130,6 +131,7 @@ function App() {
                 <Route path="/" element={<Protected><Dashboard /></Protected>} />
                 <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
                 <Route path="/onboarding" element={<Protected><Onboarding /></Protected>} />
+                <Route path="/settings" element={<Protected><Settings /></Protected>} />
                 <Route path="/story" element={<Protected><StoryView /></Protected>} />
               </Routes>
             </div>
