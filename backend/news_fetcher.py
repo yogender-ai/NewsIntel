@@ -38,9 +38,16 @@ TOPIC_QUERIES = {
     "crypto": "cryptocurrency bitcoin blockchain",
     "space": "space exploration NASA SpaceX",
     "trade": "global trade supply chain tariffs",
+    "auto": "automotive electric vehicle EV Tesla",
+    "telecom": "telecom 5G wireless broadband",
+    "real-estate": "real estate housing market property",
+    "media": "media entertainment streaming industry",
+    "education": "education technology edtech university",
+    "legal": "regulation law antitrust compliance",
 }
 
 REGION_BOOST = {
+    "global": "",
     "us": "United States",
     "china": "China",
     "india": "India",
@@ -51,6 +58,9 @@ REGION_BOOST = {
     "latam": "Latin America Brazil",
     "africa": "Africa",
     "southeast-asia": "Southeast Asia",
+    "uk": "United Kingdom Britain",
+    "canada": "Canada",
+    "australia": "Australia",
 }
 
 _http = httpx.AsyncClient(

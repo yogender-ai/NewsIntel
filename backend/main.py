@@ -140,25 +140,51 @@ TOPIC_KEYWORDS = {
     "crypto": ["crypto", "bitcoin", "blockchain", "ethereum", "web3", "defi", "token"],
     "space": ["space", "nasa", "spacex", "satellite", "orbit", "rocket", "moon", "mars"],
     "trade": ["trade", "tariff", "supply chain", "shipping", "import", "export", "commerce"],
+    "auto": ["automotive", "ev", "electric vehicle", "tesla", "toyota", "car", "battery", "autonomous"],
+    "telecom": ["telecom", "5g", "broadband", "wireless", "spectrum", "network", "carrier"],
+    "real-estate": ["real estate", "housing", "mortgage", "property", "construction", "rent"],
+    "media": ["media", "entertainment", "streaming", "netflix", "disney", "film", "music", "content"],
+    "education": ["education", "edtech", "university", "school", "learning", "student"],
+    "legal": ["legal", "regulation", "law", "court", "antitrust", "compliance", "legislation", "ruling"],
 }
 
 REGION_KEYWORDS = {
+    "global": [],  # Global = no keyword filter, everything matches
     "us": ["united states", "america", "us", "washington", "biden", "trump", "federal reserve"],
     "china": ["china", "beijing", "chinese", "xi jinping", "ccp", "taiwan"],
     "india": ["india", "indian", "modi", "delhi", "mumbai", "rupee"],
-    "europe": ["europe", "eu", "european", "brussels", "germany", "france", "uk", "britain"],
+    "europe": ["europe", "eu", "european", "brussels", "germany", "france"],
     "middle-east": ["middle east", "iran", "israel", "saudi", "gaza", "yemen", "syria"],
     "russia": ["russia", "russian", "moscow", "putin", "ukraine", "kremlin"],
     "japan-korea": ["japan", "japanese", "korea", "korean", "tokyo", "samsung"],
     "latam": ["latin america", "brazil", "mexico", "argentina", "colombia"],
     "africa": ["africa", "african", "nigeria", "south africa", "kenya", "egypt"],
     "southeast-asia": ["southeast asia", "singapore", "vietnam", "indonesia", "philippines", "thailand"],
+    "uk": ["uk", "united kingdom", "britain", "british", "london", "england", "scotland"],
+    "canada": ["canada", "canadian", "toronto", "ottawa", "trudeau"],
+    "australia": ["australia", "australian", "sydney", "melbourne", "new zealand"],
 }
 
 
 def compute_exposure_score(cluster_text: str, user_topics: list, user_regions: list) -> int:
     if not user_topics and not user_regions:
         return 50
+    # If user selected "global" region, everything is relevant
+    if "global" in user_regions:
+        # Still compute topic relevance, but boost the baseline
+        text_lower = cluster_text.lower()
+        topic_hits = 0
+        topic_total = 0
+        for topic in user_topics:
+            keywords = TOPIC_KEYWORDS.get(topic, [topic])
+            topic_total += len(keywords)
+            for kw in keywords:
+                if kw in text_lower:
+                    topic_hits += 1
+        if topic_total == 0:
+            return 70
+        ratio = topic_hits / topic_total
+        return min(100, max(70, int(70 + (ratio ** 0.5) * 30)))
     text_lower = cluster_text.lower()
     hits = 0
     total_keywords = 0

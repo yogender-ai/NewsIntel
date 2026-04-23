@@ -244,16 +244,43 @@ export default function Dashboard() {
   return (
     <div className="dashboard-grid">
 
+      {/* ── Toast notification ─── */}
+      {toast && (
+        <div style={{
+          position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
+          background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',
+          borderRadius: 'var(--br-lg)', padding: '10px 24px', zIndex: 9999,
+          fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--accent)',
+          letterSpacing: 0.5, boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+          animation: 'fadeIn 0.3s var(--ease)',
+        }}>
+          {toast}
+        </div>
+      )}
+
       {/* ═══════ LEFT PANEL ═══════ */}
       <div className="left-panel" style={{ display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto', paddingBottom: 20 }}>
 
         <div className="panel fin" style={{ padding: 18 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <div className="label">COMMAND</div>
-            <button onClick={() => load(true)} disabled={loading} className="wire-btn">
-              {loading ? '⟳ SYNCING...' : '⟳ REFRESH'}
+            <button onClick={forceRefresh} disabled={refreshing || loading} className="wire-btn">
+              {refreshing ? '⟳ SYNCING...' : '⟳ REFRESH'}
             </button>
           </div>
+          {/* Freshness badge */}
+          {data && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+              <span className="mono" style={{ fontSize: 9, color: data?.is_stale ? 'var(--warn)' : 'var(--pos)', letterSpacing: 0.5 }}>
+                {data?.is_stale ? '⚠ STALE' : '● FRESH'} · Updated {freshLabel}
+              </span>
+              {data?.refresh_type && (
+                <span className="mono" style={{ fontSize: 8, color: 'var(--text-3)', letterSpacing: 0.5 }}>
+                  {data.refresh_type.toUpperCase()}
+                </span>
+              )}
+            </div>
+          )}
           {user && (
             <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
               {user.photoURL && <img src={user.photoURL} alt="" style={{ width: 32, height: 32, borderRadius: '50%', border: '2px solid var(--accent-border)' }} />}
