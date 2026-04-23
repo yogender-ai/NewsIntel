@@ -18,7 +18,7 @@ from contextlib import asynccontextmanager
 from typing import List, Optional
 from datetime import datetime, timezone, timedelta
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -431,20 +431,29 @@ async def _track_entities_bg(entities):
 # Background Scheduler
 # ---------------------------------------------------------------------------
 
-async def _get_user_topics_regions():
-    """Get user preferences or defaults."""
-    topics = ["tech", "ai", "markets"]
-    regions = []
+async def _get_broad_topics():
+    """Get a broad set of topics for the background scheduler.
+    Fetches across ALL popular categories so cache works for any user."""
+    return ["tech", "ai", "markets", "politics", "defense", "climate", "space", "trade"], []
+
+
+async def _get_user_prefs_from_header(request: Request):
+    """Extract user's Firebase UID from X-User-Id header and return their preferences."""
+    uid = request.headers.get("X-User-Id", "").strip()
+    if not uid:
+        return ["tech", "ai", "markets"], [], uid
+
     try:
-        prefs = await db.get_user_prefs("local_user_123")
+        prefs = await db.get_user_prefs(uid)
         if prefs:
-            db_cats = json.loads(prefs["preferred_categories"] or "[]")
-            db_regs = json.loads(prefs["preferred_regions"] or "[]")
-            if db_cats: topics = db_cats
-            if db_regs: regions = db_regs
+            topics = json.loads(prefs["preferred_categories"] or "[]")
+            regions = json.loads(prefs["preferred_regions"] or "[]")
+            if topics:
+                return topics, regions, uid
     except Exception as e:
-        logger.warning(f"Prefs lookup in scheduler: {e}")
-    return topics, regions
+        logger.warning(f"Prefs lookup for {uid}: {e}")
+
+    return ["tech", "ai", "markets"], [], uid
 
 
 async def _background_scheduler():

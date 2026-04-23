@@ -27,7 +27,13 @@ const SignalBadge = ({ tier }) => {
   const t = (tier || 'NOISE').toUpperCase();
   const cls = `tier-badge tier-${t.toLowerCase()}`;
   const labels = { CRITICAL: '● CRITICAL', SIGNAL: '◆ SIGNAL', WATCH: '○ WATCH', NOISE: '· NOISE' };
-  return <span className={cls}>{labels[t] || t}</span>;
+  const tips = {
+    CRITICAL: 'High urgency — multiple sources, strong sentiment, directly relevant to your interests',
+    SIGNAL: 'Notable story — worth paying attention to, moderate urgency',
+    WATCH: 'Developing story — not urgent yet, being monitored for changes',
+    NOISE: 'Low priority — limited sources or weak relevance to your interests',
+  };
+  return <span className={cls} title={tips[t] || ''}>{labels[t] || t}</span>;
 };
 
 /* ── Exposure Ring (SVG Gauge) ───────────────── */
@@ -52,7 +58,7 @@ const ExposureGauge = ({ score }) => {
         <div className="exposure-ring-number">{score}</div>
       </div>
       <div className="exposure-info">
-        <div className="exposure-title">RELEVANCE TO YOU</div>
+        <div className="exposure-title" title="How closely today's top stories match your selected topics and regions">RELEVANCE TO YOU</div>
         <div className="exposure-desc">{desc}</div>
       </div>
     </div>
@@ -341,9 +347,9 @@ export default function Dashboard() {
       {/* ═══════ CENTER FEED ═══════ */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto', paddingBottom: 20 }}>
 
-        {/* ▬▬▬ DAILY DELTA TAPE ▬▬▬ — the first thing users see */}
+        {/* Daily Delta — shows how your tracked topics changed today */}
         {delta.length > 0 && (
-          <div className="delta-tape fin">
+          <div className="delta-tape fin" title="Daily Delta — how your tracked topics shifted in the last 24 hours">
             {delta.map((d, i) => (
               <div key={i} className={`delta-cell ${d.delta > 0 ? 'delta-up-cell' : d.delta < 0 ? 'delta-down-cell' : 'delta-flat-cell'}`}>
                 <span className="delta-cell-topic">{d.label}</span>
@@ -390,9 +396,9 @@ export default function Dashboard() {
           </div>
           {/* Signal Legend */}
           <div className="signal-legend">
-            <div className="signal-legend-item"><span className="signal-legend-dot critical" /> Critical</div>
-            <div className="signal-legend-item"><span className="signal-legend-dot signal" /> Signal</div>
-            <div className="signal-legend-item"><span className="signal-legend-dot watch" /> Watch</div>
+            <div className="signal-legend-item" title="High urgency — requires immediate attention"><span className="signal-legend-dot critical" /> Critical</div>
+            <div className="signal-legend-item" title="Notable — worth watching closely"><span className="signal-legend-dot signal" /> Signal</div>
+            <div className="signal-legend-item" title="Developing — not urgent, being monitored"><span className="signal-legend-dot watch" /> Watch</div>
           </div>
         </div>
 
@@ -420,10 +426,10 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="signal-card-meta">
-              <span className="badge pulse">⚡ {cluster.pulse_score}</span>
-              <span className="badge sources">{cluster.source_count} sources</span>
-              {cluster.risk_type === 'risk' && <span className="badge neg" style={{ fontSize: 8 }}>⚠ Risk</span>}
-              {cluster.risk_type === 'opportunity' && <span className="badge pos" style={{ fontSize: 8 }}>▲ Opportunity</span>}
+              <span className="badge pulse" title="Pulse Score — urgency level from 0-100 based on volume, sentiment, and source diversity">⚡ {cluster.pulse_score}</span>
+              <span className="badge sources" title="Number of independent news sources reporting on this story">{cluster.source_count} sources</span>
+              {cluster.risk_type === 'risk' && <span className="badge neg" style={{ fontSize: 8 }} title="This story signals a potential risk to your tracked interests">⚠ Risk</span>}
+              {cluster.risk_type === 'opportunity' && <span className="badge pos" style={{ fontSize: 8 }} title="This story signals a potential opportunity in your tracked areas">▲ Opportunity</span>}
             </div>
           </div>
         )) : !loading ? (

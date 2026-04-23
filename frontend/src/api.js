@@ -1,9 +1,19 @@
+import { auth } from './firebase';
+
 const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+
+function getHeaders() {
+  const headers = { 'Content-Type': 'application/json' };
+  // Attach Firebase UID so backend can personalize per user
+  const uid = auth.currentUser?.uid;
+  if (uid) headers['X-User-Id'] = uid;
+  return headers;
+}
 
 async function request(path, options = {}) {
   const url = `${API_BASE}${path}`;
   const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json' },
+    headers: getHeaders(),
     ...options,
   });
   if (!res.ok) {
@@ -14,7 +24,7 @@ async function request(path, options = {}) {
 }
 
 export const api = {
-  // GET: Serve cached intelligence INSTANTLY (stale-while-revalidate)
+  // GET: Serve cached intelligence, personalized per user via X-User-Id header
   getCachedDashboard: () =>
     request('/api/dashboard', { method: 'GET' }),
 
