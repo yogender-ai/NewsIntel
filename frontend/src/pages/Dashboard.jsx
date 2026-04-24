@@ -1,6 +1,31 @@
-import React, { useCallback, useContext, useEffect, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Banknote, Bell, Bookmark, Building2, CircleDot, Cpu, Globe2, LineChart, Plus, ShieldAlert, TrendingUp, User, X } from 'lucide-react';
+import {
+  ArrowDown,
+  ArrowRight,
+  ArrowUp,
+  Banknote,
+  Bell,
+  Bookmark,
+  Building2,
+  Check,
+  ChevronRight,
+  CircleDot,
+  Cpu,
+  Eye,
+  Gauge,
+  GitBranch,
+  Globe2,
+  Info,
+  LineChart,
+  Minus,
+  ShieldAlert,
+  Sparkles,
+  Target,
+  TrendingUp,
+  User,
+  X,
+} from 'lucide-react';
 import { api } from '../api';
 import { AppContext } from '../App';
 import { useAuth } from '../context/AuthContext';
@@ -33,14 +58,38 @@ const THEME_VARIANTS = {
 };
 
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const clamp = (value, min = 0, max = 100) => Math.max(min, Math.min(max, Number(value) || 0));
 
 function signalId(cluster) {
   return cluster?.signal_id || cluster?.thread_id || (cluster?.thread_title || cluster?.summary || 'signal').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 80);
 }
 
-function words(text, max = 10) {
+function words(text, max = 12) {
   const parts = String(text || '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
   return parts.length > max ? `${parts.slice(0, max).join(' ')}...` : parts.join(' ');
+}
+
+function timeAgo(value) {
+  const date = value ? new Date(value) : new Date();
+  const seconds = Math.max(1, Math.round((Date.now() - date.getTime()) / 1000));
+  if (!Number.isFinite(seconds)) return 'just now';
+  if (seconds < 60) return `${seconds}s ago`;
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+  const hours = Math.round(minutes / 60);
+  return `${hours}h ago`;
+}
+
+function readJson(key, fallback) {
+  try {
+    return JSON.parse(localStorage.getItem(key) || JSON.stringify(fallback));
+  } catch {
+    return fallback;
+  }
+}
+
+function writeJson(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
 }
 
 function getOpenThemeVariant(category) {
@@ -49,222 +98,424 @@ function getOpenThemeVariant(category) {
   return variants[spin % variants.length];
 }
 
-function metricCopy(type) {
+function calculatePulseBreakdown(cluster, interactionBoost = 0) {
+  const velocity = clamp((cluster.source_count || cluster.article_ids?.length || 1) * 18 + Math.abs(cluster.delta?.value || 0) * 2);
+  const sourceStrength = clamp(((cluster.source_diversity || 0.45) * 70) + Math.min(cluster.source_count || 1, 5) * 6);
+  const sentiment = clamp((cluster.sentiment_intensity || 0.35) * 100);
+  const entityRelevance = clamp((cluster.entities?.length || 0) * 18 + (cluster.matched_preferences?.length || 0) * 16);
+  const userRelevance = clamp(cluster.relevance_score || cluster.exposure_score || 50);
+  const weighted = Math.round(
+    velocity * 0.3 +
+    sourceStrength * 0.25 +
+    sentiment * 0.2 +
+    entityRelevance * 0.15 +
+    userRelevance * 0.1 +
+    interactionBoost
+  );
+
   return {
-    delta: ['Daily Delta', 'Movement versus the previous 24h baseline. Positive means rising, zero means stable, negative means cooling.'],
-    pulse: ['Pulse Score', 'Signal intensity from source velocity, sentiment, entity movement, and personal relevance.'],
-    exposure: ['Exposure Score', 'How strongly this signal connects to your topics, regions, entities, and past actions.'],
-  }[type] || ['Metric', 'A compact signal measure.'];
+    score: clamp(cluster.pulse_score || weighted),
+    parts: [
+      ['Velocity', velocity, '30%'],
+      ['Source strength', sourceStrength, '25%'],
+      ['Sentiment intensity', sentiment, '20%'],
+      ['Entity relevance', entityRelevance, '15%'],
+      ['User relevance', userRelevance, '10%'],
+    ],
+  };
 }
 
-function MetricPopover({ type, onClose }) {
-  if (!type) return null;
-  const [title, body] = metricCopy(type);
-  return (
-    <div className="metric-popover">
-      <button onClick={onClose}>Close</button>
-      <b>{title}</b>
-      <p>{body}</p>
-    </div>
-  );
+function calculateExposureBreakdown(cluster) {
+  const factors = cluster.why_relevant?.factors || [];
+  const topic = factors.find(f => f.type === 'topic')?.points || (cluster.matched_preferences?.length ? 25 : 8);
+  const entity = factors.find(f => f.type === 'entity')?.points || Math.min((cluster.entities?.length || 0) * 8, 24);
+  const region = factors.find(f => f.type === 'region')?.points || 0;
+  const memory = factors.find(f => ['watchlist', 'saved', 'interaction'].includes(f.type))?.points || 0;
+  return {
+    score: clamp(cluster.relevance_score || cluster.exposure_score || topic + entity + region + memory),
+    parts: [
+      ['Topic overlap', topic],
+      ['Tracked entities', entity],
+      ['Region overlap', region],
+      ['Past interactions', memory],
+    ],
+  };
 }
 
-function ExposureRing({ value, onInfo }) {
-  const pct = Math.max(0, Math.min(100, Number(value) || 0));
-  return (
-    <div className="simple-exposure">
-      <span className="rail-title">Your Exposure</span>
-      <button className="simple-ring" onClick={() => onInfo('exposure')} style={{ background: `conic-gradient(var(--accent) ${pct * 3.6}deg, rgba(255,255,255,0.08) 0deg)` }}>
-        <span>{Math.round(pct)}</span>
-      </button>
-      <div>
-        <span>High</span>
-        <button onClick={() => onInfo('exposure')}>i</button>
-      </div>
-    </div>
-  );
-}
-
-function DeltaPill({ delta, onInfo }) {
-  if (!delta?.has_baseline) {
-    return <button className="delta-pill neutral" onClick={() => onInfo('delta')}>Establishing baseline</button>;
+function buildDelta(cluster, backendDelta, previousPulseMap) {
+  const id = signalId(cluster);
+  const current = Math.round(cluster.pulse_score || 50);
+  const previous = backendDelta?.has_baseline ? Math.round(backendDelta.previous) : previousPulseMap[id];
+  if (typeof previous !== 'number') {
+    return { value: null, label: 'Tracking baseline', tone: 'neutral', current, previous: null };
   }
-  const value = Number(delta.delta || 0);
-  const label = value > 0 ? `▲ +${value} Rising` : value < 0 ? `▼ ${value} Cooling` : '— 0 Stable';
-  return <button className={`delta-pill ${value > 0 ? 'up' : value < 0 ? 'down' : 'neutral'}`} onClick={() => onInfo('delta')}>{label}</button>;
+  const value = current - previous;
+  const direction = value > 0 ? 'Momentum Rising' : value < 0 ? 'Cooling' : 'Stable';
+  return { value, label: `${value > 0 ? '+' : ''}${value} ${direction}`, tone: value > 0 ? 'up' : value < 0 ? 'down' : 'neutral', current, previous };
 }
 
-function CausalChain({ cluster }) {
-  const graphNodes = cluster?.story_graph?.nodes?.map(n => n.label).slice(0, 4);
-  const fallback = [
-    words(cluster?.thread_title, 5) || 'Event',
-    words(cluster?.impact_line || cluster?.summary, 6) || 'Market impact',
-    cluster?.risk_type === 'risk' ? 'Risk pressure rises' : cluster?.risk_type === 'opportunity' ? 'Opportunity opens' : 'Signal shifts',
-    `Profile exposure ${cluster?.exposure_score >= 70 ? 'rises' : 'changes'}`,
-  ];
-  const nodes = graphNodes?.length >= 4 ? graphNodes : fallback;
-  const labels = ['Event', 'Market Impact', 'Risk Shift', 'Profile Exposure'];
-  const icons = [Cpu, Building2, TrendingUp, User];
+function normalizeSignal(cluster, dashboard, localState) {
+  const id = signalId(cluster);
+  const matched = cluster?.matched_preferences?.[0]?.id;
+  const backendDelta = dashboard?.daily_delta?.find(d => d.topic === matched) || null;
+  const pulse = calculatePulseBreakdown(cluster, localState.engagement[id] || 0);
+  const exposure = calculateExposureBreakdown(cluster);
+  const delta = buildDelta({ ...cluster, pulse_score: pulse.score }, backendDelta, localState.previousPulse);
+  const riskLevel = cluster.risk_type === 'risk' ? 'High' : cluster.risk_type === 'opportunity' ? 'Low' : 'Medium';
+  const opportunityLevel = cluster.risk_type === 'opportunity' ? 'High' : exposure.score >= 70 ? 'Medium' : 'Low';
+  const confidence = Math.round(clamp((cluster.confidence || 0.65) * 100));
+  const saved = localState.saved.has(id) || dashboard?.saved_signal_ids?.includes(id);
+  const tracked = localState.tracked.has(id) || dashboard?.watched_signal_ids?.includes(id);
+  const dismissed = localState.dismissed.has(id) || cluster.dismissed;
+  const rank = pulse.score + exposure.score + (saved ? 18 : 0) + (tracked ? 24 : 0) + (localState.engagement[id] || 0) - (dismissed ? 999 : 0);
+
+  return {
+    ...cluster,
+    id,
+    thread_id: id,
+    pulse,
+    exposure,
+    delta,
+    riskLevel,
+    opportunityLevel,
+    confidence,
+    saved,
+    tracked,
+    dismissed,
+    rank,
+    updatedAgo: timeAgo(cluster.updated_at || dashboard?.generated_at),
+    whyLine: cluster.impact_line || cluster.why_it_matters || cluster.summary || 'Signal impact is forming.',
+  };
+}
+
+function MetricDrawer({ metric, signal, onClose }) {
+  if (!metric || !signal) return null;
+  const config = {
+    delta: {
+      title: 'Daily Delta',
+      body: 'Movement versus the previous pulse snapshot for this signal or matched topic.',
+      why: 'Delta tells you whether the story is gaining urgency or cooling down.',
+      parts: [
+        ['Current pulse', signal.delta.current],
+        ['Previous pulse', signal.delta.previous ?? 'Baseline forming'],
+        ['Delta', signal.delta.value === null ? 'Tracking' : `${signal.delta.value > 0 ? '+' : ''}${signal.delta.value}`],
+      ],
+    },
+    pulse: {
+      title: 'Pulse Score',
+      body: 'Weighted intensity score from velocity, source strength, sentiment, entities, and user relevance.',
+      why: 'Pulse helps rank what deserves attention first.',
+      parts: signal.pulse.parts.map(([label, value, weight]) => [label, `${Math.round(value)} (${weight})`]),
+    },
+    exposure: {
+      title: 'Exposure Score',
+      body: 'How strongly this signal connects to your topics, tracked entities, regions, and past actions.',
+      why: 'Exposure keeps the feed personal instead of generic.',
+      parts: signal.exposure.parts.map(([label, value]) => [label, `+${Math.round(value)}`]),
+    },
+    risk: {
+      title: 'Risk',
+      body: `Current risk level is ${signal.riskLevel}. It uses risk type, sentiment intensity, source velocity, and story language.`,
+      why: 'Risk explains what could go wrong if this signal keeps moving.',
+      parts: [['Risk level', signal.riskLevel], ['Sentiment intensity', `${Math.round((signal.sentiment_intensity || 0.35) * 100)}%`]],
+    },
+    opportunity: {
+      title: 'Opportunity',
+      body: `Current opportunity level is ${signal.opportunityLevel}. It rises when relevance is high and risk pressure is controlled.`,
+      why: 'Opportunity shows what may be worth tracking or acting on.',
+      parts: [['Opportunity level', signal.opportunityLevel], ['Exposure', `${Math.round(signal.exposure.score)}/100`]],
+    },
+    confidence: {
+      title: 'Signal Confidence',
+      body: 'Confidence is based on source agreement, source count, entity certainty, and graph completeness.',
+      why: 'Confidence tells you how much trust to place in the signal.',
+      parts: [['Confidence', `${signal.confidence}%`], ['Sources', signal.source_count || 1], ['Graph nodes', signal.story_graph?.nodes?.length || 4]],
+    },
+  }[metric];
+
   return (
-    <div className="simple-chain">
-      {nodes.map((node, i) => (
-        <React.Fragment key={`${node}-${i}`}>
-          <div className="chain-node">
-            {React.createElement(icons[i] || LineChart, { size: 25 })}
-            <span>{labels[i]}</span>
-            <b>{words(node, 8)}</b>
-          </div>
-          {i < nodes.length - 1 && <div className="chain-arrow"><ArrowRight size={18} /></div>}
-        </React.Fragment>
-      ))}
-    </div>
+    <aside className="metric-drawer">
+      <button className="drawer-x" onClick={onClose}><X size={17} /></button>
+      <span className="metric-eyebrow">Explain</span>
+      <h2>{config.title}</h2>
+      <p>{config.body}</p>
+      <div className="explain-rows">
+        {config.parts.map(([label, value]) => (
+          <span key={label}><b>{label}</b><strong>{value}</strong></span>
+        ))}
+      </div>
+      <h3>Why it matters</h3>
+      <p>{config.why}</p>
+    </aside>
   );
 }
 
-function SignalIcon({ tier }) {
-  const normalized = String(tier || '').toLowerCase();
-  if (normalized.includes('watch')) return <Banknote size={34} />;
-  if (normalized.includes('signal')) return <Globe2 size={34} />;
-  return <Cpu size={34} />;
+function ExposureRail({ score, topics, entities, alertsCount, sourcesCount, onExplain }) {
+  const pct = clamp(score || 50);
+  return (
+    <aside className="simple-left-rail">
+      <div className="simple-exposure">
+        <span className="rail-title">Your Exposure</span>
+        <button className="simple-ring" onClick={() => onExplain('exposure')} style={{ background: `conic-gradient(var(--accent) ${pct * 3.6}deg, #ece8f7 0deg)` }}>
+          <span>{Math.round(pct)}</span>
+        </button>
+        <div><span>{pct >= 75 ? 'High' : pct >= 45 ? 'Medium' : 'Low'}</span><button onClick={() => onExplain('exposure')}><Info size={13} /></button></div>
+      </div>
+
+      <div className="simple-profile">
+        {topics.length ? topics.slice(0, 5).map(item => <span key={item}>{item}</span>) : <em>Pick interests to personalize.</em>}
+      </div>
+
+      <div className="entity-move-card">
+        <span>Tracked entities</span>
+        <strong>{entities.length || 0}</strong>
+        {entities.length ? entities.slice(0, 3).map(entity => <small key={entity.entity_name || entity.name}>{entity.entity_name || entity.name}</small>) : <small>Track companies or topics to personalize.</small>}
+      </div>
+
+      <div className="entity-move-card">
+        <span>Alerts</span>
+        <strong>{alertsCount || 0}</strong>
+        <small>{alertsCount ? 'New items need review.' : `Nothing urgent. Monitoring ${sourcesCount || 0} sources.`}</small>
+      </div>
+
+      <div className="stay-ahead">
+        <Bell size={20} />
+        <h3>Stay ahead.</h3>
+        <p>Signals adjust when you save, track, dismiss, and open stories.</p>
+      </div>
+    </aside>
+  );
 }
 
-function MiniSparkline({ tone = 'critical' }) {
-  const points = tone === 'watch'
-    ? '0,44 16,30 30,35 45,20 60,28 76,12 92,24 110,8 132,18 150,2'
-    : tone === 'signal'
-      ? '0,38 14,29 28,34 45,25 62,29 76,20 93,25 108,16 126,21 142,4 150,0'
-      : '0,42 14,35 29,38 44,29 58,31 74,22 89,16 104,26 120,12 135,18 150,4';
+function SignalIcon({ signal }) {
+  const text = `${signal.thread_title} ${signal.summary}`.toLowerCase();
+  if (text.match(/chip|semiconductor|ai|software|tech/)) return <Cpu size={33} />;
+  if (text.match(/bank|rate|market|stock|econom/)) return <Banknote size={33} />;
+  if (text.match(/geopolitic|war|policy|china|nato/)) return <Globe2 size={33} />;
+  if (signal.risk_type === 'risk') return <ShieldAlert size={33} />;
+  return <LineChart size={33} />;
+}
+
+function MiniSparkline({ signal }) {
+  const base = signal.pulse_trend?.length ? signal.pulse_trend.slice(-10) : [
+    signal.delta.previous ?? signal.pulse.score - 6,
+    signal.pulse.score - 4,
+    signal.pulse.score - 9,
+    signal.pulse.score - 1,
+    signal.pulse.score + 3,
+    signal.pulse.score - 2,
+    signal.pulse.score + 5,
+    signal.pulse.score,
+    signal.pulse.score + (signal.delta.value || 4),
+  ];
+  const max = Math.max(...base, 100);
+  const min = Math.min(...base, 0);
+  const points = base.map((v, i) => {
+    const x = Math.round((i / Math.max(base.length - 1, 1)) * 150);
+    const y = Math.round(48 - ((v - min) / Math.max(max - min, 1)) * 42);
+    return `${x},${y}`;
+  }).join(' ');
   return (
-    <svg className="signal-spark" viewBox="0 0 150 52" role="img" aria-label="Signal movement">
-      <defs>
-        <linearGradient id={`spark-fill-${tone}`} x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="currentColor" stopOpacity="0.24" />
-          <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <polygon points={`0,52 ${points} 150,52`} fill={`url(#spark-fill-${tone})`} />
+    <svg className="signal-spark" viewBox="0 0 150 52" role="img" aria-label="Trend sparkline">
+      <polygon points={`0,52 ${points} 150,52`} />
       <polyline points={points} />
     </svg>
   );
 }
 
-function SignalCard({ cluster, delta, selected, saved, onOpen, onSave, onInfo }) {
-  const tier = cluster.signal_tier || 'SIGNAL';
-  const pulse = Math.round(cluster.pulse_score || 50);
-  const risk = cluster.risk_type === 'risk' ? 'High' : cluster.risk_type === 'opportunity' ? 'Low' : 'Medium';
-  const opportunity = cluster.risk_type === 'opportunity' ? 'High' : cluster.exposure_score >= 70 ? 'Medium' : 'Low';
-  const tone = tier.toLowerCase().includes('critical') ? 'critical' : tier.toLowerCase().includes('watch') ? 'watch' : 'signal';
+function DeltaPill({ signal, onExplain }) {
+  const Icon = signal.delta.value > 0 ? ArrowUp : signal.delta.value < 0 ? ArrowDown : Minus;
+  return (
+    <button className={`delta-pill ${signal.delta.tone}`} onClick={() => onExplain('delta')}>
+      <Icon size={14} /> {signal.delta.label} <Info size={12} />
+    </button>
+  );
+}
 
+function ScoreButton({ type, label, value, onExplain }) {
+  return (
+    <button className="score-button" onClick={() => onExplain(type)}>
+      <span>{label}<Info size={11} /></span>
+      <strong>{Math.round(value)}</strong>
+    </button>
+  );
+}
+
+function SignalCard({ signal, selected, onAction, onExplain }) {
+  const tone = signal.signal_tier?.toLowerCase() || 'signal';
   return (
     <article className={`simple-signal-card ${selected ? 'selected' : ''} tone-${tone}`}>
       <div className="simple-card-top">
-        <span className={`tier-badge tier-${tier.toLowerCase()}`}>{tier}</span>
+        <span className={`tier-badge tier-${tone}`}>{signal.signal_tier || 'SIGNAL'}</span>
+        <span className="updated-time">{signal.updatedAgo}</span>
       </div>
       <div className="signal-card-grid">
-        <div className="signal-icon"><SignalIcon tier={tier} /></div>
+        <div className="signal-icon"><SignalIcon signal={signal} /></div>
         <div className="signal-copy">
-          <h2>{cluster.thread_title}</h2>
-          <p>{words(cluster.impact_line || cluster.summary || cluster.why_it_matters, 12)}</p>
+          <h2>{words(signal.thread_title, 8)}</h2>
+          <p>{words(signal.whyLine, 14)}</p>
           <div className="risk-row">
-            <span>Risk: {risk}</span>
-            <span>Opportunity: {opportunity}</span>
+            <button onClick={() => onExplain('risk')}>Risk: {signal.riskLevel}<Info size={11} /></button>
+            <button onClick={() => onExplain('opportunity')}>Opportunity: {signal.opportunityLevel}<Info size={11} /></button>
           </div>
         </div>
         <div className="signal-score">
-          <button onClick={() => onInfo('pulse')}>Pulse Score</button>
-          <strong>{pulse}</strong>
-          <DeltaPill delta={delta} onInfo={onInfo} />
+          <ScoreButton type="pulse" label="Pulse" value={signal.pulse.score} onExplain={onExplain} />
+          <ScoreButton type="exposure" label="Exposure" value={signal.exposure.score} onExplain={onExplain} />
         </div>
-        <MiniSparkline tone={tone} />
+        <MiniSparkline signal={signal} />
       </div>
       <div className="simple-actions">
-        <button className="btn btn-primary" onClick={() => onOpen(cluster)}>Open Signal</button>
-        <button className="save-icon" onClick={() => onSave(cluster)} title={saved ? 'Saved' : 'Save'}><Bookmark size={17} fill={saved ? 'currentColor' : 'none'} /></button>
+        <button className="btn btn-primary" onClick={() => onAction('open', signal)}><Eye size={15} /> Open Signal</button>
+        <button className={signal.tracked ? 'active-action' : ''} onClick={() => onAction('track', signal)}><Target size={15} /> {signal.tracked ? 'Tracked' : 'Track'}</button>
+        <button className={signal.saved ? 'active-action' : ''} onClick={() => onAction('save', signal)}><Bookmark size={15} /> {signal.saved ? 'Saved' : 'Save'}</button>
+        <button onClick={() => onAction('explain', signal)}><Info size={15} /> Explain</button>
+        <button onClick={() => onAction('graph', signal)}><GitBranch size={15} /> Graph</button>
+        <button onClick={() => onAction('dismiss', signal)}><X size={15} /> Dismiss</button>
       </div>
     </article>
   );
 }
 
-function DetailPanel({ cluster, onAction, onDeepDive }) {
-  if (!cluster) {
+function StoryFlow({ signal }) {
+  const graphNodes = signal.story_graph?.nodes?.slice(0, 4).map(n => n.label);
+  const nodes = graphNodes?.length >= 4 ? graphNodes : [
+    signal.thread_title,
+    signal.entities?.[0]?.name ? `${signal.entities[0].name} moves` : 'Market impact forms',
+    signal.risk_type === 'risk' ? 'Risk pressure rises' : signal.risk_type === 'opportunity' ? 'Opportunity opens' : words(signal.whyLine, 7),
+    `Your exposure ${signal.exposure.score >= 65 ? 'rises' : 'changes'} (${Math.round(signal.exposure.score)})`,
+  ];
+  const labels = ['Event', 'Market Impact', 'Risk Shift', 'User Exposure'];
+  const icons = [Cpu, Building2, TrendingUp, User];
+  return (
+    <div className="story-flow">
+      {nodes.map((node, i) => {
+        const Icon = icons[i] || CircleDot;
+        return (
+          <React.Fragment key={`${node}-${i}`}>
+            <div className="flow-node">
+              <Icon size={25} />
+              <span>{labels[i]}</span>
+              <b>{words(node, 7)}</b>
+            </div>
+            {i < nodes.length - 1 && <ArrowRight className="flow-arrow" size={18} />}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+function DetailPanel({ signal, tab, setTab, onAction, onExplain }) {
+  if (!signal) {
     return (
       <aside className="simple-context empty">
-        <div className="label">SIGNAL CONTEXT</div>
-        <h2>Select a signal</h2>
-        <p>Open a signal to see why it matters, causal flow, risk, opportunity, and the next action.</p>
+        <Sparkles size={24} />
+        <h2>No major shifts detected.</h2>
+        <p>Signals will appear here as soon as the feed finds meaningful movement.</p>
       </aside>
     );
   }
 
-  const why = cluster.why_relevant?.factors || [];
-  const risks = cluster.risk_type === 'risk'
-    ? [words(cluster.summary || cluster.impact_line, 12)]
-    : ['No dominant risk spike detected.'];
-  const opportunities = cluster.risk_type === 'opportunity'
-    ? [words(cluster.impact_line || cluster.summary, 12)]
-    : [cluster.exposure_score >= 70 ? 'High relevance creates monitoring value.' : 'Watch for confirmation.'];
-  const suggested = cluster.signal_tier === 'CRITICAL' ? 'Review now and keep on watchlist.' : 'Save and monitor next movement.';
+  const tabs = ['Overview', 'Story Graph', 'Risks', 'Opportunities', 'Action'];
+  const why = signal.why_relevant?.factors?.length
+    ? signal.why_relevant.factors
+    : signal.exposure.parts.map(([label, points]) => ({ label, points }));
 
   return (
     <aside className="simple-context">
-      <button className="context-close" title="Close"><X size={17} /></button>
-      <div className={`tier-badge tier-${String(cluster.signal_tier || 'signal').toLowerCase()}`}>{cluster.signal_tier || 'SIGNAL'}</div>
-      <h2>{cluster.thread_title}</h2>
+      <div className="detail-head">
+        <span className={`tier-badge tier-${String(signal.signal_tier || 'signal').toLowerCase()}`}>{signal.signal_tier || 'SIGNAL'}</span>
+        <span>{signal.updatedAgo}</span>
+      </div>
+      <h2>{signal.thread_title}</h2>
       <div className="context-tabs">
-        <button className="active">Overview</button>
-        <button>Story Graph</button>
-        <button>Risks</button>
-        <button>Opportunities</button>
-        <button>Action</button>
+        {tabs.map(item => <button key={item} className={tab === item ? 'active' : ''} onClick={() => setTab(item)}>{item}</button>)}
       </div>
 
-      <section>
-        <h3>Summary</h3>
-        <p>{words(cluster.summary || cluster.impact_line, 20)}</p>
-      </section>
+      {tab === 'Overview' && (
+        <>
+          <section>
+            <h3>Summary</h3>
+            <p>{words(signal.summary || signal.whyLine, 30)}</p>
+          </section>
+          <section>
+            <h3>Why Relevant To You</h3>
+            <div className="reason-list">
+              {why.slice(0, 4).map(item => <span key={item.label}>{item.label} <b>+{Math.round(item.points || 0)}</b></span>)}
+            </div>
+          </section>
+          <section className="score-grid">
+            <ScoreButton type="pulse" label="Pulse" value={signal.pulse.score} onExplain={onExplain} />
+            <ScoreButton type="exposure" label="Exposure" value={signal.exposure.score} onExplain={onExplain} />
+            <button className="score-button" onClick={() => onExplain('confidence')}><span>Confidence<Info size={11} /></span><strong>{signal.confidence}%</strong></button>
+          </section>
+        </>
+      )}
 
-      <section>
-        <h3>Story Graph</h3>
-        <CausalChain cluster={cluster} />
-      </section>
+      {tab === 'Story Graph' && (
+        <section>
+          <h3>Story Flow</h3>
+          <StoryFlow signal={signal} />
+        </section>
+      )}
 
-      <section>
-        <h3>Why Relevant To You</h3>
-        <div className="reason-list">
-          {(why.length ? why : [{ label: 'Matches your active intelligence profile', points: Math.round(cluster.exposure_score || 50) }]).slice(0, 4).map(item => (
-            <span key={item.label}>{item.label} <b>+{item.points}</b></span>
-          ))}
-        </div>
-      </section>
-
-      <section className="split-context">
-        <div className="why-tile opportunity">
-          <h3><TrendingUp size={16} /> Opportunity</h3>
-          {opportunities.map(item => <p key={item}>{item}</p>)}
-        </div>
-        <div className="why-tile risk">
+      {tab === 'Risks' && (
+        <section className="why-tile risk">
           <h3><ShieldAlert size={16} /> Risk</h3>
-          {risks.map(item => <p key={item}>{item}</p>)}
-        </div>
-      </section>
+          <p>{signal.risk_type === 'risk' ? words(signal.summary || signal.whyLine, 26) : 'No dominant risk spike detected yet.'}</p>
+          <button onClick={() => onExplain('risk')}>How calculated <Info size={13} /></button>
+        </section>
+      )}
 
-      <section>
-        <h3>Suggested Action</h3>
-        <p>{suggested}</p>
-      </section>
+      {tab === 'Opportunities' && (
+        <section className="why-tile opportunity">
+          <h3><TrendingUp size={16} /> Opportunity</h3>
+          <p>{signal.risk_type === 'opportunity' ? words(signal.whyLine, 26) : signal.exposure.score >= 70 ? 'High relevance creates monitoring value.' : 'Watch for stronger confirmation before acting.'}</p>
+          <button onClick={() => onExplain('opportunity')}>How calculated <Info size={13} /></button>
+        </section>
+      )}
 
-      <div className="detail-actions">
-        <button className="primary-action" onClick={() => onAction('watch', cluster)}>Track This Topic</button>
-        <button className="icon-action" onClick={() => onAction('dismiss', cluster)} title="Dismiss topic"><Plus size={18} /></button>
-        <button onClick={() => onDeepDive(cluster)}>Deep Analysis</button>
-      </div>
+      {tab === 'Action' && (
+        <section>
+          <h3>Suggested Action</h3>
+          <p>{signal.signal_tier === 'CRITICAL' ? 'Track this topic and monitor source updates closely.' : 'Save and monitor the next movement.'}</p>
+          <div className="detail-actions">
+            <button className="primary-action" onClick={() => onAction('track', signal)}>{signal.tracked ? <Check size={16} /> : <Target size={16} />} {signal.tracked ? 'Tracked' : 'Track This Topic'}</button>
+            <button onClick={() => onAction('save', signal)}><Bookmark size={16} /> {signal.saved ? 'Saved' : 'Save'}</button>
+            <button onClick={() => onAction('dismiss', signal)}><X size={16} /> Dismiss</button>
+          </div>
+        </section>
+      )}
 
       <section>
         <h3>Relevance to you</h3>
-        <div className="relevance-meter"><span style={{ width: `${Math.min(100, Math.round(cluster.exposure_score || 50))}%` }} /></div>
-        <b className="relevance-score">{Math.round(cluster.exposure_score || 50)}/100</b>
+        <div className="relevance-meter"><span style={{ width: `${signal.exposure.score}%` }} /></div>
+        <b className="relevance-score">{Math.round(signal.exposure.score)}/100</b>
       </section>
     </aside>
+  );
+}
+
+function EmptySignals({ sourcesCount }) {
+  return (
+    <div className="empty-state">
+      <Sparkles size={26} />
+      <h2>No major shifts detected.</h2>
+      <p>{sourcesCount ? `Monitoring ${sourcesCount} sources. New signals will appear when movement crosses your threshold.` : 'Connect interests and tracked entities to begin signal monitoring.'}</p>
+    </div>
+  );
+}
+
+function OnboardingHint() {
+  return (
+    <div className="walkthrough-strip">
+      <span><b>1</b> Pick interests</span>
+      <ChevronRight size={15} />
+      <span><b>2</b> Track entities</span>
+      <ChevronRight size={15} />
+      <span><b>3</b> Read top signals</span>
+    </div>
   );
 }
 
@@ -281,18 +532,23 @@ export default function Dashboard() {
   const { user } = useAuth();
   const { setHeadlines, mode } = useContext(AppContext);
   const navigate = useNavigate();
-  const [data, setData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [data, setData] = useState(() => readJson('ni_cached_dashboard', null));
+  const [loading, setLoading] = useState(!readJson('ni_cached_dashboard', null));
   const [checkingPrefs, setCheckingPrefs] = useState(true);
   const [selectedId, setSelectedId] = useState(null);
-  const [savedIds, setSavedIds] = useState(new Set());
+  const [savedIds, setSavedIds] = useState(() => new Set(readJson('ni_saved_signals', [])));
+  const [trackedIds, setTrackedIds] = useState(() => new Set(readJson('ni_tracked_signals', [])));
+  const [dismissedIds, setDismissedIds] = useState(() => new Set(readJson('ni_dismissed_signals', [])));
+  const [engagement, setEngagement] = useState(() => readJson('ni_signal_engagement', {}));
+  const [previousPulse] = useState(() => readJson('ni_previous_pulse', {}));
   const [toast, setToast] = useState(null);
   const [metricInfo, setMetricInfo] = useState(null);
+  const [detailTab, setDetailTab] = useState('Overview');
   const [error, setError] = useState(null);
 
   const showToast = useCallback((msg) => {
     setToast(msg);
-    setTimeout(() => setToast(null), 2600);
+    setTimeout(() => setToast(null), 2400);
   }, []);
 
   const applyTheme = useCallback((res) => {
@@ -308,19 +564,20 @@ export default function Dashboard() {
   }, [mode]);
 
   const loadDashboard = useCallback(async () => {
-    setLoading(true);
     setError(null);
     try {
-      const [res] = await Promise.all([api.getPersonalizedDashboard(), sleep(900)]);
+      const [res] = await Promise.all([api.getPersonalizedDashboard(), sleep(250)]);
       setData(res);
-      setSavedIds(new Set(res.saved_signal_ids || []));
-      setSelectedId(prev => prev || signalId(res.clusters?.[0]));
+      writeJson('ni_cached_dashboard', res);
+      setSavedIds(prev => new Set([...prev, ...(res.saved_signal_ids || [])]));
+      setTrackedIds(prev => new Set([...prev, ...(res.watched_signal_ids || [])]));
       if (res.clusters?.length) setHeadlines(res.clusters.slice(0, 3).map(c => c.thread_title));
       applyTheme(res);
     } catch (err) {
       setError(err.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [applyTheme, setHeadlines]);
 
   useEffect(() => {
@@ -333,95 +590,134 @@ export default function Dashboard() {
           return;
         }
       } catch {
-        // Dashboard load will display API errors.
+        // Dashboard load will show API errors or cached data.
       }
       setCheckingPrefs(false);
     })();
   }, [navigate, user]);
 
   useEffect(() => {
-    if (!checkingPrefs) loadDashboard();
+    if (checkingPrefs) return undefined;
+    const timer = setTimeout(() => loadDashboard(), 0);
+    return () => clearTimeout(timer);
   }, [checkingPrefs, loadDashboard]);
 
-  const clusters = data?.clusters || [];
-  const topSignals = clusters.slice(0, 3);
-  const selectedSignal = topSignals.find(c => signalId(c) === selectedId) || topSignals[0];
-  const activeTopics = data?.topics_used || [];
-  const activeRegions = data?.regions_used || [];
-  const entityMoves = (data?.tracked_entities || []).filter(entity =>
-    (data?.articles || []).some(article => (article.entities || []).some(e => e.name === entity.entity_name))
-  );
+  const localState = useMemo(() => ({
+    saved: savedIds,
+    tracked: trackedIds,
+    dismissed: dismissedIds,
+    engagement,
+    previousPulse,
+  }), [savedIds, trackedIds, dismissedIds, engagement, previousPulse]);
 
-  const deltaFor = (cluster) => {
-    const matched = cluster?.matched_preferences?.[0]?.id;
-    return data?.daily_delta?.find(d => d.topic === matched) || data?.daily_delta?.[0];
+  const signals = useMemo(() => {
+    return (data?.clusters || [])
+      .map(cluster => normalizeSignal(cluster, data, localState))
+      .filter(signal => !signal.dismissed)
+      .sort((a, b) => b.rank - a.rank);
+  }, [data, localState]);
+
+  const selectedSignal = signals.find(signal => signal.id === selectedId) || signals[0] || null;
+
+  useEffect(() => {
+    if (!signals.length) return;
+    const snapshot = { ...previousPulse };
+    signals.forEach(signal => { snapshot[signal.id] = Math.round(signal.pulse.score); });
+    writeJson('ni_previous_pulse', snapshot);
+    // Run only when fresh data changes, not after every local interaction.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.generated_at]);
+
+  const persistLocalSet = (key, setter, updater) => {
+    setter(prev => {
+      const next = updater(new Set(prev));
+      writeJson(key, [...next]);
+      return next;
+    });
   };
 
-  const persistAction = async (type, cluster) => {
-    const id = signalId(cluster);
-    try {
-      if (type === 'open') await api.recordInteraction(id, 'open');
-      if (type === 'save') {
-        await api.saveThread(id);
-        setSavedIds(prev => new Set([...prev, id]));
-      }
-      if (type === 'watch') await api.watchSignal(id, 1);
-      if (type === 'dismiss') await api.dismissSignal(id, 'not_relevant');
-      showToast(type === 'save' ? 'Signal saved' : type === 'dismiss' ? 'Signal dismissed' : 'Updated');
-    } catch (err) {
-      console.warn('Signal action failed', err);
-      showToast('Action saved locally');
+  const bumpEngagement = (id, amount) => {
+    setEngagement(prev => {
+      const next = { ...prev, [id]: (prev[id] || 0) + amount };
+      writeJson('ni_signal_engagement', next);
+      return next;
+    });
+  };
+
+  const handleAction = async (type, signal) => {
+    const id = signal.id;
+    if (type === 'open') {
+      setSelectedId(id);
+      setDetailTab('Overview');
+      bumpEngagement(id, 4);
+      api.recordInteraction(id, 'open').catch(() => {});
+      showToast('Signal opened');
+      return;
+    }
+    if (type === 'graph') {
+      setSelectedId(id);
+      setDetailTab('Story Graph');
+      bumpEngagement(id, 3);
+      api.recordInteraction(id, 'graph').catch(() => {});
+      showToast('Story flow opened');
+      return;
+    }
+    if (type === 'explain') {
+      setSelectedId(id);
+      setMetricInfo('pulse');
+      api.recordInteraction(id, 'explain').catch(() => {});
+      return;
+    }
+    if (type === 'save') {
+      persistLocalSet('ni_saved_signals', setSavedIds, next => (next.add(id), next));
+      bumpEngagement(id, 3);
+      api.saveThread(id).catch(() => {});
+      api.recordInteraction(id, 'save').catch(() => {});
+      showToast('Signal saved and ranking boosted');
+      return;
+    }
+    if (type === 'track') {
+      persistLocalSet('ni_tracked_signals', setTrackedIds, next => (next.add(id), next));
+      bumpEngagement(id, 5);
+      const entity = signal.entities?.[0]?.name;
+      api.watchSignal(id, 1).catch(() => {});
+      if (entity) api.trackEntity(entity, 'ORG', 1).catch(() => {});
+      api.recordInteraction(id, 'watch').catch(() => {});
+      showToast(entity ? `${entity} tracked` : 'Topic tracked');
+      return;
+    }
+    if (type === 'dismiss') {
+      persistLocalSet('ni_dismissed_signals', setDismissedIds, next => (next.add(id), next));
+      api.dismissSignal(id, 'not_relevant').catch(() => {});
+      api.recordInteraction(id, 'dismiss').catch(() => {});
+      showToast('Signal dismissed and ranking reduced');
     }
   };
 
-  const openSignal = async (cluster) => {
-    setSelectedId(signalId(cluster));
-    await persistAction('open', cluster);
-  };
-
-  const openDeepDive = (cluster) => {
-    persistAction('open', cluster);
-    navigate('/story', {
-      state: {
-        article: {
-          title: cluster.thread_title,
-          text: cluster.summary,
-          text_preview: cluster.summary,
-          source: 'Intelligence Synthesis',
-          exposure_score: cluster.exposure_score,
-        },
-      },
-    });
+  const explain = (type) => {
+    if (!selectedSignal) return;
+    setMetricInfo(type);
   };
 
   if (checkingPrefs || loading) return <Loader />;
 
+  const topics = [...(data?.topics_used || []).map(t => TOPIC_LABELS[t] || t), ...(data?.regions_used || [])];
+  const trackedEntities = data?.tracked_entities || [];
+  const alertCount = (data?.alerts || []).length;
+
   return (
     <div className="simple-dashboard">
       {toast && <div className="phase5-toast">{toast}</div>}
-      <MetricPopover type={metricInfo} onClose={() => setMetricInfo(null)} />
+      <MetricDrawer metric={metricInfo} signal={selectedSignal} onClose={() => setMetricInfo(null)} />
 
-      <aside className="simple-left-rail">
-        <ExposureRing value={data?.exposure_score || 50} onInfo={setMetricInfo} />
-        <div className="simple-profile">
-          {[...activeTopics.map(t => TOPIC_LABELS[t] || t), ...activeRegions].slice(0, 8).map(item => (
-            <span key={item}>{item}</span>
-          ))}
-        </div>
-        <button className="edit-profile" onClick={() => navigate('/settings')}>Edit Profile</button>
-        <div className="entity-move-card">
-          <span>Entities moved today</span>
-          <strong>+{entityMoves.length || 6}</strong>
-          <MiniSparkline tone="watch" />
-          <button>View all <ArrowRight size={14} /></button>
-        </div>
-        <div className="stay-ahead">
-          <Bell size={20} />
-          <h3>Stay ahead.</h3>
-          <p>We surface what matters, before it trends.</p>
-          <button>How it works</button>
-        </div>
-      </aside>
+      <ExposureRail
+        score={data?.exposure_score || selectedSignal?.exposure.score || 50}
+        topics={topics}
+        entities={trackedEntities}
+        alertsCount={alertCount}
+        sourcesCount={data?.sources_count}
+        onExplain={explain}
+      />
 
       <main className="simple-feed">
         <header className="simple-feed-header">
@@ -429,8 +725,10 @@ export default function Dashboard() {
             <h1>What matters right now</h1>
             <p>Top signals based on your profile and real-time intelligence</p>
           </div>
-          <button className="updated-pill"><CircleDot size={9} /> Updated 2m ago</button>
+          <button className="updated-pill"><CircleDot size={9} /> Updated {timeAgo(data?.generated_at)}</button>
         </header>
+
+        {!topics.length && <OnboardingHint />}
 
         {error && (
           <div className="panel phase5-error">
@@ -441,35 +739,37 @@ export default function Dashboard() {
         )}
 
         <section className="simple-signal-list">
-          {topSignals.map(cluster => (
+          {signals.length ? signals.slice(0, 8).map(signal => (
             <SignalCard
-              key={signalId(cluster)}
-              cluster={cluster}
-              delta={deltaFor(cluster)}
-              selected={signalId(cluster) === signalId(selectedSignal)}
-              saved={savedIds.has(signalId(cluster))}
-              onOpen={openSignal}
-              onSave={(c) => persistAction('save', c)}
-              onInfo={setMetricInfo}
+              key={signal.id}
+              signal={signal}
+              selected={signal.id === selectedSignal?.id}
+              onAction={handleAction}
+              onExplain={(type) => {
+                setSelectedId(signal.id);
+                setMetricInfo(type);
+              }}
             />
-          ))}
+          )) : <EmptySignals sourcesCount={data?.sources_count} />}
         </section>
 
         <section className="why-strip">
-          <h3>Why these matter to you</h3>
+          <h3>What changed since last visit</h3>
           <div>
-            <span><CircleDot size={18} /> <b>Topic Match</b> Tech focus +25</span>
-            <span><Building2 size={18} /> <b>Entity Match</b> Nvidia, TSMC +20</span>
-            <span><Globe2 size={18} /> <b>Region Overlap</b> Global exposure +15</span>
-            <span><LineChart size={18} /> <b>Recent Engagement</b> Similar stories +10</span>
+            <span><Gauge size={18} /> <b>{signals.filter(s => s.signal_tier === 'CRITICAL').length} critical</b> active now</span>
+            <span><Target size={18} /> <b>{trackedIds.size} tracked</b> boosted in ranking</span>
+            <span><Bookmark size={18} /> <b>{savedIds.size} saved</b> remembered</span>
+            <span><X size={18} /> <b>{dismissedIds.size} dismissed</b> suppressed</span>
           </div>
         </section>
       </main>
 
       <DetailPanel
-        cluster={selectedSignal}
-        onAction={persistAction}
-        onDeepDive={openDeepDive}
+        signal={selectedSignal}
+        tab={detailTab}
+        setTab={setDetailTab}
+        onAction={handleAction}
+        onExplain={explain}
       />
     </div>
   );
