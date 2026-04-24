@@ -1,5 +1,6 @@
 import React, { useState, useEffect, createContext } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, NavLink } from 'react-router-dom';
+import { Bell, Building2, ChevronsUpDown, CircleDot, Settings as SettingsIcon, SlidersHorizontal, Sun, User, Zap } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Dashboard from './pages/Dashboard';
 import Onboarding from './pages/Onboarding';
@@ -54,7 +55,6 @@ const Protected = ({ children }) => {
 /* ── Top Bar ───────────────────────────────────────────────────────── */
 const TopBar = () => {
   const { user, logout } = useAuth();
-  const { mode, setMode } = React.useContext(AppContext);
   const [time, setTime] = useState('');
 
   useEffect(() => {
@@ -66,41 +66,31 @@ const TopBar = () => {
 
   return (
     <div className="top-bar">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-        <div style={{ fontSize: 17, fontWeight: 900, letterSpacing: '-0.5px' }}>
+      <div className="brand-mark">
+        <div>
           NEWS<span style={{ color: 'var(--accent)' }}>INTEL</span>
-        </div>
-        
-        {/* Mode Toggle */}
-        <div className="mode-toggle" style={{ marginLeft: 16 }}>
-          <button className={`mode-btn ${mode === 'calm' ? 'active' : ''}`} onClick={() => setMode('calm')}>CALM</button>
-          <button className={`mode-btn ${mode === 'command' ? 'active' : ''}`} onClick={() => setMode('command')}>COMMAND</button>
         </div>
       </div>
 
       <div className="nav-links">
-        <NavLink to="/dashboard" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>SIGNALS</NavLink>
-        <span className="nav-link" style={{opacity: 0.4, cursor: 'not-allowed'}}>MOVERS</span>
-        <span className="nav-link" style={{opacity: 0.4, cursor: 'not-allowed'}}>WATCHLIST</span>
-        <span className="nav-link" style={{opacity: 0.4, cursor: 'not-allowed'}}>ALERTS</span>
-        <NavLink to="/settings" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>SETTINGS</NavLink>
+        <NavLink to="/dashboard" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}><Zap size={16} />Signals</NavLink>
+        <span className="nav-link muted"><ChevronsUpDown size={16} />Movers</span>
+        <span className="nav-link muted"><Building2 size={16} />Watchlist</span>
+        <span className="nav-link muted"><Bell size={16} />Alerts <b>3</b></span>
+        <NavLink to="/settings" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}><SettingsIcon size={16} />Settings</NavLink>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-        <span className="mono" style={{ fontSize: 11, color: 'var(--text-2)' }}>
-          <span style={{ color: 'var(--accent)', fontWeight: 700 }}>UTC</span> {time}
+      <div className="top-actions">
+        <Sun size={17} />
+        <span className="clock-readout">
+          {time.slice(0, 5)} UTC <CircleDot size={8} />
         </span>
         {user && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, borderLeft: '1px solid var(--accent-border)', paddingLeft: 16 }}>
-            {user.photoURL && <img src={user.photoURL} alt="" style={{ width: 22, height: 22, borderRadius: '50%', border: '1px solid var(--accent-border)' }} />}
-            <div>
-              <div className="mono" style={{ fontSize: 9, fontWeight: 700, color: 'var(--text-1)' }}>{user.displayName?.toUpperCase()}</div>
-              <button onClick={logout} style={{
-                background: 'none', border: 'none', color: 'var(--text-3)', fontSize: 8,
-                fontFamily: 'var(--mono)', cursor: 'pointer', padding: 0,
-              }}>LOGOUT</button>
-            </div>
-          </div>
+          <button className="user-pill" onClick={logout} title="Logout">
+            {user.photoURL ? <img src={user.photoURL} alt="" /> : <User size={18} />}
+            <span>{user.displayName?.split(' ')[0] || 'User'}</span>
+            <SlidersHorizontal size={13} />
+          </button>
         )}
       </div>
     </div>

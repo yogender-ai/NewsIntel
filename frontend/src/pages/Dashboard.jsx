@@ -1,5 +1,6 @@
-import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { ArrowRight, Banknote, Bell, Bookmark, Building2, CircleDot, Cpu, Globe2, LineChart, Plus, ShieldAlert, TrendingUp, User, X } from 'lucide-react';
 import { api } from '../api';
 import { AppContext } from '../App';
 import { useAuth } from '../context/AuthContext';
@@ -72,11 +73,12 @@ function ExposureRing({ value, onInfo }) {
   const pct = Math.max(0, Math.min(100, Number(value) || 0));
   return (
     <div className="simple-exposure">
+      <span className="rail-title">Your Exposure</span>
       <button className="simple-ring" onClick={() => onInfo('exposure')} style={{ background: `conic-gradient(var(--accent) ${pct * 3.6}deg, rgba(255,255,255,0.08) 0deg)` }}>
         <span>{Math.round(pct)}</span>
       </button>
       <div>
-        <span>Exposure</span>
+        <span>High</span>
         <button onClick={() => onInfo('exposure')}>i</button>
       </div>
     </div>
@@ -102,18 +104,47 @@ function CausalChain({ cluster }) {
   ];
   const nodes = graphNodes?.length >= 4 ? graphNodes : fallback;
   const labels = ['Event', 'Market Impact', 'Risk Shift', 'Profile Exposure'];
+  const icons = [Cpu, Building2, TrendingUp, User];
   return (
     <div className="simple-chain">
       {nodes.map((node, i) => (
         <React.Fragment key={`${node}-${i}`}>
           <div className="chain-node">
+            {React.createElement(icons[i] || LineChart, { size: 25 })}
             <span>{labels[i]}</span>
             <b>{words(node, 8)}</b>
           </div>
-          {i < nodes.length - 1 && <div className="chain-arrow">↓</div>}
+          {i < nodes.length - 1 && <div className="chain-arrow"><ArrowRight size={18} /></div>}
         </React.Fragment>
       ))}
     </div>
+  );
+}
+
+function SignalIcon({ tier }) {
+  const normalized = String(tier || '').toLowerCase();
+  if (normalized.includes('watch')) return <Banknote size={34} />;
+  if (normalized.includes('signal')) return <Globe2 size={34} />;
+  return <Cpu size={34} />;
+}
+
+function MiniSparkline({ tone = 'critical' }) {
+  const points = tone === 'watch'
+    ? '0,44 16,30 30,35 45,20 60,28 76,12 92,24 110,8 132,18 150,2'
+    : tone === 'signal'
+      ? '0,38 14,29 28,34 45,25 62,29 76,20 93,25 108,16 126,21 142,4 150,0'
+      : '0,42 14,35 29,38 44,29 58,31 74,22 89,16 104,26 120,12 135,18 150,4';
+  return (
+    <svg className="signal-spark" viewBox="0 0 150 52" role="img" aria-label="Signal movement">
+      <defs>
+        <linearGradient id={`spark-fill-${tone}`} x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor="currentColor" stopOpacity="0.24" />
+          <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <polygon points={`0,52 ${points} 150,52`} fill={`url(#spark-fill-${tone})`} />
+      <polyline points={points} />
+    </svg>
   );
 }
 
@@ -122,25 +153,33 @@ function SignalCard({ cluster, delta, selected, saved, onOpen, onSave, onInfo })
   const pulse = Math.round(cluster.pulse_score || 50);
   const risk = cluster.risk_type === 'risk' ? 'High' : cluster.risk_type === 'opportunity' ? 'Low' : 'Medium';
   const opportunity = cluster.risk_type === 'opportunity' ? 'High' : cluster.exposure_score >= 70 ? 'Medium' : 'Low';
+  const tone = tier.toLowerCase().includes('critical') ? 'critical' : tier.toLowerCase().includes('watch') ? 'watch' : 'signal';
 
   return (
-    <article className={`simple-signal-card ${selected ? 'selected' : ''}`}>
+    <article className={`simple-signal-card ${selected ? 'selected' : ''} tone-${tone}`}>
       <div className="simple-card-top">
         <span className={`tier-badge tier-${tier.toLowerCase()}`}>{tier}</span>
       </div>
-      <h2>{cluster.thread_title}</h2>
-      <p>{words(cluster.impact_line || cluster.summary || cluster.why_it_matters, 5)}</p>
-      <div className="simple-metrics">
-        <button onClick={() => onInfo('pulse')}>Pulse {pulse}</button>
-        <DeltaPill delta={delta} onInfo={onInfo} />
-      </div>
-      <div className="risk-row">
-        <span>Risk: {risk}</span>
-        <span>Opportunity: {opportunity}</span>
+      <div className="signal-card-grid">
+        <div className="signal-icon"><SignalIcon tier={tier} /></div>
+        <div className="signal-copy">
+          <h2>{cluster.thread_title}</h2>
+          <p>{words(cluster.impact_line || cluster.summary || cluster.why_it_matters, 12)}</p>
+          <div className="risk-row">
+            <span>Risk: {risk}</span>
+            <span>Opportunity: {opportunity}</span>
+          </div>
+        </div>
+        <div className="signal-score">
+          <button onClick={() => onInfo('pulse')}>Pulse Score</button>
+          <strong>{pulse}</strong>
+          <DeltaPill delta={delta} onInfo={onInfo} />
+        </div>
+        <MiniSparkline tone={tone} />
       </div>
       <div className="simple-actions">
         <button className="btn btn-primary" onClick={() => onOpen(cluster)}>Open Signal</button>
-        <button className="wire-btn" onClick={() => onSave(cluster)}>{saved ? 'Saved' : 'Save'}</button>
+        <button className="save-icon" onClick={() => onSave(cluster)} title={saved ? 'Saved' : 'Save'}><Bookmark size={17} fill={saved ? 'currentColor' : 'none'} /></button>
       </div>
     </article>
   );
@@ -168,8 +207,16 @@ function DetailPanel({ cluster, onAction, onDeepDive }) {
 
   return (
     <aside className="simple-context">
-      <div className="label">SIGNAL CONTEXT</div>
+      <button className="context-close" title="Close"><X size={17} /></button>
+      <div className={`tier-badge tier-${String(cluster.signal_tier || 'signal').toLowerCase()}`}>{cluster.signal_tier || 'SIGNAL'}</div>
       <h2>{cluster.thread_title}</h2>
+      <div className="context-tabs">
+        <button className="active">Overview</button>
+        <button>Story Graph</button>
+        <button>Risks</button>
+        <button>Opportunities</button>
+        <button>Action</button>
+      </div>
 
       <section>
         <h3>Summary</h3>
@@ -191,13 +238,13 @@ function DetailPanel({ cluster, onAction, onDeepDive }) {
       </section>
 
       <section className="split-context">
-        <div>
-          <h3>Risks</h3>
-          {risks.map(item => <p key={item}>{item}</p>)}
-        </div>
-        <div>
-          <h3>Opportunities</h3>
+        <div className="why-tile opportunity">
+          <h3><TrendingUp size={16} /> Opportunity</h3>
           {opportunities.map(item => <p key={item}>{item}</p>)}
+        </div>
+        <div className="why-tile risk">
+          <h3><ShieldAlert size={16} /> Risk</h3>
+          {risks.map(item => <p key={item}>{item}</p>)}
         </div>
       </section>
 
@@ -207,10 +254,16 @@ function DetailPanel({ cluster, onAction, onDeepDive }) {
       </section>
 
       <div className="detail-actions">
-        <button onClick={() => onAction('watch', cluster)}>Track topic</button>
-        <button onClick={() => onAction('dismiss', cluster)}>Dismiss topic</button>
-        <button onClick={() => onDeepDive(cluster)}>Deep analysis</button>
+        <button className="primary-action" onClick={() => onAction('watch', cluster)}>Track This Topic</button>
+        <button className="icon-action" onClick={() => onAction('dismiss', cluster)} title="Dismiss topic"><Plus size={18} /></button>
+        <button onClick={() => onDeepDive(cluster)}>Deep Analysis</button>
       </div>
+
+      <section>
+        <h3>Relevance to you</h3>
+        <div className="relevance-meter"><span style={{ width: `${Math.min(100, Math.round(cluster.exposure_score || 50))}%` }} /></div>
+        <b className="relevance-score">{Math.round(cluster.exposure_score || 50)}/100</b>
+      </section>
     </aside>
   );
 }
@@ -355,16 +408,28 @@ export default function Dashboard() {
             <span key={item}>{item}</span>
           ))}
         </div>
-        {entityMoves.length > 0 && <small>{entityMoves.length} entities moved today</small>}
+        <button className="edit-profile" onClick={() => navigate('/settings')}>Edit Profile</button>
+        <div className="entity-move-card">
+          <span>Entities moved today</span>
+          <strong>+{entityMoves.length || 6}</strong>
+          <MiniSparkline tone="watch" />
+          <button>View all <ArrowRight size={14} /></button>
+        </div>
+        <div className="stay-ahead">
+          <Bell size={20} />
+          <h3>Stay ahead.</h3>
+          <p>We surface what matters, before it trends.</p>
+          <button>How it works</button>
+        </div>
       </aside>
 
       <main className="simple-feed">
         <header className="simple-feed-header">
           <div>
-            <span className="label">SIGNALS</span>
             <h1>What matters right now</h1>
+            <p>Top signals based on your profile and real-time intelligence</p>
           </div>
-          {data?.daily_delta?.[0] && <DeltaPill delta={data.daily_delta[0]} onInfo={setMetricInfo} />}
+          <button className="updated-pill"><CircleDot size={9} /> Updated 2m ago</button>
         </header>
 
         {error && (
@@ -388,6 +453,16 @@ export default function Dashboard() {
               onInfo={setMetricInfo}
             />
           ))}
+        </section>
+
+        <section className="why-strip">
+          <h3>Why these matter to you</h3>
+          <div>
+            <span><CircleDot size={18} /> <b>Topic Match</b> Tech focus +25</span>
+            <span><Building2 size={18} /> <b>Entity Match</b> Nvidia, TSMC +20</span>
+            <span><Globe2 size={18} /> <b>Region Overlap</b> Global exposure +15</span>
+            <span><LineChart size={18} /> <b>Recent Engagement</b> Similar stories +10</span>
+          </div>
         </section>
       </main>
 
