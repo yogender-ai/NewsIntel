@@ -10,6 +10,7 @@ export default function Settings() {
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showMethodology, setShowMethodology] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -90,6 +91,35 @@ export default function Settings() {
             <button className="btn btn-primary" style={{ marginTop: 12, width: '100%' }} onClick={() => navigate('/onboarding')}>
               Set Up Your Feed →
             </button>
+          </div>
+        )}
+      </div>
+
+      <div className="panel fin" style={{ padding: 24, marginBottom: 16 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+          <div>
+            <div className="label" style={{ marginBottom: 8 }}>HOW SCORES WORK</div>
+            <p style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.6 }}>
+              Transparent methodology for Delta, Pulse, Exposure, and Signal Tiers.
+            </p>
+          </div>
+          <button className="wire-btn" onClick={() => setShowMethodology(v => !v)}>
+            {showMethodology ? 'HIDE' : 'OPEN'}
+          </button>
+        </div>
+        {showMethodology && (
+          <div style={{ display: 'grid', gap: 10, marginTop: 16 }}>
+            {[
+              ['Daily Delta', 'Current Pulse minus the previous 24h baseline. Shows topic movement once enough history exists.'],
+              ['Pulse Score', '0-100 intensity score using velocity, source count, sentiment, entity impact, and user relevance.'],
+              ['Exposure Score', 'How much a signal may affect you based on topics, entities, regions, and interaction history.'],
+              ['Signal Tier', 'Critical, Signal, Watch, and Noise thresholds turn scores into action priority.'],
+            ].map(([title, body]) => (
+              <div key={title} style={{ padding: 12, borderRadius: 'var(--br)', background: 'rgba(255,255,255,0.035)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-0)', marginBottom: 4 }}>{title}</div>
+                <div style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.55 }}>{body}</div>
+              </div>
+            ))}
           </div>
         )}
       </div>

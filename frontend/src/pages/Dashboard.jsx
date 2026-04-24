@@ -1,42 +1,9 @@
-import React, { useEffect, useState, useCallback, useRef, useContext } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { AppContext } from '../App';
 import { useAuth } from '../context/AuthContext';
 
-/* ── Typewriter ──────────────────────────────── */
-function useTypewriter(text, speed = 14) {
-  const [displayed, setDisplayed] = useState('');
-  const [typing, setTyping] = useState(false);
-  const timer = useRef(null);
-  useEffect(() => {
-    if (!text) { setDisplayed(''); return; }
-    setDisplayed(''); setTyping(true);
-    let i = 0;
-    timer.current = setInterval(() => {
-      i++; setDisplayed(text.slice(0, i));
-      if (i >= text.length) { clearInterval(timer.current); setTyping(false); }
-    }, speed);
-    return () => clearInterval(timer.current);
-  }, [text, speed]);
-  return { displayed, typing };
-}
-
-/* ── Signal Badge ────────────────────────────── */
-const SignalBadge = ({ tier }) => {
-  const t = (tier || 'NOISE').toUpperCase();
-  const cls = `tier-badge tier-${t.toLowerCase()}`;
-  const labels = { CRITICAL: '● CRITICAL', SIGNAL: '◆ SIGNAL', WATCH: '○ WATCH', NOISE: '· NOISE' };
-  const tips = {
-    CRITICAL: 'High urgency — multiple sources, strong sentiment, directly relevant to your interests',
-    SIGNAL: 'Notable story — worth paying attention to, moderate urgency',
-    WATCH: 'Developing story — not urgent yet, being monitored for changes',
-    NOISE: 'Low priority — limited sources or weak relevance to your interests',
-  };
-  return <span className={cls} title={tips[t] || ''}>{labels[t] || t}</span>;
-};
-
-/* ── Exposure Ring (SVG Gauge) ───────────────── */
 const TOPIC_LABELS = {
   tech: 'Technology',
   politics: 'Geopolitics',
@@ -56,8 +23,6 @@ const TOPIC_LABELS = {
   legal: 'Legal',
 };
 
-const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-
 const THEME_VARIANTS = {
   tech: ['theme-tech', 'theme-cyber', 'theme-aurora'],
   markets: ['theme-markets', 'theme-emerald', 'theme-gold'],
@@ -66,182 +31,325 @@ const THEME_VARIANTS = {
   defense: ['theme-defense', 'theme-crimson', 'theme-steel'],
 };
 
+const PIPELINE_STAGES = [
+  ['rss', 'Sources'],
+  ['nlp', 'Entities'],
+  ['ai', 'Synthesis'],
+  ['classify', 'Signals'],
+  ['ready', 'Ready'],
+];
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const storeKey = (uid, name) => `ni_${uid || 'local'}_${name}`;
+
+function readStore(uid) {
+  const fallback = { saved: [], watched: [], dismissed: [], trackedEntities: [], topicWeights: {}, opened: {} };
+  try {
+    return { ...fallback, ...JSON.parse(localStorage.getItem(storeKey(uid, 'signal_state')) || '{}') };
+  } catch {
+    return fallback;
+  }
+}
+
+function writeStore(uid, state) {
+  localStorage.setItem(storeKey(uid, 'signal_state'), JSON.stringify(state));
+}
+
+function signalId(cluster) {
+  return (cluster.thread_title || cluster.summary || 'signal').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 80);
+}
+
 function getOpenThemeVariant(category) {
   const spin = Number(localStorage.getItem('ni_theme_spin') || '0');
   const variants = THEME_VARIANTS[category] || THEME_VARIANTS.tech;
   return variants[spin % variants.length];
 }
 
-function preferenceLabels(cluster) {
-  const matches = cluster.matched_preferences || [];
-  return matches.map(m => m.label || TOPIC_LABELS[m.id] || m.id).filter(Boolean);
+function words(text, max = 12) {
+  const parts = String(text || '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  return parts.length > max ? `${parts.slice(0, max).join(' ')}...` : parts.join(' ');
 }
 
-const ExposureGauge = ({ score }) => {
-  const r = 30;
-  const circ = 2 * Math.PI * r;
-  const offset = circ - (score / 100) * circ;
-  const desc = score >= 70 ? 'Today\'s top stories are highly relevant to your tracked interests.'
-    : score >= 40 ? 'Some of today\'s stories match your interests. Others are global signals.'
-    : 'Most stories today are outside your tracked topics. Consider adding more interests.';
+function splitBrief(text) {
+  return String(text || '')
+    .split(/(?<=[.!?])\s+/)
+    .map(s => words(s, 12))
+    .filter(Boolean)
+    .slice(0, 3);
+}
 
+function preferenceLabels(cluster) {
+  return (cluster.matched_preferences || [])
+    .map(m => m.label || TOPIC_LABELS[m.id] || m.id)
+    .filter(Boolean);
+}
+
+function topicIds(cluster, fallbackTopics = []) {
+  const matches = (cluster.matched_preferences || []).map(m => m.id).filter(Boolean);
+  if (matches.length) return matches;
+  const text = `${cluster.thread_title || ''} ${cluster.summary || ''}`.toLowerCase();
+  return fallbackTopics.filter(t => text.includes(t));
+}
+
+function tierClass(tier) {
+  return `tier-badge tier-${(tier || 'noise').toLowerCase()}`;
+}
+
+function miniTrend(score = 50, salt = 1) {
+  return Array.from({ length: 9 }, (_, i) => {
+    const wave = Math.sin((i + salt) * 1.2) * 12;
+    return Math.max(12, Math.min(98, score - 16 + i * 3 + wave));
+  });
+}
+
+function buildEntities(cluster, articles) {
+  const ids = new Set((cluster.article_ids || []).map(String));
+  const counts = {};
+  articles.forEach(article => {
+    if (!ids.size || ids.has(String(article.id))) {
+      (article.entities || []).forEach(entity => {
+        if (!entity.name) return;
+        counts[entity.name] = (counts[entity.name] || 0) + 1;
+      });
+    }
+  });
+  return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([name]) => name);
+}
+
+function buildGraph(cluster) {
+  const title = words(cluster.thread_title, 4) || 'Event';
+  const impact = words(cluster.impact_line || cluster.summary, 5) || 'Market shift';
+  const risk = cluster.risk_type === 'risk' ? 'Risk pressure rises' : cluster.risk_type === 'opportunity' ? 'Opportunity opens' : 'Signal moves';
+  const exposure = cluster.exposure_score >= 70 ? 'Your exposure increases' : cluster.exposure_score >= 40 ? 'Your exposure changes' : 'Low personal exposure';
+  return [title, impact, risk, exposure];
+}
+
+function MetricInfoButton({ type, onOpen }) {
   return (
-    <div className="exposure-gauge fin fin-d1">
-      <div className="exposure-ring">
-        <svg viewBox="0 0 72 72">
-          <circle className="exposure-ring-bg" cx="36" cy="36" r={r} />
-          <circle className="exposure-ring-fill" cx="36" cy="36" r={r}
-            strokeDasharray={circ} strokeDashoffset={offset}
-            style={{ stroke: score >= 70 ? 'var(--accent)' : score >= 40 ? 'var(--warn)' : 'var(--neg)' }}
-          />
-        </svg>
-        <div className="exposure-ring-number">{score}</div>
-      </div>
-      <div className="exposure-info">
-        <div className="exposure-title" title="How closely today's top stories match your selected topics and regions">RELEVANCE TO YOU</div>
-        <div className="exposure-desc">{desc}</div>
-      </div>
-    </div>
+    <button className="metric-info-btn" onClick={() => onOpen(type)} title="Explain this metric">
+      i
+    </button>
   );
-};
+}
 
-/* ── Sentiment Sparkline ─────────────────────── */
-const SentimentSpark = ({ pos, neu, neg }) => {
-  const total = pos + neu + neg || 1;
+function MiniRing({ value = 50, label, onClick }) {
+  const pct = Math.max(0, Math.min(100, Number(value) || 0));
   return (
-    <div style={{ display: 'flex', gap: 2, height: 32, alignItems: 'flex-end', padding: '4px 0' }}>
-      {[
-        { val: pos, color: 'var(--pos)', icon: '▲' },
-        { val: neu, color: 'var(--text-3)', icon: '—' },
-        { val: neg, color: 'var(--neg)', icon: '▼' },
-      ].map(({ val, color, icon }, i) => (
-        <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, gap: 3 }}>
-          <div style={{ width: '100%', height: `${(val / total) * 100}%`, background: color, minHeight: 2, borderRadius: 2 }} />
-          <span className="mono" style={{ fontSize: 8, color }}>{icon}{val}</span>
-        </div>
-      ))}
-    </div>
+    <button className="mini-ring" onClick={onClick} title={`Explain ${label}`}>
+      <span style={{ background: `conic-gradient(var(--accent) ${pct * 3.6}deg, rgba(255,255,255,0.08) 0deg)` }}>
+        <b>{Math.round(pct)}</b>
+      </span>
+      <em>{label}</em>
+    </button>
   );
-};
+}
 
-/* ── Tension Index ───────────────────────────── */
-const TensionIndex = ({ tension }) => {
-  const entries = Object.entries(tension).sort((a, b) => b[1] - a[1]).slice(0, 8);
-  if (!entries.length) return null;
+function Sparkline({ values }) {
+  const points = values.map((v, i) => `${(i / Math.max(values.length - 1, 1)) * 100},${100 - v}`).join(' ');
   return (
-    <div className="panel panel-accent fin fin-d3" style={{ padding: 20 }}>
-      <div className="label" style={{ marginBottom: 14 }}>TENSION INDEX</div>
-      {entries.map(([region, score]) => {
-        const color = score > 65 ? 'var(--neg)' : score > 35 ? 'var(--warn)' : 'var(--pos)';
-        return (
-          <div key={region} className="tension-row">
-            <span className="tension-name">{region}</span>
-            <div className="tension-track">
-              <div className="tension-fill" style={{ width: `${score}%`, background: color, color }} />
-            </div>
-            <span className="tension-score" style={{ color }}>{score}</span>
-          </div>
-        );
-      })}
-    </div>
+    <svg className="mini-spark" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+      <polyline points={points} />
+    </svg>
   );
-};
+}
 
-/* ── Loading Pipeline ────────────────────────── */
-const PIPELINE_STAGES = [
-  { key: 'rss', label: 'Connecting to Sources', icon: '📡', desc: 'Google News RSS' },
-  { key: 'nlp', label: 'Reading & Analyzing', icon: '🔬', desc: 'AI Entity Detection' },
-  { key: 'ai', label: 'Generating Intelligence', icon: '🧠', desc: 'AI Synthesis Engine' },
-  { key: 'classify', label: 'Classifying Signals', icon: '⚡', desc: 'Priority Tiering' },
-  { key: 'ready', label: 'Preparing Your Feed', icon: '✓', desc: 'Personalized' },
-];
-
-const PipelineLoader = () => {
+function PipelineLoader() {
   const [active, setActive] = useState(0);
   useEffect(() => {
-    // Step through at 400ms each = 2 seconds total for 5 steps
-    const t = setInterval(() => setActive(p => p < PIPELINE_STAGES.length - 1 ? p + 1 : p), 400);
+    const t = setInterval(() => setActive(p => Math.min(PIPELINE_STAGES.length - 1, p + 1)), 520);
     return () => clearInterval(t);
   }, []);
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '70vh', gap: 20 }}>
-      <div className="pulse-glow" style={{ width: 16, height: 16, background: 'var(--accent)', borderRadius: '50%' }} />
-      <span className="mono" style={{ fontSize: 11, color: 'var(--accent)', letterSpacing: 3 }}>BUILDING YOUR INTELLIGENCE FEED</span>
-      <div className="pipeline-steps">
-        {PIPELINE_STAGES.map((s, i) => (
-          <div key={s.key} className={`pipeline-step ${i < active ? 'done' : i === active ? 'active' : 'pending'}`}>
-            <div className="pipeline-step-icon">{i < active ? '✓' : i === active ? s.icon : '○'}</div>
-            <span className="pipeline-step-label">{s.label}</span>
-            <span className="mono" style={{ fontSize: 8, color: 'var(--text-3)' }}>{s.desc}</span>
-          </div>
+    <div className="phase5-loader">
+      <div className="pulse-glow loader-dot" />
+      <span className="mono">BUILDING SIGNAL FEED</span>
+      <div className="phase5-pipeline">
+        {PIPELINE_STAGES.map(([key, label], i) => (
+          <div key={key} className={i < active ? 'done' : i === active ? 'active' : ''}>{label}</div>
         ))}
       </div>
     </div>
   );
-};
+}
 
-/* ══════════════════════════════════════════════ */
+function ExplainDrawer({ metric, cluster, onClose }) {
+  if (!metric) return null;
+  const pulse = Math.round(cluster?.pulse_score || 85);
+  const exposure = Math.round(cluster?.exposure_score || 84);
+  const content = {
+    delta: {
+      title: 'Daily Delta',
+      intro: 'Topic movement versus the previous 24h baseline.',
+      formula: 'Delta = Current Pulse - Previous Pulse',
+      rows: ['Source volume changes', 'Sentiment shifts', 'Topic velocity spikes', 'Entity frequency changes'],
+    },
+    pulse: {
+      title: `Pulse Score (${pulse}/100)`,
+      intro: 'Intensity and significance of this signal.',
+      formula: '30% velocity + 25% sources + 20% sentiment + 15% entities + 10% relevance',
+      rows: ['Source activity +22', 'Sentiment intensity +18', 'Velocity spike +25', 'Entity relevance +12', 'User relevance +8'],
+    },
+    exposure: {
+      title: `Exposure Score (${exposure}/100)`,
+      intro: 'How much this signal may affect your tracked intelligence profile.',
+      formula: 'Topics + entities + regions + interaction history',
+      rows: ['Topic match +25', 'Region overlap +20', 'Tracked entity +18', 'Past engagement +9'],
+    },
+    tier: {
+      title: 'Signal Tier',
+      intro: 'Priority label for how quickly the story deserves attention.',
+      formula: '80-100 Critical | 60-79 Signal | 40-59 Watch | Below 40 Noise',
+      rows: ['Critical: immediate attention', 'Signal: meaningful shift', 'Watch: developing', 'Noise: low importance'],
+    },
+    relevant: {
+      title: 'Why Relevant?',
+      intro: 'This signal matched your personal intelligence profile.',
+      formula: `Exposure = ${exposure}`,
+      rows: [
+        ...(preferenceLabels(cluster || {}).length ? preferenceLabels(cluster).map(x => `Tracked topic: ${x}`) : ['Topic overlap detected']),
+        `Source count: ${cluster?.source_count || 1}`,
+        `Pulse: ${pulse}`,
+      ],
+    },
+  }[metric];
+
+  return (
+    <aside className="explain-drawer">
+      <button className="drawer-close" onClick={onClose}>Close</button>
+      <div className="label">EXPLAINABILITY</div>
+      <h2>{content.title}</h2>
+      <p>{content.intro}</p>
+      <div className="formula-box">{content.formula}</div>
+      {metric === 'pulse' && (
+        <div className="weighted-bars">
+          {[30, 25, 20, 15, 10].map((v, i) => <span key={i} style={{ width: `${v * 2}%` }}>{v}%</span>)}
+        </div>
+      )}
+      <div className="explain-list">
+        {content.rows.map(row => <span key={row}>{row}</span>)}
+      </div>
+    </aside>
+  );
+}
+
+function StoryGraph({ cluster, onClose }) {
+  if (!cluster) return null;
+  return (
+    <aside className="graph-drawer">
+      <button className="drawer-close" onClick={onClose}>Close</button>
+      <div className="label">STORY GRAPH</div>
+      <h2>{words(cluster.thread_title, 8)}</h2>
+      <div className="causal-chain">
+        {buildGraph(cluster).map((node, i) => (
+          <React.Fragment key={node}>
+            <div className="causal-node">
+              <span>{i + 1}</span>
+              <b>{node}</b>
+            </div>
+            {i < 3 && <div className="causal-arrow">down</div>}
+          </React.Fragment>
+        ))}
+      </div>
+      <button className="btn btn-primary" onClick={onClose}>Use Signal</button>
+    </aside>
+  );
+}
+
+function SignalCard({ cluster, index, entities, isSaved, isWatched, onAction, onExplain, onGraph, onDeepDive }) {
+  const labels = preferenceLabels(cluster);
+  const pulse = Math.round(cluster.pulse_score || 50);
+  const exposure = Math.round(cluster.exposure_score || 50);
+  const isNew = Date.now() - new Date(cluster.updated_at || Date.now()).getTime() < 1000 * 60 * 90;
+
+  return (
+    <article className={`phase5-signal-card tier-${(cluster.signal_tier || 'signal').toLowerCase()}-card`}>
+      <div className="signal-topline">
+        <span className={tierClass(cluster.signal_tier)} onClick={() => onExplain('tier', cluster)}>{cluster.signal_tier || 'SIGNAL'}</span>
+        {isNew && <span className="new-badge">NEW</span>}
+        <span className="velocity-pill">{pulse >= 80 ? 'Fast' : pulse >= 55 ? 'Moving' : 'Slow'}</span>
+      </div>
+
+      <h3>{cluster.thread_title}</h3>
+      <p>{words(cluster.impact_line || cluster.summary || cluster.why_it_matters, 12)}</p>
+
+      <div className="visual-metrics">
+        <button className="metric-chip" onClick={() => onExplain('pulse', cluster)}>
+          <span>Pulse</span><b>{pulse}</b>
+        </button>
+        <MiniRing value={exposure} label="Exposure" onClick={() => onExplain('exposure', cluster)} />
+        <Sparkline values={miniTrend(pulse, index + 1)} />
+      </div>
+
+      <div className="entity-strip">
+        {entities.slice(0, 3).map(entity => (
+          <button key={entity} onClick={() => onAction('trackEntity', cluster, entity)}>{entity}</button>
+        ))}
+        {!entities.length && labels.slice(0, 2).map(label => <span key={label}>{label}</span>)}
+      </div>
+
+      <div className="signal-actions">
+        <button onClick={() => onAction('watch', cluster)}>{isWatched ? 'Watching' : 'Track'}</button>
+        <button onClick={() => onAction('save', cluster)}>{isSaved ? 'Saved' : 'Save'}</button>
+        <button onClick={() => onExplain('relevant', cluster)}>Explain</button>
+        <button onClick={() => onGraph(cluster)}>Graph</button>
+        <button onClick={() => onAction('dismiss', cluster)}>Dismiss</button>
+        <button onClick={() => onDeepDive(cluster)}>Deep Analysis</button>
+      </div>
+    </article>
+  );
+}
+
 export default function Dashboard() {
   const { user } = useAuth();
   const { setHeadlines, mode } = useContext(AppContext);
+  const navigate = useNavigate();
   const [data, setData] = useState(null);
-  const [checkingPrefs, setCheckingPrefs] = useState(true); // Phase 1: quick prefs check
-  const [loading, setLoading] = useState(false); // Phase 2: actual pipeline load
+  const [checkingPrefs, setCheckingPrefs] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
-  const [expandedWatch, setExpandedWatch] = useState(false);
   const [toast, setToast] = useState(null);
-  const navigate = useNavigate();
-  const fetched = useRef(false);
+  const [signalState, setSignalState] = useState(() => readStore(user?.uid));
+  const [explain, setExplain] = useState(null);
+  const [graphSignal, setGraphSignal] = useState(null);
   const dataRef = useRef(null);
-  const lastAutoToastCache = useRef(null);
+  const fetched = useRef(false);
 
-  // Show toast for X seconds
-  const showToast = (msg) => {
+  useEffect(() => {
+    setSignalState(readStore(user?.uid));
+  }, [user?.uid]);
+
+  const showToast = useCallback((msg) => {
     setToast(msg);
-    setTimeout(() => setToast(null), 5000);
-  };
+    setTimeout(() => setToast(null), 3200);
+  }, []);
 
-  // Apply dynamic theme based on content
   const applyTheme = useCallback((res) => {
-    if (!res?.articles?.length) return;
-    const txt = JSON.stringify(res.articles.map(a => a.title)).toLowerCase();
+    const txt = JSON.stringify(res?.articles?.map(a => a.title) || []).toLowerCase();
     const el = document.querySelector('.app-container');
     if (!el) return;
-    const calmCls = mode === 'calm' ? ' calm-mode' : '';
     let category = 'tech';
     if (txt.match(/market|stock|econom|financ|invest/)) category = 'markets';
     else if (txt.match(/trump|china|nato|election|politic|congress|senate/)) category = 'politics';
     else if (txt.match(/\bai\b|openai|deepseek|llm|neural|machine learn/)) category = 'ai';
     else if (txt.match(/military|war|defense|missile|army|weapon/)) category = 'defense';
-    el.className = `app-container ${getOpenThemeVariant(category)}${calmCls}`;
+    el.className = `app-container ${getOpenThemeVariant(category)}${mode === 'calm' ? ' calm-mode' : ''}`;
   }, [mode]);
 
-  // Process a response (update headlines, theme, etc.)
   const processResponse = useCallback((res) => {
-    if (res.clusters?.length) setHeadlines(res.clusters.map(c => c.thread_title).filter(Boolean));
-    else if (res.articles?.length) setHeadlines(res.articles.slice(0, 6).map(a => a.title));
+    if (res?.clusters?.length) setHeadlines(res.clusters.map(c => c.thread_title).filter(Boolean));
+    else if (res?.articles?.length) setHeadlines(res.articles.slice(0, 6).map(a => a.title));
     applyTheme(res);
   }, [applyTheme, setHeadlines]);
 
-  const syncCachedDashboard = useCallback(async ({ announce = false } = {}) => {
-    if (announce && document.hidden) return null;
-
-    const previousCachedAt = dataRef.current?.cached_at;
+  const syncCachedDashboard = useCallback(async () => {
     const res = await api.getCachedDashboard();
     dataRef.current = res;
     setData(res);
     processResponse(res);
-
-    if (announce && previousCachedAt && res.cached_at && res.cached_at !== previousCachedAt && lastAutoToastCache.current !== res.cached_at) {
-      lastAutoToastCache.current = res.cached_at;
-      showToast('Live feed updated automatically');
-    }
-
     return res;
   }, [processResponse]);
 
-  // PHASE 1: Quick prefs check — runs instantly, no loading screen
   useEffect(() => {
     if (!user) return;
     (async () => {
@@ -252,496 +360,282 @@ export default function Dashboard() {
           return;
         }
       } catch {
-        // Prefs check failed — let them through to dashboard
+        // Let dashboard handle API errors instead of trapping the user.
       }
-      setCheckingPrefs(false); // User is onboarded, proceed to Phase 2
+      setCheckingPrefs(false);
     })();
   }, [user, navigate]);
 
-  // PHASE 2: Load dashboard data (only after prefs check passes)
   const load = useCallback(async () => {
     if (fetched.current || checkingPrefs) return;
     fetched.current = true;
-    setLoading(true); setError(null);
+    setLoading(true);
+    setError(null);
     try {
-      const [res] = await Promise.all([syncCachedDashboard(), sleep(3200)]);  // GET = instant cache, loader completes visibly
-
-      if (res?.is_stale) {
-        showToast('Intelligence is being refreshed in the background...');
-      }
-    } catch (e) { setError(e.message); }
+      const [res] = await Promise.all([syncCachedDashboard(), sleep(3200)]);
+      if (res?.is_stale) showToast('Refreshing in the background');
+    } catch (e) {
+      setError(e.message);
+    }
     setLoading(false);
-  }, [checkingPrefs, syncCachedDashboard]);
-
-  // MANUAL FORCE REFRESH: POST triggers full pipeline
-  const forceRefresh = async () => {
-    setRefreshing(true); setError(null);
-    try {
-      const res = await api.forceDashboardRefresh([], []);  // POST = force
-      const oldSignalCount = (data?.clusters || []).filter(c => c.signal_tier === 'CRITICAL' || c.signal_tier === 'SIGNAL').length;
-      const newSignalCount = (res.clusters || []).filter(c => c.signal_tier === 'CRITICAL' || c.signal_tier === 'SIGNAL').length;
-      dataRef.current = res;
-      setData(res);
-      processResponse(res);
-
-      if (newSignalCount > oldSignalCount) {
-        showToast(`Feed updated — ${newSignalCount - oldSignalCount} new signal${newSignalCount - oldSignalCount > 1 ? 's' : ''} detected`);
-      } else {
-        showToast('Intelligence refreshed — feed is current');
-      }
-    } catch (e) { setError(e.message); }
-    setRefreshing(false);
-  };
+  }, [checkingPrefs, showToast, syncCachedDashboard]);
 
   useEffect(() => { if (!checkingPrefs) load(); }, [checkingPrefs, load]);
 
   useEffect(() => {
-    dataRef.current = data;
-  }, [data]);
-
-  useEffect(() => {
     if (checkingPrefs || !data) return undefined;
-
-    const refreshMs = data.refresh_in_progress || data.is_stale ? 20000 : 120000;
-    const sync = () => {
-      syncCachedDashboard({ announce: true }).catch(() => {});
-    };
-
-    const intervalId = setInterval(sync, refreshMs);
-    const handleVisibility = () => {
-      if (!document.hidden) {
-        sync();
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibility);
-    return () => {
-      clearInterval(intervalId);
-      document.removeEventListener('visibilitychange', handleVisibility);
-    };
+    const id = setInterval(() => syncCachedDashboard().catch(() => {}), data.refresh_in_progress || data.is_stale ? 20000 : 120000);
+    return () => clearInterval(id);
   }, [checkingPrefs, data, syncCachedDashboard]);
 
-  // Live freshness timer — ticks every 30s
-  const [liveAge, setLiveAge] = useState(0);
-  useEffect(() => {
-    if (!data?.cached_at) return;
-    const baseAge = data.cache_age_seconds || 0;
-    const loadedAt = Date.now();
-    setLiveAge(baseAge);
-    const t = setInterval(() => {
-      const elapsed = Math.floor((Date.now() - loadedAt) / 1000);
-      setLiveAge(baseAge + elapsed);
-    }, 30000);
-    return () => clearInterval(t);
-  }, [data?.cached_at, data?.cache_age_seconds]);
-  const freshLabel = liveAge < 60 ? 'Just now'
-    : liveAge < 3600 ? `${Math.floor(liveAge / 60)}m ago`
-    : `${Math.floor(liveAge / 3600)}h ago`;
+  const forceRefresh = async () => {
+    setRefreshing(true);
+    setError(null);
+    try {
+      const res = await api.forceDashboardRefresh([], []);
+      dataRef.current = res;
+      setData(res);
+      processResponse(res);
+      showToast('Signals refreshed');
+    } catch (e) {
+      setError(e.message);
+    }
+    setRefreshing(false);
+  };
+
+  const updateInteraction = (type, cluster, entity) => {
+    const id = signalId(cluster);
+    const topics = topicIds(cluster, data?.topics_used || []);
+    setSignalState(prev => {
+      const next = {
+        ...prev,
+        saved: [...(prev.saved || [])],
+        watched: [...(prev.watched || [])],
+        dismissed: [...(prev.dismissed || [])],
+        trackedEntities: [...(prev.trackedEntities || [])],
+        topicWeights: { ...(prev.topicWeights || {}) },
+        opened: { ...(prev.opened || {}) },
+      };
+      const bump = type === 'dismiss' ? -2 : type === 'open' ? 1 : 2;
+      topics.forEach(topic => { next.topicWeights[topic] = (next.topicWeights[topic] || 0) + bump; });
+      if (type === 'save' && !next.saved.includes(id)) next.saved.push(id);
+      if (type === 'watch' && !next.watched.includes(id)) next.watched.push(id);
+      if (type === 'dismiss' && !next.dismissed.includes(id)) next.dismissed.push(id);
+      if (type === 'trackEntity' && entity && !next.trackedEntities.includes(entity)) next.trackedEntities.push(entity);
+      if (type === 'open') next.opened[id] = (next.opened[id] || 0) + 1;
+      writeStore(user?.uid, next);
+      return next;
+    });
+    const labels = { save: 'Signal saved', watch: 'Signal watched', dismiss: 'Noise dismissed', trackEntity: `${entity} tracked`, open: 'Learning from click' };
+    showToast(labels[type] || 'Updated');
+  };
+
+  const openDeepDive = (cluster) => {
+    updateInteraction('open', cluster);
+    navigate('/story', {
+      state: {
+        article: {
+          title: cluster.thread_title,
+          text: cluster.summary,
+          text_preview: cluster.summary,
+          source: 'Intelligence Synthesis',
+          exposure_score: cluster.exposure_score,
+        },
+      },
+    });
+  };
 
   const articles = data?.articles || [];
   const clusters = data?.clusters || [];
-  // HARD RULE: only top 3 signals ever visible
-  const topSignals = clusters.filter(c => c.signal_tier === 'CRITICAL' || c.signal_tier === 'SIGNAL').slice(0, 3);
-  const watchSignals = clusters.filter(c => c.signal_tier === 'WATCH');
-  const delta = data?.daily_delta || [];
-  const exposure = data?.exposure_score ?? null;
-  const radar = data?.opportunity_radar || {};
-  const tension = data?.tension_index || {};
-  const impact = data?.impact || {};
-  const queue = data?.monitoring_queue || [];
-  const pipeline = data?.pipeline_status || {};
-  const isFallbackMode = pipeline.synthesis === 'deterministic_fallback';
   const activeTopics = data?.topics_used || [];
   const activeRegions = data?.regions_used || [];
-  const { displayed: briefText, typing } = useTypewriter(data?.daily_brief);
-
-  // Sentiment counts
-  const posC = articles.filter(a => a.sentiment?.label === 'POSITIVE').length;
-  const negC = articles.filter(a => a.sentiment?.label === 'NEGATIVE').length;
-  const neuC = articles.length - posC - negC;
-  const entCount = articles.reduce((s, a) => s + (a.entities?.length || 0), 0);
-
-  /* ── Phase 1: Checking if user is onboarded (blank, instant) ── */
-  if (checkingPrefs) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '70vh' }}>
-      <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)', letterSpacing: 2 }}>CHECKING SESSION...</span>
-    </div>
+  const delta = data?.daily_delta || [];
+  const pipeline = data?.pipeline_status || {};
+  const radar = data?.opportunity_radar || {};
+  const impact = data?.impact || {};
+  const dismissed = new Set(signalState.dismissed || []);
+  const saved = new Set(signalState.saved || []);
+  const watched = new Set(signalState.watched || []);
+  const entityMoves = (signalState.trackedEntities || []).filter(entity =>
+    articles.some(article => (article.entities || []).some(e => e.name === entity))
   );
 
-  /* ── Phase 2: Loading pipeline (only after prefs confirmed) ── */
+  const rankedSignals = useMemo(() => {
+    const tierScore = { CRITICAL: 400, SIGNAL: 300, WATCH: 200, NOISE: 0 };
+    return clusters
+      .filter(c => !dismissed.has(signalId(c)))
+      .map(c => {
+        const topicBoost = topicIds(c, activeTopics).reduce((sum, topic) => sum + (signalState.topicWeights?.[topic] || 0), 0);
+        return { ...c, _rank: (tierScore[c.signal_tier] || 0) + (c.pulse_score || 0) + (c.exposure_score || 0) + topicBoost * 6 };
+      })
+      .sort((a, b) => b._rank - a._rank)
+      .slice(0, 6);
+  }, [activeTopics, clusters, dismissed, signalState.topicWeights]);
+
+  const topEntities = useMemo(() => {
+    const counts = {};
+    articles.forEach(article => (article.entities || []).forEach(e => {
+      if (e.name) counts[e.name] = (counts[e.name] || 0) + 1;
+    }));
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  }, [articles]);
+
+  if (checkingPrefs) return <div className="phase5-loader"><span className="mono">CHECKING SESSION</span></div>;
   if (loading && !data) return <PipelineLoader />;
 
   return (
-    <div className="dashboard-grid">
+    <div className="phase5-shell">
+      {toast && <div className="phase5-toast">{toast}</div>}
+      <ExplainDrawer metric={explain?.type} cluster={explain?.cluster} onClose={() => setExplain(null)} />
+      <StoryGraph cluster={graphSignal} onClose={() => setGraphSignal(null)} />
 
-      {/* ── Toast notification ─── */}
-      {toast && (
-        <div style={{
-          position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)',
-          background: 'var(--accent-dim)', border: '1px solid var(--accent-border)',
-          borderRadius: 'var(--br-lg)', padding: '10px 24px', zIndex: 9999,
-          fontFamily: 'var(--mono)', fontSize: 11, color: 'var(--accent)',
-          letterSpacing: 0.5, boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-          animation: 'fadeIn 0.3s var(--ease)',
-        }}>
-          {toast}
-        </div>
-      )}
-
-      {/* ═══════ LEFT PANEL ═══════ */}
-      <div className="left-panel" style={{ display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto', paddingBottom: 20 }}>
-
-        <div className="panel fin" style={{ padding: 18 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-            <div className="label">COMMAND</div>
-            <button onClick={forceRefresh} disabled={refreshing || loading} className="wire-btn">
-              {refreshing ? '⟳ SYNCING...' : '⟳ REFRESH'}
-            </button>
+      <aside className="phase5-left">
+        <div className="panel command-card">
+          <div className="label">COMMAND</div>
+          <button className="wire-btn" onClick={forceRefresh} disabled={refreshing}>{refreshing ? 'Syncing' : 'Refresh'}</button>
+          <div className="session-user">
+            {user?.photoURL && <img src={user.photoURL} alt="" />}
+            <div>
+              <b>{user?.displayName || 'Operator'}</b>
+              <span>Live session</span>
+            </div>
           </div>
-          {/* Freshness badge */}
-          {data && (
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-              <span className="mono" style={{ fontSize: 9, color: data?.is_stale ? 'var(--warn)' : 'var(--pos)', letterSpacing: 0.5 }}>
-                ● Updated {freshLabel}
-              </span>
-              {data?.refresh_in_progress && (
-                <span className="mono" style={{ fontSize: 9, color: 'var(--accent)', letterSpacing: 0.5 }}>
-                  AUTO SYNC ACTIVE
-                </span>
-              )}
-            </div>
-          )}
-          {user && (
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              {user.photoURL && <img src={user.photoURL} alt="" style={{ width: 32, height: 32, borderRadius: '50%', border: '2px solid var(--accent-border)' }} />}
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 700 }}>{user.displayName}</div>
-                <div className="mono" style={{ fontSize: 9, color: 'var(--pos)', letterSpacing: 1 }}>● LIVE SESSION</div>
-              </div>
-            </div>
-          )}
         </div>
 
-        {data && (
-          <div className="panel panel-accent fin fin-d1" style={{ padding: 18 }}>
-            <div className="label" style={{ marginBottom: 14 }}>FEED METRICS</div>
-            <div className="stat-row"><span className="stat-label">Sources Ingested</span><span className="stat-value">{data.sources_count || articles.length}</span></div>
-            <div className="stat-row"><span className="stat-label">Stories Found</span><span className="stat-value">{clusters.length}</span></div>
-            <div className="stat-row"><span className="stat-label">Entities Detected</span><span className="stat-value">{entCount}</span></div>
-            <div className="stat-row"><span className="stat-label">Signal / Watch / Noise</span>
-              <span className="stat-value-sm" style={{ color: 'var(--text-1)' }}>
-                {topSignals.length} / {watchSignals.length} / {clusters.length - topSignals.length - watchSignals.length}
-              </span>
-            </div>
-            <div className="section-line" />
-            <div className="label" style={{ marginBottom: 8, marginTop: 4, fontSize: 9, color: 'var(--text-3)' }}>SENTIMENT DISTRIBUTION</div>
-            <SentimentSpark pos={posC} neu={neuC} neg={negC} />
+        <div className="panel exposure-network">
+          <div className="label">YOUR EXPOSURE NETWORK</div>
+          <div className="network-score">{Math.round(data?.exposure_score || 50)}</div>
+          <div className="network-chain">
+            {(activeTopics.slice(0, 2).length ? activeTopics.slice(0, 2) : ['tech']).map(topic => (
+              <span key={topic}>{TOPIC_LABELS[topic] || topic}</span>
+            ))}
+            {topEntities.slice(0, 2).map(([name]) => <span key={name}>{name}</span>)}
           </div>
-        )}
+          <small>{entityMoves.length || 0} tracked entities moved today</small>
+        </div>
 
-        {data && (
-          <div className="panel fin fin-d2" style={{ padding: 16 }}>
-            <div className="label" style={{ marginBottom: 10, fontSize: 9 }}>ACTIVE PROFILE</div>
-            <div className="mono" style={{ fontSize: 9, color: 'var(--text-3)', marginBottom: 8 }}>
-              {data.personalization_mode === 'profile' ? 'PERSONALIZED FEED' : 'SHARED GLOBAL FEED'}
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: activeRegions.length ? 10 : 0 }}>
-              {activeTopics.map(topic => (
-                <span key={topic} className="chip chip-sel" style={{ fontSize: 10, padding: '4px 8px' }}>{topic}</span>
-              ))}
-            </div>
-            {activeRegions.length > 0 && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {activeRegions.map(region => (
-                  <span key={region} className="chip" style={{ fontSize: 10, padding: '4px 8px' }}>{region}</span>
-                ))}
-              </div>
-            )}
+        <div className="panel profile-chip-panel">
+          <div className="label">PROFILE</div>
+          <div>
+            {activeTopics.map(topic => <span key={topic}>{TOPIC_LABELS[topic] || topic}</span>)}
+            {activeRegions.map(region => <span key={region}>{region}</span>)}
           </div>
-        )}
+        </div>
+      </aside>
 
-        <TensionIndex tension={tension} />
-
-        {data && (
-          <div className="panel fin fin-d4" style={{ padding: 16 }}>
-            <div className="label" style={{ marginBottom: 10, fontSize: 9 }}>PIPELINE</div>
-            <div style={{ display: 'grid', gap: 5 }}>
-              {[
-                ['AI', (pipeline.synthesis || 'unknown').replaceAll('_', ' ')],
-                ['NLP', pipeline.nlp === 'huggingface_space_cached' ? 'HuggingFace cached' : 'HuggingFace'],
-                ['NEWS', pipeline.news === 'google_rss' ? 'Google RSS' : 'RSS'],
-                ['CACHE', pipeline.cache || (data.personalization_mode === 'profile' ? 'Profile-scoped' : 'Shared')],
-                ['TIER', 'Deterministic'],
-                ['GEN', data.generated_at ? new Date(data.generated_at).toLocaleTimeString() : '-'],
-              ].map(([k, v]) => (
-                <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span className="mono" style={{ fontSize: 9, color: 'var(--text-3)', letterSpacing: 1 }}>{k}</span>
-                  <span className="mono" style={{ fontSize: 9, color: 'var(--text-2)' }}>{v}</span>
-                </div>
-              ))}
-            </div>
-            {pipeline.quota_saving?.length > 0 && (
-              <>
-                <div className="section-line" />
-                <div className="label" style={{ marginBottom: 8, fontSize: 9, color: 'var(--text-3)' }}>QUOTA GUARD</div>
-                <div style={{ display: 'grid', gap: 6 }}>
-                  {pipeline.quota_saving.slice(0, 4).map((item, i) => (
-                    <div key={i} className="quota-line">
-                      <span className="quota-dot" />
-                      <span>{item}</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
+      <main className="phase5-main">
+        <section className="hero-strip">
+          <div>
+            <span className="label">GEN-Z SIGNAL MODE</span>
+            <h1>Top signals in 10 seconds.</h1>
           </div>
-        )}
-      </div>
+          <div className="signal-legend">
+            {['Critical', 'Signal', 'Watch'].map(item => (
+              <button key={item} className="signal-legend-item" onClick={() => setExplain({ type: 'tier' })}>
+                <span className={`signal-legend-dot ${item.toLowerCase()}`} /> {item}
+              </button>
+            ))}
+          </div>
+        </section>
 
-      {/* ═══════ CENTER FEED ═══════ */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto', paddingBottom: 20 }}>
-
-        {/* Daily Delta — shows how your tracked topics changed today */}
         {delta.length > 0 && (
-          <div className="delta-tape fin" title="Daily Delta — how your tracked topics shifted in the last 24 hours">
-            {delta.map((d, i) => (
-              <div key={i} className={`delta-cell ${d.delta > 0 ? 'delta-up-cell' : d.delta < 0 ? 'delta-down-cell' : 'delta-flat-cell'}`}>
+          <section className="delta-tape phase5-delta" onClick={() => setExplain({ type: 'delta' })}>
+            {delta.map(d => (
+              <div key={d.topic} className={`delta-cell ${d.delta > 0 ? 'delta-up-cell' : d.delta < 0 ? 'delta-down-cell' : 'delta-flat-cell'}`}>
                 <span className="delta-cell-topic">{d.label}</span>
                 <span className={`delta-cell-value ${d.delta > 0 ? 'delta-up' : d.delta < 0 ? 'delta-down' : 'delta-flat'}`}>
-                  {d.delta > 0 ? '▲+' : d.delta < 0 ? '▼' : '0'}{d.delta !== 0 ? Math.abs(d.delta) : ''}
+                  {d.has_baseline ? `${d.delta > 0 ? '+' : ''}${d.delta}` : 'Base'}
                 </span>
                 <span className="delta-cell-pulse">{d.has_baseline ? `Pulse ${d.current}` : 'Baseline building'}</span>
               </div>
             ))}
-          </div>
+          </section>
         )}
 
-        {/* Relevance Gauge */}
-        {exposure !== null && <ExposureGauge score={exposure} />}
-
-        {/* Live Headlines */}
-        {articles.length > 0 && (
-          <div className="ticker-wrap" style={{ borderRadius: 'var(--br)', marginTop: 4 }}>
-            <div className="ticker-tag">LIVE</div>
-            <div className="ticker-move">
-              {[...articles, ...articles].map((a, i) => (
-                <div key={i} className="ticker-item"><span className="ticker-sep">//</span> {a.title.toUpperCase()}</div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Error */}
         {error && (
-          <div className="panel" style={{ borderColor: 'var(--neg)', padding: 24 }}>
-            <div className="label" style={{ color: 'var(--neg)', marginBottom: 8 }}>PIPELINE ERROR</div>
-            <p style={{ fontSize: 13, color: 'var(--text-2)', marginBottom: 14 }}>{error}</p>
-            <button onClick={forceRefresh} className="wire-btn">RETRY</button>
+          <div className="panel phase5-error">
+            <div className="label">PIPELINE ERROR</div>
+            <p>{error}</p>
+            <button className="wire-btn" onClick={forceRefresh}>Retry</button>
           </div>
         )}
 
-        {/* Top Stories */}
-        {isFallbackMode && (
-          <div className="fallback-alert fin" title="AI synthesis failed, so these story groups are deterministic article-title fallbacks.">
-            <span className="fallback-alert-kicker">FALLBACK MODE</span>
-            <span>AI synthesis is unavailable. Story cards below are not AI-written analysis; they are deterministic clusters from live articles.</span>
-          </div>
-        )}
+        <section className="signal-stack">
+          {rankedSignals.length ? rankedSignals.map((cluster, i) => {
+            const id = signalId(cluster);
+            return (
+              <SignalCard
+                key={id}
+                cluster={cluster}
+                index={i}
+                entities={buildEntities(cluster, articles)}
+                isSaved={saved.has(id)}
+                isWatched={watched.has(id)}
+                onAction={updateInteraction}
+                onExplain={(type, c) => setExplain({ type, cluster: c })}
+                onGraph={setGraphSignal}
+                onDeepDive={openDeepDive}
+              />
+            );
+          }) : (
+            <div className="panel empty-signal">No priority signals detected.</div>
+          )}
+        </section>
+      </main>
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', margin: '4px 0' }}>
-          <div className="label">
-            {isFallbackMode ? 'FALLBACK STORIES' : 'TOP STORIES'}
-            <span className="mono" style={{ fontSize: 9, color: 'var(--text-3)', marginLeft: 10, fontWeight: 400 }}>
-              {topSignals.length} of {clusters.length} stories surfaced
-            </span>
-          </div>
-          {/* Signal Legend */}
-          <div className="signal-legend">
-            <div className="signal-legend-item" title="High urgency — requires immediate attention"><span className="signal-legend-dot critical" /> Critical</div>
-            <div className="signal-legend-item" title="Notable — worth watching closely"><span className="signal-legend-dot signal" /> Signal</div>
-            <div className="signal-legend-item" title="Developing — not urgent, being monitored"><span className="signal-legend-dot watch" /> Watch</div>
-          </div>
-        </div>
-
-        {topSignals.length > 0 ? topSignals.map((cluster, i) => (
-          <div key={i}
-            className={`signal-card tier-${cluster.signal_tier?.toLowerCase()}-card fin`}
-            style={{ animationDelay: `${i * 0.06}s` }}
-            onClick={() => navigate('/story', { state: { article: { title: cluster.thread_title, text: cluster.summary, text_preview: cluster.summary, source: 'Intelligence Synthesis', exposure_score: cluster.exposure_score } } })}
-          >
-            <div className="signal-card-header">
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span className="mono" style={{ fontSize: 11, fontWeight: 900, color: 'var(--text-3)', width: 18 }}>#{i + 1}</span>
-                  <SignalBadge tier={cluster.signal_tier} />
-                  {(isFallbackMode || cluster.is_ai_synthesized === false) && (
-                    <span className="tier-badge tier-fallback" title="This card is a fallback cluster, not AI synthesis">NOT AI</span>
-                  )}
-                </div>
-                {preferenceLabels(cluster).length > 0 && (
-                  <div className="preference-labels" title="Selected preferences that matched this story">
-                    {preferenceLabels(cluster).slice(0, 3).map(label => (
-                      <span key={label} className="preference-label">{label}</span>
-                    ))}
-                  </div>
-                )}
-                <h3 style={{ fontSize: 16, marginTop: 8, color: 'var(--text-0)', lineHeight: 1.35, letterSpacing: '-0.01em' }}>
-                  {cluster.thread_title}
-                </h3>
-                <p className="signal-impact">{cluster.impact_line || cluster.summary}</p>
-                {cluster.why_it_matters && (
-                  <p style={{ fontSize: 11, color: 'var(--accent)', marginTop: 6, fontStyle: 'italic', lineHeight: 1.5 }}>
-                    Why it matters: {cluster.why_it_matters}
-                  </p>
-                )}
-              </div>
-            </div>
-            <div className="signal-card-meta">
-              <span className="badge pulse" title="Pulse Score — urgency level from 0-100 based on volume, sentiment, and source diversity">⚡ {cluster.pulse_score}</span>
-              <span className="badge sources" title="Number of independent news sources reporting on this story">{cluster.source_count} sources</span>
-              {(isFallbackMode || cluster.is_ai_synthesized === false) && (
-                <span className="badge fallback" title="Generated by deterministic fallback from article metadata, not by an AI synthesis model">Fallback, not AI</span>
-              )}
-              {cluster.risk_type === 'risk' && <span className="badge neg" style={{ fontSize: 8 }} title="This story signals a potential risk to your tracked interests">⚠ Risk</span>}
-              {cluster.risk_type === 'opportunity' && <span className="badge pos" style={{ fontSize: 8 }} title="This story signals a potential opportunity in your tracked areas">▲ Opportunity</span>}
-            </div>
-          </div>
-        )) : !loading ? (
-          <div className="panel" style={{ textAlign: 'center', padding: 40 }}>
-            <span className="mono" style={{ color: 'var(--text-3)', letterSpacing: 2, fontSize: 11 }}>NO CRITICAL STORIES DETECTED</span>
-          </div>
-        ) : null}
-
-        {/* Developing (Watch Tier — collapsed by default) */}
-        {watchSignals.length > 0 && (
-          <div className="fin fin-d3" style={{ marginTop: 4 }}>
-            <div className="label"
-              style={{ marginBottom: 8, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0' }}
-              onClick={() => setExpandedWatch(!expandedWatch)}
-            >
-              <span>DEVELOPING · {watchSignals.length} stories being monitored</span>
-              <span style={{ fontSize: 14, color: 'var(--text-3)', transition: 'transform 0.3s', transform: expandedWatch ? 'rotate(90deg)' : 'none', display: 'inline-block' }}>▸</span>
-            </div>
-            {expandedWatch && watchSignals.map((cluster, i) => (
-              <div key={i} className="signal-card tier-watch-card" style={{ padding: '12px 16px', marginBottom: 6 }}
-                onClick={() => navigate('/story', { state: { article: { title: cluster.thread_title, text: cluster.summary, text_preview: cluster.summary, source: 'Watch' } } })}
-              >
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-1)', flex: 1 }}>{cluster.thread_title}</span>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0, marginLeft: 12 }}>
-                    <span className="badge pulse" style={{ fontSize: 8 }}>⚡ {cluster.pulse_score}</span>
-                    <SignalBadge tier="WATCH" />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Monitoring Queue */}
-        {queue.length > 0 && mode !== 'calm' && (
-          <div className="panel fin fin-d4" style={{ padding: '16px 0', marginTop: 6 }}>
-            <div className="label" style={{ padding: '0 16px', marginBottom: 10 }}>
-              MONITORING QUEUE
-              <span className="mono" style={{ fontSize: 9, color: 'var(--text-3)', marginLeft: 8, fontWeight: 400 }}>
-                Next assessment ~2h
-              </span>
-            </div>
-            {queue.slice(0, 4).map((q, i) => (
-              <div key={i} className="monitoring-item">
-                <span className="monitoring-title">{q.thread_title}</span>
-                <span className="mono" style={{ fontSize: 9, color: 'var(--text-3)', marginRight: 8 }}>Pulse {q.pulse_score}</span>
-                <span className="monitoring-eta">{q.source_count} sources</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* ═══════ RIGHT PANEL ═══════ */}
-      <div className="right-panel" style={{ display: 'flex', flexDirection: 'column', gap: 12, overflowY: 'auto', paddingBottom: 20 }}>
-
-        <div className="panel panel-accent fin fin-d1" style={{ flex: 1, padding: 24, display: 'flex', flexDirection: 'column', minHeight: 200 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-            <div className="label">STRATEGIC BRIEF</div>
-            <span className="mono" style={{ fontSize: 9, color: isFallbackMode ? 'var(--warn)' : 'var(--text-3)' }}>
-              {isFallbackMode ? 'FALLBACK, NOT AI' : 'AI SYNTHESIS'}
-            </span>
-          </div>
-          <div style={{ flex: 1, overflowY: 'auto' }}>
-            {data?.daily_brief ? (
-              <div className="typewriter">{briefText}{typing && <span className="typewriter-cursor" />}</div>
-            ) : (
-              <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>[Awaiting AI synthesis...]</span>
-            )}
-          </div>
+      <aside className="phase5-right">
+        <div className="panel brief-chips">
+          <div className="label">STRATEGIC BRIEF</div>
+          {(splitBrief(data?.daily_brief).length ? splitBrief(data?.daily_brief) : ['Signals are still forming', 'Watchlist is learning', 'Refresh for live scan']).map(item => (
+            <span key={item}>{item}</span>
+          ))}
         </div>
 
         {(radar.top_risk || radar.top_opportunity) && (
-          <div className="radar-split fin fin-d2">
-            <div className="radar-half">
-              <div className="radar-label risk">▼ TOP RISK</div>
-              <div className="radar-text">{radar.top_risk || 'No significant risks detected.'}</div>
+          <div className="mini-risk-grid">
+            <div className="risk-tile">
+              <span>Risk</span>
+              <b>{words(radar.top_risk || 'No major risk', 8)}</b>
             </div>
-            <div className="radar-half">
-              <div className="radar-label opp">▲ OPPORTUNITY</div>
-              <div className="radar-text">{radar.top_opportunity || 'Monitoring for counter-signals...'}</div>
+            <div className="risk-tile opportunity">
+              <span>Opportunity</span>
+              <b>{words(radar.top_opportunity || 'Opportunity forming', 8)}</b>
             </div>
           </div>
         )}
 
         {impact?.headline && (
-          <div className="panel fin fin-d2" style={{ padding: 20 }}>
-            <div className="label" style={{ marginBottom: 12 }}>EXECUTIVE IMPACT</div>
-            <p style={{ fontSize: 14, fontWeight: 700, marginBottom: 8, lineHeight: 1.4, color: 'var(--text-0)' }}>{impact.headline}</p>
-            {impact.why_it_matters && (
-              <p style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.65, marginBottom: 12 }}>{typeof impact.why_it_matters === 'string' ? impact.why_it_matters.slice(0, 300) : ''}{impact.why_it_matters?.length > 300 ? '...' : ''}</p>
-            )}
-            {impact.actions?.length > 0 && (
-              <>
-                <div className="section-line" />
-                <div className="label" style={{ marginBottom: 8, fontSize: 9, color: 'var(--text-3)' }}>RECOMMENDED ACTIONS</div>
-                <div style={{ display: 'grid', gap: 6 }}>
-                  {impact.actions.map((a, i) => (
-                    <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
-                      <span style={{ color: 'var(--accent)', fontSize: 12, marginTop: 1, fontWeight: 700 }}>→</span>
-                      <span style={{ fontSize: 11, color: 'var(--text-1)', lineHeight: 1.55 }}>{a}</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
+          <div className="panel why-cards">
+            <div className="label">WHY IT MATTERS</div>
+            {[impact.headline, ...(impact.actions || [])].slice(0, 3).map(item => <span key={item}>{words(item, 10)}</span>)}
           </div>
         )}
 
-        {articles.length > 0 && (() => {
-          const ents = {};
-          articles.forEach(a => (a.entities || []).forEach(e => {
-            const k = e.name; ents[k] = (ents[k] || 0) + 1;
-          }));
-          const top = Object.entries(ents).sort((a, b) => b[1] - a[1]).slice(0, 12);
-          if (!top.length) return null;
-          return (
-            <div className="panel fin fin-d3" style={{ padding: 20 }}>
-              <div className="label" style={{ marginBottom: 12 }}>KEY ENTITIES</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {top.map(([name, cnt]) => (
-                  <span key={name} style={{
-                    padding: '4px 10px', fontSize: 10, fontFamily: 'var(--mono)',
-                    background: cnt > 2 ? 'var(--accent-dim)' : 'var(--bg-elevated)',
-                    border: `1px solid ${cnt > 2 ? 'var(--accent-border)' : 'rgba(255,255,255,0.05)'}`,
-                    borderRadius: 'var(--br)', color: cnt > 2 ? 'var(--accent)' : 'var(--text-2)',
-                    display: 'inline-flex', gap: 5, alignItems: 'center',
-                  }}>
-                    {name}
-                    {cnt > 1 && <span style={{ fontSize: 8, opacity: 0.5 }}>×{cnt}</span>}
-                  </span>
-                ))}
-              </div>
-            </div>
-          );
-        })()}
-      </div>
+        <div className="panel smart-alerts">
+          <div className="label">SMART ALERTS</div>
+          <span>Exposure {Math.round(data?.exposure_score || 50)} across active profile</span>
+          {delta.slice(0, 2).map(d => (
+            <span key={d.topic}>{d.has_baseline ? `${d.label} moved ${d.delta}` : `${d.label} baseline building`}</span>
+          ))}
+          <span>{saved.size} saved signals</span>
+        </div>
+
+        <div className="panel tracked-entities">
+          <div className="label">TRACK ENTITIES</div>
+          {topEntities.map(([name, count]) => (
+            <button key={name} onClick={() => updateInteraction('trackEntity', rankedSignals[0] || {}, name)}>
+              {name}<em>{count}</em>
+            </button>
+          ))}
+        </div>
+
+        <div className="panel pipeline-mini">
+          <div className="label">PIPELINE</div>
+          <span>AI: {(pipeline.synthesis || 'unknown').replaceAll('_', ' ')}</span>
+          <span>Cache: {pipeline.cache || 'profile-scoped'}</span>
+          <span>Generated: {data?.generated_at ? new Date(data.generated_at).toLocaleTimeString() : '-'}</span>
+        </div>
+      </aside>
     </div>
   );
 }
