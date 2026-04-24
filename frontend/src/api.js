@@ -4,9 +4,12 @@ const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
 
 function getHeaders() {
   const headers = { 'Content-Type': 'application/json' };
-  // Attach Firebase UID so backend can personalize per user
-  const uid = auth.currentUser?.uid;
+  const currentUser = auth.currentUser;
+  // Attach Firebase identity so backend can personalize per user and recover
+  // preferences by email if a UID row is missing after a deploy/database move.
+  const uid = currentUser?.uid;
   if (uid) headers['X-User-Id'] = uid;
+  if (currentUser?.email) headers['X-User-Email'] = currentUser.email;
   return headers;
 }
 

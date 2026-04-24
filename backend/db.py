@@ -170,6 +170,16 @@ async def get_user_prefs(firebase_uid: str):
     )
     return await database.fetch_one(query)
 
+async def get_user_prefs_by_email(email: str):
+    """Fetch user preferences by email as a recovery path across auth/device changes."""
+    cleaned = (email or "").strip().lower()
+    if not cleaned:
+        return None
+    query = user_preferences.select().where(
+        sqlalchemy.func.lower(user_preferences.c.email) == cleaned
+    )
+    return await database.fetch_one(query)
+
 async def upsert_user_prefs(firebase_uid: str, data: dict):
     """Create or update user preferences."""
     existing = await get_user_prefs(firebase_uid)

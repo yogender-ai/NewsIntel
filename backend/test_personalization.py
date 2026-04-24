@@ -64,6 +64,25 @@ class PersonalizationTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response["daily_brief"], "personalized")
         self.assertEqual(response["personalization_mode"], "profile")
 
+    async def test_prefs_lookup_can_recover_by_email(self):
+        row = {
+            "preferred_categories": '["legal", "media"]',
+            "preferred_regions": '["global"]',
+        }
+        request = Request({
+            "type": "http",
+            "headers": [(b"x-user-id", b"new-uid"), (b"x-user-email", b"same@example.com")],
+        })
+
+        with patch.object(main.db, "get_user_prefs", new=AsyncMock(return_value=None)), \
+             patch.object(main.db, "get_user_prefs_by_email", new=AsyncMock(return_value=row)):
+            topics, regions, uid, found = await main._get_user_prefs_from_header(request)
+
+        self.assertTrue(found)
+        self.assertEqual(uid, "new-uid")
+        self.assertEqual(topics, ["legal", "media"])
+        self.assertEqual(regions, ["global"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -354,6 +354,19 @@ def compute_exposure_score(cluster_text: str, user_topics: list, user_regions: l
     return score
 
 
+def _matched_profile_topics(cluster_text: str, user_topics: list) -> list:
+    text_lower = (cluster_text or "").lower()
+    matches = []
+    for topic in user_topics or []:
+        keywords = TOPIC_KEYWORDS.get(topic, [topic])
+        if any(kw in text_lower for kw in keywords):
+            matches.append({
+                "id": topic,
+                "label": topic.replace("-", " ").title(),
+            })
+    return matches
+
+
 def _schedule_profile_refresh(
     topics: list,
     regions: list,
@@ -421,6 +434,7 @@ async def compute_daily_delta(topics: list, current_clusters: list) -> list:
             "current": current,
             "previous": previous,
             "delta": delta,
+            "has_baseline": bool(snapshot),
         })
 
         try:
@@ -550,6 +564,7 @@ async def _build_intelligence(
 
         exposure = compute_exposure_score(cluster_text, topics, regions)
         cluster["exposure_score"] = exposure
+        cluster["matched_preferences"] = _matched_profile_topics(cluster_text, topics)
 
         pulse = cluster.get("pulse_score", 50)
         tier = classify_signal_tier(pulse, source_count, source_diversity, sentiment_intensity, exposure)
@@ -668,11 +683,14 @@ async def _get_broad_topics(cycle: int = 0):
 async def _get_user_prefs_from_header(request: Request):
     """Extract user's Firebase UID from X-User-Id header and return their preferences."""
     uid = request.headers.get("X-User-Id", "").strip()
-    if not uid:
+    email = request.headers.get("X-User-Email", "").strip().lower()
+    if not uid and not email:
         return ["tech", "ai", "markets"], [], uid, False
 
     try:
-        prefs = await db.get_user_prefs(uid)
+        prefs = await db.get_user_prefs(uid) if uid else None
+        if not prefs and email:
+            prefs = await db.get_user_prefs_by_email(email)
         if prefs:
             topics = _normalize_profile_values(json.loads(prefs["preferred_categories"] or "[]"))
             regions = _normalize_profile_values(json.loads(prefs["preferred_regions"] or "[]"))
@@ -966,13 +984,23 @@ async def story_deep_dive(request: StoryDeepDiveRequest):
 async def save_preferences(request: Request, prefs: UserPreferencesInput):
     uid = request.headers.get("X-User-Id", "").strip() or "local_user_123"
     await db.upsert_user_prefs(uid, prefs.dict())
+    if prefs.preferred_categories or prefs.preferred_regions:
+        _schedule_profile_refresh(
+            prefs.preferred_categories,
+            prefs.preferred_regions,
+            force_refresh_news=True,
+            run_llm=True,
+        )
     logger.info(f"Saved preferences for user {uid}: {prefs.preferred_categories}")
     return {"status": "success"}
 
 @app.get("/api/user/preferences")
 async def get_preferences(request: Request):
     uid = request.headers.get("X-User-Id", "").strip() or "local_user_123"
+    email = request.headers.get("X-User-Email", "").strip().lower()
     prefs = await db.get_user_prefs(uid)
+    if not prefs and email:
+        prefs = await db.get_user_prefs_by_email(email)
     if not prefs:
         return {"status": "not_found", "data": None}
     return {"status": "success", "data": dict(prefs)}

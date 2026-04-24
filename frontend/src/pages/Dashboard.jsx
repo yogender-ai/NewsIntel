@@ -37,6 +37,46 @@ const SignalBadge = ({ tier }) => {
 };
 
 /* ── Exposure Ring (SVG Gauge) ───────────────── */
+const TOPIC_LABELS = {
+  tech: 'Technology',
+  politics: 'Geopolitics',
+  markets: 'Markets',
+  ai: 'AI',
+  climate: 'Climate',
+  healthcare: 'Healthcare',
+  defense: 'Defense',
+  crypto: 'Crypto',
+  space: 'Space',
+  trade: 'Trade',
+  auto: 'Automotive',
+  telecom: 'Telecom',
+  'real-estate': 'Real Estate',
+  media: 'Media',
+  education: 'Education',
+  legal: 'Legal',
+};
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const THEME_VARIANTS = {
+  tech: ['theme-tech', 'theme-cyber', 'theme-aurora'],
+  markets: ['theme-markets', 'theme-emerald', 'theme-gold'],
+  politics: ['theme-politics', 'theme-copper', 'theme-civic'],
+  ai: ['theme-ai', 'theme-violet', 'theme-neon'],
+  defense: ['theme-defense', 'theme-crimson', 'theme-steel'],
+};
+
+function getOpenThemeVariant(category) {
+  const spin = Number(localStorage.getItem('ni_theme_spin') || '0');
+  const variants = THEME_VARIANTS[category] || THEME_VARIANTS.tech;
+  return variants[spin % variants.length];
+}
+
+function preferenceLabels(cluster) {
+  const matches = cluster.matched_preferences || [];
+  return matches.map(m => m.label || TOPIC_LABELS[m.id] || m.id).filter(Boolean);
+}
+
 const ExposureGauge = ({ score }) => {
   const r = 30;
   const circ = 2 * Math.PI * r;
@@ -169,11 +209,12 @@ export default function Dashboard() {
     const el = document.querySelector('.app-container');
     if (!el) return;
     const calmCls = mode === 'calm' ? ' calm-mode' : '';
-    if (txt.match(/market|stock|econom|financ|invest/)) el.className = `app-container theme-markets${calmCls}`;
-    else if (txt.match(/trump|china|nato|election|politic|congress|senate/)) el.className = `app-container theme-politics${calmCls}`;
-    else if (txt.match(/\bai\b|openai|deepseek|llm|neural|machine learn/)) el.className = `app-container theme-ai${calmCls}`;
-    else if (txt.match(/military|war|defense|missile|army|weapon/)) el.className = `app-container theme-defense${calmCls}`;
-    else el.className = `app-container theme-tech${calmCls}`;
+    let category = 'tech';
+    if (txt.match(/market|stock|econom|financ|invest/)) category = 'markets';
+    else if (txt.match(/trump|china|nato|election|politic|congress|senate/)) category = 'politics';
+    else if (txt.match(/\bai\b|openai|deepseek|llm|neural|machine learn/)) category = 'ai';
+    else if (txt.match(/military|war|defense|missile|army|weapon/)) category = 'defense';
+    el.className = `app-container ${getOpenThemeVariant(category)}${calmCls}`;
   }, [mode]);
 
   // Process a response (update headlines, theme, etc.)
@@ -223,7 +264,7 @@ export default function Dashboard() {
     fetched.current = true;
     setLoading(true); setError(null);
     try {
-      const res = await syncCachedDashboard();  // GET = instant cache
+      const [res] = await Promise.all([syncCachedDashboard(), sleep(3200)]);  // GET = instant cache, loader completes visibly
 
       if (res?.is_stale) {
         showToast('Intelligence is being refreshed in the background...');
@@ -467,9 +508,9 @@ export default function Dashboard() {
               <div key={i} className={`delta-cell ${d.delta > 0 ? 'delta-up-cell' : d.delta < 0 ? 'delta-down-cell' : 'delta-flat-cell'}`}>
                 <span className="delta-cell-topic">{d.label}</span>
                 <span className={`delta-cell-value ${d.delta > 0 ? 'delta-up' : d.delta < 0 ? 'delta-down' : 'delta-flat'}`}>
-                  {d.delta > 0 ? '▲+' : d.delta < 0 ? '▼' : '—'}{d.delta !== 0 ? Math.abs(d.delta) : ''}
+                  {d.delta > 0 ? '▲+' : d.delta < 0 ? '▼' : '0'}{d.delta !== 0 ? Math.abs(d.delta) : ''}
                 </span>
-                <span className="delta-cell-pulse">Pulse {d.current}</span>
+                <span className="delta-cell-pulse">{d.has_baseline ? `Pulse ${d.current}` : 'Baseline building'}</span>
               </div>
             ))}
           </div>
@@ -537,6 +578,13 @@ export default function Dashboard() {
                     <span className="tier-badge tier-fallback" title="This card is a fallback cluster, not AI synthesis">NOT AI</span>
                   )}
                 </div>
+                {preferenceLabels(cluster).length > 0 && (
+                  <div className="preference-labels" title="Selected preferences that matched this story">
+                    {preferenceLabels(cluster).slice(0, 3).map(label => (
+                      <span key={label} className="preference-label">{label}</span>
+                    ))}
+                  </div>
+                )}
                 <h3 style={{ fontSize: 16, marginTop: 8, color: 'var(--text-0)', lineHeight: 1.35, letterSpacing: '-0.01em' }}>
                   {cluster.thread_title}
                 </h3>

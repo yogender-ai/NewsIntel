@@ -59,6 +59,16 @@
 .theme-politics{ --accent: #f59e0b; --accent-dim: rgba(245,158,11,0.08); --accent-glow: rgba(245,158,11,0.15); --accent-border: rgba(245,158,11,0.18); }
 .theme-defense { --accent: #ef4444; --accent-dim: rgba(239,68,68,0.08); --accent-glow: rgba(239,68,68,0.15); --accent-border: rgba(239,68,68,0.18); }
 .theme-ai      { --accent: #8b5cf6; --accent-dim: rgba(139,92,246,0.08); --accent-glow: rgba(139,92,246,0.15); --accent-border: rgba(139,92,246,0.18); }
+.theme-cyber   { --accent: #22d3ee; --accent-dim: rgba(34,211,238,0.08); --accent-glow: rgba(34,211,238,0.16); --accent-border: rgba(34,211,238,0.2); }
+.theme-aurora  { --accent: #2dd4bf; --accent-dim: rgba(45,212,191,0.08); --accent-glow: rgba(45,212,191,0.16); --accent-border: rgba(45,212,191,0.2); }
+.theme-emerald { --accent: #34d399; --accent-dim: rgba(52,211,153,0.08); --accent-glow: rgba(52,211,153,0.16); --accent-border: rgba(52,211,153,0.2); }
+.theme-gold    { --accent: #eab308; --accent-dim: rgba(234,179,8,0.08); --accent-glow: rgba(234,179,8,0.16); --accent-border: rgba(234,179,8,0.2); }
+.theme-copper  { --accent: #fb923c; --accent-dim: rgba(251,146,60,0.08); --accent-glow: rgba(251,146,60,0.16); --accent-border: rgba(251,146,60,0.2); }
+.theme-civic   { --accent: #38bdf8; --accent-dim: rgba(56,189,248,0.08); --accent-glow: rgba(56,189,248,0.16); --accent-border: rgba(56,189,248,0.2); }
+.theme-violet  { --accent: #a78bfa; --accent-dim: rgba(167,139,250,0.08); --accent-glow: rgba(167,139,250,0.16); --accent-border: rgba(167,139,250,0.2); }
+.theme-neon    { --accent: #ec4899; --accent-dim: rgba(236,72,153,0.08); --accent-glow: rgba(236,72,153,0.16); --accent-border: rgba(236,72,153,0.2); }
+.theme-crimson { --accent: #f43f5e; --accent-dim: rgba(244,63,94,0.08); --accent-glow: rgba(244,63,94,0.16); --accent-border: rgba(244,63,94,0.2); }
+.theme-steel   { --accent: #94a3b8; --accent-dim: rgba(148,163,184,0.08); --accent-glow: rgba(148,163,184,0.16); --accent-border: rgba(148,163,184,0.22); }
 
 /* ── Reset ─────────────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -538,6 +548,24 @@ a:hover { opacity: 0.8; }
 }
 .signal-card-meta {
   display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px;
+}
+.preference-labels {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+.preference-label {
+  padding: 3px 8px;
+  border-radius: var(--br);
+  border: 1px solid var(--accent-border);
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
 }
 .signal-impact {
   font-size: 12px; color: var(--text-2); line-height: 1.5; margin-top: 6px;

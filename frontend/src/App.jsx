@@ -112,6 +112,11 @@ const TopBar = () => {
 function App() {
   const [headlines, setHeadlines] = useState([]);
   const [mode, setModeState] = useState(localStorage.getItem('ni_mode') || 'command');
+  const [themeSeed] = useState(() => {
+    const next = Number(localStorage.getItem('ni_theme_spin') || '0') + 1;
+    localStorage.setItem('ni_theme_spin', String(next));
+    return next;
+  });
 
   const setMode = (m) => {
     setModeState(m);
@@ -122,7 +127,7 @@ function App() {
     <AuthProvider>
       <AppContext.Provider value={{ headlines, setHeadlines, mode, setMode }}>
         <Router>
-          <div className={`app-container theme-tech ${mode === 'calm' ? 'calm-mode' : ''}`}>
+          <div className={`app-container ${['theme-tech', 'theme-cyber', 'theme-aurora'][themeSeed % 3]} ${mode === 'calm' ? 'calm-mode' : ''}`}>
             <div className="scanline" />
             <TopBar />
             <div className="main-content">

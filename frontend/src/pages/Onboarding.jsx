@@ -70,8 +70,8 @@ export default function Onboarding() {
         preferred_categories: topics, preferred_regions: regions,
         youtube_channels: [], onboarded: true,
       });
-      // Warm the personalized dashboard cache before landing on the feed.
-      await api.forceDashboardRefresh(topics, regions);
+      // Warm the personalized dashboard cache without blocking the launch.
+      api.forceDashboardRefresh(topics, regions).catch(err => console.warn('Dashboard warmup failed', err));
     } catch (e) { console.error(e); }
     setSaving(false);
     navigate('/dashboard');
