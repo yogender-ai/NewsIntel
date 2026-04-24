@@ -1,17 +1,25 @@
 import httpx
 import asyncio
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # Your Cloud Command Gateway URL
 CLOUD_COMMAND_BASE_URL = "http://127.0.0.1:8000"
 
 # Your Master Gateway Secret
-GATEWAY_SECRET = "HithisismasterkeyofYash11120043122005amiiN"
+GATEWAY_SECRET = os.getenv("GATEWAY_SECRET", "")
 
 # The path we want to hit on Gemini
 target_provider = "gemini"
 target_path = "v1beta/models/gemini-2.5-flash:generateContent"
 
 async def test_gateway():
+    if not GATEWAY_SECRET:
+        print("GATEWAY_SECRET is missing. Add it to your local .env before running this test.")
+        return
+
     print(f"Connecting to Cloud Command Gateway at {CLOUD_COMMAND_BASE_URL}...")
     
     url = f"{CLOUD_COMMAND_BASE_URL}/api/gateway/{target_provider}/{target_path}"
