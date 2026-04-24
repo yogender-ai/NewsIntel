@@ -37,9 +37,13 @@ _cached_payload: Optional[dict] = None       # Latest full dashboard payload
 _cached_at: Optional[datetime] = None        # When it was generated
 _cache_lock = asyncio.Lock()                 # Prevent concurrent refreshes
 _bg_task: Optional[asyncio.Task] = None      # Background scheduler handle
+_shared_refresh_task: Optional[asyncio.Task] = None
 _profile_cache: dict = {}                    # Personalized payloads keyed by profile
 _profile_locks: dict = {}                    # Prevent duplicate refreshes per profile
+_profile_refresh_tasks: dict = {}
+_article_analysis_cache: dict = {}
 MAX_PROFILE_CACHES = 24
+MAX_ARTICLE_ANALYSIS_CACHE = 256
 
 FAST_INTERVAL = 300    # 5 min — RSS + NLP + tiers
 FULL_INTERVAL = 900    # 15 min — + LLM synthesis
@@ -49,6 +53,8 @@ STALE_THRESHOLD = 360  # 6 min — after this, trigger bg refresh on user reques
 # ---------------------------------------------------------------------------
 # Database Lifecycle + Background Scheduler
 # ---------------------------------------------------------------------------
+ARTICLE_ANALYSIS_TTL = 1800
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _bg_task
@@ -210,31 +216,90 @@ def _prune_profile_cache():
         cache_key, _ = oldest_first.pop(0)
         _profile_cache.pop(cache_key, None)
         _profile_locks.pop(cache_key, None)
+        task = _profile_refresh_tasks.pop(cache_key, None)
+        if task and not task.done():
+            task.cancel()
 
 
-def _attach_cache_metadata(payload: dict, cached_at: Optional[datetime], personalized: bool) -> dict:
+def _article_analysis_cache_key(article: dict) -> str:
+    return json.dumps(
+        {
+            "title": article.get("title", "").strip().lower(),
+            "source": article.get("source", "").strip().lower(),
+            "published": article.get("published", ""),
+        },
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+
+
+def _get_cached_article_analysis(article: dict) -> Optional[dict]:
+    cache_key = _article_analysis_cache_key(article)
+    entry = _article_analysis_cache.get(cache_key)
+    if not entry:
+        return None
+
+    age_seconds = (datetime.now(timezone.utc) - entry["cached_at"]).total_seconds()
+    if age_seconds > ARTICLE_ANALYSIS_TTL:
+        _article_analysis_cache.pop(cache_key, None)
+        return None
+    return entry["result"]
+
+
+def _put_cached_article_analysis(article: dict, result: dict):
+    if len(_article_analysis_cache) >= MAX_ARTICLE_ANALYSIS_CACHE:
+        oldest_first = sorted(
+            _article_analysis_cache.items(),
+            key=lambda item: item[1]["cached_at"],
+        )[: MAX_ARTICLE_ANALYSIS_CACHE // 2]
+        for cache_key, _ in oldest_first:
+            _article_analysis_cache.pop(cache_key, None)
+
+    _article_analysis_cache[_article_analysis_cache_key(article)] = {
+        "cached_at": datetime.now(timezone.utc),
+        "result": result,
+    }
+
+
+def _task_running(task: Optional[asyncio.Task]) -> bool:
+    return bool(task) and not task.done()
+
+
+def _attach_cache_metadata(
+    payload: dict,
+    cached_at: Optional[datetime],
+    personalized: bool,
+    refresh_in_progress: bool = False,
+) -> dict:
     age_seconds = (datetime.now(timezone.utc) - cached_at).total_seconds() if cached_at else 0
     response = {**payload}
     response["cache_age_seconds"] = max(0, int(age_seconds))
     response["cached_at"] = cached_at.isoformat() if cached_at else None
     response["is_stale"] = age_seconds > STALE_THRESHOLD
     response["personalization_mode"] = "profile" if personalized else "shared"
+    response["refresh_in_progress"] = refresh_in_progress
     return response
 
 
 async def _refresh_profile_cache(topics: list, regions: list, force_refresh_news: bool = False,
-                                 clear_model_cache: bool = False):
+                                 clear_model_cache: bool = False, run_llm: bool = True):
     normalized_topics = _normalize_profile_values(topics)
     normalized_regions = _normalize_profile_values(regions)
     cache_key = _profile_cache_key(normalized_topics, normalized_regions)
 
     async with _get_profile_lock(cache_key):
+        cached_profile = _profile_cache.get(cache_key)
         if force_refresh_news:
             news_fetcher.force_refresh()
         if clear_model_cache:
-            hf_client._cache.clear()
+            hf_client.clear_cache()
 
-        payload = await _build_intelligence(normalized_topics, normalized_regions, run_llm=True)
+        payload = await _build_intelligence(
+            normalized_topics,
+            normalized_regions,
+            run_llm=run_llm or not cached_profile,
+            reuse_payload=cached_profile["payload"] if cached_profile else None,
+        )
         cached_at = datetime.now(timezone.utc)
         _profile_cache[cache_key] = {
             "payload": payload,
@@ -287,6 +352,43 @@ def compute_exposure_score(cluster_text: str, user_topics: list, user_regions: l
     if hits > 0 and score < 15:
         score = 15
     return score
+
+
+def _schedule_profile_refresh(
+    topics: list,
+    regions: list,
+    *,
+    force_refresh_news: bool = False,
+    clear_model_cache: bool = False,
+    run_llm: bool = False,
+) -> asyncio.Task:
+    normalized_topics = _normalize_profile_values(topics)
+    normalized_regions = _normalize_profile_values(regions)
+    cache_key = _profile_cache_key(normalized_topics, normalized_regions)
+    existing = _profile_refresh_tasks.get(cache_key)
+    if _task_running(existing):
+        return existing
+
+    async def runner():
+        try:
+            await _refresh_profile_cache(
+                normalized_topics,
+                normalized_regions,
+                force_refresh_news=force_refresh_news,
+                clear_model_cache=clear_model_cache,
+                run_llm=run_llm,
+            )
+            logger.info("Profile refresh complete for %s", cache_key)
+        except Exception as e:
+            logger.error(f"Profile refresh failed for {cache_key}: {e}")
+        finally:
+            current = _profile_refresh_tasks.get(cache_key)
+            if current is asyncio.current_task():
+                _profile_refresh_tasks.pop(cache_key, None)
+
+    task = asyncio.create_task(runner())
+    _profile_refresh_tasks[cache_key] = task
+    return task
 
 
 # ---------------------------------------------------------------------------
@@ -343,7 +445,12 @@ async def compute_daily_delta(topics: list, current_clusters: list) -> list:
 # Core Intelligence Pipeline (used by both bg scheduler and manual refresh)
 # ---------------------------------------------------------------------------
 
-async def _build_intelligence(topics: list, regions: list, run_llm: bool = True) -> dict:
+async def _build_intelligence(
+    topics: list,
+    regions: list,
+    run_llm: bool = True,
+    reuse_payload: Optional[dict] = None,
+) -> dict:
     """
     Execute the full intelligence pipeline. Returns the dashboard payload dict.
     If run_llm=False, skips LLM synthesis (reuses cached brief if available).
@@ -360,11 +467,24 @@ async def _build_intelligence(topics: list, regions: list, run_llm: bool = True)
 
     # 2. HF Analysis (FREE — parallel)
     async def analyze_one(article):
+        cached_analysis = _get_cached_article_analysis(article)
+        if cached_analysis:
+            return {
+                "id": article["id"],
+                "title": article["title"],
+                "source": article["source"],
+                "url": article.get("url", ""),
+                "published": article.get("published", ""),
+                "text_preview": article["text"][:300],
+                "entities": cached_analysis.get("entities", []),
+                "sentiment": cached_analysis.get("sentiment", {"label": "NEUTRAL", "confidence": 0.5}),
+            }
+
         rich_text = f"{article['title']}. {article['text'][:1200]}"
         ner_task = hf_client.extract_entities(rich_text[:1000])
         sent_task = hf_client.analyze_sentiment(rich_text[:800])
         ner_result, sent_result = await asyncio.gather(ner_task, sent_task)
-        return {
+        result = {
             "id": article["id"],
             "title": article["title"],
             "source": article["source"],
@@ -377,6 +497,14 @@ async def _build_intelligence(topics: list, regions: list, run_llm: bool = True)
                 "confidence": round(sent_result.get("score", 0.5), 3),
             },
         }
+        _put_cached_article_analysis(
+            article,
+            {
+                "entities": result["entities"],
+                "sentiment": result["sentiment"],
+            },
+        )
+        return result
 
     analysis_results = await asyncio.gather(*[analyze_one(a) for a in articles])
 
@@ -391,12 +519,13 @@ async def _build_intelligence(topics: list, regions: list, run_llm: bool = True)
             user_categories=topics,
             user_regions=regions,
         )
-    elif _cached_payload:
+    elif reuse_payload or _cached_payload:
         # Reuse previous LLM output
+        source_payload = reuse_payload or _cached_payload or {}
         intelligence = {
-            "daily_brief": _cached_payload.get("daily_brief", ""),
-            "clusters": _cached_payload.get("clusters", []),
-            "impact": _cached_payload.get("impact", {}),
+            "daily_brief": source_payload.get("daily_brief", ""),
+            "clusters": source_payload.get("clusters", []),
+            "impact": source_payload.get("impact", {}),
         }
 
     # 4. Build article lookup
@@ -541,9 +670,32 @@ async def _get_user_prefs_from_header(request: Request):
     return ["tech", "ai", "markets"], [], uid, False
 
 
-async def _silent_refresh_profile(topics: list, regions: list):
+def _schedule_shared_refresh(*, run_llm: bool = False) -> asyncio.Task:
+    global _shared_refresh_task
+
+    if _task_running(_shared_refresh_task):
+        return _shared_refresh_task
+
+    async def runner():
+        global _shared_refresh_task
+        try:
+            await _silent_refresh(run_llm=run_llm)
+        finally:
+            if _shared_refresh_task is asyncio.current_task():
+                _shared_refresh_task = None
+
+    _shared_refresh_task = asyncio.create_task(runner())
+    return _shared_refresh_task
+
+
+async def _silent_refresh_profile(topics: list, regions: list, run_llm: bool = False):
     try:
-        await _refresh_profile_cache(topics, regions, force_refresh_news=True)
+        await _refresh_profile_cache(
+            topics,
+            regions,
+            force_refresh_news=True,
+            run_llm=run_llm,
+        )
         logger.info("Silent personalized refresh complete.")
     except Exception as e:
         logger.error(f"Silent personalized refresh failed: {e}")
@@ -623,14 +775,23 @@ async def get_cached_dashboard(request: Request):
         cached_profile = _profile_cache.get(cache_key)
 
         if cached_profile:
+            refresh_in_progress = _task_running(_profile_refresh_tasks.get(cache_key))
             response = _attach_cache_metadata(
                 cached_profile["payload"],
                 cached_profile.get("cached_at"),
                 personalized=True,
+                refresh_in_progress=refresh_in_progress,
             )
-            if response["is_stale"]:
+            if response["is_stale"] and not refresh_in_progress:
+                run_full_refresh = response["cache_age_seconds"] >= FULL_INTERVAL
                 logger.info(f"Profile cache stale for {uid or cache_key}; triggering refresh")
-                asyncio.create_task(_silent_refresh_profile(user_topics, user_regions))
+                _schedule_profile_refresh(
+                    user_topics,
+                    user_regions,
+                    force_refresh_news=True,
+                    run_llm=run_full_refresh,
+                )
+                response["refresh_in_progress"] = True
             return response
 
         logger.info(f"No personalized cache for {uid or cache_key}; building profile feed")
@@ -638,10 +799,17 @@ async def get_cached_dashboard(request: Request):
         return _attach_cache_metadata(payload, cached_at, personalized=True)
 
     if _cached_payload:
-        response = _attach_cache_metadata(_cached_payload, _cached_at, personalized=False)
-        if response["is_stale"]:
+        response = _attach_cache_metadata(
+            _cached_payload,
+            _cached_at,
+            personalized=False,
+            refresh_in_progress=_task_running(_shared_refresh_task),
+        )
+        if response["is_stale"] and not response["refresh_in_progress"]:
+            run_full_refresh = response["cache_age_seconds"] >= FULL_INTERVAL
             logger.info(f"Shared cache stale ({response['cache_age_seconds']}s old); triggering refresh")
-            asyncio.create_task(_silent_refresh())
+            _schedule_shared_refresh(run_llm=run_full_refresh)
+            response["refresh_in_progress"] = True
         return response
         """Legacy shared-personalization path removed in favor of profile-scoped feeds.
 
@@ -713,7 +881,7 @@ async def force_refresh_dashboard(request: Request, payload_request: DashboardRe
     effective_regions = requested_regions or (user_regions if has_saved_profile else [])
 
     news_fetcher.force_refresh()
-    hf_client._cache.clear()
+    hf_client.clear_cache(prefixes=("openrouter", "gemini"))
     logger.info("Force refresh triggered by user.")
 
     if effective_topics or effective_regions:
@@ -733,14 +901,19 @@ async def force_refresh_dashboard(request: Request, payload_request: DashboardRe
     return _attach_cache_metadata(payload, _cached_at, personalized=False)
 
 
-async def _silent_refresh():
+async def _silent_refresh(run_llm: bool = False):
     """Non-blocking background refresh triggered by stale cache."""
     global _cached_payload, _cached_at
     async with _cache_lock:
         try:
             topics, regions = await _get_broad_topics()
             news_fetcher.force_refresh()
-            payload = await _build_intelligence(topics, regions, run_llm=True)
+            payload = await _build_intelligence(
+                topics,
+                regions,
+                run_llm=run_llm,
+                reuse_payload=_cached_payload,
+            )
             _cached_payload = payload
             _cached_at = datetime.now(timezone.utc)
             logger.info("Silent background refresh complete.")

@@ -153,6 +153,8 @@ export default function Dashboard() {
   const [toast, setToast] = useState(null);
   const navigate = useNavigate();
   const fetched = useRef(false);
+  const dataRef = useRef(null);
+  const lastAutoToastCache = useRef(null);
 
   // Show toast for X seconds
   const showToast = (msg) => {
@@ -161,7 +163,7 @@ export default function Dashboard() {
   };
 
   // Apply dynamic theme based on content
-  const applyTheme = (res) => {
+  const applyTheme = useCallback((res) => {
     if (!res?.articles?.length) return;
     const txt = JSON.stringify(res.articles.map(a => a.title)).toLowerCase();
     const el = document.querySelector('.app-container');
@@ -172,14 +174,31 @@ export default function Dashboard() {
     else if (txt.match(/\bai\b|openai|deepseek|llm|neural|machine learn/)) el.className = `app-container theme-ai${calmCls}`;
     else if (txt.match(/military|war|defense|missile|army|weapon/)) el.className = `app-container theme-defense${calmCls}`;
     else el.className = `app-container theme-tech${calmCls}`;
-  };
+  }, [mode]);
 
   // Process a response (update headlines, theme, etc.)
-  const processResponse = (res) => {
+  const processResponse = useCallback((res) => {
     if (res.clusters?.length) setHeadlines(res.clusters.map(c => c.thread_title).filter(Boolean));
     else if (res.articles?.length) setHeadlines(res.articles.slice(0, 6).map(a => a.title));
     applyTheme(res);
-  };
+  }, [applyTheme, setHeadlines]);
+
+  const syncCachedDashboard = useCallback(async ({ announce = false } = {}) => {
+    if (announce && document.hidden) return null;
+
+    const previousCachedAt = dataRef.current?.cached_at;
+    const res = await api.getCachedDashboard();
+    dataRef.current = res;
+    setData(res);
+    processResponse(res);
+
+    if (announce && previousCachedAt && res.cached_at && res.cached_at !== previousCachedAt && lastAutoToastCache.current !== res.cached_at) {
+      lastAutoToastCache.current = res.cached_at;
+      showToast('Live feed updated automatically');
+    }
+
+    return res;
+  }, [processResponse]);
 
   // PHASE 1: Quick prefs check — runs instantly, no loading screen
   useEffect(() => {
@@ -191,7 +210,7 @@ export default function Dashboard() {
           navigate('/onboarding');
           return;
         }
-      } catch (e) {
+      } catch {
         // Prefs check failed — let them through to dashboard
       }
       setCheckingPrefs(false); // User is onboarded, proceed to Phase 2
@@ -204,24 +223,23 @@ export default function Dashboard() {
     fetched.current = true;
     setLoading(true); setError(null);
     try {
-      const res = await api.getDashboard([], [], false);  // GET = instant cache
-      setData(res);
-      processResponse(res);
+      const res = await syncCachedDashboard();  // GET = instant cache
 
-      if (res.is_stale) {
+      if (res?.is_stale) {
         showToast('Intelligence is being refreshed in the background...');
       }
     } catch (e) { setError(e.message); }
     setLoading(false);
-  }, [setHeadlines, mode, checkingPrefs]);
+  }, [checkingPrefs, syncCachedDashboard]);
 
   // MANUAL FORCE REFRESH: POST triggers full pipeline
   const forceRefresh = async () => {
     setRefreshing(true); setError(null);
     try {
-      const res = await api.getDashboard([], [], true);  // POST = force
+      const res = await api.forceDashboardRefresh([], []);  // POST = force
       const oldSignalCount = (data?.clusters || []).filter(c => c.signal_tier === 'CRITICAL' || c.signal_tier === 'SIGNAL').length;
       const newSignalCount = (res.clusters || []).filter(c => c.signal_tier === 'CRITICAL' || c.signal_tier === 'SIGNAL').length;
+      dataRef.current = res;
       setData(res);
       processResponse(res);
 
@@ -236,6 +254,32 @@ export default function Dashboard() {
 
   useEffect(() => { if (!checkingPrefs) load(); }, [checkingPrefs, load]);
 
+  useEffect(() => {
+    dataRef.current = data;
+  }, [data]);
+
+  useEffect(() => {
+    if (checkingPrefs || !data) return undefined;
+
+    const refreshMs = data.refresh_in_progress || data.is_stale ? 20000 : 120000;
+    const sync = () => {
+      syncCachedDashboard({ announce: true }).catch(() => {});
+    };
+
+    const intervalId = setInterval(sync, refreshMs);
+    const handleVisibility = () => {
+      if (!document.hidden) {
+        sync();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    return () => {
+      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibility);
+    };
+  }, [checkingPrefs, data, syncCachedDashboard]);
+
   // Live freshness timer — ticks every 30s
   const [liveAge, setLiveAge] = useState(0);
   useEffect(() => {
@@ -248,7 +292,7 @@ export default function Dashboard() {
       setLiveAge(baseAge + elapsed);
     }, 30000);
     return () => clearInterval(t);
-  }, [data?.cached_at]);
+  }, [data?.cached_at, data?.cache_age_seconds]);
   const freshLabel = liveAge < 60 ? 'Just now'
     : liveAge < 3600 ? `${Math.floor(liveAge / 60)}m ago`
     : `${Math.floor(liveAge / 3600)}h ago`;
@@ -317,6 +361,11 @@ export default function Dashboard() {
               <span className="mono" style={{ fontSize: 9, color: data?.is_stale ? 'var(--warn)' : 'var(--pos)', letterSpacing: 0.5 }}>
                 ● Updated {freshLabel}
               </span>
+              {data?.refresh_in_progress && (
+                <span className="mono" style={{ fontSize: 9, color: 'var(--accent)', letterSpacing: 0.5 }}>
+                  AUTO SYNC ACTIVE
+                </span>
+              )}
             </div>
           )}
           {user && (

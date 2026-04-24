@@ -74,9 +74,17 @@ def _put(k, v):
             del _cache[ok]
     _cache[k] = (time.time(), v)
 
-def clear_cache():
-    _cache.clear()
-    logger.info("AI cache cleared.")
+def clear_cache(prefixes=None):
+    if not prefixes:
+        _cache.clear()
+        logger.info("AI cache cleared.")
+        return
+
+    prefixes = tuple(prefixes)
+    keys_to_delete = [key for key in _cache if key.split(":", 1)[0] in prefixes]
+    for key in keys_to_delete:
+        _cache.pop(key, None)
+    logger.info("AI cache cleared for prefixes: %s", ", ".join(prefixes))
 
 
 # ---------------------------------------------------------------------------
@@ -135,6 +143,57 @@ async def _call_openrouter(prompt: str, model: str = "openrouter/auto") -> str:
     except Exception as e:
         logger.error(f"OpenRouter: {e}")
         return ""
+
+
+async def diagnose_openrouter(
+    prompt: str = "Reply with exactly: OPENROUTER_OK",
+    model: str = "openrouter/auto",
+) -> dict:
+    payload = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0,
+        "max_tokens": 60,
+    }
+    started = time.time()
+
+    try:
+        response = await _http.post(OPENROUTER_URL, headers=HEADERS, json=payload)
+        body_preview = response.text[:500]
+        diagnostic = {
+            "ok": False,
+            "status_code": response.status_code,
+            "latency_ms": int((time.time() - started) * 1000),
+            "url": OPENROUTER_URL,
+            "model_requested": model,
+            "content": "",
+            "model_used": "",
+            "usage": {},
+            "body_preview": body_preview,
+        }
+
+        if response.status_code == 200:
+            data = response.json()
+            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+            diagnostic["content"] = content
+            diagnostic["model_used"] = data.get("model", "")
+            diagnostic["usage"] = data.get("usage", {}) if isinstance(data.get("usage"), dict) else {}
+            diagnostic["ok"] = bool(content)
+            diagnostic["body_preview"] = body_preview if not content else content[:500]
+
+        return diagnostic
+    except Exception as exc:
+        return {
+            "ok": False,
+            "status_code": None,
+            "latency_ms": int((time.time() - started) * 1000),
+            "url": OPENROUTER_URL,
+            "model_requested": model,
+            "content": "",
+            "model_used": "",
+            "usage": {},
+            "body_preview": str(exc),
+        }
 
 
 # Gemini model fallback chain
