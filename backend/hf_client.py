@@ -51,6 +51,7 @@ if not GATEWAY_SECRET:
     logger.error("GATEWAY_SECRET missing — AI calls will fail.")
 
 _http = httpx.AsyncClient(timeout=90.0)
+_last_synthesis_provider = "none"
 
 # ---------------------------------------------------------------------------
 # Cache with TTL
@@ -336,14 +337,22 @@ RULES:
 - Use correct English spelling and grammar
 - Be precise: include names, percentages, dollar amounts where available"""
 
+    global _last_synthesis_provider
+    _last_synthesis_provider = "none"
+
     # Priority 1: OpenRouter (Free)
     result_text = await _call_openrouter(prompt)
+    if result_text:
+        _last_synthesis_provider = "openrouter"
 
     # Priority 2: Gemini (Fallback)
     if not result_text:
         result_text = await _call_gemini(prompt)
+        if result_text:
+            _last_synthesis_provider = "gemini"
 
     if not result_text:
+        _last_synthesis_provider = "deterministic_fallback"
         return _fallback_intelligence(article_list)
 
     try:
@@ -353,9 +362,11 @@ RULES:
             parsed["clusters"] = _fallback_clusters(article_list)
         if not isinstance(parsed.get("impact"), dict):
             parsed["impact"] = {"headline": "Analysis pending", "why_it_matters": "", "actions": []}
+        parsed["_synthesis_provider"] = _last_synthesis_provider
         return parsed
     except Exception as e:
         logger.warning(f"Intelligence parse error: {e}")
+        _last_synthesis_provider = "deterministic_fallback"
         return _fallback_intelligence(article_list)
 
 
@@ -367,6 +378,7 @@ def _fallback_intelligence(articles):
         "daily_brief": "Intelligence synthesis temporarily delayed. HuggingFace sentiment and entity analysis remain active.\nTry refreshing in 1-2 minutes when API quota resets.\nAll news sources are being ingested from Google News RSS in real-time.\nThe system will automatically recover once the AI provider responds.",
         "clusters": _fallback_clusters(articles),
         "impact": {"headline": "AI synthesis temporarily at capacity — data is still live", "why_it_matters": "Sentiment and entities from HuggingFace are processing normally. Only the brief and clustering require the AI provider.", "actions": ["Wait 60 seconds and refresh", "Check Cloud Command for API status"]},
+        "_synthesis_provider": "deterministic_fallback",
     }
 
 

@@ -308,6 +308,7 @@ export default function Dashboard() {
   const tension = data?.tension_index || {};
   const impact = data?.impact || {};
   const queue = data?.monitoring_queue || [];
+  const pipeline = data?.pipeline_status || {};
   const activeTopics = data?.topics_used || [];
   const activeRegions = data?.regions_used || [];
   const { displayed: briefText, typing } = useTypewriter(data?.daily_brief);
@@ -424,12 +425,12 @@ export default function Dashboard() {
             <div className="label" style={{ marginBottom: 10, fontSize: 9 }}>PIPELINE</div>
             <div style={{ display: 'grid', gap: 5 }}>
               {[
-                ['AI', 'OpenRouter → Gemini'],
-                ['NLP', 'HuggingFace (free)'],
-                ['NEWS', 'Google RSS'],
-                ['CACHE', data.personalization_mode === 'profile' ? 'Profile-scoped' : 'Shared'],
+                ['AI', (pipeline.synthesis || 'unknown').replaceAll('_', ' ')],
+                ['NLP', pipeline.nlp === 'huggingface_space_cached' ? 'HuggingFace cached' : 'HuggingFace'],
+                ['NEWS', pipeline.news === 'google_rss' ? 'Google RSS' : 'RSS'],
+                ['CACHE', pipeline.cache || (data.personalization_mode === 'profile' ? 'Profile-scoped' : 'Shared')],
                 ['TIER', 'Deterministic'],
-                ['GEN', data.generated_at ? new Date(data.generated_at).toLocaleTimeString() : '—'],
+                ['GEN', data.generated_at ? new Date(data.generated_at).toLocaleTimeString() : '-'],
               ].map(([k, v]) => (
                 <div key={k} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <span className="mono" style={{ fontSize: 9, color: 'var(--text-3)', letterSpacing: 1 }}>{k}</span>
@@ -437,6 +438,20 @@ export default function Dashboard() {
                 </div>
               ))}
             </div>
+            {pipeline.quota_saving?.length > 0 && (
+              <>
+                <div className="section-line" />
+                <div className="label" style={{ marginBottom: 8, fontSize: 9, color: 'var(--text-3)' }}>QUOTA GUARD</div>
+                <div style={{ display: 'grid', gap: 6 }}>
+                  {pipeline.quota_saving.slice(0, 4).map((item, i) => (
+                    <div key={i} className="quota-line">
+                      <span className="quota-dot" />
+                      <span>{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>

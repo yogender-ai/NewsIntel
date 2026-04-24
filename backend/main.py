@@ -526,6 +526,7 @@ async def _build_intelligence(
             "daily_brief": source_payload.get("daily_brief", ""),
             "clusters": source_payload.get("clusters", []),
             "impact": source_payload.get("impact", {}),
+            "_synthesis_provider": "cache_reuse",
         }
 
     # 4. Build article lookup
@@ -626,6 +627,18 @@ async def _build_intelligence(
         "regions_used": regions,
         "generated_at": now.isoformat(),
         "refresh_type": "full" if run_llm else "fast",
+        "pipeline_status": {
+            "news": "google_rss",
+            "nlp": "huggingface_space_cached",
+            "synthesis": intelligence.get("_synthesis_provider", "skipped"),
+            "cache": "profile-scoped" if topics or regions else "shared",
+            "quota_saving": [
+                "Dashboard GET serves memory cache.",
+                "Fast refresh reuses previous LLM synthesis.",
+                "Article NER and sentiment are cached for 30 minutes.",
+                "OpenRouter is tried before Gemini; deterministic fallback avoids retry loops.",
+            ],
+        },
         "next_refresh_at": (now + timedelta(seconds=FAST_INTERVAL)).isoformat(),
     }
 

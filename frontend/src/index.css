@@ -692,6 +692,25 @@ a:hover { opacity: 0.8; }
   letter-spacing: 0.5px; flex-shrink: 0; margin-left: 12px;
 }
 
+.quota-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--text-2);
+}
+
+.quota-dot {
+  width: 5px;
+  height: 5px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--pos);
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.35);
+  flex-shrink: 0;
+}
+
 /* ── Opportunity Radar ───────────────────────── */
 .radar-split {
   display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
@@ -748,4 +767,3 @@ a:hover { opacity: 0.8; }
   .delta-cell-value { font-size: 18px; }
   .exposure-gauge { flex-direction: column; text-align: center; }
 }
-
