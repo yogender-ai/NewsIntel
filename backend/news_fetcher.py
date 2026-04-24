@@ -9,6 +9,7 @@ import os
 import re
 import logging
 import asyncio
+import random
 import hashlib
 from datetime import datetime, timezone
 from urllib.parse import quote
@@ -69,9 +70,9 @@ _http = httpx.AsyncClient(
     headers={"User-Agent": "Mozilla/5.0 (compatible; NewsIntel/1.0)"},
 )
 
-# In-memory cache: avoid re-fetching same topics within 2 min
+# In-memory cache: avoid re-fetching same topics within 90 seconds
 _news_cache = {}
-_CACHE_TTL = 120  # 2 minutes — short TTL so news stays fresh
+_CACHE_TTL = 90  # 90 seconds — short TTL so news stays fresh
 
 
 def force_refresh():
@@ -81,7 +82,9 @@ def force_refresh():
 
 
 def _cache_key(topics, regions):
-    raw = f"{sorted(topics)}_{sorted(regions)}"
+    # Include current hour so cache busts at least every hour
+    hour_token = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H")
+    raw = f"{sorted(topics)}_{sorted(regions)}_{hour_token}"
     return hashlib.md5(raw.encode()).hexdigest()
 
 
@@ -103,10 +106,20 @@ async def fetch_news(topics: list = None, regions: list = None, max_articles: in
     all_articles = []
     seen_titles = set()
 
-    # Build queries from topics
+    # Build queries from topics — randomize to get diverse results each cycle
     queries = []
     for t in topics[:8]:  # Cover up to 8 topics per fetch cycle
-        q = TOPIC_QUERIES.get(t, t)
+        base_q = TOPIC_QUERIES.get(t, t)
+        # Split terms and pick a random subset + add "today" / "latest" for freshness
+        terms = base_q.split()
+        if len(terms) > 2:
+            # Pick 2-3 random terms + add a freshness keyword
+            pick_count = min(3, len(terms))
+            selected = random.sample(terms, pick_count)
+            freshness = random.choice(["today", "latest", "breaking", "new", "2026"])
+            q = f"{' '.join(selected)} {freshness}"
+        else:
+            q = f"{base_q} today"
         # Add region boost if specified
         if regions:
             region_terms = " ".join([REGION_BOOST.get(r, "") for r in regions[:2] if r in REGION_BOOST])
@@ -114,8 +127,14 @@ async def fetch_news(topics: list = None, regions: list = None, max_articles: in
                 q = f"{q} {region_terms}"
         queries.append(q)
 
-    # Also add a "general world news" query
-    queries.append("breaking news world today")
+    # Also add fresh general queries
+    general_queries = [
+        "breaking news today",
+        "latest world news today",
+        "top headlines today",
+        "major news developments now",
+    ]
+    queries.append(random.choice(general_queries))
 
     # Fetch RSS feeds in parallel
     tasks = [_fetch_rss(q) for q in queries]
@@ -149,8 +168,10 @@ async def fetch_news(topics: list = None, regions: list = None, max_articles: in
 
 
 async def _fetch_rss(query: str) -> list:
-    """Fetch articles from Google News RSS for a query."""
-    encoded = quote(query)
+    """Fetch articles from Google News RSS for a query with recency bias."""
+    # Add 'when:1d' to force results from last 24 hours
+    fresh_query = f"{query} when:1d"
+    encoded = quote(fresh_query)
     url = f"https://news.google.com/rss/search?q={encoded}&hl=en&gl=US&ceid=US:en"
 
     try:

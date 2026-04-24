@@ -136,10 +136,10 @@ function ScoreButton({ type, label, value, onExplain }) {
   );
 }
 
-function SignalCard({ signal, selected, onAction, onExplain }) {
+function SignalCard({ signal, selected, onAction, onExplain, index }) {
   const tone = signal.signal_tier?.toLowerCase() || 'signal';
   return (
-    <article className={`simple-signal-card ${selected ? 'selected' : ''} tone-${tone}`}>
+    <article className={`simple-signal-card ${selected ? 'selected' : ''} tone-${tone}`} style={{ animationDelay: `${(index || 0) * 0.08}s` }}>
       <div className="simple-card-top">
         <span className={`tier-badge tier-${tone}`}>{signal.signal_tier || 'SIGNAL'}</span>
         <span className="updated-time">{signal.updatedAgo}</span>
@@ -172,7 +172,7 @@ function SignalCard({ signal, selected, onAction, onExplain }) {
   );
 }
 
-/* ── Story Flow ──────────────────────────────── */
+/* ── Story Flow (Animated Connected Graph) ──── */
 function StoryFlow({ signal }) {
   const graphNodes = signal.story_graph?.nodes?.slice(0, 4).map(n => n.label);
   const nodes = graphNodes?.length >= 4 ? graphNodes : [
@@ -183,17 +183,30 @@ function StoryFlow({ signal }) {
   ];
   const labels = ['Event', 'Market Impact', 'Risk Shift', 'User Exposure'];
   const icons = [Cpu, Building2, TrendingUp, User];
+  const nodeColors = ['#f2554e', '#f28c24', '#e6a23c', '#6c4df6'];
+  const nodeBgs = ['#fff1f1', '#fff5e8', '#fef9ed', '#f0ecfe'];
   return (
-    <div className="story-flow">
-      {nodes.map((node, i) => {
-        const Icon = icons[i] || CircleDot;
-        return (
-          <React.Fragment key={`${node}-${i}`}>
-            <div className="flow-node"><Icon size={25} /><span>{labels[i]}</span><b>{words(node, 7)}</b></div>
-            {i < nodes.length - 1 && <ArrowRight className="flow-arrow" size={18} />}
-          </React.Fragment>
-        );
-      })}
+    <div className="story-flow-animated">
+      <div className="story-flow-track">
+        {nodes.map((node, i) => {
+          const Icon = icons[i] || CircleDot;
+          return (
+            <React.Fragment key={`${node}-${i}`}>
+              <div className="flow-node-v2" style={{ '--node-color': nodeColors[i], '--node-bg': nodeBgs[i], animationDelay: `${i * 0.18}s` }}>
+                <div className="flow-node-icon"><Icon size={22} /></div>
+                <span className="flow-node-label">{labels[i]}</span>
+                <b className="flow-node-text">{words(node, 7)}</b>
+              </div>
+              {i < nodes.length - 1 && (
+                <div className="flow-connector" style={{ animationDelay: `${i * 0.18 + 0.1}s` }}>
+                  <div className="flow-connector-line" />
+                  <ArrowRight className="flow-connector-arrow" size={14} />
+                </div>
+              )}
+            </React.Fragment>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -349,15 +362,17 @@ export default function Dashboard() {
   const handleAction = async (type, signal) => {
     const id = signal.id;
     if (type === 'open') {
-      setSelectedId(id); setDetailTab('Overview'); recordOpen(signal); showToast('Signal opened');
+      recordOpen(signal); showToast('Opening deep analysis...');
+      // Navigate to StoryView with full signal data for deep-dive analysis
+      navigate('/story', { state: { article: { ...signal, title: signal.thread_title, text_preview: signal.summary || signal.whyLine, text: signal.summary || signal.whyLine, source: signal.entities?.[0]?.name || 'Intelligence Synthesis', url: '', exposure_score: Math.round(signal.exposure.score), signal_tier: signal.signal_tier, pulse_score: Math.round(signal.pulse.score), entities: signal.entities || [], sentiment: { label: signal.riskLevel === 'High' ? 'NEGATIVE' : signal.riskLevel === 'Low' ? 'POSITIVE' : 'NEUTRAL', confidence: (signal.confidence || 65) / 100 } } } });
       return;
     }
     if (type === 'graph') {
-      setSelectedId(id); setDetailTab('Story Graph'); recordGraph(signal); showToast('Story flow opened');
+      setSelectedId(id); setDetailTab('Story Graph'); recordGraph(signal); showToast('Story graph opened');
       return;
     }
     if (type === 'explain') {
-      setSelectedId(id); setMetricInfo('pulse'); recordExplain(signal);
+      setSelectedId(id); setMetricInfo('pulse'); recordExplain(signal); showToast('Signal analysis opened');
       return;
     }
     if (type === 'save') { saveSignal(signal); return; }
@@ -402,11 +417,12 @@ export default function Dashboard() {
         )}
 
         <section className="simple-signal-list">
-          {signals.length ? signals.slice(0, 8).map(signal => (
+          {signals.length ? signals.slice(0, 8).map((signal, index) => (
             <SignalCard
               key={signal.id} signal={signal} selected={signal.id === selectedSignal?.id}
               onAction={handleAction}
               onExplain={(type) => { setSelectedId(signal.id); setMetricInfo(type); }}
+              index={index}
             />
           )) : <EmptySignals sourcesCount={sourcesCount} />}
         </section>
