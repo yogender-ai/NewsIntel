@@ -91,6 +91,7 @@ async def test_deterministic_fallback():
         result = await hf_client.generate_full_intelligence("news", ARTICLES, ["ai"], ["global"])
         assert result["_synthesis_provider"] == "deterministic_fallback"
         assert len(result["clusters"]) == len(ARTICLES)
+        assert result["clusters"][0]["is_ai_synthesized"] is False
     finally:
         hf_client._call_openrouter, hf_client._call_gemini = old_or, old_g
 

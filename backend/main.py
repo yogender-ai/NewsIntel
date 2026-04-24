@@ -631,6 +631,7 @@ async def _build_intelligence(
             "news": "google_rss",
             "nlp": "huggingface_space_cached",
             "synthesis": intelligence.get("_synthesis_provider", "skipped"),
+            "is_ai_synthesized": intelligence.get("_synthesis_provider") in ("openrouter", "gemini"),
             "cache": "profile-scoped" if topics or regions else "shared",
             "quota_saving": [
                 "Dashboard GET serves memory cache.",

@@ -371,7 +371,18 @@ RULES:
 
 
 def _fallback_clusters(articles):
-    return [{"thread_title": a["title"], "article_ids": [a["id"]], "summary": "", "pulse_score": 50} for a in articles]
+    return [
+        {
+            "thread_title": a["title"],
+            "article_ids": [a["id"]],
+            "summary": "Fallback cluster generated from the article title because AI synthesis is unavailable.",
+            "pulse_score": 50,
+            "risk_type": "neutral",
+            "synthesis_mode": "fallback_not_ai",
+            "is_ai_synthesized": False,
+        }
+        for a in articles
+    ]
 
 def _fallback_intelligence(articles):
     return {
