@@ -1,11 +1,15 @@
 import React, { useState, useEffect, createContext } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, NavLink } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, NavLink, useLocation } from 'react-router-dom';
 import { Bell, Building2, ChevronsUpDown, CircleDot, Settings as SettingsIcon, SlidersHorizontal, Sun, User, Zap } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { PersonalizationProvider, usePersonalization } from './context/PersonalizationContext';
 import Dashboard from './pages/Dashboard';
 import Onboarding from './pages/Onboarding';
 import StoryView from './pages/StoryView';
 import Settings from './pages/Settings';
+import WatchlistPage from './pages/WatchlistPage';
+import AlertsPage from './pages/AlertsPage';
+import MoversPage from './pages/MoversPage';
 import './index.css';
 
 export const AppContext = createContext({ headlines: [], setHeadlines: () => {}, mode: 'command', setMode: () => {} });
@@ -57,6 +61,13 @@ const TopBar = () => {
   const { user, logout } = useAuth();
   const [time, setTime] = useState('');
 
+  // Try to get alert count from personalization context (only available inside Protected routes)
+  let alertCount = 0;
+  try {
+    const p = usePersonalization();
+    alertCount = p?.unreadAlertCount || 0;
+  } catch { /* Not inside provider yet */ }
+
   useEffect(() => {
     const update = () => setTime(new Date().toLocaleTimeString('en-US', { hour12: false }));
     update();
@@ -74,9 +85,11 @@ const TopBar = () => {
 
       <div className="nav-links">
         <NavLink to="/dashboard" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}><Zap size={16} />Signals</NavLink>
-        <span className="nav-link muted"><ChevronsUpDown size={16} />Movers</span>
-        <span className="nav-link muted"><Building2 size={16} />Watchlist</span>
-        <span className="nav-link muted"><Bell size={16} />Alerts <b>3</b></span>
+        <NavLink to="/movers" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}><ChevronsUpDown size={16} />Movers</NavLink>
+        <NavLink to="/watchlist" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}><Building2 size={16} />Watchlist</NavLink>
+        <NavLink to="/alerts" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+          <Bell size={16} />Alerts {alertCount > 0 && <b>{alertCount}</b>}
+        </NavLink>
         <NavLink to="/settings" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}><SettingsIcon size={16} />Settings</NavLink>
       </div>
 
@@ -95,6 +108,17 @@ const TopBar = () => {
       </div>
     </div>
   );
+};
+
+/* ── Toast (global) ──────────────────────────────────────────────── */
+const GlobalToast = () => {
+  try {
+    const { toast } = usePersonalization();
+    if (!toast) return null;
+    return <div className="phase5-toast">{toast}</div>;
+  } catch {
+    return null;
+  }
 };
 
 /* ── App Root ────────────────────────────────────────────────────────── */
@@ -122,12 +146,16 @@ function App() {
             <div className="main-content">
               <Routes>
                 <Route path="/login" element={<Login />} />
-                <Route path="/" element={<Protected><Dashboard /></Protected>} />
-                <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
+                <Route path="/" element={<Protected><PersonalizationProvider><Dashboard /></PersonalizationProvider></Protected>} />
+                <Route path="/dashboard" element={<Protected><PersonalizationProvider><Dashboard /></PersonalizationProvider></Protected>} />
                 <Route path="/onboarding" element={<Protected><Onboarding /></Protected>} />
                 <Route path="/settings" element={<Protected><Settings /></Protected>} />
                 <Route path="/story" element={<Protected><StoryView /></Protected>} />
+                <Route path="/watchlist" element={<Protected><PersonalizationProvider><WatchlistPage /></PersonalizationProvider></Protected>} />
+                <Route path="/alerts" element={<Protected><PersonalizationProvider><AlertsPage /></PersonalizationProvider></Protected>} />
+                <Route path="/movers" element={<Protected><PersonalizationProvider><MoversPage /></PersonalizationProvider></Protected>} />
               </Routes>
+              <GlobalToast />
             </div>
           </div>
         </Router>

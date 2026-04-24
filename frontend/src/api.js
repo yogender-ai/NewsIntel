@@ -64,39 +64,54 @@ export const api = {
   deleteAccount: () =>
     request('/api/user/account', { method: 'DELETE' }),
 
+  // ── Watchlist ──
   watchSignal: (signal_id, watch_priority = 1) =>
     request('/api/watchlist', {
       method: 'POST',
       body: JSON.stringify({ signal_id, watch_priority }),
     }),
 
+  getWatchlist: () => request('/api/watchlist'),
+
+  // ── Saved Threads ──
   saveThread: (thread_id) =>
     request('/api/saved-threads', {
       method: 'POST',
       body: JSON.stringify({ thread_id }),
     }),
 
+  // ── Entities ──
   trackEntity: (entity_name, entity_type = 'ENTITY', follow_weight = 1) =>
     request('/api/entities', {
       method: 'POST',
       body: JSON.stringify({ entity_name, entity_type, follow_weight }),
     }),
 
+  getEntities: () => request('/api/entities'),
+
+  // ── Dismissed Signals ──
   dismissSignal: (signal_id, dismiss_reason = 'not_relevant') =>
     request('/api/dismissed-signals', {
       method: 'POST',
       body: JSON.stringify({ signal_id, dismiss_reason }),
     }),
 
+  // ── Interactions ──
   recordInteraction: (signal_id, interaction_type, metadata = {}, dwell_time_seconds = 0) =>
     request('/api/interactions', {
       method: 'POST',
       body: JSON.stringify({ signal_id, interaction_type, metadata, dwell_time_seconds }),
     }),
 
+  // ── Story Graph ──
   getStoryGraph: (thread_id) => request(`/api/story-graph/${encodeURIComponent(thread_id)}`),
 
+  // ── Alerts ──
   getAlerts: () => request('/api/alerts'),
 
+  // ── Pulse History ──
   getPulseHistory: (days = 30) => request(`/api/pulse-history?days=${days}`),
+
+  // ── Exposure Network ──
+  getExposureNetwork: () => request('/api/exposure-network'),
 };
