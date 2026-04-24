@@ -79,10 +79,9 @@ const TopBar = () => {
       </div>
 
       <div className="nav-links">
-        <NavLink to="/dashboard" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>DASHBOARD</NavLink>
-        <span className="nav-link" style={{opacity: 0.4, cursor: 'not-allowed'}}>DIGEST</span>
-        <span className="nav-link" style={{opacity: 0.4, cursor: 'not-allowed'}}>GRAPH</span>
-        <span className="nav-link" style={{opacity: 0.4, cursor: 'not-allowed'}}>HEATMAP</span>
+        <NavLink to="/dashboard" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>SIGNALS</NavLink>
+        <span className="nav-link" style={{opacity: 0.4, cursor: 'not-allowed'}}>MOVERS</span>
+        <span className="nav-link" style={{opacity: 0.4, cursor: 'not-allowed'}}>WATCHLIST</span>
         <span className="nav-link" style={{opacity: 0.4, cursor: 'not-allowed'}}>ALERTS</span>
         <NavLink to="/settings" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>SETTINGS</NavLink>
       </div>

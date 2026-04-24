@@ -1,21 +1,21 @@
-import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { AppContext } from '../App';
 import { useAuth } from '../context/AuthContext';
 
 const TOPIC_LABELS = {
-  tech: 'Technology',
+  tech: 'Tech',
   politics: 'Geopolitics',
   markets: 'Markets',
   ai: 'AI',
   climate: 'Climate',
-  healthcare: 'Healthcare',
+  healthcare: 'Health',
   defense: 'Defense',
   crypto: 'Crypto',
   space: 'Space',
   trade: 'Trade',
-  auto: 'Automotive',
+  auto: 'Auto',
   telecom: 'Telecom',
   'real-estate': 'Real Estate',
   media: 'Media',
@@ -31,32 +31,15 @@ const THEME_VARIANTS = {
   defense: ['theme-defense', 'theme-crimson', 'theme-steel'],
 };
 
-const PIPELINE_STAGES = [
-  ['rss', 'Sources'],
-  ['nlp', 'Entities'],
-  ['ai', 'Synthesis'],
-  ['classify', 'Signals'],
-  ['ready', 'Ready'],
-];
-
 const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
-const storeKey = (uid, name) => `ni_${uid || 'local'}_${name}`;
-
-function readStore(uid) {
-  const fallback = { saved: [], watched: [], dismissed: [], trackedEntities: [], topicWeights: {}, opened: {} };
-  try {
-    return { ...fallback, ...JSON.parse(localStorage.getItem(storeKey(uid, 'signal_state')) || '{}') };
-  } catch {
-    return fallback;
-  }
-}
-
-function writeStore(uid, state) {
-  localStorage.setItem(storeKey(uid, 'signal_state'), JSON.stringify(state));
-}
 
 function signalId(cluster) {
-  return (cluster.thread_title || cluster.summary || 'signal').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 80);
+  return cluster?.signal_id || cluster?.thread_id || (cluster?.thread_title || cluster?.summary || 'signal').toLowerCase().replace(/[^a-z0-9]+/g, '-').slice(0, 80);
+}
+
+function words(text, max = 10) {
+  const parts = String(text || '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
+  return parts.length > max ? `${parts.slice(0, max).join(' ')}...` : parts.join(' ');
 }
 
 function getOpenThemeVariant(category) {
@@ -65,241 +48,179 @@ function getOpenThemeVariant(category) {
   return variants[spin % variants.length];
 }
 
-function words(text, max = 12) {
-  const parts = String(text || '').replace(/\s+/g, ' ').trim().split(' ').filter(Boolean);
-  return parts.length > max ? `${parts.slice(0, max).join(' ')}...` : parts.join(' ');
+function metricCopy(type) {
+  return {
+    delta: ['Daily Delta', 'Movement versus the previous 24h baseline. Positive means rising, zero means stable, negative means cooling.'],
+    pulse: ['Pulse Score', 'Signal intensity from source velocity, sentiment, entity movement, and personal relevance.'],
+    exposure: ['Exposure Score', 'How strongly this signal connects to your topics, regions, entities, and past actions.'],
+  }[type] || ['Metric', 'A compact signal measure.'];
 }
 
-function splitBrief(text) {
-  return String(text || '')
-    .split(/(?<=[.!?])\s+/)
-    .map(s => words(s, 12))
-    .filter(Boolean)
-    .slice(0, 3);
-}
-
-function preferenceLabels(cluster) {
-  return (cluster.matched_preferences || [])
-    .map(m => m.label || TOPIC_LABELS[m.id] || m.id)
-    .filter(Boolean);
-}
-
-function topicIds(cluster, fallbackTopics = []) {
-  const matches = (cluster.matched_preferences || []).map(m => m.id).filter(Boolean);
-  if (matches.length) return matches;
-  const text = `${cluster.thread_title || ''} ${cluster.summary || ''}`.toLowerCase();
-  return fallbackTopics.filter(t => text.includes(t));
-}
-
-function tierClass(tier) {
-  return `tier-badge tier-${(tier || 'noise').toLowerCase()}`;
-}
-
-function miniTrend(score = 50, salt = 1) {
-  return Array.from({ length: 9 }, (_, i) => {
-    const wave = Math.sin((i + salt) * 1.2) * 12;
-    return Math.max(12, Math.min(98, score - 16 + i * 3 + wave));
-  });
-}
-
-function buildEntities(cluster, articles) {
-  const ids = new Set((cluster.article_ids || []).map(String));
-  const counts = {};
-  articles.forEach(article => {
-    if (!ids.size || ids.has(String(article.id))) {
-      (article.entities || []).forEach(entity => {
-        if (!entity.name) return;
-        counts[entity.name] = (counts[entity.name] || 0) + 1;
-      });
-    }
-  });
-  return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 4).map(([name]) => name);
-}
-
-function buildGraph(cluster) {
-  if (cluster?.story_graph?.nodes?.length) return cluster.story_graph.nodes.map(node => node.label);
-  const title = words(cluster.thread_title, 4) || 'Event';
-  const impact = words(cluster.impact_line || cluster.summary, 5) || 'Market shift';
-  const risk = cluster.risk_type === 'risk' ? 'Risk pressure rises' : cluster.risk_type === 'opportunity' ? 'Opportunity opens' : 'Signal moves';
-  const exposure = cluster.exposure_score >= 70 ? 'Your exposure increases' : cluster.exposure_score >= 40 ? 'Your exposure changes' : 'Low personal exposure';
-  return [title, impact, risk, exposure];
-}
-
-function MetricInfoButton({ type, onOpen }) {
+function MetricPopover({ type, onClose }) {
+  if (!type) return null;
+  const [title, body] = metricCopy(type);
   return (
-    <button className="metric-info-btn" onClick={() => onOpen(type)} title="Explain this metric">
-      i
-    </button>
+    <div className="metric-popover">
+      <button onClick={onClose}>Close</button>
+      <b>{title}</b>
+      <p>{body}</p>
+    </div>
   );
 }
 
-function MiniRing({ value = 50, label, onClick }) {
+function ExposureRing({ value, onInfo }) {
   const pct = Math.max(0, Math.min(100, Number(value) || 0));
   return (
-    <button className="mini-ring" onClick={onClick} title={`Explain ${label}`}>
-      <span style={{ background: `conic-gradient(var(--accent) ${pct * 3.6}deg, rgba(255,255,255,0.08) 0deg)` }}>
-        <b>{Math.round(pct)}</b>
-      </span>
-      <em>{label}</em>
-    </button>
-  );
-}
-
-function Sparkline({ values }) {
-  const points = values.map((v, i) => `${(i / Math.max(values.length - 1, 1)) * 100},${100 - v}`).join(' ');
-  return (
-    <svg className="mini-spark" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
-      <polyline points={points} />
-    </svg>
-  );
-}
-
-function PipelineLoader() {
-  const [active, setActive] = useState(0);
-  useEffect(() => {
-    const t = setInterval(() => setActive(p => Math.min(PIPELINE_STAGES.length - 1, p + 1)), 520);
-    return () => clearInterval(t);
-  }, []);
-  return (
-    <div className="phase5-loader">
-      <div className="pulse-glow loader-dot" />
-      <span className="mono">BUILDING SIGNAL FEED</span>
-      <div className="phase5-pipeline">
-        {PIPELINE_STAGES.map(([key, label], i) => (
-          <div key={key} className={i < active ? 'done' : i === active ? 'active' : ''}>{label}</div>
-        ))}
+    <div className="simple-exposure">
+      <button className="simple-ring" onClick={() => onInfo('exposure')} style={{ background: `conic-gradient(var(--accent) ${pct * 3.6}deg, rgba(255,255,255,0.08) 0deg)` }}>
+        <span>{Math.round(pct)}</span>
+      </button>
+      <div>
+        <span>Exposure</span>
+        <button onClick={() => onInfo('exposure')}>i</button>
       </div>
     </div>
   );
 }
 
-function ExplainDrawer({ metric, cluster, onClose }) {
-  if (!metric) return null;
-  const pulse = Math.round(cluster?.pulse_score || 85);
-  const exposure = Math.round(cluster?.exposure_score || 84);
-  const content = {
-    delta: {
-      title: 'Daily Delta',
-      intro: 'Topic movement versus the previous 24h baseline.',
-      formula: 'Delta = Current Pulse - Previous Pulse',
-      rows: ['Source volume changes', 'Sentiment shifts', 'Topic velocity spikes', 'Entity frequency changes'],
-    },
-    pulse: {
-      title: `Pulse Score (${pulse}/100)`,
-      intro: 'Intensity and significance of this signal.',
-      formula: '30% velocity + 25% sources + 20% sentiment + 15% entities + 10% relevance',
-      rows: ['Source activity +22', 'Sentiment intensity +18', 'Velocity spike +25', 'Entity relevance +12', 'User relevance +8'],
-    },
-    exposure: {
-      title: `Exposure Score (${exposure}/100)`,
-      intro: 'How much this signal may affect your tracked intelligence profile.',
-      formula: 'Topics + entities + regions + interaction history',
-      rows: ['Topic match +25', 'Region overlap +20', 'Tracked entity +18', 'Past engagement +9'],
-    },
-    tier: {
-      title: 'Signal Tier',
-      intro: 'Priority label for how quickly the story deserves attention.',
-      formula: '80-100 Critical | 60-79 Signal | 40-59 Watch | Below 40 Noise',
-      rows: ['Critical: immediate attention', 'Signal: meaningful shift', 'Watch: developing', 'Noise: low importance'],
-    },
-    relevant: {
-      title: 'Why Relevant?',
-      intro: 'This signal matched your personal intelligence profile.',
-      formula: `Exposure = ${exposure}`,
-      rows: [
-        ...(preferenceLabels(cluster || {}).length ? preferenceLabels(cluster).map(x => `Tracked topic: ${x}`) : ['Topic overlap detected']),
-        `Source count: ${cluster?.source_count || 1}`,
-        `Pulse: ${pulse}`,
-      ],
-    },
-  }[metric];
+function DeltaPill({ delta, onInfo }) {
+  if (!delta?.has_baseline) {
+    return <button className="delta-pill neutral" onClick={() => onInfo('delta')}>Establishing baseline</button>;
+  }
+  const value = Number(delta.delta || 0);
+  const label = value > 0 ? `▲ +${value} Rising` : value < 0 ? `▼ ${value} Cooling` : '— 0 Stable';
+  return <button className={`delta-pill ${value > 0 ? 'up' : value < 0 ? 'down' : 'neutral'}`} onClick={() => onInfo('delta')}>{label}</button>;
+}
 
+function CausalChain({ cluster }) {
+  const graphNodes = cluster?.story_graph?.nodes?.map(n => n.label).slice(0, 4);
+  const fallback = [
+    words(cluster?.thread_title, 5) || 'Event',
+    words(cluster?.impact_line || cluster?.summary, 6) || 'Market impact',
+    cluster?.risk_type === 'risk' ? 'Risk pressure rises' : cluster?.risk_type === 'opportunity' ? 'Opportunity opens' : 'Signal shifts',
+    `Profile exposure ${cluster?.exposure_score >= 70 ? 'rises' : 'changes'}`,
+  ];
+  const nodes = graphNodes?.length >= 4 ? graphNodes : fallback;
+  const labels = ['Event', 'Market Impact', 'Risk Shift', 'Profile Exposure'];
   return (
-    <aside className="explain-drawer">
-      <button className="drawer-close" onClick={onClose}>Close</button>
-      <div className="label">EXPLAINABILITY</div>
-      <h2>{content.title}</h2>
-      <p>{content.intro}</p>
-      <div className="formula-box">{content.formula}</div>
-      {metric === 'pulse' && (
-        <div className="weighted-bars">
-          {[30, 25, 20, 15, 10].map((v, i) => <span key={i} style={{ width: `${v * 2}%` }}>{v}%</span>)}
-        </div>
-      )}
-      <div className="explain-list">
-        {(metric === 'relevant' && cluster?.why_relevant?.factors?.length
-          ? cluster.why_relevant.factors.map(f => `${f.label} (+${f.points})`)
-          : content.rows
-        ).map(row => <span key={row}>{row}</span>)}
-      </div>
-    </aside>
+    <div className="simple-chain">
+      {nodes.map((node, i) => (
+        <React.Fragment key={`${node}-${i}`}>
+          <div className="chain-node">
+            <span>{labels[i]}</span>
+            <b>{words(node, 8)}</b>
+          </div>
+          {i < nodes.length - 1 && <div className="chain-arrow">↓</div>}
+        </React.Fragment>
+      ))}
+    </div>
   );
 }
 
-function StoryGraph({ cluster, onClose }) {
-  if (!cluster) return null;
-  return (
-    <aside className="graph-drawer">
-      <button className="drawer-close" onClick={onClose}>Close</button>
-      <div className="label">STORY GRAPH</div>
-      <h2>{words(cluster.thread_title, 8)}</h2>
-      <div className="causal-chain">
-        {buildGraph(cluster).map((node, i) => (
-          <React.Fragment key={node}>
-            <div className="causal-node">
-              <span>{i + 1}</span>
-              <b>{node}</b>
-            </div>
-            {i < 3 && <div className="causal-arrow">down</div>}
-          </React.Fragment>
-        ))}
-      </div>
-      <button className="btn btn-primary" onClick={onClose}>Use Signal</button>
-    </aside>
-  );
-}
-
-function SignalCard({ cluster, index, entities, isSaved, isWatched, onAction, onExplain, onGraph, onDeepDive }) {
-  const labels = preferenceLabels(cluster);
+function SignalCard({ cluster, delta, selected, saved, onOpen, onSave, onInfo }) {
+  const tier = cluster.signal_tier || 'SIGNAL';
   const pulse = Math.round(cluster.pulse_score || 50);
-  const exposure = Math.round(cluster.exposure_score || 50);
-  const isNew = Date.now() - new Date(cluster.updated_at || Date.now()).getTime() < 1000 * 60 * 90;
+  const risk = cluster.risk_type === 'risk' ? 'High' : cluster.risk_type === 'opportunity' ? 'Low' : 'Medium';
+  const opportunity = cluster.risk_type === 'opportunity' ? 'High' : cluster.exposure_score >= 70 ? 'Medium' : 'Low';
 
   return (
-    <article className={`phase5-signal-card tier-${(cluster.signal_tier || 'signal').toLowerCase()}-card`}>
-      <div className="signal-topline">
-        <span className={tierClass(cluster.signal_tier)} onClick={() => onExplain('tier', cluster)}>{cluster.signal_tier || 'SIGNAL'}</span>
-        {isNew && <span className="new-badge">NEW</span>}
-        <span className="velocity-pill">{pulse >= 80 ? 'Fast' : pulse >= 55 ? 'Moving' : 'Slow'}</span>
+    <article className={`simple-signal-card ${selected ? 'selected' : ''}`}>
+      <div className="simple-card-top">
+        <span className={`tier-badge tier-${tier.toLowerCase()}`}>{tier}</span>
       </div>
-
-      <h3>{cluster.thread_title}</h3>
-      <p>{words(cluster.impact_line || cluster.summary || cluster.why_it_matters, 12)}</p>
-
-      <div className="visual-metrics">
-        <button className="metric-chip" onClick={() => onExplain('pulse', cluster)}>
-          <span>Pulse</span><b>{pulse}</b>
-        </button>
-        <MiniRing value={exposure} label="Exposure" onClick={() => onExplain('exposure', cluster)} />
-        <Sparkline values={cluster.pulse_trend?.length ? cluster.pulse_trend : miniTrend(pulse, index + 1)} />
+      <h2>{cluster.thread_title}</h2>
+      <p>{words(cluster.impact_line || cluster.summary || cluster.why_it_matters, 5)}</p>
+      <div className="simple-metrics">
+        <button onClick={() => onInfo('pulse')}>Pulse {pulse}</button>
+        <DeltaPill delta={delta} onInfo={onInfo} />
       </div>
-
-      <div className="entity-strip">
-        {entities.slice(0, 3).map(entity => (
-          <button key={entity} onClick={() => onAction('trackEntity', cluster, entity)}>{entity}</button>
-        ))}
-        {!entities.length && labels.slice(0, 2).map(label => <span key={label}>{label}</span>)}
+      <div className="risk-row">
+        <span>Risk: {risk}</span>
+        <span>Opportunity: {opportunity}</span>
       </div>
-
-      <div className="signal-actions">
-        <button onClick={() => onAction('watch', cluster)}>{isWatched ? 'Watching' : 'Track'}</button>
-        <button onClick={() => onAction('save', cluster)}>{isSaved ? 'Saved' : 'Save'}</button>
-        <button onClick={() => onExplain('relevant', cluster)}>Explain</button>
-        <button onClick={() => onGraph(cluster)}>Graph</button>
-        <button onClick={() => onAction('dismiss', cluster)}>Dismiss</button>
-        <button onClick={() => onDeepDive(cluster)}>Deep Analysis</button>
+      <div className="simple-actions">
+        <button className="btn btn-primary" onClick={() => onOpen(cluster)}>Open Signal</button>
+        <button className="wire-btn" onClick={() => onSave(cluster)}>{saved ? 'Saved' : 'Save'}</button>
       </div>
     </article>
+  );
+}
+
+function DetailPanel({ cluster, onAction, onDeepDive }) {
+  if (!cluster) {
+    return (
+      <aside className="simple-context empty">
+        <div className="label">SIGNAL CONTEXT</div>
+        <h2>Select a signal</h2>
+        <p>Open a signal to see why it matters, causal flow, risk, opportunity, and the next action.</p>
+      </aside>
+    );
+  }
+
+  const why = cluster.why_relevant?.factors || [];
+  const risks = cluster.risk_type === 'risk'
+    ? [words(cluster.summary || cluster.impact_line, 12)]
+    : ['No dominant risk spike detected.'];
+  const opportunities = cluster.risk_type === 'opportunity'
+    ? [words(cluster.impact_line || cluster.summary, 12)]
+    : [cluster.exposure_score >= 70 ? 'High relevance creates monitoring value.' : 'Watch for confirmation.'];
+  const suggested = cluster.signal_tier === 'CRITICAL' ? 'Review now and keep on watchlist.' : 'Save and monitor next movement.';
+
+  return (
+    <aside className="simple-context">
+      <div className="label">SIGNAL CONTEXT</div>
+      <h2>{cluster.thread_title}</h2>
+
+      <section>
+        <h3>Summary</h3>
+        <p>{words(cluster.summary || cluster.impact_line, 20)}</p>
+      </section>
+
+      <section>
+        <h3>Story Graph</h3>
+        <CausalChain cluster={cluster} />
+      </section>
+
+      <section>
+        <h3>Why Relevant To You</h3>
+        <div className="reason-list">
+          {(why.length ? why : [{ label: 'Matches your active intelligence profile', points: Math.round(cluster.exposure_score || 50) }]).slice(0, 4).map(item => (
+            <span key={item.label}>{item.label} <b>+{item.points}</b></span>
+          ))}
+        </div>
+      </section>
+
+      <section className="split-context">
+        <div>
+          <h3>Risks</h3>
+          {risks.map(item => <p key={item}>{item}</p>)}
+        </div>
+        <div>
+          <h3>Opportunities</h3>
+          {opportunities.map(item => <p key={item}>{item}</p>)}
+        </div>
+      </section>
+
+      <section>
+        <h3>Suggested Action</h3>
+        <p>{suggested}</p>
+      </section>
+
+      <div className="detail-actions">
+        <button onClick={() => onAction('watch', cluster)}>Track topic</button>
+        <button onClick={() => onAction('dismiss', cluster)}>Dismiss topic</button>
+        <button onClick={() => onDeepDive(cluster)}>Deep analysis</button>
+      </div>
+    </aside>
+  );
+}
+
+function Loader() {
+  return (
+    <div className="phase5-loader">
+      <div className="pulse-glow loader-dot" />
+      <span className="mono">BUILDING SIGNAL FEED</span>
+    </div>
   );
 }
 
@@ -308,24 +229,17 @@ export default function Dashboard() {
   const { setHeadlines, mode } = useContext(AppContext);
   const navigate = useNavigate();
   const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [checkingPrefs, setCheckingPrefs] = useState(true);
-  const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState(null);
+  const [selectedId, setSelectedId] = useState(null);
+  const [savedIds, setSavedIds] = useState(new Set());
   const [toast, setToast] = useState(null);
-  const [signalState, setSignalState] = useState(() => readStore(user?.uid));
-  const [explain, setExplain] = useState(null);
-  const [graphSignal, setGraphSignal] = useState(null);
-  const dataRef = useRef(null);
-  const fetched = useRef(false);
-
-  useEffect(() => {
-    setSignalState(readStore(user?.uid));
-  }, [user?.uid]);
+  const [metricInfo, setMetricInfo] = useState(null);
+  const [error, setError] = useState(null);
 
   const showToast = useCallback((msg) => {
     setToast(msg);
-    setTimeout(() => setToast(null), 3200);
+    setTimeout(() => setToast(null), 2600);
   }, []);
 
   const applyTheme = useCallback((res) => {
@@ -340,111 +254,80 @@ export default function Dashboard() {
     el.className = `app-container ${getOpenThemeVariant(category)}${mode === 'calm' ? ' calm-mode' : ''}`;
   }, [mode]);
 
-  const processResponse = useCallback((res) => {
-    if (res?.clusters?.length) setHeadlines(res.clusters.map(c => c.thread_title).filter(Boolean));
-    else if (res?.articles?.length) setHeadlines(res.articles.slice(0, 6).map(a => a.title));
-    applyTheme(res);
+  const loadDashboard = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const [res] = await Promise.all([api.getPersonalizedDashboard(), sleep(900)]);
+      setData(res);
+      setSavedIds(new Set(res.saved_signal_ids || []));
+      setSelectedId(prev => prev || signalId(res.clusters?.[0]));
+      if (res.clusters?.length) setHeadlines(res.clusters.slice(0, 3).map(c => c.thread_title));
+      applyTheme(res);
+    } catch (err) {
+      setError(err.message);
+    }
+    setLoading(false);
   }, [applyTheme, setHeadlines]);
-
-  const syncCachedDashboard = useCallback(async () => {
-    const res = await api.getPersonalizedDashboard();
-    dataRef.current = res;
-    setData(res);
-    processResponse(res);
-    return res;
-  }, [processResponse]);
 
   useEffect(() => {
     if (!user) return;
     (async () => {
       try {
-        const prefsRes = await api.getPreferences();
-        if (prefsRes.status === 'not_found' || !prefsRes.data?.onboarded) {
+        const prefs = await api.getPreferences();
+        if (prefs.status === 'not_found' || !prefs.data?.onboarded) {
           navigate('/onboarding');
           return;
         }
       } catch {
-        // Let dashboard handle API errors instead of trapping the user.
+        // Dashboard load will display API errors.
       }
       setCheckingPrefs(false);
     })();
-  }, [user, navigate]);
-
-  const load = useCallback(async () => {
-    if (fetched.current || checkingPrefs) return;
-    fetched.current = true;
-    setLoading(true);
-    setError(null);
-    try {
-      const [res] = await Promise.all([syncCachedDashboard(), sleep(3200)]);
-      if (res?.is_stale) showToast('Refreshing in the background');
-    } catch (e) {
-      setError(e.message);
-    }
-    setLoading(false);
-  }, [checkingPrefs, showToast, syncCachedDashboard]);
-
-  useEffect(() => { if (!checkingPrefs) load(); }, [checkingPrefs, load]);
+  }, [navigate, user]);
 
   useEffect(() => {
-    if (checkingPrefs || !data) return undefined;
-    const id = setInterval(() => syncCachedDashboard().catch(() => {}), data.refresh_in_progress || data.is_stale ? 20000 : 120000);
-    return () => clearInterval(id);
-  }, [checkingPrefs, data, syncCachedDashboard]);
+    if (!checkingPrefs) loadDashboard();
+  }, [checkingPrefs, loadDashboard]);
 
-  const forceRefresh = async () => {
-    setRefreshing(true);
-    setError(null);
-    try {
-      const res = await api.forceDashboardRefresh([], []);
-      dataRef.current = res;
-      setData(res);
-      processResponse(res);
-      showToast('Signals refreshed');
-    } catch (e) {
-      setError(e.message);
-    }
-    setRefreshing(false);
+  const clusters = data?.clusters || [];
+  const topSignals = clusters.slice(0, 3);
+  const selectedSignal = topSignals.find(c => signalId(c) === selectedId) || topSignals[0];
+  const activeTopics = data?.topics_used || [];
+  const activeRegions = data?.regions_used || [];
+  const entityMoves = (data?.tracked_entities || []).filter(entity =>
+    (data?.articles || []).some(article => (article.entities || []).some(e => e.name === entity.entity_name))
+  );
+
+  const deltaFor = (cluster) => {
+    const matched = cluster?.matched_preferences?.[0]?.id;
+    return data?.daily_delta?.find(d => d.topic === matched) || data?.daily_delta?.[0];
   };
 
-  const updateInteraction = async (type, cluster, entity) => {
-    const id = cluster?.signal_id || cluster?.thread_id || signalId(cluster);
-    const topics = topicIds(cluster, data?.topics_used || []);
-    setSignalState(prev => {
-      const next = {
-        ...prev,
-        saved: [...(prev.saved || [])],
-        watched: [...(prev.watched || [])],
-        dismissed: [...(prev.dismissed || [])],
-        trackedEntities: [...(prev.trackedEntities || [])],
-        topicWeights: { ...(prev.topicWeights || {}) },
-        opened: { ...(prev.opened || {}) },
-      };
-      const bump = type === 'dismiss' ? -2 : type === 'open' ? 1 : 2;
-      topics.forEach(topic => { next.topicWeights[topic] = (next.topicWeights[topic] || 0) + bump; });
-      if (type === 'save' && !next.saved.includes(id)) next.saved.push(id);
-      if (type === 'watch' && !next.watched.includes(id)) next.watched.push(id);
-      if (type === 'dismiss' && !next.dismissed.includes(id)) next.dismissed.push(id);
-      if (type === 'trackEntity' && entity && !next.trackedEntities.includes(entity)) next.trackedEntities.push(entity);
-      if (type === 'open') next.opened[id] = (next.opened[id] || 0) + 1;
-      writeStore(user?.uid, next);
-      return next;
-    });
+  const persistAction = async (type, cluster) => {
+    const id = signalId(cluster);
     try {
-      if (type === 'save') await api.saveThread(id);
-      else if (type === 'watch') await api.watchSignal(id, 1);
-      else if (type === 'dismiss') await api.dismissSignal(id, 'not_relevant');
-      else if (type === 'trackEntity' && entity) await api.trackEntity(entity, 'ENTITY', 1);
-      else await api.recordInteraction(id, type);
+      if (type === 'open') await api.recordInteraction(id, 'open');
+      if (type === 'save') {
+        await api.saveThread(id);
+        setSavedIds(prev => new Set([...prev, id]));
+      }
+      if (type === 'watch') await api.watchSignal(id, 1);
+      if (type === 'dismiss') await api.dismissSignal(id, 'not_relevant');
+      showToast(type === 'save' ? 'Signal saved' : type === 'dismiss' ? 'Signal dismissed' : 'Updated');
     } catch (err) {
-      console.warn('Phase 5 interaction persistence failed', err);
+      console.warn('Signal action failed', err);
+      showToast('Action saved locally');
     }
-    const labels = { save: 'Signal saved', watch: 'Signal watched', dismiss: 'Noise dismissed', trackEntity: `${entity} tracked`, open: 'Learning from click' };
-    showToast(labels[type] || 'Updated');
+  };
+
+  const openSignal = async (cluster) => {
+    setSelectedId(signalId(cluster));
+    await persistAction('open', cluster);
   };
 
   const openDeepDive = (cluster) => {
-    updateInteraction('open', cluster);
+    persistAction('open', cluster);
     navigate('/story', {
       state: {
         article: {
@@ -458,204 +341,61 @@ export default function Dashboard() {
     });
   };
 
-  const articles = data?.articles || [];
-  const clusters = data?.clusters || [];
-  const activeTopics = data?.topics_used || [];
-  const activeRegions = data?.regions_used || [];
-  const delta = data?.daily_delta || [];
-  const pipeline = data?.pipeline_status || {};
-  const radar = data?.opportunity_radar || {};
-  const impact = data?.impact || {};
-  const dismissed = new Set(signalState.dismissed || []);
-  const saved = new Set([...(signalState.saved || []), ...(data?.saved_signal_ids || [])]);
-  const watched = new Set([...(signalState.watched || []), ...(data?.watched_signal_ids || [])]);
-  const trackedNames = [...(signalState.trackedEntities || []), ...((data?.tracked_entities || []).map(e => e.entity_name))];
-  const entityMoves = trackedNames.filter(entity =>
-    articles.some(article => (article.entities || []).some(e => e.name === entity))
-  );
-
-  const rankedSignals = useMemo(() => {
-    const tierScore = { CRITICAL: 400, SIGNAL: 300, WATCH: 200, NOISE: 0 };
-    return clusters
-      .filter(c => !dismissed.has(signalId(c)))
-      .map(c => {
-        const topicBoost = topicIds(c, activeTopics).reduce((sum, topic) => sum + (signalState.topicWeights?.[topic] || 0), 0);
-        return { ...c, _rank: (tierScore[c.signal_tier] || 0) + (c.pulse_score || 0) + (c.exposure_score || 0) + topicBoost * 6 };
-      })
-      .sort((a, b) => b._rank - a._rank)
-      .slice(0, 6);
-  }, [activeTopics, clusters, dismissed, signalState.topicWeights]);
-
-  const topEntities = useMemo(() => {
-    const counts = {};
-    articles.forEach(article => (article.entities || []).forEach(e => {
-      if (e.name) counts[e.name] = (counts[e.name] || 0) + 1;
-    }));
-    return Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 8);
-  }, [articles]);
-
-  if (checkingPrefs) return <div className="phase5-loader"><span className="mono">CHECKING SESSION</span></div>;
-  if (loading && !data) return <PipelineLoader />;
+  if (checkingPrefs || loading) return <Loader />;
 
   return (
-    <div className="phase5-shell">
+    <div className="simple-dashboard">
       {toast && <div className="phase5-toast">{toast}</div>}
-      <ExplainDrawer metric={explain?.type} cluster={explain?.cluster} onClose={() => setExplain(null)} />
-      <StoryGraph cluster={graphSignal} onClose={() => setGraphSignal(null)} />
+      <MetricPopover type={metricInfo} onClose={() => setMetricInfo(null)} />
 
-      <aside className="phase5-left">
-        <div className="panel command-card">
-          <div className="label">COMMAND</div>
-          <button className="wire-btn" onClick={forceRefresh} disabled={refreshing}>{refreshing ? 'Syncing' : 'Refresh'}</button>
-          <div className="session-user">
-            {user?.photoURL && <img src={user.photoURL} alt="" />}
-            <div>
-              <b>{user?.displayName || 'Operator'}</b>
-              <span>Live session</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="panel exposure-network">
-          <div className="label">YOUR EXPOSURE NETWORK</div>
-          <div className="network-score">{Math.round(data?.exposure_score || 50)}</div>
-          <div className="network-chain">
-            {(activeTopics.slice(0, 2).length ? activeTopics.slice(0, 2) : ['tech']).map(topic => (
-              <span key={topic}>{TOPIC_LABELS[topic] || topic}</span>
-            ))}
-            {topEntities.slice(0, 2).map(([name]) => <span key={name}>{name}</span>)}
-          </div>
-          <small>{entityMoves.length || 0} tracked entities moved today</small>
-        </div>
-
-        <div className="panel profile-chip-panel">
-          <div className="label">PROFILE</div>
-          <div>
-            {activeTopics.map(topic => <span key={topic}>{TOPIC_LABELS[topic] || topic}</span>)}
-            {activeRegions.map(region => <span key={region}>{region}</span>)}
-          </div>
-        </div>
-      </aside>
-
-      <main className="phase5-main">
-        <section className="hero-strip">
-          <div>
-            <span className="label">GEN-Z SIGNAL MODE</span>
-            <h1>Top signals in 10 seconds.</h1>
-          </div>
-          <div className="signal-legend">
-            {['Critical', 'Signal', 'Watch'].map(item => (
-              <button key={item} className="signal-legend-item" onClick={() => setExplain({ type: 'tier' })}>
-                <span className={`signal-legend-dot ${item.toLowerCase()}`} /> {item}
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {delta.length > 0 && (
-          <section className="delta-tape phase5-delta" onClick={() => setExplain({ type: 'delta' })}>
-            {delta.map(d => (
-              <div key={d.topic} className={`delta-cell ${d.delta > 0 ? 'delta-up-cell' : d.delta < 0 ? 'delta-down-cell' : 'delta-flat-cell'}`}>
-                <span className="delta-cell-topic">{d.label}</span>
-                <span className={`delta-cell-value ${d.delta > 0 ? 'delta-up' : d.delta < 0 ? 'delta-down' : 'delta-flat'}`}>
-                  {d.has_baseline ? `${d.delta > 0 ? '+' : ''}${d.delta}` : 'Base'}
-                </span>
-                <span className="delta-cell-pulse">{d.has_baseline ? `Pulse ${d.current}` : 'Baseline building'}</span>
-              </div>
-            ))}
-          </section>
-        )}
-
-        {error && (
-          <div className="panel phase5-error">
-            <div className="label">PIPELINE ERROR</div>
-            <p>{error}</p>
-            <button className="wire-btn" onClick={forceRefresh}>Retry</button>
-          </div>
-        )}
-
-        <section className="signal-stack">
-          {rankedSignals.length ? rankedSignals.map((cluster, i) => {
-            const id = signalId(cluster);
-            return (
-              <SignalCard
-                key={id}
-                cluster={cluster}
-                index={i}
-                entities={buildEntities(cluster, articles)}
-                isSaved={saved.has(id)}
-                isWatched={watched.has(id)}
-                onAction={updateInteraction}
-                onExplain={(type, c) => {
-                  updateInteraction(type === 'relevant' ? 'explain' : type, c);
-                  setExplain({ type, cluster: c });
-                }}
-                onGraph={(c) => {
-                  updateInteraction('graph', c);
-                  setGraphSignal(c);
-                }}
-                onDeepDive={openDeepDive}
-              />
-            );
-          }) : (
-            <div className="panel empty-signal">No priority signals detected.</div>
-          )}
-        </section>
-      </main>
-
-      <aside className="phase5-right">
-        <div className="panel brief-chips">
-          <div className="label">STRATEGIC BRIEF</div>
-          {(splitBrief(data?.daily_brief).length ? splitBrief(data?.daily_brief) : ['Signals are still forming', 'Watchlist is learning', 'Refresh for live scan']).map(item => (
+      <aside className="simple-left-rail">
+        <ExposureRing value={data?.exposure_score || 50} onInfo={setMetricInfo} />
+        <div className="simple-profile">
+          {[...activeTopics.map(t => TOPIC_LABELS[t] || t), ...activeRegions].slice(0, 8).map(item => (
             <span key={item}>{item}</span>
           ))}
         </div>
-
-        {(radar.top_risk || radar.top_opportunity) && (
-          <div className="mini-risk-grid">
-            <div className="risk-tile">
-              <span>Risk</span>
-              <b>{words(radar.top_risk || 'No major risk', 8)}</b>
-            </div>
-            <div className="risk-tile opportunity">
-              <span>Opportunity</span>
-              <b>{words(radar.top_opportunity || 'Opportunity forming', 8)}</b>
-            </div>
-          </div>
-        )}
-
-        {impact?.headline && (
-          <div className="panel why-cards">
-            <div className="label">WHY IT MATTERS</div>
-            {[impact.headline, ...(impact.actions || [])].slice(0, 3).map(item => <span key={item}>{words(item, 10)}</span>)}
-          </div>
-        )}
-
-        <div className="panel smart-alerts">
-          <div className="label">SMART ALERTS</div>
-          <span>Exposure {Math.round(data?.exposure_score || 50)} across active profile</span>
-          {delta.slice(0, 2).map(d => (
-            <span key={d.topic}>{d.has_baseline ? `${d.label} moved ${d.delta}` : `${d.label} baseline building`}</span>
-          ))}
-          <span>{saved.size} saved signals</span>
-        </div>
-
-        <div className="panel tracked-entities">
-          <div className="label">TRACK ENTITIES</div>
-          {topEntities.map(([name, count]) => (
-            <button key={name} onClick={() => updateInteraction('trackEntity', rankedSignals[0] || {}, name)}>
-              {name}<em>{count}</em>
-            </button>
-          ))}
-        </div>
-
-        <div className="panel pipeline-mini">
-          <div className="label">PIPELINE</div>
-          <span>AI: {(pipeline.synthesis || 'unknown').replaceAll('_', ' ')}</span>
-          <span>Cache: {pipeline.cache || 'profile-scoped'}</span>
-          <span>Generated: {data?.generated_at ? new Date(data.generated_at).toLocaleTimeString() : '-'}</span>
-        </div>
+        {entityMoves.length > 0 && <small>{entityMoves.length} entities moved today</small>}
       </aside>
+
+      <main className="simple-feed">
+        <header className="simple-feed-header">
+          <div>
+            <span className="label">SIGNALS</span>
+            <h1>What matters right now</h1>
+          </div>
+          {data?.daily_delta?.[0] && <DeltaPill delta={data.daily_delta[0]} onInfo={setMetricInfo} />}
+        </header>
+
+        {error && (
+          <div className="panel phase5-error">
+            <div className="label">LOAD ERROR</div>
+            <p>{error}</p>
+            <button className="wire-btn" onClick={loadDashboard}>Retry</button>
+          </div>
+        )}
+
+        <section className="simple-signal-list">
+          {topSignals.map(cluster => (
+            <SignalCard
+              key={signalId(cluster)}
+              cluster={cluster}
+              delta={deltaFor(cluster)}
+              selected={signalId(cluster) === signalId(selectedSignal)}
+              saved={savedIds.has(signalId(cluster))}
+              onOpen={openSignal}
+              onSave={(c) => persistAction('save', c)}
+              onInfo={setMetricInfo}
+            />
+          ))}
+        </section>
+      </main>
+
+      <DetailPanel
+        cluster={selectedSignal}
+        onAction={persistAction}
+        onDeepDive={openDeepDive}
+      />
     </div>
   );
 }

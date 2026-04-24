@@ -1086,3 +1086,440 @@ a:hover { opacity: 0.8; }
   .phase5-signal-card h3 { font-size: 15px; }
   .signal-actions button { flex: 1 1 auto; }
 }
+
+/* ===================================================================
+   PHASE 5 SIMPLIFICATION PASS - SIGNAL FIRST
+   =================================================================== */
+.simple-dashboard {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr) minmax(320px, 390px);
+  gap: 18px;
+  min-height: calc(100vh - 86px);
+  max-width: 1480px;
+  margin: 0 auto;
+}
+
+.simple-left-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-items: center;
+  padding-top: 12px;
+}
+
+.simple-exposure {
+  width: 100%;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+}
+
+.simple-ring {
+  width: 86px;
+  height: 86px;
+  border: 0;
+  border-radius: 50%;
+  padding: 7px;
+  cursor: pointer;
+  box-shadow: 0 0 34px var(--accent-dim);
+}
+
+.simple-ring span {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--bg-base);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 24px;
+  font-weight: 900;
+}
+
+.simple-exposure > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.simple-exposure button:not(.simple-ring),
+.simple-feed-header .delta-pill,
+.delta-pill {
+  cursor: pointer;
+}
+
+.simple-exposure button:not(.simple-ring) {
+  width: 17px;
+  height: 17px;
+  border-radius: 50%;
+  border: 1px solid var(--accent-border);
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.simple-profile {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  width: 100%;
+}
+
+.simple-profile span {
+  padding: 7px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.055);
+  background: rgba(255,255,255,0.025);
+  color: var(--text-2);
+  font-size: 11px;
+  text-align: center;
+}
+
+.simple-left-rail small {
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 9px;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.simple-feed {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.simple-feed-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 18px;
+  padding: 10px 2px 2px;
+}
+
+.simple-feed-header h1 {
+  margin-top: 5px;
+  font-size: 30px;
+  letter-spacing: 0;
+}
+
+.delta-pill {
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.035);
+  padding: 8px 12px;
+  color: var(--text-2);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.4px;
+  white-space: nowrap;
+}
+
+.delta-pill.up { color: var(--neg); border-color: rgba(239,68,68,0.22); background: var(--neg-bg); }
+.delta-pill.down { color: var(--pos); border-color: rgba(16,185,129,0.22); background: var(--pos-bg); }
+.delta-pill.neutral { color: var(--text-2); }
+
+.simple-signal-list {
+  display: grid;
+  gap: 14px;
+}
+
+.simple-signal-card {
+  padding: 22px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.055);
+  background: rgba(14, 16, 31, 0.72);
+  transition: transform 0.18s var(--ease), border-color 0.18s var(--ease), background 0.18s var(--ease);
+}
+
+.simple-signal-card:hover,
+.simple-signal-card.selected {
+  transform: translateY(-2px);
+  border-color: var(--accent-border);
+  background: rgba(18, 21, 40, 0.82);
+}
+
+.simple-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.simple-signal-card h2 {
+  margin: 14px 0 6px;
+  color: var(--text-0);
+  font-size: 22px;
+  letter-spacing: 0;
+}
+
+.simple-signal-card p {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.simple-metrics,
+.risk-row,
+.simple-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 9px;
+  margin-top: 14px;
+}
+
+.simple-metrics > button:first-child,
+.risk-row span {
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.035);
+  padding: 8px 11px;
+  color: var(--text-1);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.4px;
+}
+
+.simple-metrics > button:first-child {
+  color: var(--warn);
+  cursor: pointer;
+}
+
+.risk-row {
+  margin-top: 10px;
+}
+
+.risk-row span {
+  color: var(--text-2);
+}
+
+.simple-actions {
+  justify-content: flex-start;
+  margin-top: 18px;
+}
+
+.simple-actions .btn,
+.simple-actions .wire-btn {
+  min-width: 118px;
+  justify-content: center;
+  text-align: center;
+}
+
+.simple-context {
+  position: sticky;
+  top: 66px;
+  align-self: start;
+  max-height: calc(100vh - 86px);
+  overflow-y: auto;
+  padding: 22px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.055);
+  background: rgba(12, 14, 28, 0.76);
+  backdrop-filter: blur(18px) saturate(1.1);
+}
+
+.simple-context.empty {
+  color: var(--text-2);
+}
+
+.simple-context h2 {
+  margin: 12px 0 18px;
+  font-size: 21px;
+  letter-spacing: 0;
+}
+
+.simple-context section {
+  padding: 16px 0;
+  border-top: 1px solid rgba(255,255,255,0.045);
+}
+
+.simple-context section:first-of-type {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.simple-context h3 {
+  margin-bottom: 9px;
+  color: var(--text-0);
+  font-size: 12px;
+  letter-spacing: 0;
+}
+
+.simple-context p {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.simple-chain {
+  display: grid;
+  gap: 7px;
+}
+
+.chain-node {
+  padding: 11px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.03);
+}
+
+.chain-node span {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.chain-node b {
+  color: var(--text-0);
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+.chain-arrow {
+  justify-self: center;
+  color: var(--text-3);
+  font-size: 15px;
+  line-height: 1;
+}
+
+.reason-list {
+  display: grid;
+  gap: 7px;
+}
+
+.reason-list span {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  background: rgba(255,255,255,0.03);
+  color: var(--text-2);
+  font-size: 12px;
+}
+
+.reason-list b {
+  color: var(--accent);
+}
+
+.split-context {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.split-context > div {
+  min-width: 0;
+}
+
+.detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255,255,255,0.045);
+}
+
+.detail-actions button {
+  padding: 8px 10px;
+  border-radius: 9px;
+  border: 1px solid rgba(255,255,255,0.07);
+  background: rgba(255,255,255,0.035);
+  color: var(--text-1);
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.detail-actions button:hover {
+  border-color: var(--accent-border);
+  color: var(--accent);
+}
+
+.metric-popover {
+  position: fixed;
+  z-index: 7000;
+  top: 72px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(330px, calc(100vw - 28px));
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid var(--accent-border);
+  background: rgba(8, 10, 22, 0.96);
+  box-shadow: 0 18px 60px rgba(0,0,0,0.45), 0 0 28px var(--accent-dim);
+}
+
+.metric-popover button {
+  float: right;
+  border: 0;
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  font-size: 11px;
+}
+
+.metric-popover b {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--text-0);
+}
+
+.metric-popover p {
+  margin: 0;
+  color: var(--text-2);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.app-container.calm-mode .simple-dashboard {
+  grid-template-columns: 1fr;
+  max-width: 840px;
+}
+
+.app-container.calm-mode .simple-left-rail,
+.app-container.calm-mode .simple-context {
+  display: none;
+}
+
+@media (max-width: 1100px) {
+  .simple-dashboard {
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  }
+  .simple-left-rail {
+    display: none;
+  }
+}
+
+@media (max-width: 800px) {
+  .simple-dashboard {
+    grid-template-columns: 1fr;
+  }
+  .simple-context {
+    position: static;
+    max-height: none;
+  }
+  .simple-feed-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
