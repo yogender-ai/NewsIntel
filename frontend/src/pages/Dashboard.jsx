@@ -117,6 +117,7 @@ function buildEntities(cluster, articles) {
 }
 
 function buildGraph(cluster) {
+  if (cluster?.story_graph?.nodes?.length) return cluster.story_graph.nodes.map(node => node.label);
   const title = words(cluster.thread_title, 4) || 'Event';
   const impact = words(cluster.impact_line || cluster.summary, 5) || 'Market shift';
   const risk = cluster.risk_type === 'risk' ? 'Risk pressure rises' : cluster.risk_type === 'opportunity' ? 'Opportunity opens' : 'Signal moves';
@@ -226,7 +227,10 @@ function ExplainDrawer({ metric, cluster, onClose }) {
         </div>
       )}
       <div className="explain-list">
-        {content.rows.map(row => <span key={row}>{row}</span>)}
+        {(metric === 'relevant' && cluster?.why_relevant?.factors?.length
+          ? cluster.why_relevant.factors.map(f => `${f.label} (+${f.points})`)
+          : content.rows
+        ).map(row => <span key={row}>{row}</span>)}
       </div>
     </aside>
   );
@@ -277,7 +281,7 @@ function SignalCard({ cluster, index, entities, isSaved, isWatched, onAction, on
           <span>Pulse</span><b>{pulse}</b>
         </button>
         <MiniRing value={exposure} label="Exposure" onClick={() => onExplain('exposure', cluster)} />
-        <Sparkline values={miniTrend(pulse, index + 1)} />
+        <Sparkline values={cluster.pulse_trend?.length ? cluster.pulse_trend : miniTrend(pulse, index + 1)} />
       </div>
 
       <div className="entity-strip">
@@ -343,7 +347,7 @@ export default function Dashboard() {
   }, [applyTheme, setHeadlines]);
 
   const syncCachedDashboard = useCallback(async () => {
-    const res = await api.getCachedDashboard();
+    const res = await api.getPersonalizedDashboard();
     dataRef.current = res;
     setData(res);
     processResponse(res);
@@ -403,8 +407,8 @@ export default function Dashboard() {
     setRefreshing(false);
   };
 
-  const updateInteraction = (type, cluster, entity) => {
-    const id = signalId(cluster);
+  const updateInteraction = async (type, cluster, entity) => {
+    const id = cluster?.signal_id || cluster?.thread_id || signalId(cluster);
     const topics = topicIds(cluster, data?.topics_used || []);
     setSignalState(prev => {
       const next = {
@@ -426,6 +430,15 @@ export default function Dashboard() {
       writeStore(user?.uid, next);
       return next;
     });
+    try {
+      if (type === 'save') await api.saveThread(id);
+      else if (type === 'watch') await api.watchSignal(id, 1);
+      else if (type === 'dismiss') await api.dismissSignal(id, 'not_relevant');
+      else if (type === 'trackEntity' && entity) await api.trackEntity(entity, 'ENTITY', 1);
+      else await api.recordInteraction(id, type);
+    } catch (err) {
+      console.warn('Phase 5 interaction persistence failed', err);
+    }
     const labels = { save: 'Signal saved', watch: 'Signal watched', dismiss: 'Noise dismissed', trackEntity: `${entity} tracked`, open: 'Learning from click' };
     showToast(labels[type] || 'Updated');
   };
@@ -454,9 +467,10 @@ export default function Dashboard() {
   const radar = data?.opportunity_radar || {};
   const impact = data?.impact || {};
   const dismissed = new Set(signalState.dismissed || []);
-  const saved = new Set(signalState.saved || []);
-  const watched = new Set(signalState.watched || []);
-  const entityMoves = (signalState.trackedEntities || []).filter(entity =>
+  const saved = new Set([...(signalState.saved || []), ...(data?.saved_signal_ids || [])]);
+  const watched = new Set([...(signalState.watched || []), ...(data?.watched_signal_ids || [])]);
+  const trackedNames = [...(signalState.trackedEntities || []), ...((data?.tracked_entities || []).map(e => e.entity_name))];
+  const entityMoves = trackedNames.filter(entity =>
     articles.some(article => (article.entities || []).some(e => e.name === entity))
   );
 
@@ -572,8 +586,14 @@ export default function Dashboard() {
                 isSaved={saved.has(id)}
                 isWatched={watched.has(id)}
                 onAction={updateInteraction}
-                onExplain={(type, c) => setExplain({ type, cluster: c })}
-                onGraph={setGraphSignal}
+                onExplain={(type, c) => {
+                  updateInteraction(type === 'relevant' ? 'explain' : type, c);
+                  setExplain({ type, cluster: c });
+                }}
+                onGraph={(c) => {
+                  updateInteraction('graph', c);
+                  setGraphSignal(c);
+                }}
                 onDeepDive={openDeepDive}
               />
             );

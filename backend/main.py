@@ -110,6 +110,28 @@ class UserPreferencesInput(BaseModel):
     youtube_channels: List[str] = []
     onboarded: bool = True
 
+class InteractionInput(BaseModel):
+    signal_id: str
+    interaction_type: str
+    dwell_time_seconds: int = 0
+    metadata: dict = {}
+
+class WatchlistInput(BaseModel):
+    signal_id: str
+    watch_priority: int = 1
+
+class SavedThreadInput(BaseModel):
+    thread_id: str
+
+class TrackedEntityInput(BaseModel):
+    entity_name: str
+    entity_type: str = "ENTITY"
+    follow_weight: float = 1.0
+
+class DismissSignalInput(BaseModel):
+    signal_id: str
+    dismiss_reason: str = "not_relevant"
+
 
 # ---------------------------------------------------------------------------
 # Signal Tier Classification (DETERMINISTIC — no LLM dependency)
@@ -365,6 +387,221 @@ def _matched_profile_topics(cluster_text: str, user_topics: list) -> list:
                 "label": topic.replace("-", " ").title(),
             })
     return matches
+
+
+def _signal_id(cluster: dict) -> str:
+    raw = f"{cluster.get('thread_title') or cluster.get('summary') or 'signal'}"
+    cleaned = "".join(ch.lower() if ch.isalnum() else "-" for ch in raw)
+    while "--" in cleaned:
+        cleaned = cleaned.replace("--", "-")
+    return cleaned.strip("-")[:96] or "signal"
+
+
+def _cluster_text(cluster: dict, articles: list = None) -> str:
+    text = f"{cluster.get('thread_title', '')} {cluster.get('summary', '')} {cluster.get('impact_line', '')} {cluster.get('why_it_matters', '')}"
+    article_ids = {str(aid) for aid in cluster.get("article_ids", [])}
+    for article in articles or []:
+        if not article_ids or str(article.get("id")) in article_ids:
+            text += f" {article.get('title', '')} {article.get('text_preview', '')}"
+    return text
+
+
+def _cluster_entities(cluster: dict, articles: list) -> list:
+    article_ids = {str(aid) for aid in cluster.get("article_ids", [])}
+    entities = {}
+    for article in articles or []:
+        if article_ids and str(article.get("id")) not in article_ids:
+            continue
+        for ent in article.get("entities", []) or []:
+            name = ent.get("name")
+            if not name:
+                continue
+            entities[name] = {
+                "name": name,
+                "type": ent.get("type", "ENTITY"),
+                "count": entities.get(name, {}).get("count", 0) + 1,
+            }
+    return sorted(entities.values(), key=lambda item: item["count"], reverse=True)
+
+
+async def _phase5_profile(user_id: str) -> dict:
+    if not user_id:
+        return {
+            "saved": [],
+            "watched": [],
+            "tracked_entities": [],
+            "dismissed": [],
+            "interactions": [],
+        }
+    saved, watched, tracked, dismissed, interactions = await asyncio.gather(
+        db.list_saved_threads(user_id),
+        db.list_watched_signals(user_id),
+        db.list_tracked_entities(user_id),
+        db.list_dismissed_signals(user_id),
+        db.list_user_interactions(user_id),
+    )
+    return {
+        "saved": saved,
+        "watched": watched,
+        "tracked_entities": tracked,
+        "dismissed": dismissed,
+        "interactions": interactions,
+    }
+
+
+def _interaction_weights(interactions: list) -> dict:
+    weights = {}
+    multipliers = {
+        "open": 1.5,
+        "click": 1.0,
+        "explain": 1.2,
+        "graph": 1.4,
+        "save": 3.0,
+        "watch": 2.5,
+        "dismiss": -4.0,
+    }
+    for item in interactions or []:
+        signal_id = item.get("signal_id")
+        if not signal_id:
+            continue
+        weights[signal_id] = weights.get(signal_id, 0) + multipliers.get(item.get("interaction_type"), 0.5)
+    return weights
+
+
+def _why_relevant(cluster: dict, user_topics: list, user_regions: list, phase5: dict, articles: list) -> dict:
+    text = _cluster_text(cluster, articles).lower()
+    tracked_entities = phase5.get("tracked_entities", [])
+    interactions = phase5.get("interactions", [])
+    watched = {item["signal_id"] for item in phase5.get("watched", [])}
+    saved = {item["thread_id"] for item in phase5.get("saved", [])}
+    signal_id = cluster.get("signal_id") or _signal_id(cluster)
+
+    factors = []
+    score = 0
+    for topic in user_topics or []:
+        keywords = TOPIC_KEYWORDS.get(topic, [topic])
+        if any(kw in text for kw in keywords):
+            factors.append({"label": f"{topic.replace('-', ' ').title()} topic match", "points": 25, "type": "topic"})
+            score += 25
+    for region in user_regions or []:
+        keywords = REGION_KEYWORDS.get(region, [region])
+        if region == "global" or any(kw in text for kw in keywords):
+            factors.append({"label": f"{region.replace('-', ' ').title()} region overlap", "points": 15, "type": "region"})
+            score += 15
+            break
+    for ent in tracked_entities:
+        if ent["entity_name"].lower() in text:
+            points = int(18 * float(ent.get("follow_weight") or 1.0))
+            factors.append({"label": f"Tracked entity: {ent['entity_name']}", "points": points, "type": "entity"})
+            score += points
+    similar_opens = sum(1 for item in interactions if item.get("interaction_type") in ("open", "click", "graph", "explain") and item.get("signal_id") == signal_id)
+    if similar_opens:
+        points = min(20, similar_opens * 6)
+        factors.append({"label": f"You engaged with this signal {similar_opens} time(s)", "points": points, "type": "history"})
+        score += points
+    if signal_id in watched:
+        factors.append({"label": "Signal is on your watchlist", "points": 20, "type": "watchlist"})
+        score += 20
+    if signal_id in saved:
+        factors.append({"label": "Thread saved by you", "points": 16, "type": "saved"})
+        score += 16
+    if not factors:
+        factors.append({"label": "General profile similarity", "points": 8, "type": "baseline"})
+        score += 8
+    return {"score": min(100, score), "factors": factors[:6]}
+
+
+def _personalize_payload(payload: dict, user_id: str, user_topics: list, user_regions: list, phase5: dict) -> dict:
+    response = {**payload}
+    articles = response.get("articles", [])
+    dismissed = {item["signal_id"] for item in phase5.get("dismissed", [])}
+    watched = {item["signal_id"] for item in phase5.get("watched", [])}
+    saved = {item["thread_id"] for item in phase5.get("saved", [])}
+    interaction_weights = _interaction_weights(phase5.get("interactions", []))
+    clusters = []
+
+    for cluster in response.get("clusters", []):
+        c = {**cluster}
+        signal_id = _signal_id(c)
+        c["signal_id"] = signal_id
+        c["thread_id"] = signal_id
+        c["entities"] = _cluster_entities(c, articles)
+        c["story_graph"] = build_story_graph(c, articles, user_topics, user_regions)
+        c["why_relevant"] = _why_relevant(c, user_topics, user_regions, phase5, articles)
+        if signal_id in dismissed:
+            c["dismissed"] = True
+        base_relevance = c.get("exposure_score", 50)
+        entity_overlap = len([e for e in c["entities"] if any(t["entity_name"].lower() == e["name"].lower() for t in phase5.get("tracked_entities", []))])
+        region_bonus = 10 if "global" in user_regions else 0
+        watch_boost = 20 if signal_id in watched else 0
+        saved_boost = 16 if signal_id in saved else 0
+        engagement = interaction_weights.get(signal_id, 0) * 6
+        dismissal_penalty = 100 if signal_id in dismissed else 0
+        relevance = max(0, min(100, base_relevance + entity_overlap * 18 + region_bonus + watch_boost + saved_boost + engagement - dismissal_penalty))
+        c["relevance_score"] = round(relevance, 1)
+        c["confidence"] = min(0.95, 0.45 + min(c.get("source_count", 1), 5) * 0.08 + len(c["why_relevant"]["factors"]) * 0.04)
+        c["_personal_rank"] = relevance + c.get("pulse_score", 50) + watch_boost + saved_boost - dismissal_penalty
+        clusters.append(c)
+
+    tier_order = {"CRITICAL": 40, "SIGNAL": 25, "WATCH": 10, "NOISE": 0}
+    clusters.sort(key=lambda c: (c.get("_personal_rank", 0) + tier_order.get(c.get("signal_tier", "NOISE"), 0)), reverse=True)
+    response["clusters"] = [c for c in clusters if not c.get("dismissed")]
+    response["dismissed_count"] = sum(1 for c in clusters if c.get("dismissed"))
+    response["saved_signal_ids"] = list(saved)
+    response["watched_signal_ids"] = list(watched)
+    response["tracked_entities"] = phase5.get("tracked_entities", [])
+    if response["clusters"]:
+        response["exposure_score"] = round(sum(c.get("relevance_score", c.get("exposure_score", 50)) for c in response["clusters"][:5]) / min(len(response["clusters"]), 5))
+    return response
+
+
+def build_story_graph(cluster: dict, articles: list, user_topics: list = None, user_regions: list = None) -> dict:
+    signal_id = cluster.get("signal_id") or _signal_id(cluster)
+    title = cluster.get("thread_title") or "Signal event"
+    entities = _cluster_entities(cluster, articles)
+    main_entity = entities[0]["name"] if entities else (user_topics or ["Market"])[0].replace("-", " ").title()
+    risk_type = cluster.get("risk_type") or "signal"
+    exposure = cluster.get("exposure_score", 50)
+    impact = cluster.get("impact_line") or cluster.get("summary") or "Impact is forming"
+
+    nodes = [
+        {"id": f"{signal_id}:event", "label": title, "type": "event"},
+        {"id": f"{signal_id}:primary", "label": f"{main_entity} moves", "type": "primary_effect"},
+        {"id": f"{signal_id}:secondary", "label": impact[:120], "type": "secondary_impact"},
+        {"id": f"{signal_id}:exposure", "label": f"Your exposure {'rises' if exposure >= 65 else 'changes'} ({round(exposure)})", "type": "personal_exposure"},
+    ]
+    edges = [
+        {"from": nodes[0]["id"], "to": nodes[1]["id"], "relationship": "impacts"},
+        {"from": nodes[1]["id"], "to": nodes[2]["id"], "relationship": "causes" if risk_type == "risk" else "correlates"},
+        {"from": nodes[2]["id"], "to": nodes[3]["id"], "relationship": "raises risk" if risk_type == "risk" else "reduces opportunity" if risk_type == "opportunity" else "impacts"},
+    ]
+    return {"thread_id": signal_id, "nodes": nodes, "edges": edges, "confidence": min(0.9, 0.5 + len(entities) * 0.08)}
+
+
+async def _ensure_alerts(user_id: str, payload: dict, phase5: dict):
+    if not user_id:
+        return []
+    existing = await db.list_alerts(user_id, unresolved_only=True)
+    clusters = payload.get("clusters", [])
+    tracked = phase5.get("tracked_entities", [])
+    for cluster in clusters[:6]:
+        signal_id = cluster.get("signal_id") or _signal_id(cluster)
+        if cluster.get("signal_tier") == "CRITICAL":
+            await db.create_alert(user_id, f"Critical signal appeared: {cluster.get('thread_title', 'Untitled')}", "critical", "critical_tier", signal_id)
+        if cluster.get("relevance_score", cluster.get("exposure_score", 0)) >= 80:
+            await db.create_alert(user_id, f"Your exposure crossed 80: {cluster.get('thread_title', 'Signal')}", "warning", "exposure_jump", signal_id)
+        text = _cluster_text(cluster, payload.get("articles", [])).lower()
+        for ent in tracked:
+            if ent["entity_name"].lower() in text and cluster.get("signal_tier") in ("CRITICAL", "SIGNAL"):
+                await db.create_alert(user_id, f"Tracked entity {ent['entity_name']} moved to {cluster.get('signal_tier')}", "warning", "tracked_entity", signal_id)
+    for delta in payload.get("daily_delta", []):
+        if delta.get("has_baseline") and abs(delta.get("delta", 0)) >= 12:
+            await db.create_alert(user_id, f"{delta.get('label')} exposure moved {delta.get('delta'):+}", "info", "pulse_delta")
+    return existing
+
+
+def _user_id_from_request(request: Request) -> str:
+    return request.headers.get("X-User-Id", "").strip() or "local_user_123"
 
 
 def _schedule_profile_refresh(
@@ -975,6 +1212,154 @@ async def story_deep_dive(request: StoryDeepDiveRequest):
         },
         "perspectives": perspectives if isinstance(perspectives, list) else [],
     }
+
+
+# ---------------------------------------------------------------------------
+# Phase 5 Personal Intelligence Endpoints
+# ---------------------------------------------------------------------------
+@app.get("/api/personalized-dashboard")
+async def personalized_dashboard(request: Request):
+    user_topics, user_regions, uid, _ = await _get_user_prefs_from_header(request)
+    user_id = uid or _user_id_from_request(request)
+    base = await get_cached_dashboard(request)
+    phase5 = await _phase5_profile(user_id)
+    personalized = _personalize_payload(base, user_id, user_topics, user_regions, phase5)
+    pulse_history = await db.get_pulse_history(user_topics, days=30)
+    for cluster in personalized.get("clusters", []):
+        matched_topics = [m.get("id") for m in cluster.get("matched_preferences", []) if m.get("id")]
+        topic = (matched_topics or user_topics or [None])[0]
+        series = pulse_history.get(topic, []) if topic else []
+        cluster["pulse_trend"] = [point["pulse_score"] for point in series[-12:]]
+        cluster["pulse_history_topic"] = topic
+    personalized["pulse_history"] = pulse_history
+    await _ensure_alerts(user_id, personalized, phase5)
+    personalized["alerts"] = await db.list_alerts(user_id, unresolved_only=True)
+    personalized["exposure_network"] = _build_exposure_network(user_id, personalized, user_topics, phase5)
+    return personalized
+
+
+@app.get("/api/watchlist")
+async def get_watchlist(request: Request):
+    user_id = _user_id_from_request(request)
+    return {
+        "watched_signals": await db.list_watched_signals(user_id),
+        "saved_threads": await db.list_saved_threads(user_id),
+    }
+
+
+@app.post("/api/watchlist")
+async def add_watchlist(request: Request, payload: WatchlistInput):
+    user_id = _user_id_from_request(request)
+    await db.watch_signal(user_id, payload.signal_id, payload.watch_priority)
+    return {"status": "success", "watched_signals": await db.list_watched_signals(user_id)}
+
+
+@app.post("/api/saved-threads")
+async def add_saved_thread(request: Request, payload: SavedThreadInput):
+    user_id = _user_id_from_request(request)
+    await db.save_thread(user_id, payload.thread_id)
+    return {"status": "success", "saved_threads": await db.list_saved_threads(user_id)}
+
+
+@app.get("/api/entities")
+async def get_entities(request: Request):
+    user_id = _user_id_from_request(request)
+    return {"tracked_entities": await db.list_tracked_entities(user_id)}
+
+
+@app.post("/api/entities")
+async def add_entity(request: Request, payload: TrackedEntityInput):
+    user_id = _user_id_from_request(request)
+    await db.track_user_entity(user_id, payload.entity_name, payload.entity_type, payload.follow_weight)
+    return {"status": "success", "tracked_entities": await db.list_tracked_entities(user_id)}
+
+
+@app.post("/api/dismissed-signals")
+async def dismiss_signal_endpoint(request: Request, payload: DismissSignalInput):
+    user_id = _user_id_from_request(request)
+    await db.dismiss_signal(user_id, payload.signal_id, payload.dismiss_reason)
+    return {"status": "success", "dismissed_signals": await db.list_dismissed_signals(user_id)}
+
+
+@app.post("/api/interactions")
+async def record_interaction_endpoint(request: Request, payload: InteractionInput):
+    user_id = _user_id_from_request(request)
+    await db.record_interaction(
+        user_id,
+        payload.signal_id,
+        payload.interaction_type,
+        payload.dwell_time_seconds,
+        payload.metadata,
+    )
+    return {"status": "success"}
+
+
+@app.get("/api/alerts")
+async def get_alerts(request: Request):
+    user_id = _user_id_from_request(request)
+    rows = await db.list_alerts(user_id)
+    return {
+        "alerts": rows,
+        "unread_count": sum(1 for row in rows if row.get("unread") and not row.get("resolved")),
+    }
+
+
+@app.get("/api/story-graph/{thread_id}")
+async def get_story_graph(request: Request, thread_id: str):
+    base = await personalized_dashboard(request)
+    for cluster in base.get("clusters", []):
+        if cluster.get("thread_id") == thread_id or cluster.get("signal_id") == thread_id:
+            return cluster.get("story_graph") or build_story_graph(cluster, base.get("articles", []), base.get("topics_used", []), base.get("regions_used", []))
+    raise HTTPException(status_code=404, detail="Story graph not found")
+
+
+@app.get("/api/pulse-history")
+async def get_pulse_history(request: Request, days: int = Query(30, ge=1, le=90)):
+    user_topics, _, _, has_profile = await _get_user_prefs_from_header(request)
+    topics = user_topics if has_profile else list(TOPIC_KEYWORDS.keys())[:6]
+    history = await db.get_pulse_history(topics, days=days)
+    return {
+        "topics": topics,
+        "history": history,
+        "windows": {
+            "24h": {topic: values[-24:] for topic, values in history.items()},
+            "7d": {topic: values[-168:] for topic, values in history.items()},
+            "30d": history,
+        },
+    }
+
+
+@app.get("/api/exposure-network")
+async def get_exposure_network(request: Request):
+    user_topics, _, uid, _ = await _get_user_prefs_from_header(request)
+    user_id = uid or _user_id_from_request(request)
+    base = await personalized_dashboard(request)
+    phase5 = await _phase5_profile(user_id)
+    return _build_exposure_network(user_id, base, user_topics, phase5)
+
+
+def _build_exposure_network(user_id: str, payload: dict, user_topics: list, phase5: dict) -> dict:
+    nodes = [{"id": user_id, "label": "You", "type": "user"}]
+    edges = []
+    for topic in user_topics or []:
+        topic_id = f"topic:{topic}"
+        nodes.append({"id": topic_id, "label": topic.replace("-", " ").title(), "type": "topic"})
+        edges.append({"from": user_id, "to": topic_id, "relationship": "tracks"})
+    for ent in phase5.get("tracked_entities", []):
+        ent_id = f"entity:{ent['entity_name']}"
+        nodes.append({"id": ent_id, "label": ent["entity_name"], "type": "entity", "weight": ent.get("follow_weight", 1)})
+        edges.append({"from": user_id, "to": ent_id, "relationship": "follows"})
+    for cluster in payload.get("clusters", [])[:6]:
+        sig_id = f"signal:{cluster.get('signal_id') or _signal_id(cluster)}"
+        nodes.append({"id": sig_id, "label": cluster.get("thread_title", "Signal"), "type": "signal", "exposure": cluster.get("relevance_score", cluster.get("exposure_score", 50))})
+        for match in cluster.get("matched_preferences", []):
+            topic_id = f"topic:{match.get('id')}"
+            edges.append({"from": topic_id, "to": sig_id, "relationship": "matches"})
+        for ent in cluster.get("entities", [])[:3]:
+            ent_id = f"entity:{ent['name']}"
+            if any(n["id"] == ent_id for n in nodes):
+                edges.append({"from": ent_id, "to": sig_id, "relationship": "mentioned"})
+    return {"nodes": nodes, "edges": edges}
 
 
 # ---------------------------------------------------------------------------

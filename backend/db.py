@@ -76,6 +76,77 @@ pulse_snapshots = sqlalchemy.Table(
 )
 
 # User preferences table — stores onboarding choices per user
+saved_threads = sqlalchemy.Table(
+    "saved_threads",
+    metadata,
+    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
+    sqlalchemy.Column("user_id", sqlalchemy.String(128), nullable=False, index=True),
+    sqlalchemy.Column("thread_id", sqlalchemy.String(255), nullable=False, index=True),
+    sqlalchemy.Column("saved_at", sqlalchemy.DateTime, default=lambda: datetime.now(timezone.utc)),
+    sqlalchemy.UniqueConstraint("user_id", "thread_id", name="uq_saved_threads_user_thread"),
+)
+
+watched_signals = sqlalchemy.Table(
+    "watched_signals",
+    metadata,
+    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
+    sqlalchemy.Column("user_id", sqlalchemy.String(128), nullable=False, index=True),
+    sqlalchemy.Column("signal_id", sqlalchemy.String(255), nullable=False, index=True),
+    sqlalchemy.Column("watch_priority", sqlalchemy.Integer, default=1),
+    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=lambda: datetime.now(timezone.utc)),
+    sqlalchemy.UniqueConstraint("user_id", "signal_id", name="uq_watched_signals_user_signal"),
+)
+
+tracked_entities = sqlalchemy.Table(
+    "tracked_entities",
+    metadata,
+    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
+    sqlalchemy.Column("user_id", sqlalchemy.String(128), nullable=False, index=True),
+    sqlalchemy.Column("entity_name", sqlalchemy.String(255), nullable=False, index=True),
+    sqlalchemy.Column("entity_type", sqlalchemy.String(50), default="ENTITY"),
+    sqlalchemy.Column("follow_weight", sqlalchemy.Float, default=1.0),
+    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=lambda: datetime.now(timezone.utc)),
+    sqlalchemy.Column("updated_at", sqlalchemy.DateTime, default=lambda: datetime.now(timezone.utc)),
+    sqlalchemy.UniqueConstraint("user_id", "entity_name", name="uq_tracked_entities_user_name"),
+)
+
+dismissed_signals = sqlalchemy.Table(
+    "dismissed_signals",
+    metadata,
+    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
+    sqlalchemy.Column("user_id", sqlalchemy.String(128), nullable=False, index=True),
+    sqlalchemy.Column("signal_id", sqlalchemy.String(255), nullable=False, index=True),
+    sqlalchemy.Column("dismiss_reason", sqlalchemy.String(255), default="not_relevant"),
+    sqlalchemy.Column("dismissed_at", sqlalchemy.DateTime, default=lambda: datetime.now(timezone.utc)),
+    sqlalchemy.UniqueConstraint("user_id", "signal_id", name="uq_dismissed_signals_user_signal"),
+)
+
+user_interactions = sqlalchemy.Table(
+    "user_interactions",
+    metadata,
+    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
+    sqlalchemy.Column("user_id", sqlalchemy.String(128), nullable=False, index=True),
+    sqlalchemy.Column("signal_id", sqlalchemy.String(255), nullable=False, index=True),
+    sqlalchemy.Column("interaction_type", sqlalchemy.String(50), nullable=False, index=True),
+    sqlalchemy.Column("dwell_time_seconds", sqlalchemy.Integer, default=0),
+    sqlalchemy.Column("metadata_json", sqlalchemy.Text, default="{}"),
+    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=lambda: datetime.now(timezone.utc)),
+)
+
+alerts = sqlalchemy.Table(
+    "alerts",
+    metadata,
+    sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
+    sqlalchemy.Column("user_id", sqlalchemy.String(128), nullable=False, index=True),
+    sqlalchemy.Column("signal_id", sqlalchemy.String(255), nullable=True, index=True),
+    sqlalchemy.Column("message", sqlalchemy.String(500), nullable=False),
+    sqlalchemy.Column("severity", sqlalchemy.String(30), default="info"),
+    sqlalchemy.Column("alert_type", sqlalchemy.String(50), default="signal"),
+    sqlalchemy.Column("unread", sqlalchemy.Boolean, default=True),
+    sqlalchemy.Column("resolved", sqlalchemy.Boolean, default=False),
+    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=lambda: datetime.now(timezone.utc)),
+)
+
 user_preferences = sqlalchemy.Table(
     "user_preferences",
     metadata,
@@ -218,6 +289,160 @@ async def delete_user_prefs(firebase_uid: str):
         user_preferences.c.firebase_uid == firebase_uid
     )
     await database.execute(query)
+
+
+# ---------------------------------------------------------------------------
+# Phase 5 Personal Intelligence CRUD
+# ---------------------------------------------------------------------------
+
+def _row_dict(row):
+    return dict(row) if row else None
+
+async def save_thread(user_id: str, thread_id: str):
+    existing = await database.fetch_one(
+        saved_threads.select().where(saved_threads.c.user_id == user_id).where(saved_threads.c.thread_id == thread_id)
+    )
+    if not existing:
+        await database.execute(saved_threads.insert().values(user_id=user_id, thread_id=thread_id))
+    await record_interaction(user_id, thread_id, "save")
+
+async def list_saved_threads(user_id: str):
+    rows = await database.fetch_all(saved_threads.select().where(saved_threads.c.user_id == user_id).order_by(saved_threads.c.saved_at.desc()))
+    return [dict(r) for r in rows]
+
+async def watch_signal(user_id: str, signal_id: str, watch_priority: int = 1):
+    existing = await database.fetch_one(
+        watched_signals.select().where(watched_signals.c.user_id == user_id).where(watched_signals.c.signal_id == signal_id)
+    )
+    if existing:
+        await database.execute(
+            watched_signals.update()
+            .where(watched_signals.c.user_id == user_id)
+            .where(watched_signals.c.signal_id == signal_id)
+            .values(watch_priority=watch_priority)
+        )
+    else:
+        await database.execute(watched_signals.insert().values(user_id=user_id, signal_id=signal_id, watch_priority=watch_priority))
+    await record_interaction(user_id, signal_id, "watch")
+
+async def list_watched_signals(user_id: str):
+    rows = await database.fetch_all(watched_signals.select().where(watched_signals.c.user_id == user_id).order_by(watched_signals.c.created_at.desc()))
+    return [dict(r) for r in rows]
+
+async def track_user_entity(user_id: str, entity_name: str, entity_type: str = "ENTITY", follow_weight: float = 1.0):
+    cleaned = (entity_name or "").strip()
+    if not cleaned:
+        return
+    existing = await database.fetch_one(
+        tracked_entities.select().where(tracked_entities.c.user_id == user_id).where(tracked_entities.c.entity_name == cleaned)
+    )
+    if existing:
+        await database.execute(
+            tracked_entities.update()
+            .where(tracked_entities.c.user_id == user_id)
+            .where(tracked_entities.c.entity_name == cleaned)
+            .values(
+                entity_type=entity_type or existing["entity_type"],
+                follow_weight=max(float(follow_weight), float(existing["follow_weight"] or 1.0)),
+                updated_at=datetime.now(timezone.utc),
+            )
+        )
+    else:
+        await database.execute(
+            tracked_entities.insert().values(
+                user_id=user_id,
+                entity_name=cleaned,
+                entity_type=entity_type or "ENTITY",
+                follow_weight=follow_weight,
+            )
+        )
+
+async def list_tracked_entities(user_id: str):
+    rows = await database.fetch_all(tracked_entities.select().where(tracked_entities.c.user_id == user_id).order_by(tracked_entities.c.follow_weight.desc()))
+    return [dict(r) for r in rows]
+
+async def dismiss_signal(user_id: str, signal_id: str, dismiss_reason: str = "not_relevant"):
+    existing = await database.fetch_one(
+        dismissed_signals.select().where(dismissed_signals.c.user_id == user_id).where(dismissed_signals.c.signal_id == signal_id)
+    )
+    if not existing:
+        await database.execute(dismissed_signals.insert().values(user_id=user_id, signal_id=signal_id, dismiss_reason=dismiss_reason))
+    await record_interaction(user_id, signal_id, "dismiss", metadata={"reason": dismiss_reason})
+
+async def list_dismissed_signals(user_id: str):
+    rows = await database.fetch_all(dismissed_signals.select().where(dismissed_signals.c.user_id == user_id))
+    return [dict(r) for r in rows]
+
+async def record_interaction(user_id: str, signal_id: str, interaction_type: str, dwell_time_seconds: int = 0, metadata: dict = None):
+    await database.execute(
+        user_interactions.insert().values(
+            user_id=user_id,
+            signal_id=signal_id,
+            interaction_type=interaction_type,
+            dwell_time_seconds=dwell_time_seconds or 0,
+            metadata_json=json.dumps(metadata or {}),
+        )
+    )
+
+async def list_user_interactions(user_id: str, limit: int = 500):
+    rows = await database.fetch_all(
+        user_interactions.select()
+        .where(user_interactions.c.user_id == user_id)
+        .order_by(user_interactions.c.created_at.desc())
+        .limit(limit)
+    )
+    return [dict(r) for r in rows]
+
+async def create_alert(user_id: str, message: str, severity: str = "info", alert_type: str = "signal", signal_id: str = None):
+    recent = await database.fetch_one(
+        alerts.select()
+        .where(alerts.c.user_id == user_id)
+        .where(alerts.c.message == message)
+        .where(alerts.c.resolved == False)
+        .order_by(alerts.c.created_at.desc())
+    )
+    if recent:
+        return dict(recent)
+    alert_id = await database.execute(
+        alerts.insert().values(
+            user_id=user_id,
+            signal_id=signal_id,
+            message=message,
+            severity=severity,
+            alert_type=alert_type,
+        )
+    )
+    row = await database.fetch_one(alerts.select().where(alerts.c.id == alert_id))
+    return _row_dict(row)
+
+async def list_alerts(user_id: str, unresolved_only: bool = False):
+    query = alerts.select().where(alerts.c.user_id == user_id)
+    if unresolved_only:
+        query = query.where(alerts.c.resolved == False)
+    rows = await database.fetch_all(query.order_by(alerts.c.created_at.desc()).limit(100))
+    return [dict(r) for r in rows]
+
+async def get_pulse_history(topics: list, days: int = 30):
+    from datetime import timedelta
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    history = {}
+    for topic in topics:
+        rows = await database.fetch_all(
+            pulse_snapshots.select()
+            .where(pulse_snapshots.c.topic == topic.lower().strip())
+            .where(pulse_snapshots.c.created_at >= cutoff)
+            .order_by(pulse_snapshots.c.created_at.asc())
+        )
+        history[topic] = [
+            {
+                "pulse_score": row["pulse_score"],
+                "source_count": row["source_count"],
+                "neg_ratio": row["neg_ratio"],
+                "created_at": row["created_at"].isoformat() if hasattr(row["created_at"], "isoformat") else str(row["created_at"]),
+            }
+            for row in rows
+        ]
+    return history
 
 
 # ---------------------------------------------------------------------------

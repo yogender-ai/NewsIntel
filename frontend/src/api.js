@@ -31,6 +31,9 @@ export const api = {
   getCachedDashboard: () =>
     request('/api/dashboard', { method: 'GET' }),
 
+  getPersonalizedDashboard: () =>
+    request('/api/personalized-dashboard', { method: 'GET' }),
+
   // POST: Force full pipeline refresh (user-triggered)
   forceDashboardRefresh: (topics = [], regions = []) =>
     request('/api/dashboard', {
@@ -60,4 +63,40 @@ export const api = {
 
   deleteAccount: () =>
     request('/api/user/account', { method: 'DELETE' }),
+
+  watchSignal: (signal_id, watch_priority = 1) =>
+    request('/api/watchlist', {
+      method: 'POST',
+      body: JSON.stringify({ signal_id, watch_priority }),
+    }),
+
+  saveThread: (thread_id) =>
+    request('/api/saved-threads', {
+      method: 'POST',
+      body: JSON.stringify({ thread_id }),
+    }),
+
+  trackEntity: (entity_name, entity_type = 'ENTITY', follow_weight = 1) =>
+    request('/api/entities', {
+      method: 'POST',
+      body: JSON.stringify({ entity_name, entity_type, follow_weight }),
+    }),
+
+  dismissSignal: (signal_id, dismiss_reason = 'not_relevant') =>
+    request('/api/dismissed-signals', {
+      method: 'POST',
+      body: JSON.stringify({ signal_id, dismiss_reason }),
+    }),
+
+  recordInteraction: (signal_id, interaction_type, metadata = {}, dwell_time_seconds = 0) =>
+    request('/api/interactions', {
+      method: 'POST',
+      body: JSON.stringify({ signal_id, interaction_type, metadata, dwell_time_seconds }),
+    }),
+
+  getStoryGraph: (thread_id) => request(`/api/story-graph/${encodeURIComponent(thread_id)}`),
+
+  getAlerts: () => request('/api/alerts'),
+
+  getPulseHistory: (days = 30) => request(`/api/pulse-history?days=${days}`),
 };
