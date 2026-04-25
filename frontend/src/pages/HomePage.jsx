@@ -75,6 +75,8 @@ export default function HomePage() {
   const [selectedShift, setSelectedShift] = useState(null);
   const [tourOpen, setTourOpen] = useState(false);
 
+  const CACHE_KEY = 'ni_hp_cache';
+
   const load = useCallback(async ({ force = false } = {}) => {
     setError('');
     if (force) setRefreshing(true);
@@ -91,8 +93,26 @@ export default function HomePage() {
       setPreferences(prefsResult);
       setDashboard(dashResult);
       setAlerts(alertsResult);
+      // Persist to localStorage as fallback
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify({ dashboard: dashResult, preferences: prefsResult, alerts: alertsResult, ts: Date.now() }));
+      } catch { /* quota exceeded — ignore */ }
     } catch (err) {
-      setError(err.message || 'Unable to load live intelligence.');
+      // Try to recover from localStorage cache
+      try {
+        const cached = JSON.parse(localStorage.getItem(CACHE_KEY));
+        if (cached?.dashboard) {
+          setDashboard(cached.dashboard);
+          setPreferences(cached.preferences);
+          setAlerts(cached.alerts);
+          const ageMinutes = Math.round((Date.now() - (cached.ts || 0)) / 60000);
+          setError(`Showing cached data (${ageMinutes}m old). Live feed unavailable: ${(err.message || '').slice(0, 80)}`);
+        } else {
+          setError(err.message || 'Unable to load live intelligence.');
+        }
+      } catch {
+        setError(err.message || 'Unable to load live intelligence.');
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);

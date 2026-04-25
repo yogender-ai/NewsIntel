@@ -3418,3 +3418,719 @@ body::after {
   .shift-visual { display: none; }
   .tour-card { flex-direction: column; align-items: flex-start; }
 }
+
+/* ===================================================================
+   ✨ PREMIUM VISUAL ENHANCEMENTS — MAKE IT ALIVE
+   =================================================================== */
+
+/* ── Animated Ambient Background Particles ──────────────────── */
+.world-pulse-page::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(2px 2px at 20% 30%, rgba(141,162,255,0.3), transparent),
+    radial-gradient(2px 2px at 80% 70%, rgba(126,231,196,0.25), transparent),
+    radial-gradient(1.5px 1.5px at 40% 80%, rgba(255,155,169,0.2), transparent),
+    radial-gradient(2px 2px at 65% 20%, rgba(141,162,255,0.2), transparent),
+    radial-gradient(1px 1px at 90% 50%, rgba(126,231,196,0.3), transparent),
+    radial-gradient(1.5px 1.5px at 10% 60%, rgba(255,211,138,0.2), transparent);
+  animation: particleDrift 25s ease-in-out infinite alternate;
+}
+
+@keyframes particleDrift {
+  0% { transform: translateY(0) translateX(0); opacity: 0.7; }
+  33% { transform: translateY(-8px) translateX(4px); opacity: 1; }
+  66% { transform: translateY(4px) translateX(-6px); opacity: 0.8; }
+  100% { transform: translateY(-4px) translateX(2px); opacity: 0.9; }
+}
+
+/* ── Breathing Pulse Ring Glow ──────────────────────────────── */
+.pulse-ring {
+  animation: ringIn 0.9s var(--ease) both, ringBreathe 4s ease-in-out 1s infinite;
+}
+
+@keyframes ringBreathe {
+  0%, 100% {
+    box-shadow: 0 0 70px rgba(141,162,255,0.24), 0 0 140px rgba(141,162,255,0.08);
+    filter: brightness(1);
+  }
+  50% {
+    box-shadow: 0 0 90px rgba(141,162,255,0.35), 0 0 200px rgba(141,162,255,0.12);
+    filter: brightness(1.05);
+  }
+}
+
+.world-pulse-card.high .pulse-ring {
+  animation: ringIn 0.9s var(--ease) both, ringBreatheHigh 3s ease-in-out 1s infinite;
+}
+
+@keyframes ringBreatheHigh {
+  0%, 100% {
+    box-shadow: 0 0 70px rgba(255,122,144,0.24), 0 0 140px rgba(255,122,144,0.08);
+  }
+  50% {
+    box-shadow: 0 0 100px rgba(255,122,144,0.4), 0 0 220px rgba(255,122,144,0.15);
+  }
+}
+
+.world-pulse-card.elevated .pulse-ring {
+  animation: ringIn 0.9s var(--ease) both, ringBreatheElevated 3.5s ease-in-out 1s infinite;
+}
+
+@keyframes ringBreatheElevated {
+  0%, 100% {
+    box-shadow: 0 0 70px rgba(255,211,138,0.2);
+  }
+  50% {
+    box-shadow: 0 0 90px rgba(255,211,138,0.35), 0 0 180px rgba(255,211,138,0.1);
+  }
+}
+
+.world-pulse-card.calm .pulse-ring {
+  animation: ringIn 0.9s var(--ease) both, ringBreatheCalm 5s ease-in-out 1s infinite;
+}
+
+@keyframes ringBreatheCalm {
+  0%, 100% {
+    box-shadow: 0 0 50px rgba(126,231,196,0.2);
+  }
+  50% {
+    box-shadow: 0 0 80px rgba(126,231,196,0.3), 0 0 160px rgba(126,231,196,0.08);
+  }
+}
+
+/* ── Pulse Ring Number Counter Animation ────────────────────── */
+.pulse-ring span {
+  animation: numberReveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both;
+}
+
+@keyframes numberReveal {
+  from { opacity: 0; transform: scale(0.5); filter: blur(8px); }
+  to { opacity: 1; transform: scale(1); filter: blur(0); }
+}
+
+/* ── Orbital Particle Ring ──────────────────────────────────── */
+.pulse-ring-wrap {
+  position: relative;
+}
+
+.pulse-ring-wrap::before,
+.pulse-ring-wrap::after {
+  content: '';
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  z-index: 2;
+}
+
+.pulse-ring-wrap::before {
+  background: #8da2ff;
+  box-shadow: 0 0 12px rgba(141,162,255,0.6);
+  animation: orbitParticle1 8s linear infinite;
+}
+
+.pulse-ring-wrap::after {
+  background: #7ee7c4;
+  box-shadow: 0 0 12px rgba(126,231,196,0.6);
+  width: 4px;
+  height: 4px;
+  animation: orbitParticle2 12s linear infinite reverse;
+}
+
+@keyframes orbitParticle1 {
+  from { transform: rotate(0deg) translateX(115px) rotate(0deg); }
+  to { transform: rotate(360deg) translateX(115px) rotate(-360deg); }
+}
+
+@keyframes orbitParticle2 {
+  from { transform: rotate(0deg) translateX(125px) rotate(0deg); }
+  to { transform: rotate(360deg) translateX(125px) rotate(-360deg); }
+}
+
+/* ── World Pulse Card Enhancement ──────────────────────────── */
+.world-pulse-card {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.3s var(--ease), box-shadow 0.3s var(--ease);
+}
+
+.world-pulse-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 32px 100px rgba(0,0,0,0.35), 0 0 60px rgba(141,162,255,0.08);
+}
+
+.world-pulse-card::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: conic-gradient(from 0deg, transparent, rgba(141,162,255,0.04), transparent, rgba(126,231,196,0.03), transparent);
+  animation: cardShine 15s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes cardShine {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* ── Glassmorphism Card Enhancement ────────────────────────── */
+.wp-card {
+  position: relative;
+  transition: transform 0.3s var(--ease), box-shadow 0.3s var(--ease), border-color 0.3s var(--ease);
+}
+
+.wp-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 28px 90px rgba(0,0,0,0.32), 0 0 40px rgba(141,162,255,0.06);
+  border-color: rgba(141,162,255,0.2);
+}
+
+.wp-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(141,162,255,0.2) 30%, rgba(126,231,196,0.15) 70%, transparent);
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.wp-card:hover::after {
+  opacity: 1;
+}
+
+/* ── Stagger Animation for Cards ───────────────────────────── */
+.wp-grid .wp-card:nth-child(1),
+.wp-grid .world-pulse-card { animation: cardFadeUp 0.6s var(--ease) 0.1s both; }
+.wp-grid .wp-card:nth-child(2) { animation: cardFadeUp 0.6s var(--ease) 0.2s both; }
+.wp-grid .wp-card:nth-child(3) { animation: cardFadeUp 0.6s var(--ease) 0.3s both; }
+.wp-right .wp-card:nth-child(1) { animation: cardFadeUp 0.6s var(--ease) 0.15s both; }
+.wp-right .wp-card:nth-child(2) { animation: cardFadeUp 0.6s var(--ease) 0.25s both; }
+.wp-right .wp-card:nth-child(3) { animation: cardFadeUp 0.6s var(--ease) 0.35s both; }
+
+@keyframes cardFadeUp {
+  from { opacity: 0; transform: translateY(24px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── Top Shift Card Premium ────────────────────────────────── */
+.top-shift-card {
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.3s var(--ease), border-color 0.3s var(--ease), box-shadow 0.3s var(--ease);
+}
+
+.top-shift-card:hover {
+  transform: translateY(-3px) scale(1.01);
+  border-color: rgba(126,231,196,0.4);
+  box-shadow: 0 16px 48px rgba(0,0,0,0.2), 0 0 30px rgba(126,231,196,0.08);
+}
+
+.top-shift-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent);
+  transition: left 0.6s var(--ease);
+}
+
+.top-shift-card:hover::before {
+  left: 100%;
+}
+
+.top-shifts-list .top-shift-card:nth-child(1) { animation: shiftSlideIn 0.5s var(--ease) 0.1s both; }
+.top-shifts-list .top-shift-card:nth-child(2) { animation: shiftSlideIn 0.5s var(--ease) 0.2s both; }
+.top-shifts-list .top-shift-card:nth-child(3) { animation: shiftSlideIn 0.5s var(--ease) 0.3s both; }
+
+@keyframes shiftSlideIn {
+  from { opacity: 0; transform: translateX(-20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* ── Shift Rank Badge Glow ─────────────────────────────────── */
+.shift-rank {
+  position: relative;
+  animation: rankGlow 3s ease-in-out infinite;
+}
+
+@keyframes rankGlow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(126,231,196,0); }
+  50% { box-shadow: 0 0 16px rgba(126,231,196,0.3); }
+}
+
+/* ── Change List Direction Animations ──────────────────────── */
+.change-list button {
+  transition: all 0.25s var(--ease);
+  position: relative;
+  overflow: hidden;
+}
+
+.change-list button:hover {
+  transform: translateX(4px);
+  border-color: rgba(141,162,255,0.3);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+}
+
+.change-list button::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: #8da2ff;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.change-list button.selected::after,
+.change-list button:hover::after {
+  opacity: 1;
+}
+
+.change-list i {
+  transition: transform 0.3s var(--ease), background 0.3s;
+}
+
+.change-list button:hover i {
+  transform: scale(1.1);
+  background: rgba(141,162,255,0.2);
+}
+
+.change-list em.rising {
+  animation: riseIndicator 2s ease-in-out infinite;
+}
+
+@keyframes riseIndicator {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+
+.change-list em.cooling {
+  animation: coolIndicator 2s ease-in-out infinite;
+}
+
+@keyframes coolIndicator {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(2px); }
+}
+
+/* ── Pulse Trend Chart Enhancement ─────────────────────────── */
+.pulse-trend polyline {
+  stroke-dasharray: 600;
+  stroke-dashoffset: 600;
+  animation: drawLine 2s ease forwards 0.3s;
+  filter: drop-shadow(0 0 8px rgba(141,162,255,0.4));
+}
+
+@keyframes drawLine {
+  to { stroke-dashoffset: 0; }
+}
+
+.pulse-trend polygon {
+  opacity: 0;
+  animation: fillChart 1s ease forwards 1.5s;
+}
+
+@keyframes fillChart {
+  to { opacity: 1; }
+}
+
+.pulse-chart-card {
+  position: relative;
+}
+
+.pulse-chart-card::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60%;
+  background: linear-gradient(to top, rgba(141,162,255,0.03), transparent);
+  border-radius: 0 0 24px 24px;
+  pointer-events: none;
+}
+
+/* ── Quick Glance Stat Animation ───────────────────────────── */
+.qg-stat b {
+  display: inline-block;
+  animation: statCountUp 0.8s var(--ease) both;
+}
+
+.qg-stat:nth-child(1) b { animation-delay: 0.2s; }
+.qg-stat:nth-child(2) b { animation-delay: 0.3s; }
+.qg-stat:nth-child(3) b { animation-delay: 0.4s; }
+.qg-stat:nth-child(4) b { animation-delay: 0.5s; }
+
+@keyframes statCountUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.qg-stat {
+  transition: background 0.2s;
+}
+
+.qg-stat:hover {
+  background: rgba(255,255,255,0.04);
+  border-radius: 8px;
+}
+
+/* ── Sidebar Enhancement ───────────────────────────────────── */
+.wp-sidebar {
+  transition: box-shadow 0.3s;
+}
+
+.wp-nav button {
+  transition: all 0.25s var(--ease);
+  position: relative;
+  overflow: hidden;
+}
+
+.wp-nav button:hover:not(.active):not(.locked) {
+  background: rgba(141,162,255,0.08);
+  color: #dfe6ff;
+  transform: translateX(4px);
+}
+
+.wp-nav button.active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 20%;
+  bottom: 20%;
+  width: 3px;
+  border-radius: 0 3px 3px 0;
+  background: #8da2ff;
+  box-shadow: 0 0 12px rgba(141,162,255,0.5);
+}
+
+.wp-nav button.locked {
+  transition: all 0.2s;
+}
+
+.wp-nav button.locked:hover {
+  background: rgba(255,255,255,0.03);
+}
+
+/* ── Focus Block Tags Animation ────────────────────────────── */
+.focus-block b {
+  transition: all 0.2s var(--ease);
+}
+
+.focus-block b:hover {
+  background: rgba(141,162,255,0.22);
+  border-color: rgba(141,162,255,0.3);
+  transform: scale(1.05);
+}
+
+/* ── Premium Loading Skeleton ──────────────────────────────── */
+.wp-loading div {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+
+.wp-loading div::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(141,162,255,0.06), rgba(126,231,196,0.04), transparent);
+  animation: shimmerWave 1.8s ease-in-out infinite;
+}
+
+@keyframes shimmerWave {
+  0% { left: -100%; }
+  100% { left: 100%; }
+}
+
+/* ── Enhanced Error State ──────────────────────────────────── */
+.wp-error {
+  animation: errorPulse 2s ease-in-out infinite, cardFadeUp 0.4s var(--ease) both;
+}
+
+@keyframes errorPulse {
+  0%, 100% { border-color: rgba(255,155,169,0.25); box-shadow: 0 0 0 0 rgba(255,155,169,0); }
+  50% { border-color: rgba(255,155,169,0.4); box-shadow: 0 0 24px rgba(255,155,169,0.1); }
+}
+
+.wp-error button {
+  transition: all 0.2s var(--ease);
+}
+
+.wp-error button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 16px rgba(141,162,255,0.3);
+}
+
+/* ── Empty State Enhancement ───────────────────────────────── */
+.wp-empty svg {
+  animation: emptyFloat 3s ease-in-out infinite;
+}
+
+@keyframes emptyFloat {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-6px) rotate(5deg); }
+}
+
+/* ── Tour Card Enhancement ─────────────────────────────────── */
+.tour-card {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s var(--ease);
+}
+
+.tour-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 24px 80px rgba(0,0,0,0.32);
+  border-color: rgba(141,162,255,0.2);
+}
+
+.tour-card::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #8da2ff, #7ee7c4, #ffd38a, #8da2ff);
+  background-size: 300% 100%;
+  animation: gradientBorder 4s ease infinite;
+}
+
+@keyframes gradientBorder {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.tour-card button {
+  transition: all 0.2s var(--ease);
+}
+
+.tour-card button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 4px 16px rgba(141,162,255,0.3);
+}
+
+/* ── Shift Drawer Enhancement ──────────────────────────────── */
+.shift-drawer {
+  animation: drawerSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes drawerSlideIn {
+  from { opacity: 0; transform: translateX(40px) scale(0.95); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+
+.drawer-close {
+  transition: all 0.2s var(--ease);
+}
+
+.drawer-close:hover {
+  background: rgba(255,255,255,0.15);
+  transform: rotate(90deg);
+}
+
+.drawer-grid div {
+  transition: all 0.2s var(--ease);
+}
+
+.drawer-grid div:hover {
+  background: rgba(255,255,255,0.1);
+  transform: scale(1.02);
+}
+
+/* ── Locked Toast Enhancement ──────────────────────────────── */
+.locked-toast {
+  animation: toastBounceIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes toastBounceIn {
+  from { opacity: 0; transform: translateY(20px) scale(0.9); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── Tour Modal Enhancement ────────────────────────────────── */
+.tour-modal {
+  animation: modalFadeIn 0.3s var(--ease);
+}
+
+.tour-modal > div {
+  animation: modalSlideUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modalSlideUp {
+  from { opacity: 0; transform: translateY(30px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── Freshness Badge Enhancement ───────────────────────────── */
+.freshness-badge {
+  transition: all 0.2s var(--ease);
+}
+
+.freshness-badge:hover {
+  transform: scale(1.03);
+}
+
+.freshness-badge.fresh svg {
+  animation: freshPulse 2s ease-in-out infinite;
+}
+
+@keyframes freshPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.freshness-badge.stale {
+  animation: staleFlicker 3s ease-in-out infinite;
+}
+
+@keyframes staleFlicker {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+/* ── Header Actions Enhancement ────────────────────────────── */
+.wp-icon-btn,
+.wp-icon-only,
+.wp-user {
+  transition: all 0.25s var(--ease);
+}
+
+.wp-icon-btn:hover:not(:disabled) {
+  background: rgba(141,162,255,0.15);
+  border-color: rgba(141,162,255,0.3);
+  transform: translateY(-1px);
+}
+
+.wp-icon-only:hover {
+  background: rgba(141,162,255,0.15);
+  border-color: rgba(141,162,255,0.3);
+}
+
+.wp-user {
+  transition: all 0.2s;
+}
+
+.wp-user:hover {
+  background: rgba(255,255,255,0.1);
+}
+
+.wp-user img {
+  transition: transform 0.3s var(--ease);
+}
+
+.wp-user:hover img {
+  transform: scale(1.1);
+}
+
+/* ── Focus Set Button Enhancement ──────────────────────────── */
+.focus-empty button {
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s var(--ease);
+}
+
+.focus-empty button:hover {
+  transform: scale(1.05);
+  box-shadow: 0 6px 20px rgba(141,162,255,0.3);
+}
+
+.focus-empty button::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
+  animation: btnShimmer 3s ease-in-out infinite;
+}
+
+@keyframes btnShimmer {
+  0% { transform: translateX(-100%) rotate(45deg); }
+  100% { transform: translateX(100%) rotate(45deg); }
+}
+
+/* ── Trust Card DL Enhancement ─────────────────────────────── */
+.trust-card dl div {
+  transition: background 0.2s;
+  padding: 6px 8px;
+  border-radius: 8px;
+}
+
+.trust-card dl div:hover {
+  background: rgba(255,255,255,0.04);
+}
+
+/* ── WP Section Head Underline ─────────────────────────────── */
+.wp-section-head {
+  position: relative;
+  padding-bottom: 12px;
+}
+
+.wp-section-head::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 40px;
+  height: 2px;
+  background: linear-gradient(90deg, #8da2ff, transparent);
+  border-radius: 1px;
+}
+
+/* ── Pulse Copy Delta Badge Enhancement ────────────────────── */
+.pulse-copy b {
+  transition: all 0.2s var(--ease);
+}
+
+.pulse-copy b:hover {
+  transform: scale(1.05);
+  background: rgba(255,255,255,0.12);
+}
+
+/* ── Scrollbar Enhancement for World Pulse ─────────────────── */
+.world-pulse-main::-webkit-scrollbar { width: 4px; }
+.world-pulse-main::-webkit-scrollbar-thumb { background: rgba(141,162,255,0.2); border-radius: 4px; }
+.world-pulse-main::-webkit-scrollbar-thumb:hover { background: rgba(141,162,255,0.4); }
+
+/* ── Mobile Enhancements ───────────────────────────────────── */
+@media (max-width: 1180px) {
+  .pulse-ring-wrap::before,
+  .pulse-ring-wrap::after {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .world-pulse-page::before {
+    display: none;
+  }
+  .world-pulse-card::before {
+    display: none;
+  }
+}

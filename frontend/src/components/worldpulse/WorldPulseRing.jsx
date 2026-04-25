@@ -2,6 +2,8 @@ export default function WorldPulseRing({ worldPulse }) {
   const value = worldPulse?.value;
   const pct = value === null || value === undefined ? 0 : value;
   const pressureClass = pct >= 76 ? 'high' : pct >= 56 ? 'elevated' : pct >= 31 ? 'normal' : 'calm';
+  const pressureLabel = pct >= 76 ? 'Critical Pressure' : pct >= 56 ? 'Elevated Activity' : pct >= 31 ? 'Moderate Flow' : 'Calm Waters';
+
   return (
     <section className={`world-pulse-card ${pressureClass}`}>
       <div className="pulse-ring-wrap">
@@ -15,9 +17,8 @@ export default function WorldPulseRing({ worldPulse }) {
         <b className={worldPulse?.delta > 0 ? 'up' : worldPulse?.delta < 0 ? 'down' : 'neutral'}>
           {worldPulse?.deltaLabel || 'Establishing baseline'}
         </b>
-        <p>Overall intensity across your tracked global signals.</p>
+        <p>{pressureLabel} — Overall intensity across your tracked global signals.</p>
       </div>
     </section>
   );
 }
-

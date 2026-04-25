@@ -13,17 +13,45 @@ function getHeaders() {
   return headers;
 }
 
-async function request(path, options = {}) {
+const RETRY_DELAYS = [0, 1200, 3000]; // ms — first try is instant, then 1.2s, then 3s
+
+async function request(path, options = {}, retries = 2) {
   const url = `${API_BASE}${path}`;
-  const res = await fetch(url, {
-    headers: getHeaders(),
-    ...options,
-  });
-  if (!res.ok) {
-    const err = await res.text().catch(() => '');
-    throw new Error(`${res.status}: ${err.slice(0, 100)}`);
+  let lastError;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    if (attempt > 0) {
+      await new Promise((r) => setTimeout(r, RETRY_DELAYS[attempt] || 2000));
+    }
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 25000); // 25s timeout
+
+      const res = await fetch(url, {
+        headers: getHeaders(),
+        signal: controller.signal,
+        ...options,
+      });
+      clearTimeout(timeout);
+
+      if (!res.ok) {
+        const err = await res.text().catch(() => '');
+        lastError = new Error(`${res.status}: ${err.slice(0, 100)}`);
+        // Don't retry on 4xx client errors (except 429 rate limit)
+        if (res.status >= 400 && res.status < 500 && res.status !== 429) throw lastError;
+        continue; // retry on 5xx
+      }
+      return res.json();
+    } catch (err) {
+      lastError = err;
+      if (err.name === 'AbortError') {
+        lastError = new Error('Request timed out. Backend may be waking up — retrying.');
+      }
+      // If it's a network/CORS error and we have retries left, continue
+      if (attempt < retries) continue;
+    }
   }
-  return res.json();
+  throw lastError;
 }
 
 export const api = {

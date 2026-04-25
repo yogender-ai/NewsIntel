@@ -94,6 +94,33 @@ app.add_middleware(
 
 
 # ---------------------------------------------------------------------------
+# CORS-safe exception handler — ensures 500 errors still return CORS headers.
+# Without this, unhandled exceptions bypass CORSMiddleware and the browser
+# reports a CORS block instead of the real error.
+# ---------------------------------------------------------------------------
+from starlette.responses import JSONResponse
+import re as _re
+
+_cors_origin_re = _re.compile(ALLOWED_ORIGIN_REGEX)
+_cors_origins_set = set(allowed_origins())
+
+
+@app.exception_handler(Exception)
+async def _cors_safe_exception_handler(request: Request, exc: Exception):
+    origin = request.headers.get("origin", "")
+    headers = {}
+    if origin and (origin in _cors_origins_set or _cors_origin_re.match(origin)):
+        headers["access-control-allow-origin"] = origin
+        headers["access-control-allow-credentials"] = "true"
+    logger.error("Unhandled exception (CORS-safe): %s", exc, exc_info=True)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error", "error": str(exc)[:200]},
+        headers=headers,
+    )
+
+
+# ---------------------------------------------------------------------------
 # Pydantic Models
 # ---------------------------------------------------------------------------
 class DashboardRequest(BaseModel):
@@ -1083,145 +1110,21 @@ async def get_cached_dashboard(request: Request):
     """
     Serve cached intelligence INSTANTLY, personalized per user.
     Reads X-User-Id header to personalize exposure scores and delta.
+    Uses the event-backed dashboard read model.
     """
     user_topics, user_regions, _, _ = await _get_user_prefs_from_header(request)
     return await _event_backed_dashboard_payload(user_topics, user_regions)
-
-    global _cached_payload, _cached_at
-
-    # Get this user's preferences
-    user_topics, user_regions, uid, has_saved_profile = await _get_user_prefs_from_header(request)
-
-    if has_saved_profile:
-        cache_key = _profile_cache_key(user_topics, user_regions)
-        cached_profile = _profile_cache.get(cache_key)
-
-        if cached_profile:
-            refresh_in_progress = _task_running(_profile_refresh_tasks.get(cache_key))
-            response = _attach_cache_metadata(
-                cached_profile["payload"],
-                cached_profile.get("cached_at"),
-                personalized=True,
-                refresh_in_progress=refresh_in_progress,
-            )
-            if response["is_stale"] and not refresh_in_progress:
-                run_full_refresh = response["cache_age_seconds"] >= FULL_INTERVAL
-                logger.info(f"Profile cache stale for {uid or cache_key}; triggering refresh")
-                _schedule_profile_refresh(
-                    user_topics,
-                    user_regions,
-                    force_refresh_news=True,
-                    run_llm=run_full_refresh,
-                )
-                response["refresh_in_progress"] = True
-            return response
-
-        logger.info(f"No personalized cache for {uid or cache_key}; building profile feed")
-        payload, cached_at, _ = await _refresh_profile_cache(user_topics, user_regions)
-        return _attach_cache_metadata(payload, cached_at, personalized=True)
-
-    if _cached_payload:
-        response = _attach_cache_metadata(
-            _cached_payload,
-            _cached_at,
-            personalized=False,
-            refresh_in_progress=_task_running(_shared_refresh_task),
-        )
-        if response["is_stale"] and not response["refresh_in_progress"]:
-            run_full_refresh = response["cache_age_seconds"] >= FULL_INTERVAL
-            logger.info(f"Shared cache stale ({response['cache_age_seconds']}s old); triggering refresh")
-            _schedule_shared_refresh(run_llm=run_full_refresh)
-            response["refresh_in_progress"] = True
-        return response
-        """Legacy shared-personalization path removed in favor of profile-scoped feeds.
-
-
-        if uid and response.get("clusters"):
-            clusters = []
-            for c in response["clusters"]:
-                c_copy = {**c}
-                cluster_text = f"{c.get('thread_title', '')} {c.get('summary', '')} {c.get('impact_line', '')}"
-                user_exposure = compute_exposure_score(cluster_text, user_topics, user_regions)
-                c_copy["exposure_score"] = user_exposure
-
-                # Re-classify signal tier with THIS USER's exposure score
-                c_copy["signal_tier"] = classify_signal_tier(
-                    c.get("pulse_score", 50),
-                    c.get("source_count", 1),
-                    c.get("source_diversity", 0.5),
-                    c.get("sentiment_intensity", 0.5),
-                    user_exposure  # <-- per-user, not global
-                )
-                clusters.append(c_copy)
-
-            # Re-sort: CRITICAL first, then SIGNAL, then by pulse_score
-            tier_order = {"CRITICAL": 0, "SIGNAL": 1, "WATCH": 2, "NOISE": 3}
-            clusters.sort(key=lambda c: (tier_order.get(c.get("signal_tier", "NOISE"), 3), -c.get("pulse_score", 0)))
-            response["clusters"] = clusters
-
-            # Recalculate aggregate exposure for this user
-            signal_clusters = [c for c in clusters if c.get("signal_tier") in ("CRITICAL", "SIGNAL")]
-            response["exposure_score"] = round(sum(c["exposure_score"] for c in signal_clusters) / len(signal_clusters)) if signal_clusters else 50
-
-        # Personalize daily delta with user's topics
-        if uid:
-            try:
-                response["daily_delta"] = await compute_daily_delta(user_topics, response.get("clusters", []))
-            except Exception:
-                pass
-
-        response["cache_age_seconds"] = int(age_seconds)
-        response["cached_at"] = _cached_at.isoformat() if _cached_at else None
-        response["is_stale"] = age_seconds > STALE_THRESHOLD
-
-        if age_seconds > STALE_THRESHOLD:
-            logger.info(f"Cache stale ({int(age_seconds)}s old) — triggering background refresh")
-            asyncio.create_task(_silent_refresh())
-
-        return response
-
-    # No cache yet — run full pipeline synchronously (first load only)
-    logger.info("No cache available — running initial pipeline...")
-        """
-    topics, regions = await _get_broad_topics()
-    payload = await _build_intelligence(topics, regions, run_llm=True)
-    async with _cache_lock:
-        _cached_payload = payload
-        _cached_at = datetime.now(timezone.utc)
-    return _attach_cache_metadata(payload, _cached_at, personalized=False)
 
 
 @app.post("/api/dashboard")
 async def force_refresh_dashboard(request: Request, payload_request: DashboardRequest):
     """Force a refresh. Uses requested topics or the saved profile when available."""
-    global _cached_payload, _cached_at
-
     user_topics, user_regions, _, has_saved_profile = await _get_user_prefs_from_header(request)
     requested_topics = _normalize_profile_values(payload_request.topics)
     requested_regions = _normalize_profile_values(payload_request.regions)
     effective_topics = requested_topics or (user_topics if has_saved_profile else [])
     effective_regions = requested_regions or (user_regions if has_saved_profile else [])
     return await _event_backed_dashboard_payload(effective_topics, effective_regions)
-
-    news_fetcher.force_refresh()
-    hf_client.clear_cache(prefixes=("openrouter", "gemini"))
-    logger.info("Force refresh triggered by user.")
-
-    if effective_topics or effective_regions:
-        payload, cached_at, _ = await _refresh_profile_cache(
-            effective_topics,
-            effective_regions,
-            clear_model_cache=False,
-        )
-        return _attach_cache_metadata(payload, cached_at, personalized=True)
-
-    topics, regions = await _get_broad_topics()
-    payload = await _build_intelligence(topics, regions, run_llm=True)
-    async with _cache_lock:
-        _cached_payload = payload
-        _cached_at = datetime.now(timezone.utc)
-
-    return _attach_cache_metadata(payload, _cached_at, personalized=False)
 
 
 async def _silent_refresh(run_llm: bool = False):
@@ -1459,15 +1362,4 @@ async def health_check():
         "pipeline": "Postgres events -> dashboard read model",
         "source_of_truth": "events,event_articles",
         "scheduler": "external_worker",
-    }
-
-    return {
-        "status": "online",
-        "version": "12.0.0",
-        "pipeline": "Background Scheduler → Cached Response",
-        "cache_available": _cached_payload is not None,
-        "profile_cache_entries": len(_profile_cache),
-        "cached_at": _cached_at.isoformat() if _cached_at else None,
-        "fast_interval_sec": FAST_INTERVAL,
-        "full_interval_sec": FULL_INTERVAL,
     }
