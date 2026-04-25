@@ -24,17 +24,17 @@ class PersonalizationTests(unittest.IsolatedAsyncioTestCase):
         right = main._profile_cache_key(["legal", "media"], ["india", "global"])
         self.assertEqual(left, right)
 
-    async def test_force_refresh_uses_requested_topics_for_profile_cache(self):
+    async def test_force_refresh_uses_requested_topics_for_event_store_read_model(self):
         fake_payload = {
             "status": "success",
-            "daily_brief": "Media and legal update",
             "clusters": [],
             "topics_used": ["media", "legal"],
             "regions_used": ["global"],
+            "personalization_mode": "shared",
         }
 
         with patch.object(main, "_get_user_prefs_from_header", new=AsyncMock(return_value=(["tech"], ["us"], "user-123", True))), \
-             patch.object(main, "_refresh_profile_cache", new=AsyncMock(return_value=(fake_payload, main.datetime.now(main.timezone.utc), "cache-key"))):
+             patch.object(main, "_event_backed_dashboard_payload", new=AsyncMock(return_value=fake_payload)):
             response = await main.force_refresh_dashboard(
                 make_request(),
                 main.DashboardRequest(topics=["media", "legal"], regions=["global"]),
@@ -42,27 +42,17 @@ class PersonalizationTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(response["topics_used"], ["media", "legal"])
         self.assertEqual(response["regions_used"], ["global"])
-        self.assertEqual(response["personalization_mode"], "profile")
+        self.assertEqual(response["personalization_mode"], "shared")
 
-    async def test_get_dashboard_prefers_personalized_cache_over_shared_cache(self):
-        main._cached_payload = {"daily_brief": "shared", "clusters": [], "topics_used": ["tech"], "regions_used": []}
-        main._cached_at = main.datetime.now(main.timezone.utc)
-        cache_key = main._profile_cache_key(["media"], ["global"])
-        main._profile_cache[cache_key] = {
-            "payload": {
-                "daily_brief": "personalized",
-                "clusters": [],
-                "topics_used": ["media"],
-                "regions_used": ["global"],
-            },
-            "cached_at": main.datetime.now(main.timezone.utc),
-        }
+    async def test_get_dashboard_uses_event_store_read_model(self):
+        fake_payload = {"daily_brief": "", "clusters": [], "topics_used": ["media"], "regions_used": ["global"]}
 
-        with patch.object(main, "_get_user_prefs_from_header", new=AsyncMock(return_value=(["media"], ["global"], "user-123", True))):
+        with patch.object(main, "_get_user_prefs_from_header", new=AsyncMock(return_value=(["media"], ["global"], "user-123", True))), \
+             patch.object(main, "_event_backed_dashboard_payload", new=AsyncMock(return_value=fake_payload)) as event_payload:
             response = await main.get_cached_dashboard(make_request())
 
-        self.assertEqual(response["daily_brief"], "personalized")
-        self.assertEqual(response["personalization_mode"], "profile")
+        event_payload.assert_awaited_once_with(["media"], ["global"])
+        self.assertEqual(response["topics_used"], ["media"])
 
     async def test_prefs_lookup_can_recover_by_email(self):
         row = {

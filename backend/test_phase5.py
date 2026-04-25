@@ -5,6 +5,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import main
+from app.services.dashboard_read_model import compare_dashboard_payloads
 
 
 class Phase5EngineTests(unittest.TestCase):
@@ -76,6 +77,26 @@ class Phase5EngineTests(unittest.TestCase):
         self.assertIn("Education", labels)
         self.assertIn("OpenAI", labels)
         self.assertGreaterEqual(why["score"], 50)
+
+    def test_dashboard_comparison_reports_signal_and_pulse_differences(self):
+        legacy = {
+            "clusters": [
+                {"signal_id": "old-1", "thread_title": "Nvidia chip demand", "pulse_score": 60},
+                {"signal_id": "old-2", "thread_title": "OpenAI funding", "pulse_score": 70},
+            ]
+        }
+        event_backed = {
+            "clusters": [
+                {"signal_id": "event-1", "thread_title": "Nvidia chip demand", "pulse_score": 76},
+            ]
+        }
+
+        comparison = compare_dashboard_payloads(legacy, event_backed)
+
+        self.assertEqual(comparison["legacy_signal_count"], 2)
+        self.assertEqual(comparison["event_signal_count"], 1)
+        self.assertEqual(comparison["clustering_difference"], -1)
+        self.assertEqual(comparison["pulse_differences_by_title"]["Nvidia chip demand"], 16)
 
 
 if __name__ == "__main__":

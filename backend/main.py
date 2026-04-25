@@ -25,6 +25,8 @@ from pydantic import BaseModel
 import db
 import hf_client
 import news_fetcher
+from app.core.database import AsyncSessionLocal as EventStoreSessionLocal
+from app.services.dashboard_read_model import build_dashboard_payload
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("news-intel-api")
@@ -62,9 +64,9 @@ async def lifespan(app: FastAPI):
     await db.init_db()
     logger.info("News-Intel v12 (Cached Intelligence) ready. DB connected.")
 
-    # Start background intelligence loop
-    _bg_task = asyncio.create_task(_background_scheduler())
-    logger.info(f"Background scheduler started: fast={FAST_INTERVAL}s, full={FULL_INTERVAL}s")
+    # Phase 5.5: ingestion scheduler runs outside the API process.
+    _bg_task = None
+    logger.info("Event-store dashboard mode active. Legacy RSS scheduler disabled.")
 
     yield
 
@@ -301,6 +303,22 @@ def _attach_cache_metadata(
     response["personalization_mode"] = "profile" if personalized else "shared"
     response["refresh_in_progress"] = refresh_in_progress
     return response
+
+
+async def _event_backed_dashboard_payload(topics: list, regions: list) -> dict:
+    async with EventStoreSessionLocal() as session:
+        payload = await build_dashboard_payload(
+            session,
+            topics=_normalize_profile_values(topics),
+            regions=_normalize_profile_values(regions),
+        )
+    payload["daily_delta"] = await compute_daily_delta(payload.get("topics_used", []), payload.get("clusters", []))
+    return _attach_cache_metadata(
+        payload,
+        datetime.fromisoformat(payload["generated_at"]),
+        personalized=False,
+        refresh_in_progress=False,
+    )
 
 
 async def _refresh_profile_cache(topics: list, regions: list, force_refresh_news: bool = False,
@@ -1034,6 +1052,9 @@ async def get_cached_dashboard(request: Request):
     Serve cached intelligence INSTANTLY, personalized per user.
     Reads X-User-Id header to personalize exposure scores and delta.
     """
+    user_topics, user_regions, _, _ = await _get_user_prefs_from_header(request)
+    return await _event_backed_dashboard_payload(user_topics, user_regions)
+
     global _cached_payload, _cached_at
 
     # Get this user's preferences
@@ -1148,6 +1169,7 @@ async def force_refresh_dashboard(request: Request, payload_request: DashboardRe
     requested_regions = _normalize_profile_values(payload_request.regions)
     effective_topics = requested_topics or (user_topics if has_saved_profile else [])
     effective_regions = requested_regions or (user_regions if has_saved_profile else [])
+    return await _event_backed_dashboard_payload(effective_topics, effective_regions)
 
     news_fetcher.force_refresh()
     hf_client.clear_cache(prefixes=("openrouter", "gemini"))
@@ -1369,13 +1391,6 @@ def _build_exposure_network(user_id: str, payload: dict, user_topics: list, phas
 async def save_preferences(request: Request, prefs: UserPreferencesInput):
     uid = request.headers.get("X-User-Id", "").strip() or "local_user_123"
     await db.upsert_user_prefs(uid, prefs.dict())
-    if prefs.preferred_categories or prefs.preferred_regions:
-        _schedule_profile_refresh(
-            prefs.preferred_categories,
-            prefs.preferred_regions,
-            force_refresh_news=True,
-            run_llm=True,
-        )
     logger.info(f"Saved preferences for user {uid}: {prefs.preferred_categories}")
     return {"status": "success"}
 
@@ -1406,6 +1421,14 @@ async def delete_account(request: Request):
 # ---------------------------------------------------------------------------
 @app.get("/health")
 async def health_check():
+    return {
+        "status": "online",
+        "version": "12.0.0-event-backed",
+        "pipeline": "Postgres events -> dashboard read model",
+        "source_of_truth": "events,event_articles",
+        "scheduler": "external_worker",
+    }
+
     return {
         "status": "online",
         "version": "12.0.0",
