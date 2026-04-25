@@ -25,6 +25,7 @@ from pydantic import BaseModel
 import db
 import hf_client
 import news_fetcher
+from app.core.cors import ALLOWED_ORIGIN_REGEX, allowed_origins
 from app.core.database import AsyncSessionLocal as EventStoreSessionLocal
 from app.services.dashboard_read_model import build_dashboard_payload
 
@@ -84,7 +85,8 @@ app = FastAPI(title="News-Intel v12", version="12.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins(),
+    allow_origin_regex=ALLOWED_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
