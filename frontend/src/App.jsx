@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, NavLink, useLocation 
 import { Bell, Building2, ChevronsUpDown, CircleDot, Settings as SettingsIcon, SlidersHorizontal, Sun, User, Zap } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { PersonalizationProvider, usePersonalization } from './context/PersonalizationContext';
-import Dashboard from './pages/Dashboard';
+import HomePage from './pages/HomePage';
 import Onboarding from './pages/Onboarding';
 import StoryView from './pages/StoryView';
 import Settings from './pages/Settings';
@@ -142,25 +142,35 @@ function App() {
         <Router>
           <div className={`app-container ${['theme-tech', 'theme-cyber', 'theme-aurora'][themeSeed % 3]} ${mode === 'calm' ? 'calm-mode' : ''}`}>
             <div className="scanline" />
-            <TopBar />
-            <div className="main-content">
-              <Routes>
-                <Route path="/login" element={<Login />} />
-                <Route path="/" element={<Protected><PersonalizationProvider><Dashboard /></PersonalizationProvider></Protected>} />
-                <Route path="/dashboard" element={<Protected><PersonalizationProvider><Dashboard /></PersonalizationProvider></Protected>} />
-                <Route path="/onboarding" element={<Protected><Onboarding /></Protected>} />
-                <Route path="/settings" element={<Protected><Settings /></Protected>} />
-                <Route path="/story" element={<Protected><StoryView /></Protected>} />
-                <Route path="/watchlist" element={<Protected><PersonalizationProvider><WatchlistPage /></PersonalizationProvider></Protected>} />
-                <Route path="/alerts" element={<Protected><PersonalizationProvider><AlertsPage /></PersonalizationProvider></Protected>} />
-                <Route path="/movers" element={<Protected><PersonalizationProvider><MoversPage /></PersonalizationProvider></Protected>} />
-              </Routes>
-              <GlobalToast />
-            </div>
+            <AppRoutes />
           </div>
         </Router>
       </AppContext.Provider>
     </AuthProvider>
+  );
+}
+
+function AppRoutes() {
+  const location = useLocation();
+  const isWorldPulse = ['/', '/dashboard'].includes(location.pathname);
+  return (
+    <>
+      {!isWorldPulse && <TopBar />}
+      <div className={isWorldPulse ? 'world-pulse-content' : 'main-content'}>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/" element={<Protected><HomePage /></Protected>} />
+          <Route path="/dashboard" element={<Protected><HomePage /></Protected>} />
+          <Route path="/onboarding" element={<Protected><Onboarding /></Protected>} />
+          <Route path="/settings" element={<Protected><Settings /></Protected>} />
+          <Route path="/story" element={<Protected><StoryView /></Protected>} />
+          <Route path="/watchlist" element={<Protected><PersonalizationProvider><WatchlistPage /></PersonalizationProvider></Protected>} />
+          <Route path="/alerts" element={<Protected><PersonalizationProvider><AlertsPage /></PersonalizationProvider></Protected>} />
+          <Route path="/movers" element={<Protected><PersonalizationProvider><MoversPage /></PersonalizationProvider></Protected>} />
+        </Routes>
+        <GlobalToast />
+      </div>
+    </>
   );
 }
 
