@@ -308,13 +308,43 @@ def _attach_cache_metadata(
 
 
 async def _event_backed_dashboard_payload(topics: list, regions: list) -> dict:
-    async with EventStoreSessionLocal() as session:
-        payload = await build_dashboard_payload(
-            session,
-            topics=_normalize_profile_values(topics),
-            regions=_normalize_profile_values(regions),
-        )
-    payload["daily_delta"] = await compute_daily_delta(payload.get("topics_used", []), payload.get("clusters", []))
+    normalized_topics = _normalize_profile_values(topics)
+    normalized_regions = _normalize_profile_values(regions)
+    try:
+        async with EventStoreSessionLocal() as session:
+            payload = await build_dashboard_payload(
+                session,
+                topics=normalized_topics,
+                regions=normalized_regions,
+            )
+        payload["daily_delta"] = await compute_daily_delta(payload.get("topics_used", []), payload.get("clusters", []))
+    except Exception as exc:
+        logger.error("Event-backed dashboard read failed: %s", exc)
+        now = datetime.now(timezone.utc)
+        payload = {
+            "status": "degraded",
+            "version": "12.0.0-event-backed",
+            "daily_brief": "",
+            "articles": [],
+            "clusters": [],
+            "impact": {},
+            "tension_index": {},
+            "daily_delta": [],
+            "exposure_score": 50,
+            "opportunity_radar": {},
+            "monitoring_queue": [],
+            "sources_count": None,
+            "topics_used": normalized_topics,
+            "regions_used": normalized_regions,
+            "generated_at": now.isoformat(),
+            "refresh_type": "event_store_unavailable",
+            "pipeline_status": {
+                "news": "event_store_unavailable",
+                "source_of_truth": "events,event_articles",
+                "error": str(exc)[:240],
+            },
+            "next_refresh_at": None,
+        }
     return _attach_cache_metadata(
         payload,
         datetime.fromisoformat(payload["generated_at"]),
