@@ -5,9 +5,9 @@ from unittest.mock import AsyncMock, patch
 
 from app.models.news import Article, Event, EventArticle
 from app.services.intensity_scoring import dynamic_event_intensity
-from app.services.semantic_clustering import compare_article_to_article
-from app.services.semantic_embeddings import EMBEDDING_MODEL, article_embedding_text, embed_text, text_hash
-from app.services.semantic_personalization import semantic_relevance
+from app.services.semantic_clustering import compare_article_to_article, ensure_article_embedding
+from app.services.semantic_embeddings import EMBEDDING_MODEL, EmbeddingResult, article_embedding_text, embed_text, embed_text_result, text_hash
+from app.services.semantic_personalization import semantic_relevance, semantic_relevance_async
 import main
 
 
@@ -28,6 +28,7 @@ def make_article(title, preview="", source="Example", hours_ago=1):
         embedding_json=embed_text(article_embedding_text(title, preview, source)),
         embedding_model=EMBEDDING_MODEL,
         embedding_text_hash=text_hash(article_embedding_text(title, preview, source)),
+        embedding_created_at=now,
     )
 
 
@@ -69,10 +70,55 @@ class Phase6IntelligenceTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_ambiguous_clustering_uses_llm_validation(self):
         candidate = make_article("Nvidia AI chip demand expands after earnings")
-        with patch("hf_client._call_openrouter", new=AsyncMock(return_value='{"same_event": false, "confidence": 0.77, "reason": "same sector, different event"}')):
+        candidate.embedding_text_hash = "stale"
+        now = datetime.now(timezone.utc)
+        with patch("app.services.semantic_clustering.embed_text_result", new=AsyncMock(side_effect=[
+            EmbeddingResult([0.8, 0.6], "test-model", "huggingface", "incoming", now),
+            EmbeddingResult([1.0, 0.0], "test-model", "huggingface", "candidate", now),
+        ])), patch("hf_client._call_openrouter", new=AsyncMock(return_value='{"same_event": false, "confidence": 0.77, "reason": "same sector, different event"}')):
             decision = await compare_article_to_article("Nvidia AI chip platform launch boosts demand", "", candidate)
         self.assertEqual(decision.decision, "reject")
         self.assertEqual(decision.method, "llm_validation")
+
+    async def test_semantically_same_different_wording_merges(self):
+        candidate = make_article("Central bank cuts rates as inflation cools")
+        candidate.embedding_text_hash = "stale"
+        now = datetime.now(timezone.utc)
+        with patch("app.services.semantic_clustering.embed_text_result", new=AsyncMock(side_effect=[
+            EmbeddingResult([0.9, 0.43589], "test-model", "huggingface", "incoming", now),
+            EmbeddingResult([1.0, 0.0], "test-model", "huggingface", "candidate", now),
+        ])), patch("hf_client._call_openrouter", new=AsyncMock(return_value="")) as gateway:
+            decision = await compare_article_to_article("Policymakers lower borrowing costs after price pressures ease", "", candidate)
+        self.assertEqual(decision.decision, "merge")
+        gateway.assert_not_awaited()
+
+    async def test_conflicting_company_does_not_merge_even_with_high_embedding(self):
+        candidate = make_article("Microsoft shares jump after cloud earnings")
+        candidate.embedding_text_hash = "stale"
+        now = datetime.now(timezone.utc)
+        with patch("app.services.semantic_clustering.embed_text_result", new=AsyncMock(side_effect=[
+            EmbeddingResult([1.0, 0.0], "test-model", "huggingface", "incoming", now),
+            EmbeddingResult([1.0, 0.0], "test-model", "huggingface", "candidate", now),
+        ])), patch("hf_client._call_openrouter", new=AsyncMock(return_value="")) as gateway:
+            decision = await compare_article_to_article("Apple shares jump after iPhone earnings", "", candidate)
+        self.assertEqual(decision.decision, "reject")
+        self.assertEqual(decision.method, "rule_prefilter")
+        gateway.assert_not_awaited()
+
+    async def test_provider_failure_falls_back_safely(self):
+        with patch("hf_client.GATEWAY_SECRET", "test"), \
+             patch("hf_client._call_hf", new=AsyncMock(return_value={"error": "down"})), \
+             patch("hf_client._call_gemini_embedding", new=AsyncMock(return_value={"error": "down"})):
+            result = await embed_text_result(f"fallback embedding {uuid.uuid4()}")
+        self.assertEqual(result.provider, "local_hash_fallback")
+        self.assertTrue(result.vector)
+
+    async def test_no_embedding_recomputation_when_hash_unchanged(self):
+        candidate = make_article("Nvidia expands AI chip supply", "Demand rises.")
+        with patch("app.services.semantic_clustering.embed_text_result", new=AsyncMock()) as provider:
+            vector = await ensure_article_embedding(candidate)
+        self.assertEqual(vector, candidate.embedding_json)
+        provider.assert_not_awaited()
 
     def test_dynamic_intensity_uses_phase6_features(self):
         event = make_event(
@@ -93,6 +139,14 @@ class Phase6IntelligenceTests(unittest.IsolatedAsyncioTestCase):
         relevance = semantic_relevance(cluster, ["ai"], ["global"], phase5, [])
         self.assertEqual(relevance["model"], "phase6_semantic_profile_event_relevance_v1")
         self.assertGreater(relevance["score"], 50)
+
+    async def test_personalization_rank_changes_with_semantic_profile(self):
+        ai_cluster = {"thread_title": "Nvidia AI chip demand accelerates", "summary": "AI semiconductor demand rises", "entities": []}
+        sports_cluster = {"thread_title": "Football playoffs draw record audiences", "summary": "Teams prepare for the final", "entities": []}
+        phase5 = {"tracked_entities": [{"entity_name": "Nvidia"}], "interactions": []}
+        ai_score = await semantic_relevance_async(ai_cluster, ["ai"], ["global"], phase5, [])
+        sports_score = await semantic_relevance_async(sports_cluster, ["ai"], ["global"], phase5, [])
+        self.assertGreater(ai_score["score"], sports_score["score"])
 
     async def test_delta_uses_7d_average_and_confidence(self):
         async def fake_history(topics, days=7):

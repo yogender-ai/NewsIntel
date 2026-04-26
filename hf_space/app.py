@@ -10,6 +10,7 @@ Deploy to: huggingface.co/spaces/<your-username>/newsintel-nlp
 
 import gradio as gr
 from transformers import pipeline
+from sentence_transformers import SentenceTransformer
 import json
 
 # ── Load Models (cached on Space startup) ────────────────────────────────────
@@ -158,6 +159,27 @@ def extract_entities(text: str) -> str:
 
 # ── Health Check ─────────────────────────────────────────────────────────────
 
+embedding_model = None
+
+
+def embed(text: str) -> str:
+    """Create normalized sentence-transformer embeddings for semantic clustering."""
+    global embedding_model
+    if not text or len(text.strip()) < 3:
+        return json.dumps({"error": "Text too short for embedding"})
+    try:
+        if embedding_model is None:
+            embedding_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2", device="cpu")
+        vector = embedding_model.encode(text[:8000], normalize_embeddings=True).tolist()
+        return json.dumps({
+            "embedding": [round(float(value), 8) for value in vector],
+            "model": "sentence-transformers/all-MiniLM-L6-v2",
+            "dimensions": len(vector),
+        })
+    except Exception as e:
+        return json.dumps({"error": str(e)})
+
+
 def health_check() -> str:
     """Simple health check to verify all models are loaded"""
     return json.dumps({
@@ -165,7 +187,8 @@ def health_check() -> str:
         "models": {
             "summarization": "sshleifer/distilbart-cnn-12-6",
             "sentiment": "cardiffnlp/twitter-roberta-base-sentiment-latest",
-            "ner": "dslim/bert-base-NER"
+            "ner": "dslim/bert-base-NER",
+            "embedding": "sentence-transformers/all-MiniLM-L6-v2"
         },
         "device": "cpu"
     })
@@ -197,6 +220,13 @@ with gr.Blocks(title="News-Intel NLP Pipeline") as demo:
         ner_output = gr.Textbox(label="Result (JSON)", lines=8)
         ner_btn = gr.Button("Extract Entities", variant="primary")
         ner_btn.click(fn=extract_entities, inputs=ner_input, outputs=ner_output)
+
+    with gr.Tab("Embeddings"):
+        gr.Markdown("### Create semantic embeddings using all-MiniLM-L6-v2")
+        embed_input = gr.Textbox(label="Input Text", lines=5, placeholder="Enter text to embed...")
+        embed_output = gr.Textbox(label="Result (JSON)", lines=8)
+        embed_btn = gr.Button("Embed", variant="primary")
+        embed_btn.click(fn=embed, inputs=embed_input, outputs=embed_output)
 
     with gr.Tab("Health"):
         gr.Markdown("### System Health Check")

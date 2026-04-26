@@ -33,6 +33,7 @@ else:
     GATEWAY_ROOT = GATEWAY_BASE_URL.rstrip("/")
 
 GEMINI_URL = f"{GATEWAY_ROOT}/gemini"
+GEMINI_EMBEDDING_URL = os.getenv("GEMINI_EMBEDDING_URL", f"{GATEWAY_ROOT}/gemini/embeddings")
 # OpenRouter endpoint — gateway proxies to https://openrouter.ai/api
 # The gateway route is: /api/gateway/openrouter/{path}
 # OpenRouter's chat endpoint is: /v1/chat/completions
@@ -232,6 +233,29 @@ async def _call_gemini(prompt: str, model: str = None) -> str:
 
     logger.error("All Gemini models exhausted.")
     return ""
+
+
+async def _call_gemini_embedding(text: str, model: str = None) -> dict:
+    """Call Gemini embeddings through Cloud Command Gateway when configured."""
+    k = _ck("gemini_embedding", text)
+    c = _get(k)
+    if c: return c
+
+    payload = {
+        "model": model or os.getenv("GEMINI_EMBEDDING_MODEL", "text-embedding-004"),
+        "content": {"parts": [{"text": text[:8000]}]},
+    }
+    try:
+        response = await _http.post(GEMINI_EMBEDDING_URL, headers=HEADERS, json=payload)
+        if response.status_code == 200:
+            data = response.json()
+            _put(k, data)
+            return data
+        logger.warning("Gemini embedding %s: %s", response.status_code, response.text[:200])
+        return {"error": f"Gemini embedding status {response.status_code}"}
+    except Exception as exc:
+        logger.error("Gemini embedding: %s", exc)
+        return {"error": str(exc)}
 
 
 def _extract_gemini(data) -> str:

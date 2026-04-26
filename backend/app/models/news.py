@@ -69,6 +69,7 @@ class Article(Base, TimestampMixin):
     embedding_json: Mapped[list[float]] = mapped_column(JSONB, default=list, nullable=False)
     embedding_model: Mapped[str | None] = mapped_column(String(80))
     embedding_text_hash: Mapped[str | None] = mapped_column(String(64), index=True)
+    embedding_created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     language: Mapped[str] = mapped_column(String(16), default="en", nullable=False)
     duplicate_of_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("articles.id"))
     dedupe_reason: Mapped[str | None] = mapped_column(String(120))
@@ -101,6 +102,10 @@ class Event(Base, TimestampMixin):
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     last_meaningful_update_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     entities: Mapped[list[str]] = mapped_column(ARRAY(String), default=list, nullable=False)
+    embedding_json: Mapped[list[float]] = mapped_column(JSONB, default=list, nullable=False)
+    embedding_model: Mapped[str | None] = mapped_column(String(80))
+    embedding_text_hash: Mapped[str | None] = mapped_column(String(64), index=True)
+    embedding_created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     metadata_json: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
 
     article_links: Mapped[list["EventArticle"]] = relationship(back_populates="event")

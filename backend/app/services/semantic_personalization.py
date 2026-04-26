@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from app.services.semantic_embeddings import cosine_similarity, embed_text
+from app.services.semantic_embeddings import cosine_similarity, embed_text, embed_text_result
 
 
 def profile_text(user_topics: list[str], user_regions: list[str], phase5: dict[str, Any]) -> str:
@@ -52,6 +52,34 @@ def semantic_relevance(cluster: dict, user_topics: list[str], user_regions: list
         "score": score,
         "similarity": round(similarity, 4),
         "model": "phase6_semantic_profile_event_relevance_v1",
+        "factors": [
+            {"label": "Semantic profile-event similarity", "points": score, "type": "semantic"},
+        ],
+    }
+
+
+async def semantic_relevance_async(cluster: dict, user_topics: list[str], user_regions: list[str], phase5: dict[str, Any], articles: list[dict] | None = None) -> dict[str, Any]:
+    profile = profile_text(user_topics, user_regions, phase5)
+    event = event_text(cluster, articles)
+    provider = "none"
+    if not profile.strip():
+        score = 50
+        similarity = 0.0
+    else:
+        profile_embedding = await embed_text_result(profile)
+        event_embedding = await embed_text_result(event)
+        provider = event_embedding.provider
+        similarity = cosine_similarity(profile_embedding.vector, event_embedding.vector)
+        score = round(max(0.0, min(1.0, (similarity + 1) / 2)) * 100)
+    dismissed = {item["signal_id"] for item in phase5.get("dismissed", []) if item.get("signal_id")}
+    signal_id = cluster.get("signal_id") or cluster.get("thread_id")
+    if signal_id in dismissed:
+        score = 0
+    return {
+        "score": score,
+        "similarity": round(similarity, 4),
+        "model": "phase6_semantic_profile_event_relevance_v1",
+        "embedding_provider_used": provider,
         "factors": [
             {"label": "Semantic profile-event similarity", "points": score, "type": "semantic"},
         ],

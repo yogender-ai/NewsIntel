@@ -9,8 +9,8 @@ from app.core.config import get_settings
 from app.models.news import Article, Event, EventArticle, RawArticle
 from app.services.event_clustering import should_cluster_titles
 from app.services.event_enrichment import mark_event_pending
-from app.services.semantic_clustering import compare_article_to_article, compare_article_to_event
-from app.services.semantic_embeddings import EMBEDDING_MODEL, article_embedding_text, embed_text, text_hash
+from app.services.semantic_clustering import CANDIDATE_LIMIT, compare_article_to_article, compare_article_to_event, create_article_embedding, event_embedding
+from app.services.semantic_embeddings import article_embedding_text
 from app.services.text_fingerprint import content_hash, normalize_title, title_hash, title_similarity
 from app.services.url_normalizer import normalize_url, sha256_text
 
@@ -163,10 +163,8 @@ class IngestionRepository:
             last_seen_at=now,
             content_hash=body_hash,
             text_preview=(incoming.text or incoming.summary or "")[:600],
-            embedding_json=embed_text(article_embedding_text(incoming.title, incoming.text or incoming.summary, incoming.source)),
-            embedding_model=EMBEDDING_MODEL,
-            embedding_text_hash=text_hash(article_embedding_text(incoming.title, incoming.text or incoming.summary, incoming.source)),
         )
+        await create_article_embedding(article, article_embedding_text(incoming.title, incoming.text or incoming.summary, incoming.source))
         self.session.add(article)
         return article, "new_article", True
 
@@ -182,7 +180,7 @@ class IngestionRepository:
             .where(Article.published_at >= start)
             .where(Article.published_at <= end)
             .order_by(Article.published_at.desc())
-            .limit(80)
+            .limit(CANDIDATE_LIMIT)
         )
         candidates = (await self.session.scalars(stmt)).all()
         threshold = self.settings.title_similarity_threshold
@@ -227,6 +225,7 @@ class IngestionRepository:
             last_meaningful_update_at=now,
             metadata_json={"ai": {"status": "pending", "pending_reason": "new_event"}},
         )
+        await event_embedding(event)
         self.session.add(event)
         return event, True
 
@@ -265,8 +264,8 @@ class IngestionRepository:
         category: str | None,
         region: str | None,
     ) -> Event | None:
-        cutoff = db_utcnow() - timedelta(hours=self.settings.article_duplicate_window_hours)
-        stmt = select(Event).where(Event.last_seen_at >= cutoff).order_by(Event.last_seen_at.desc()).limit(100)
+        cutoff = db_utcnow() - timedelta(hours=max(36, min(72, self.settings.article_duplicate_window_hours)))
+        stmt = select(Event).where(Event.last_seen_at >= cutoff).order_by(Event.last_seen_at.desc()).limit(CANDIDATE_LIMIT)
         if category:
             stmt = stmt.where(Event.category == category)
         if region:

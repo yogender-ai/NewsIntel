@@ -33,8 +33,10 @@ from app.services.dashboard_read_model import build_dashboard_payload
 from app.services.event_relationships import load_orbit_payload
 from app.services.geo_signals import build_map_signals
 from app.services.scenario_simulator import run_scenario
-from app.services.semantic_personalization import semantic_relevance
+from app.services.semantic_personalization import semantic_relevance_async
 from app.services.schema_migrations import run_startup_migrations
+from app.services.semantic_clustering import observability_snapshot
+from app.services.phase65_validation_audit import run_phase65_validation_audit
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("news-intel-api")
@@ -606,7 +608,7 @@ def _why_relevant(cluster: dict, user_topics: list, user_regions: list, phase5: 
     return {"score": min(100, score), "factors": factors[:6]}
 
 
-def _personalize_payload(payload: dict, user_id: str, user_topics: list, user_regions: list, phase5: dict) -> dict:
+async def _personalize_payload(payload: dict, user_id: str, user_topics: list, user_regions: list, phase5: dict) -> dict:
     response = {**payload}
     articles = response.get("articles", [])
     dismissed = {item["signal_id"] for item in phase5.get("dismissed", [])}
@@ -622,7 +624,7 @@ def _personalize_payload(payload: dict, user_id: str, user_topics: list, user_re
         c["thread_id"] = signal_id
         c["entities"] = _cluster_entities(c, articles)
         c["story_graph"] = build_story_graph(c, articles, user_topics, user_regions)
-        semantic = semantic_relevance(c, user_topics, user_regions, phase5, articles)
+        semantic = await semantic_relevance_async(c, user_topics, user_regions, phase5, articles)
         c["why_relevant"] = semantic
         if signal_id in dismissed:
             c["dismissed"] = True
@@ -1249,7 +1251,7 @@ async def personalized_dashboard(request: Request):
     user_id = uid or _user_id_from_request(request)
     base = await get_cached_dashboard(request)
     phase5 = await _phase5_profile(user_id)
-    personalized = _personalize_payload(base, user_id, user_topics, user_regions, phase5)
+    personalized = await _personalize_payload(base, user_id, user_topics, user_regions, phase5)
     pulse_history = await db.get_pulse_history(user_topics, days=30)
     for cluster in personalized.get("clusters", []):
         matched_topics = [m.get("id") for m in cluster.get("matched_preferences", []) if m.get("id")]
@@ -1421,8 +1423,9 @@ async def phase6_status():
         "status": "active",
         "clustering": {
             "rule_prefilter": True,
-            "embedding_similarity": "newsintel-local-hash-embedding-v1",
+            "embedding_similarity": "sentence-transformers/all-MiniLM-L6-v2 via HF first, Gemini fallback, local hash final fallback",
             "llm_validation": "ambiguous_pairs_only",
+            "observability": observability_snapshot(),
         },
         "pulse": {
             "model": "phase6_dynamic_event_intensity_v1",
@@ -1441,6 +1444,12 @@ async def phase6_status():
             "schema": "alembic downgrade 20260426_0004",
         },
     }
+
+
+@app.get("/api/intelligence/phase65/audit")
+async def phase65_validation_audit():
+    async with EventStoreSessionLocal() as session:
+        return await run_phase65_validation_audit(session, limit=100)
 
 
 def _build_exposure_network(user_id: str, payload: dict, user_topics: list, phase5: dict) -> dict:
