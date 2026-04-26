@@ -116,8 +116,12 @@ def _parse_embedding_payload(data: Any) -> tuple[list[float], str] | None:
 
     model = str(data.get("model") or data.get("embedding_model") or DEFAULT_HF_EMBEDDING_MODEL)
     candidate = data.get("embedding") or data.get("vector") or data.get("embeddings")
+    if isinstance(candidate, dict):
+        candidate = candidate.get("values") or candidate.get("embedding") or candidate.get("vector")
     if isinstance(candidate, list) and candidate:
         first = candidate[0]
+        if isinstance(first, dict):
+            candidate = first.get("values") or first.get("embedding") or first.get("vector")
         if isinstance(first, list):
             candidate = first
         if all(isinstance(item, int | float) for item in candidate):
@@ -128,6 +132,8 @@ def _parse_embedding_payload(data: Any) -> tuple[list[float], str] | None:
         first = nested[0]
         if isinstance(first, dict):
             candidate = first.get("embedding") or first.get("vector")
+            if isinstance(candidate, dict):
+                candidate = candidate.get("values") or candidate.get("embedding") or candidate.get("vector")
             if isinstance(candidate, list) and all(isinstance(item, int | float) for item in candidate):
                 return _normalize_vector(candidate), model
     return None
