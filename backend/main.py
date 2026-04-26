@@ -21,7 +21,7 @@ from datetime import datetime, timezone, timedelta
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 import db
 import hf_client
@@ -30,6 +30,8 @@ from app.core.cors import ALLOWED_ORIGIN_REGEX, allowed_origins
 from app.core.database import AsyncSessionLocal as EventStoreSessionLocal
 from app.services.dashboard_read_model import build_dashboard_payload
 from app.services.event_relationships import load_orbit_payload
+from app.services.geo_signals import build_map_signals
+from app.services.scenario_simulator import run_scenario
 from app.services.schema_migrations import run_startup_migrations
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -171,6 +173,11 @@ class TrackedEntityInput(BaseModel):
 class DismissSignalInput(BaseModel):
     signal_id: str
     dismiss_reason: str = "not_relevant"
+
+class SimulateInput(BaseModel):
+    scenario: str
+    base_event_id: Optional[str] = None
+    assumptions: dict = {}
 
 
 # ---------------------------------------------------------------------------
@@ -1373,6 +1380,34 @@ async def get_orbit(request: Request):
             regions=user_regions,
             limit=20,
         )
+
+
+@app.get("/api/map-signals")
+async def get_map_signals(
+    layer: Optional[str] = Query(default=None),
+    time_window: str = Query(default="7d", pattern="^(24h|7d|30d)$"),
+):
+    async with EventStoreSessionLocal() as session:
+        return await build_map_signals(session, layer=layer, time_window=time_window)
+
+
+@app.post("/api/simulate")
+async def simulate(request: Request, payload: SimulateInput):
+    scenario = (payload.scenario or "").strip()
+    if len(scenario) < 12:
+        raise HTTPException(status_code=400, detail="Scenario is too short")
+    user_id = _user_id_from_request(request)
+    async with EventStoreSessionLocal() as session:
+        try:
+            return await run_scenario(
+                session,
+                user_id=user_id,
+                scenario=scenario[:1200],
+                base_event_id=payload.base_event_id,
+                assumptions=payload.assumptions or {},
+            )
+        except (json.JSONDecodeError, ValueError, ValidationError, TypeError) as exc:
+            raise HTTPException(status_code=502, detail=f"Scenario AI returned invalid output: {str(exc)[:180]}")
 
 
 def _build_exposure_network(user_id: str, payload: dict, user_topics: list, phase5: dict) -> dict:

@@ -1,10 +1,26 @@
 import { Bell, Compass, Home, Lock, Map, Orbit, Search, Settings, ShieldQuestion, Star } from 'lucide-react';
 import { compactLabel } from '../../lib/dashboardAdapter';
 
+function asArray(value) {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+  if (typeof value === 'string') {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return value.split(',').map((item) => item.trim()).filter(Boolean);
+    }
+  }
+  return [];
+}
+
 export default function Sidebar({
   preferences,
   onHome,
   onOrbit,
+  onMap,
+  onSimulator,
   onLocked,
   onWatchlist,
   onAlerts,
@@ -12,10 +28,10 @@ export default function Sidebar({
   onSettings,
   activeItem = 'home',
 }) {
-  const locked = [
-    ['Map', <Map size={17} />],
-    ['Simulator', <ShieldQuestion size={17} />],
-  ];
+  const topics = asArray(preferences?.topics);
+  const regions = asArray(preferences?.regions);
+  const entities = asArray(preferences?.entities);
+  const locked = [];
 
   return (
     <aside className="wp-sidebar">
@@ -27,6 +43,8 @@ export default function Sidebar({
       <nav className="wp-nav">
         <button className={activeItem === 'home' ? 'active' : ''} onClick={onHome}><Home size={17} /> Home</button>
         <button className={activeItem === 'orbit' ? 'active' : ''} onClick={onOrbit}><Orbit size={17} /> Orbit</button>
+        <button className={activeItem === 'map' ? 'active' : ''} onClick={onMap}><Map size={17} /> Map</button>
+        <button className={activeItem === 'simulator' ? 'active' : ''} onClick={onSimulator}><ShieldQuestion size={17} /> Simulator</button>
         {locked.map(([label, icon]) => (
           <button key={label} className="locked" onClick={() => onLocked(`${label} is not available yet.`)}>
             {icon} {label}<small><Lock size={12} /></small>
@@ -43,15 +61,15 @@ export default function Sidebar({
           <>
             <div className="focus-block">
               <span>Topics</span>
-              <div>{preferences.topics?.length ? preferences.topics.map((item) => <b key={item}>{compactLabel(item)}</b>) : <em>-</em>}</div>
+              <div>{topics.length ? topics.map((item) => <b key={item}>{compactLabel(item)}</b>) : <em>-</em>}</div>
             </div>
             <div className="focus-block">
               <span>Regions</span>
-              <div>{preferences.regions?.length ? preferences.regions.map((item) => <b key={item}>{compactLabel(item)}</b>) : <em>-</em>}</div>
+              <div>{regions.length ? regions.map((item) => <b key={item}>{compactLabel(item)}</b>) : <em>-</em>}</div>
             </div>
             <div className="focus-block">
               <span>Entities</span>
-              <div>{preferences.entities?.length ? preferences.entities.map((item) => <b key={item.entity_name || item.name || item}>{compactLabel(item.entity_name || item.name || item)}</b>) : <em>-</em>}</div>
+              <div>{entities.length ? entities.map((item) => <b key={item.entity_name || item.name || item}>{compactLabel(item.entity_name || item.name || item)}</b>) : <em>-</em>}</div>
             </div>
           </>
         ) : (

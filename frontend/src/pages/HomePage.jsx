@@ -356,6 +356,8 @@ export default function HomePage() {
         activeItem="home"
         onHome={() => { setSelectedTopic(null); setInsightView(null); }}
         onOrbit={() => navigate('/orbit')}
+        onMap={() => navigate('/map')}
+        onSimulator={() => navigate('/simulator')}
         onLocked={setLockedToast}
         onWatchlist={() => navigate('/watchlist')}
         onAlerts={() => navigate('/alerts')}

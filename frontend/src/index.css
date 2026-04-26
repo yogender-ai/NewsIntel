@@ -5296,3 +5296,168 @@ body::after {
     height: 64px;
   }
 }
+
+/* ===================================================================
+   Phase 4 Signal Map + Phase 5 Simulator
+   =================================================================== */
+.map-layout,
+.simulator-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  gap: 18px;
+}
+
+.abstract-world-map {
+  position: relative;
+  min-height: 640px;
+  border: 1px solid rgba(154,168,255,0.16);
+  border-radius: 14px;
+  overflow: hidden;
+  background:
+    linear-gradient(135deg, rgba(5,10,22,0.96), rgba(8,12,28,0.9)),
+    radial-gradient(circle at 50% 50%, rgba(126,231,196,0.08), transparent 62%);
+}
+
+.abstract-world-map::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  opacity: 0.32;
+  background-image:
+    linear-gradient(rgba(154,168,255,0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(154,168,255,0.05) 1px, transparent 1px);
+  background-size: 44px 44px;
+}
+
+.world-shape {
+  position: absolute;
+  border: 1px solid rgba(126,231,196,0.16);
+  background: rgba(126,231,196,0.055);
+  filter: blur(0.2px);
+}
+
+.shape-americas { left: 12%; top: 24%; width: 20%; height: 38%; border-radius: 44% 56% 52% 48%; transform: rotate(-15deg); }
+.shape-europe { left: 46%; top: 26%; width: 13%; height: 16%; border-radius: 45%; }
+.shape-asia { left: 58%; top: 24%; width: 28%; height: 28%; border-radius: 42% 58% 46% 54%; }
+.shape-africa { left: 47%; top: 44%; width: 16%; height: 28%; border-radius: 48% 52% 58% 42%; }
+
+.map-heat-point {
+  position: absolute;
+  width: var(--point-size);
+  height: var(--point-size);
+  border: 1px solid rgba(255,255,255,0.35);
+  border-radius: 999px;
+  background: var(--point-color);
+  box-shadow: 0 0 28px color-mix(in srgb, var(--point-color) 58%, transparent);
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+}
+
+.map-heat-point::after {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  border-radius: inherit;
+  border: 1px solid color-mix(in srgb, var(--point-color) 38%, transparent);
+  animation: signalPing 2.8s ease-in-out infinite;
+}
+
+.scenario-input-panel textarea {
+  width: 100%;
+  min-height: 150px;
+  resize: vertical;
+  border: 1px solid rgba(148,163,184,0.14);
+  border-radius: 10px;
+  background: rgba(7,10,22,0.72);
+  color: #f7f8fb;
+  padding: 14px;
+  outline: 0;
+  line-height: 1.5;
+}
+
+.preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+.preset-row button {
+  border: 1px solid rgba(126,231,196,0.2);
+  border-radius: 999px;
+  background: rgba(126,231,196,0.08);
+  color: #dce5ff;
+  padding: 8px 11px;
+  cursor: pointer;
+}
+
+.sim-controls {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 0;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+.run-scenario {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.run-scenario:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.scenario-result {
+  display: grid;
+  gap: 16px;
+}
+
+.scenario-result section {
+  border-top: 1px solid rgba(148,163,184,0.12);
+  padding-top: 14px;
+}
+
+.scenario-score {
+  display: grid;
+  grid-template-columns: auto 1fr auto 1fr;
+  align-items: end;
+  gap: 8px;
+}
+
+.scenario-score b {
+  color: #f7f8fb;
+  font-size: 42px;
+  line-height: 1;
+}
+
+.scenario-score span,
+.scenario-disclaimer {
+  color: #9aa4b8;
+  font-weight: 800;
+}
+
+.scenario-disclaimer {
+  color: #7ee7c4;
+}
+
+@media (max-width: 900px) {
+  .map-layout,
+  .simulator-layout,
+  .sim-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .abstract-world-map {
+    min-height: 320px;
+    order: 2;
+  }
+
+  .signal-map-page .orbit-list {
+    order: 1;
+  }
+}

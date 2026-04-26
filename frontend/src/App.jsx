@@ -11,6 +11,8 @@ import WatchlistPage from './pages/WatchlistPage';
 import AlertsPage from './pages/AlertsPage';
 import MoversPage from './pages/MoversPage';
 import OrbitPage from './pages/OrbitPage';
+import MapPage from './pages/MapPage';
+import SimulatorPage from './pages/SimulatorPage';
 import './index.css';
 
 export const AppContext = createContext({ headlines: [], setHeadlines: () => {}, mode: 'command', setMode: () => {} });
@@ -153,7 +155,7 @@ function App() {
 
 function AppRoutes() {
   const location = useLocation();
-  const isWorldPulse = ['/', '/dashboard', '/orbit'].includes(location.pathname);
+  const isWorldPulse = ['/', '/dashboard', '/orbit', '/map', '/simulator'].includes(location.pathname);
   return (
     <>
       {!isWorldPulse && <TopBar />}
@@ -163,6 +165,8 @@ function AppRoutes() {
           <Route path="/" element={<Protected><HomePage /></Protected>} />
           <Route path="/dashboard" element={<Protected><HomePage /></Protected>} />
           <Route path="/orbit" element={<Protected><OrbitPage /></Protected>} />
+          <Route path="/map" element={<Protected><MapPage /></Protected>} />
+          <Route path="/simulator" element={<Protected><SimulatorPage /></Protected>} />
           <Route path="/onboarding" element={<Protected><Onboarding /></Protected>} />
           <Route path="/settings" element={<Protected><Settings /></Protected>} />
           <Route path="/story" element={<Protected><StoryView /></Protected>} />

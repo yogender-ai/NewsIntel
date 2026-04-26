@@ -241,6 +241,8 @@ export default function OrbitPage() {
         activeItem="orbit"
         onHome={() => navigate('/dashboard')}
         onOrbit={() => load()}
+        onMap={() => navigate('/map')}
+        onSimulator={() => navigate('/simulator')}
         onLocked={setLockedToast}
         onWatchlist={() => navigate('/watchlist')}
         onAlerts={() => navigate('/alerts')}

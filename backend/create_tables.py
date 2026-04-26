@@ -30,9 +30,9 @@ async def create_tables():
         ))
         await conn.execute(text("DELETE FROM alembic_version"))
         await conn.execute(text(
-            "INSERT INTO alembic_version (version_num) VALUES ('20260426_0003')"
+            "INSERT INTO alembic_version (version_num) VALUES ('20260426_0004')"
         ))
-        print("Alembic version stamped: 20260426_0003")
+        print("Alembic version stamped: 20260426_0004")
 
     # 4. Verify
     async with engine.connect() as conn:
@@ -53,6 +53,7 @@ async def create_tables():
             "event_relationships",
             "event_relationship_checks",
             "raw_articles",
+            "scenario_runs",
             "users",
         }
         found = set(tables)

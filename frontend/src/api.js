@@ -144,4 +144,17 @@ export const api = {
   getExposureNetwork: () => request('/api/exposure-network'),
 
   getOrbit: () => request('/api/orbit'),
+
+  getMapSignals: (layer = 'all', timeWindow = '7d') => {
+    const params = new URLSearchParams();
+    if (layer && layer !== 'all') params.set('layer', layer);
+    params.set('time_window', timeWindow);
+    return request(`/api/map-signals?${params.toString()}`);
+  },
+
+  simulate: (payload) =>
+    request('/api/simulate', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
 };

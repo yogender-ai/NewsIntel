@@ -374,6 +374,8 @@ class EventEnrichmentService:
                     "signal_tier": tier,
                 }
                 set_event_ai_metadata(event, ai)
+                from app.services.geo_signals import ensure_event_geo
+                ensure_event_geo(event)
                 return AI_STATUS_ENRICHED
             except (json.JSONDecodeError, ValidationError, TypeError) as exc:
                 logger.warning("invalid AI enrichment JSON event_id=%s attempt=%s error=%s", event.id, attempt + 1, exc)
