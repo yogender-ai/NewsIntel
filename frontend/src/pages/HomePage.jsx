@@ -12,7 +12,6 @@ import PulseTrendChart from '../components/worldpulse/PulseTrendChart';
 import QuickGlance from '../components/worldpulse/QuickGlance';
 import TopShiftCard from '../components/worldpulse/TopShiftCard';
 import EmptyState from '../components/worldpulse/EmptyState';
-import LockedNavToast from '../components/worldpulse/LockedNavToast';
 import StartTourCard from '../components/worldpulse/StartTourCard';
 import FreshnessBadge from '../components/worldpulse/FreshnessBadge';
 
@@ -21,6 +20,36 @@ function LoadingSkeleton() {
     <div className="wp-loading">
       <div /><div /><div /><div />
     </div>
+  );
+}
+
+function LiveCursor() {
+  const [point, setPoint] = useState({ x: -80, y: -80 });
+  const [pressed, setPressed] = useState(false);
+
+  useEffect(() => {
+    const move = (event) => {
+      setPoint({ x: event.clientX, y: event.clientY });
+      document.documentElement.style.setProperty('--cursor-x', `${event.clientX}px`);
+      document.documentElement.style.setProperty('--cursor-y', `${event.clientY}px`);
+    };
+    const down = () => setPressed(true);
+    const up = () => setPressed(false);
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerdown', down);
+    window.addEventListener('pointerup', up);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerdown', down);
+      window.removeEventListener('pointerup', up);
+    };
+  }, []);
+
+  return (
+    <div
+      className={`live-cursor ${pressed ? 'pressed' : ''}`}
+      style={{ '--cursor-x': `${point.x}px`, '--cursor-y': `${point.y}px` }}
+    />
   );
 }
 
@@ -36,7 +65,7 @@ function readableLiveError(err) {
       }
       return String(detail).slice(0, 180);
     } catch {
-      // fall through to cleaner text below
+      // Fall through to cleaner text below.
     }
   }
   if (raw.includes('invalid input for query argument')) {
@@ -54,15 +83,93 @@ function DetailDrawer({ shift, onClose }) {
       <h2>{shift.headline}</h2>
       {shift.summary && <p>{shift.summary}</p>}
       <div className="drawer-grid">
-        <div><small>Pulse</small><b>{shift.pulse ?? '—'}</b></div>
-        <div><small>Exposure</small><b>{shift.exposure ?? '—'}</b></div>
-        <div><small>Impact</small><b>{shift.impactLevel || '—'}</b></div>
-        <div><small>Sources</small><b>{shift.sourceCount ?? '—'}</b></div>
+        <div><small>Pulse</small><b>{shift.pulse ?? '-'}</b></div>
+        <div><small>Exposure</small><b>{shift.exposure ?? '-'}</b></div>
+        <div><small>Impact</small><b>{shift.impactLevel || '-'}</b></div>
+        <div><small>Sources</small><b>{shift.sourceCount ?? '-'}</b></div>
       </div>
       <section>
         <h3>Why it matters</h3>
         <p>{shift.raw?.why_it_matters || shift.summary || 'No additional backend explanation available.'}</p>
       </section>
+    </aside>
+  );
+}
+
+function InsightDrawer({ view, data, onClose, onSelectTopic, onOpenShift, onRefresh }) {
+  if (!view) return null;
+
+  const titles = {
+    orbit: 'Signal Orbit',
+    map: 'Signal Map',
+    simulator: 'Scenario Simulator',
+    countries: 'Countries In Focus',
+    sources: 'Sources Monitored',
+  };
+
+  return (
+    <aside className="insight-drawer">
+      <button className="drawer-close" onClick={onClose}><X size={18} /></button>
+      <span>Live Lens</span>
+      <h2>{titles[view] || 'Live Intelligence'}</h2>
+
+      {view === 'orbit' && (
+        <div className="orbit-lens">
+          {(data.changesToday || []).slice(0, 6).map((item, index) => (
+            <button
+              key={item.id}
+              style={{ '--i': index, '--orbit-power': `${Math.max(24, Math.abs(item.delta || item.current || 20))}%` }}
+              onClick={() => onSelectTopic(item.id)}
+            >
+              <b>{item.topic}</b>
+              <small>{item.delta === null ? item.direction : `${item.delta > 0 ? '+' : ''}${item.delta}`}</small>
+            </button>
+          ))}
+          {!data.changesToday?.length && <p>Movement baseline is still building from live snapshots.</p>}
+        </div>
+      )}
+
+      {view === 'map' && (
+        <div className="map-lens">
+          {(data.preferences?.regions || []).map((region, index) => (
+            <button key={region} style={{ '--i': index }} onClick={() => onSelectTopic(null)}>
+              <b>{String(region).replace(/-/g, ' ')}</b>
+              <small>Focus region</small>
+            </button>
+          ))}
+          {!data.preferences?.regions?.length && <p>No focus regions are set yet.</p>}
+        </div>
+      )}
+
+      {view === 'simulator' && (
+        <div className="scenario-lens">
+          {(data.topShifts || []).slice(0, 3).map((shift) => (
+            <button key={shift.id} onClick={() => onOpenShift(shift)}>
+              <b>{shift.headline}</b>
+              <small>Pulse {shift.pulse ?? '-'} / Sources {shift.sourceCount ?? '-'}</small>
+            </button>
+          ))}
+          <button onClick={onRefresh}>Recalculate from live feed</button>
+        </div>
+      )}
+
+      {view === 'countries' && (
+        <div className="drawer-list">
+          {(data.preferences?.regions || []).map((region) => <button key={region}>{String(region).replace(/-/g, ' ')}</button>)}
+          {!data.preferences?.regions?.length && <p>No country or region preferences are active.</p>}
+        </div>
+      )}
+
+      {view === 'sources' && (
+        <div className="drawer-list">
+          {(data.sources || []).slice(0, 12).map((source, index) => (
+            <button key={source.id || source.name || source.url || index}>
+              {source.name || source.domain || source.url || `Source ${index + 1}`}
+            </button>
+          ))}
+          {!data.sources?.length && <p>Source details will appear when the backend includes source rows.</p>}
+        </div>
+      )}
     </aside>
   );
 }
@@ -91,12 +198,10 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-  const [lockedToast, setLockedToast] = useState('');
   const [selectedTopic, setSelectedTopic] = useState(null);
   const [selectedShift, setSelectedShift] = useState(null);
+  const [insightView, setInsightView] = useState(null);
   const [tourOpen, setTourOpen] = useState(false);
-
-  const CACHE_KEY = 'ni_hp_cache';
 
   const load = useCallback(async ({ force = false } = {}) => {
     setError('');
@@ -114,26 +219,11 @@ export default function HomePage() {
       setPreferences(prefsResult);
       setDashboard(dashResult);
       setAlerts(alertsResult);
-      // Persist to localStorage as fallback
-      try {
-        localStorage.setItem(CACHE_KEY, JSON.stringify({ dashboard: dashResult, preferences: prefsResult, alerts: alertsResult, ts: Date.now() }));
-      } catch { /* quota exceeded — ignore */ }
     } catch (err) {
-      // Try to recover from localStorage cache
-      try {
-        const cached = JSON.parse(localStorage.getItem(CACHE_KEY));
-        if (cached?.dashboard) {
-          setDashboard(cached.dashboard);
-          setPreferences(cached.preferences);
-          setAlerts(cached.alerts);
-          const ageMinutes = Math.round((Date.now() - (cached.ts || 0)) / 60000);
-          setError(`Showing cached data (${ageMinutes}m old). ${readableLiveError(err)}`);
-        } else {
-          setError(readableLiveError(err));
-        }
-      } catch {
-        setError(readableLiveError(err));
-      }
+      setDashboard(null);
+      setPreferences(null);
+      setAlerts(null);
+      setError(readableLiveError(err));
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -141,14 +231,10 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    if (user) load();
+    if (!user) return undefined;
+    const timer = window.setTimeout(() => load(), 0);
+    return () => window.clearTimeout(timer);
   }, [user, load]);
-
-  useEffect(() => {
-    if (!lockedToast) return undefined;
-    const timer = setTimeout(() => setLockedToast(''), 2600);
-    return () => clearTimeout(timer);
-  }, [lockedToast]);
 
   const data = useMemo(
     () => normalizeDashboardData({ dashboard, preferences, alerts, user }),
@@ -161,9 +247,15 @@ export default function HomePage() {
 
   return (
     <div className="world-pulse-page">
+      <LiveCursor />
       <Sidebar
         preferences={data.preferences}
-        onLocked={setLockedToast}
+        onHome={() => { setSelectedTopic(null); setInsightView(null); }}
+        onOrbit={() => setInsightView('orbit')}
+        onMap={() => setInsightView('map')}
+        onSimulator={() => setInsightView('simulator')}
+        onWatchlist={() => navigate('/watchlist')}
+        onAlerts={() => navigate('/alerts')}
         onSetFocus={() => navigate('/onboarding')}
         onSettings={() => navigate('/settings')}
       />
@@ -173,6 +265,7 @@ export default function HomePage() {
           cache={data.cache}
           refreshing={refreshing}
           onRefresh={() => load({ force: true })}
+          onAlerts={() => navigate('/alerts')}
           alertCount={data.alerts?.length || 0}
         />
 
@@ -207,14 +300,20 @@ export default function HomePage() {
 
               <aside className="wp-right">
                 <PulseTrendChart history={data.pulseHistory} />
-                <QuickGlance data={data.quickGlance} />
+                <QuickGlance
+                  data={data.quickGlance}
+                  onCountries={() => setInsightView('countries')}
+                  onSignals={() => setInsightView('orbit')}
+                  onAlerts={() => navigate('/alerts')}
+                  onSources={() => setInsightView('sources')}
+                />
                 <section className="wp-card trust-card">
                   <div className="wp-section-head"><span>Source / Freshness Trust</span></div>
                   <FreshnessBadge cache={data.cache} />
                   {data.cache?.isStale && <p>Showing latest cached intelligence. Refreshing in background.</p>}
                   <dl>
-                    <div><dt>Refresh type</dt><dd>{data.cache?.refreshType || '—'}</dd></div>
-                    <div><dt>Next refresh</dt><dd>{data.cache?.nextRefreshAt || '—'}</dd></div>
+                    <div><dt>Refresh type</dt><dd>{data.cache?.refreshType || '-'}</dd></div>
+                    <div><dt>Next refresh</dt><dd>{data.cache?.nextRefreshAt || '-'}</dd></div>
                   </dl>
                 </section>
               </aside>
@@ -223,8 +322,15 @@ export default function HomePage() {
         )}
       </main>
       <DetailDrawer shift={selectedShift} onClose={() => setSelectedShift(null)} />
+      <InsightDrawer
+        view={insightView}
+        data={data}
+        onClose={() => setInsightView(null)}
+        onSelectTopic={(topic) => { setSelectedTopic(topic); setInsightView(null); }}
+        onOpenShift={(shift) => { setSelectedShift(shift); setInsightView(null); }}
+        onRefresh={() => load({ force: true })}
+      />
       {tourOpen && <TourModal onClose={() => setTourOpen(false)} />}
-      <LockedNavToast message={lockedToast} />
     </div>
   );
 }

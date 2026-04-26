@@ -9,7 +9,7 @@ const greeting = () => {
   return 'Good evening';
 };
 
-export default function TopHeader({ user, cache, refreshing, onRefresh, alertCount }) {
+export default function TopHeader({ user, cache, refreshing, onRefresh, onAlerts, alertCount }) {
   const displayName = user?.displayName?.split(' ')[0] || user?.email?.split('@')[0] || 'there';
   const updated = formatRelativeTime(cache?.cachedAt);
   return (
@@ -17,7 +17,7 @@ export default function TopHeader({ user, cache, refreshing, onRefresh, alertCou
       <div>
         <span className="wp-kicker">HOME / WORLD PULSE</span>
         <h1>{greeting()}, {displayName}</h1>
-        <p>Here’s what’s moving the world right now.</p>
+        <p>Here's what's moving the world right now.</p>
       </div>
       <div className="wp-header-actions">
         <FreshnessBadge cache={cache} />
@@ -25,7 +25,7 @@ export default function TopHeader({ user, cache, refreshing, onRefresh, alertCou
           <RefreshCw size={18} className={refreshing ? 'spin' : ''} />
           <span>{updated ? `Updated ${updated}` : 'Refresh'}</span>
         </button>
-        <button className="wp-icon-only" title="Alerts">
+        <button className="wp-icon-only" title="Alerts" onClick={onAlerts}>
           <Bell size={18} />
           {alertCount > 0 && <b>{alertCount}</b>}
         </button>
@@ -37,4 +37,3 @@ export default function TopHeader({ user, cache, refreshing, onRefresh, alertCou
     </header>
   );
 }
-

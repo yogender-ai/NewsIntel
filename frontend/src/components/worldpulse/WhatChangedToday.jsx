@@ -16,7 +16,7 @@ export default function WhatChangedToday({ changes, selectedTopic, onSelect }) {
       {changes?.length ? (
         <div className="change-list">
           {changes.map((item) => (
-            <button key={item.id} className={selectedTopic === item.id ? 'selected' : ''} onClick={() => onSelect(item.id)}>
+            <button key={item.id} className={selectedTopic === item.id ? 'selected' : ''} onClick={() => onSelect(selectedTopic === item.id ? null : item.id)}>
               <i><DirectionIcon direction={item.direction} /></i>
               <strong>{item.topic}</strong>
               <small>{item.reason || 'Establishing baseline'}</small>
@@ -32,4 +32,3 @@ export default function WhatChangedToday({ changes, selectedTopic, onSelect }) {
     </section>
   );
 }
-

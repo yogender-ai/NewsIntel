@@ -49,8 +49,9 @@ export default function PulseTrendChart({ history }) {
         {/* Gradient definition */}
         <defs>
           <linearGradient id="pulseGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="rgba(141,162,255,0.25)" />
-            <stop offset="100%" stopColor="rgba(141,162,255,0)" />
+            <stop offset="0%" stopColor="rgba(154,168,255,0.3)" />
+            <stop offset="55%" stopColor="rgba(126,231,196,0.12)" />
+            <stop offset="100%" stopColor="rgba(154,168,255,0)" />
           </linearGradient>
           <filter id="glowFilter">
             <feGaussianBlur stdDeviation="3" result="blur" />
@@ -81,7 +82,7 @@ export default function PulseTrendChart({ history }) {
           cx={maxX}
           cy={maxY}
           r="4"
-          fill="#8da2ff"
+          fill="#9aa8ff"
           filter="url(#glowFilter)"
           opacity={drawn ? 1 : 0}
           style={{ transition: 'opacity 0.5s ease 1.5s' }}

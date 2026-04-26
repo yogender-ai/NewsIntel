@@ -2,7 +2,7 @@ export default function WorldPulseRing({ worldPulse }) {
   const value = worldPulse?.value;
   const pct = value === null || value === undefined ? 0 : value;
   const pressureClass = pct >= 76 ? 'high' : pct >= 56 ? 'elevated' : pct >= 31 ? 'normal' : 'calm';
-  const pressureLabel = pct >= 76 ? 'Critical Pressure' : pct >= 56 ? 'Elevated Activity' : pct >= 31 ? 'Moderate Flow' : 'Calm Waters';
+  const pressureLabel = pct >= 76 ? 'Critical Pressure' : pct >= 56 ? 'Elevated Activity' : pct >= 31 ? 'Moderate Flow' : 'Calm Flow';
 
   return (
     <section className={`world-pulse-card ${pressureClass}`}>
