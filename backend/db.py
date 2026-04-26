@@ -2,6 +2,7 @@ import os
 import json
 import logging
 from datetime import datetime, timezone
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 import databases
 import sqlalchemy
 from dotenv import load_dotenv
@@ -9,7 +10,39 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./newsintel.db")
-database = databases.Database(DATABASE_URL)
+
+
+def _sanitize_url_for_asyncpg(url: str) -> str:
+    """Rewrite a psycopg2-style Postgres URL for asyncpg compatibility.
+
+    asyncpg does NOT support ``sslmode`` or ``channel_binding`` query params.
+    It expects ``ssl=true`` (or an ``ssl.SSLContext``) instead.
+    """
+    if not url.startswith(("postgresql://", "postgres://")):
+        return url  # sqlite or other — leave as-is
+    parts = urlsplit(url)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    sslmode = (query.pop("sslmode", None) or "").lower()
+    query.pop("channel_binding", None)
+    if sslmode and "ssl" not in query:
+        query["ssl"] = "true" if sslmode in {"require", "verify-ca", "verify-full", "true", "1"} else "false"
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
+
+def _sanitize_url_for_sync(url: str) -> str:
+    """Strip parameters that psycopg2/libpq don't recognise (e.g. channel_binding)."""
+    if not url.startswith(("postgresql://", "postgres://")):
+        return url
+    parts = urlsplit(url)
+    query = dict(parse_qsl(parts.query, keep_blank_values=True))
+    query.pop("channel_binding", None)
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
+
+_async_url = _sanitize_url_for_asyncpg(DATABASE_URL)
+_sync_url = _sanitize_url_for_sync(DATABASE_URL)
+
+database = databases.Database(_async_url)
 metadata = sqlalchemy.MetaData()
 
 # ---------------------------------------------------------------------------
@@ -163,7 +196,7 @@ user_preferences = sqlalchemy.Table(
     sqlalchemy.Column("updated_at", sqlalchemy.DateTime, default=lambda: datetime.now(timezone.utc)),
 )
 
-engine = sqlalchemy.create_engine(DATABASE_URL)
+engine = sqlalchemy.create_engine(_sync_url)
 
 logger = logging.getLogger("news-intel-db")
 
