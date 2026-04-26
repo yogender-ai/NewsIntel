@@ -49,6 +49,12 @@ class ProductionIngestionQAAudit(unittest.TestCase):
         self.assertIn("cache.lock", source)
         self.assertIn("ingestion-lock:", source)
 
+    def test_invalid_redis_url_falls_back_to_local_cache(self):
+        from app.core.cache import _build_redis_client
+
+        self.assertIsNone(_build_redis_client("not-a-redis-url"))
+        self.assertIsNone(_build_redis_client("postgresql://user:pass@example.com/db"))
+
 
 class PipelineOrderQAAudit(unittest.IsolatedAsyncioTestCase):
     async def test_redirect_resolve_runs_before_repository_ingest(self):
