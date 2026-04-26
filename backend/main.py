@@ -14,11 +14,12 @@ import logging
 import json
 import asyncio
 import time
+import os
 from contextlib import asynccontextmanager
 from typing import List, Optional
 from datetime import datetime, timezone, timedelta
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -126,6 +127,11 @@ async def _cors_safe_exception_handler(request: Request, exc: Exception):
 class DashboardRequest(BaseModel):
     topics: List[str] = []
     regions: List[str] = []
+
+class IngestNowRequest(BaseModel):
+    topics: List[str] = ["ai", "tech", "markets"]
+    regions: List[str] = ["global"]
+    max_articles: int = 40
 
 class StoryDeepDiveRequest(BaseModel):
     title: str
@@ -1125,6 +1131,40 @@ async def force_refresh_dashboard(request: Request, payload_request: DashboardRe
     effective_topics = requested_topics or (user_topics if has_saved_profile else [])
     effective_regions = requested_regions or (user_regions if has_saved_profile else [])
     return await _event_backed_dashboard_payload(effective_topics, effective_regions)
+
+
+async def _run_admin_ingestion(topics: list[str], regions: list[str], max_articles: int) -> None:
+    from app.workers.ingestion_worker import run_ingestion
+
+    await run_ingestion(
+        _normalize_profile_values(topics) or ["ai", "tech", "markets"],
+        _normalize_profile_values(regions) or ["global"],
+        max_articles=max(1, min(int(max_articles or 40), 100)),
+    )
+
+
+@app.post("/api/admin/ingest-now")
+async def ingest_now(request: Request, payload: IngestNowRequest, background_tasks: BackgroundTasks):
+    """Protected trigger for external schedulers such as Cloud Command or GitHub Actions."""
+    expected_secret = os.getenv("INGEST_SECRET") or os.getenv("GATEWAY_SECRET")
+    supplied_secret = (
+        request.headers.get("X-Ingest-Secret", "").strip()
+        or request.headers.get("X-Gateway-Secret", "").strip()
+    )
+    if not expected_secret or supplied_secret != expected_secret:
+        raise HTTPException(status_code=401, detail="Invalid ingestion secret")
+
+    topics = _normalize_profile_values(payload.topics) or ["ai", "tech", "markets"]
+    regions = _normalize_profile_values(payload.regions) or ["global"]
+    max_articles = max(1, min(int(payload.max_articles or 40), 100))
+    background_tasks.add_task(_run_admin_ingestion, topics, regions, max_articles)
+    return {
+        "status": "accepted",
+        "message": "Ingestion queued",
+        "topics": topics,
+        "regions": regions,
+        "max_articles": max_articles,
+    }
 
 
 async def _silent_refresh(run_llm: bool = False):
