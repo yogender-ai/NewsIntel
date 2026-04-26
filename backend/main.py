@@ -75,24 +75,10 @@ ARTICLE_ANALYSIS_TTL = 1800
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _bg_task
-
-    # --- Migrations (with timeout so Render port-scan doesn't fail) ---
-    try:
-        await asyncio.wait_for(run_startup_migrations(), timeout=45)
-    except asyncio.TimeoutError:
-        logger.warning("Startup migrations timed out after 45 s — continuing without")
-    except Exception as exc:
-        logger.warning("Startup migrations failed: %s — continuing", exc)
-
-    # --- Legacy databases library connection ---
-    try:
-        await asyncio.wait_for(db.database.connect(), timeout=20)
-        await asyncio.wait_for(asyncio.to_thread(db.metadata.create_all, db.engine), timeout=20)
-        logger.info("News-Intel v12 (Cached Intelligence) ready. DB connected.")
-    except asyncio.TimeoutError:
-        logger.warning("Legacy DB connect timed out — API will rely on event-store sessions")
-    except Exception as exc:
-        logger.warning("Legacy DB connect failed: %s — API will rely on event-store sessions", exc)
+    await run_startup_migrations()
+    await db.database.connect()
+    await db.init_db()
+    logger.info("News-Intel v12 (Cached Intelligence) ready. DB connected.")
 
     # Phase 5.5: ingestion scheduler runs outside the API process.
     _bg_task = None
@@ -107,10 +93,7 @@ async def lifespan(app: FastAPI):
             await _bg_task
         except asyncio.CancelledError:
             pass
-    try:
-        await db.database.disconnect()
-    except Exception:
-        pass
+    await db.database.disconnect()
 
 
 app = FastAPI(title="News-Intel v12", version="12.0.0", lifespan=lifespan)
@@ -156,8 +139,8 @@ async def _cors_safe_exception_handler(request: Request, exc: Exception):
 # Pydantic Models
 # ---------------------------------------------------------------------------
 class DashboardRequest(BaseModel):
-    topics: Optional[List[str]] = []
-    regions: Optional[List[str]] = []
+    topics: List[str] = []
+    regions: List[str] = []
 
 class IngestNowRequest(BaseModel):
     topics: List[str] = ["ai", "tech", "markets"]
@@ -1238,8 +1221,8 @@ async def get_cached_dashboard(request: Request):
 async def force_refresh_dashboard(request: Request, payload_request: DashboardRequest):
     """Force a refresh. Uses requested topics or the saved profile when available."""
     user_topics, user_regions, _, has_saved_profile = await _get_user_prefs_from_header(request)
-    requested_topics = _normalize_profile_values(payload_request.topics or [])
-    requested_regions = _normalize_profile_values(payload_request.regions or [])
+    requested_topics = _normalize_profile_values(payload_request.topics)
+    requested_regions = _normalize_profile_values(payload_request.regions)
     effective_topics = requested_topics or (user_topics if has_saved_profile else [])
     effective_regions = requested_regions or (user_regions if has_saved_profile else [])
     return await _event_backed_dashboard_payload(effective_topics, effective_regions)
