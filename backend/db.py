@@ -13,19 +13,18 @@ DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./newsintel.db")
 
 
 def _sanitize_url_for_asyncpg(url: str) -> str:
-    """Rewrite a psycopg2-style Postgres URL for asyncpg compatibility.
+    """Strip psycopg-style SSL params that asyncpg does NOT support in the DSN.
 
-    asyncpg does NOT support ``sslmode`` or ``channel_binding`` query params.
-    It expects ``ssl=true`` (or an ``ssl.SSLContext``) instead.
+    asyncpg does NOT accept ``sslmode``, ``ssl``, or ``channel_binding`` as
+    query-string parameters.  SSL must be configured via ``connect_args``.
     """
     if not url.startswith(("postgresql://", "postgres://")):
         return url  # sqlite or other — leave as-is
     parts = urlsplit(url)
     query = dict(parse_qsl(parts.query, keep_blank_values=True))
-    sslmode = (query.pop("sslmode", None) or "").lower()
+    query.pop("sslmode", None)
+    query.pop("ssl", None)
     query.pop("channel_binding", None)
-    if sslmode and "ssl" not in query:
-        query["ssl"] = "true" if sslmode in {"require", "verify-ca", "verify-full", "true", "1"} else "false"
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
 
 
@@ -42,7 +41,11 @@ def _sanitize_url_for_sync(url: str) -> str:
 _async_url = _sanitize_url_for_asyncpg(DATABASE_URL)
 _sync_url = _sanitize_url_for_sync(DATABASE_URL)
 
-database = databases.Database(_async_url)
+_is_postgres = DATABASE_URL.startswith(("postgresql://", "postgres://"))
+
+# databases.Database passes **options through to asyncpg.connect().
+# asyncpg needs ssl passed as a keyword arg, NOT in the query string.
+database = databases.Database(_async_url, ssl="require") if _is_postgres else databases.Database(_async_url)
 metadata = sqlalchemy.MetaData()
 
 # ---------------------------------------------------------------------------

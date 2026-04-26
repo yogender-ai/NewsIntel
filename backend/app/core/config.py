@@ -28,16 +28,14 @@ class Settings(BaseSettings):
         if url.startswith("postgres://"):
             url = url.replace("postgres://", "postgresql+asyncpg://", 1)
 
+        # Strip ALL SSL-related query params — asyncpg does NOT support them
+        # in the DSN. SSL is configured via connect_args={'ssl': 'require'}
+        # in the engine factory (app/core/database.py, alembic/env.py).
         parts = urlsplit(url)
         query = dict(parse_qsl(parts.query, keep_blank_values=True))
-        sslmode = (query.pop("sslmode", None) or "").lower()
+        query.pop("sslmode", None)
+        query.pop("ssl", None)
         query.pop("channel_binding", None)
-        # Neon direct URLs often include psycopg-style sslmode/channel_binding.
-        # asyncpg either wants a boolean-ish `ssl` query arg or no TLS hint at all.
-        if sslmode and "ssl" not in query:
-            query["ssl"] = "true" if sslmode in {"require", "verify-ca", "verify-full", "true", "1"} else "false"
-        if query.get("sslmode"):
-            query.pop("sslmode", None)
 
         return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
 
