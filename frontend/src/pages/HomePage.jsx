@@ -24,6 +24,27 @@ function LoadingSkeleton() {
   );
 }
 
+function readableLiveError(err) {
+  const raw = err?.message || 'Unable to load live intelligence.';
+  const jsonStart = raw.indexOf('{');
+  if (jsonStart >= 0) {
+    try {
+      const parsed = JSON.parse(raw.slice(jsonStart));
+      const detail = parsed.detail || parsed.error || raw;
+      if (String(detail).includes('invalid input for query argument')) {
+        return 'Event-store timestamp query failed during ingestion/read. Backend has been updated to normalize UTC timestamps.';
+      }
+      return String(detail).slice(0, 180);
+    } catch {
+      // fall through to cleaner text below
+    }
+  }
+  if (raw.includes('invalid input for query argument')) {
+    return 'Event-store timestamp query failed during ingestion/read. Backend has been updated to normalize UTC timestamps.';
+  }
+  return raw.replace(/^\d+:\s*/, '').slice(0, 180);
+}
+
 function DetailDrawer({ shift, onClose }) {
   if (!shift) return null;
   return (
@@ -106,12 +127,12 @@ export default function HomePage() {
           setPreferences(cached.preferences);
           setAlerts(cached.alerts);
           const ageMinutes = Math.round((Date.now() - (cached.ts || 0)) / 60000);
-          setError(`Showing cached data (${ageMinutes}m old). Live feed unavailable: ${(err.message || '').slice(0, 80)}`);
+          setError(`Showing cached data (${ageMinutes}m old). ${readableLiveError(err)}`);
         } else {
-          setError(err.message || 'Unable to load live intelligence.');
+          setError(readableLiveError(err));
         }
       } catch {
-        setError(err.message || 'Unable to load live intelligence.');
+        setError(readableLiveError(err));
       }
     } finally {
       setLoading(false);

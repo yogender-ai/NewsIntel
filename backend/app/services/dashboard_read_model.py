@@ -7,6 +7,12 @@ from sqlalchemy.orm import selectinload
 from app.models.news import Event, EventArticle
 
 
+def as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
 def tier_from_event(event: Event) -> str:
     if event.confidence_score >= 0.82 and event.source_count >= 4:
         return "CRITICAL"
@@ -20,7 +26,7 @@ def tier_from_event(event: Event) -> str:
 def pulse_from_event(event: Event) -> int:
     age_hours = max(
         0.0,
-        (datetime.now(timezone.utc) - event.last_seen_at).total_seconds() / 3600,
+        (datetime.now(timezone.utc) - as_utc(event.last_seen_at)).total_seconds() / 3600,
     )
     freshness = max(0, 35 - int(age_hours * 2))
     source_weight = min(event.source_count * 12, 35)
@@ -156,4 +162,3 @@ def compare_dashboard_payloads(legacy: dict, event_backed: dict) -> dict:
         "pulse_differences_by_title": pulse_diffs,
         "delta_difference_note": "Event-backed delta should be computed from event pulse snapshots; legacy topic deltas are not authoritative after migration.",
     }
-

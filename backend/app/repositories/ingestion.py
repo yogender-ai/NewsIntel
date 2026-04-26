@@ -12,6 +12,19 @@ from app.services.text_fingerprint import content_hash, normalize_title, title_h
 from app.services.url_normalizer import normalize_url, sha256_text
 
 
+def db_utcnow() -> datetime:
+    """Return UTC as a naive datetime for compatibility with existing Postgres columns."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def db_datetime(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value
+    return value.astimezone(timezone.utc).replace(tzinfo=None)
+
+
 @dataclass(slots=True)
 class IncomingArticle:
     source: str
@@ -73,7 +86,7 @@ class IngestionRepository:
             summary=incoming.summary,
             raw_payload=incoming.raw_payload or {},
             raw_html=incoming.raw_html,
-            published_at=incoming.published_at,
+            published_at=db_datetime(incoming.published_at),
             article=article,
         )
         self.session.add(raw)
@@ -101,7 +114,7 @@ class IngestionRepository:
         body_hash: str | None,
     ) -> tuple[Article, str, bool]:
         existing = await self.session.scalar(select(Article).where(Article.url_hash == url_digest))
-        now = datetime.now(timezone.utc)
+        now = db_utcnow()
         if existing:
             existing.last_seen_at = now
             return existing, "url_hash", False
@@ -119,7 +132,7 @@ class IngestionRepository:
             title_hash=title_digest,
             source=incoming.source,
             author=incoming.author,
-            published_at=incoming.published_at,
+            published_at=db_datetime(incoming.published_at),
             first_seen_at=now,
             last_seen_at=now,
             content_hash=body_hash,
@@ -130,7 +143,7 @@ class IngestionRepository:
 
     async def _find_similar_article(self, title: str, published_at: datetime | None) -> Article | None:
         hours = self.settings.article_duplicate_window_hours
-        center = published_at or datetime.now(timezone.utc)
+        center = db_datetime(published_at) or db_utcnow()
         start = center - timedelta(hours=hours)
         end = center + timedelta(hours=hours)
 
@@ -156,7 +169,7 @@ class IngestionRepository:
             .where(EventArticle.article_id == article.id)
             .limit(1)
         )
-        now = datetime.now(timezone.utc)
+        now = db_utcnow()
         if linked_event:
             linked_event.last_seen_at = now
             linked_event.source_count = await self._count_event_sources(linked_event.id)
@@ -219,7 +232,7 @@ class IngestionRepository:
         category: str | None,
         region: str | None,
     ) -> Event | None:
-        cutoff = datetime.now(timezone.utc) - timedelta(hours=self.settings.article_duplicate_window_hours)
+        cutoff = db_utcnow() - timedelta(hours=self.settings.article_duplicate_window_hours)
         stmt = select(Event).where(Event.last_seen_at >= cutoff).order_by(Event.last_seen_at.desc()).limit(100)
         if category:
             stmt = stmt.where(Event.category == category)

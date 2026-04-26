@@ -29,7 +29,7 @@ export default function Sidebar({ preferences, onLocked, onSetFocus, onSettings 
         <button className="active"><Home size={17} /> Home</button>
         {locked.map(([label, Icon]) => (
           <button key={label} className="locked" onClick={() => onLocked(lockedMessages[label])}>
-            <Icon size={17} /> {label}<small>Soon</small><Lock size={13} />
+            <Icon size={17} /> {label}<small>Phase</small><Lock size={13} />
           </button>
         ))}
         <button onClick={onSettings}><Settings size={17} /> Settings</button>
@@ -62,9 +62,8 @@ export default function Sidebar({ preferences, onLocked, onSetFocus, onSettings 
 
       <div className="ask-disabled">
         <Search size={16} />
-        <span>Ask NewsIntel — Coming soon</span>
+        <span>Analyst search unavailable</span>
       </div>
     </aside>
   );
 }
-
