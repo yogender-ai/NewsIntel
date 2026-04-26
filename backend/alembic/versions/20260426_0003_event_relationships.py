@@ -29,48 +29,50 @@ RELATIONSHIP_TYPES = (
 
 
 def upgrade() -> None:
-    op.create_table(
-        "event_relationships",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, nullable=False),
-        sa.Column("source_event_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("events.id"), nullable=False),
-        sa.Column("target_event_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("events.id"), nullable=False),
-        sa.Column("relationship_type", sa.String(length=40), nullable=False),
-        sa.Column("confidence", sa.Float(), nullable=False, server_default="0"),
-        sa.Column("evidence", sa.Text(), nullable=False),
-        sa.Column("pair_hash", sa.String(length=80), nullable=False),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.CheckConstraint(f"relationship_type IN {RELATIONSHIP_TYPES}", name="ck_event_relationships_type"),
-        sa.CheckConstraint("confidence >= 0 AND confidence <= 1", name="ck_event_relationships_confidence"),
-        sa.CheckConstraint("source_event_id <> target_event_id", name="ck_event_relationships_distinct_events"),
-    )
-    op.create_index("ix_event_relationships_pair_hash", "event_relationships", ["pair_hash"], unique=True)
-    op.create_index("ix_event_relationships_source", "event_relationships", ["source_event_id"])
-    op.create_index("ix_event_relationships_target", "event_relationships", ["target_event_id"])
-    op.create_index(
-        "ix_event_relationships_type_confidence",
-        "event_relationships",
-        ["relationship_type", "confidence"],
+    inspector = sa.inspect(op.get_bind())
+
+    if not inspector.has_table("event_relationships"):
+        op.create_table(
+            "event_relationships",
+            sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, nullable=False),
+            sa.Column("source_event_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("events.id"), nullable=False),
+            sa.Column("target_event_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("events.id"), nullable=False),
+            sa.Column("relationship_type", sa.String(length=40), nullable=False),
+            sa.Column("confidence", sa.Float(), nullable=False, server_default="0"),
+            sa.Column("evidence", sa.Text(), nullable=False),
+            sa.Column("pair_hash", sa.String(length=80), nullable=False),
+            sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+            sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+            sa.CheckConstraint(f"relationship_type IN {RELATIONSHIP_TYPES}", name="ck_event_relationships_type"),
+            sa.CheckConstraint("confidence >= 0 AND confidence <= 1", name="ck_event_relationships_confidence"),
+            sa.CheckConstraint("source_event_id <> target_event_id", name="ck_event_relationships_distinct_events"),
+        )
+    op.execute("CREATE UNIQUE INDEX IF NOT EXISTS ix_event_relationships_pair_hash ON event_relationships (pair_hash)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_event_relationships_source ON event_relationships (source_event_id)")
+    op.execute("CREATE INDEX IF NOT EXISTS ix_event_relationships_target ON event_relationships (target_event_id)")
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_event_relationships_type_confidence "
+        "ON event_relationships (relationship_type, confidence)"
     )
 
-    op.create_table(
-        "event_relationship_checks",
-        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, nullable=False),
-        sa.Column("pair_hash", sa.String(length=80), nullable=False),
-        sa.Column("source_event_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("events.id"), nullable=False),
-        sa.Column("target_event_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("events.id"), nullable=False),
-        sa.Column("candidate_score", sa.Float(), nullable=False, server_default="0"),
-        sa.Column("status", sa.String(length=32), nullable=False, server_default="checked"),
-        sa.Column("reason", sa.Text(), nullable=True),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
-        sa.CheckConstraint("source_event_id <> target_event_id", name="ck_event_relationship_checks_distinct_events"),
-    )
-    op.create_index("ix_event_relationship_checks_pair_hash", "event_relationship_checks", ["pair_hash"], unique=True)
-    op.create_index(
-        "ix_event_relationship_checks_source_target",
-        "event_relationship_checks",
-        ["source_event_id", "target_event_id"],
+    if not inspector.has_table("event_relationship_checks"):
+        op.create_table(
+            "event_relationship_checks",
+            sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True, nullable=False),
+            sa.Column("pair_hash", sa.String(length=80), nullable=False),
+            sa.Column("source_event_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("events.id"), nullable=False),
+            sa.Column("target_event_id", postgresql.UUID(as_uuid=True), sa.ForeignKey("events.id"), nullable=False),
+            sa.Column("candidate_score", sa.Float(), nullable=False, server_default="0"),
+            sa.Column("status", sa.String(length=32), nullable=False, server_default="checked"),
+            sa.Column("reason", sa.Text(), nullable=True),
+            sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+            sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now()),
+            sa.CheckConstraint("source_event_id <> target_event_id", name="ck_event_relationship_checks_distinct_events"),
+        )
+    op.execute("CREATE UNIQUE INDEX IF NOT EXISTS ix_event_relationship_checks_pair_hash ON event_relationship_checks (pair_hash)")
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS ix_event_relationship_checks_source_target "
+        "ON event_relationship_checks (source_event_id, target_event_id)"
     )
 
 

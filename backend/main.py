@@ -30,6 +30,7 @@ from app.core.cors import ALLOWED_ORIGIN_REGEX, allowed_origins
 from app.core.database import AsyncSessionLocal as EventStoreSessionLocal
 from app.services.dashboard_read_model import build_dashboard_payload
 from app.services.event_relationships import load_orbit_payload
+from app.services.schema_migrations import run_startup_migrations
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("news-intel-api")
@@ -63,6 +64,7 @@ ARTICLE_ANALYSIS_TTL = 1800
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _bg_task
+    await run_startup_migrations()
     await db.database.connect()
     await db.init_db()
     logger.info("News-Intel v12 (Cached Intelligence) ready. DB connected.")

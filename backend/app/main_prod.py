@@ -7,10 +7,12 @@ from app.api.routes import router as v2_router
 from app.core.cache import cache
 from app.core.cors import ALLOWED_ORIGIN_REGEX, allowed_origins
 from app.core.database import engine
+from app.services.schema_migrations import run_startup_migrations
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    await run_startup_migrations()
     yield
     await cache.close()
     await engine.dispose()
