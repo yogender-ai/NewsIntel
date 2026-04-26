@@ -242,7 +242,7 @@ async def _call_gemini_embedding(text: str, model: str = None) -> dict:
     if c: return c
 
     payload = {
-        "model": model or os.getenv("GEMINI_EMBEDDING_MODEL", "text-embedding-004"),
+        "model": model or os.getenv("GEMINI_EMBEDDING_MODEL", "gemini-embedding-001"),
         "content": {"parts": [{"text": text[:8000]}]},
     }
     try:

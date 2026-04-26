@@ -139,8 +139,8 @@ async def _cors_safe_exception_handler(request: Request, exc: Exception):
 # Pydantic Models
 # ---------------------------------------------------------------------------
 class DashboardRequest(BaseModel):
-    topics: List[str] = []
-    regions: List[str] = []
+    topics: Optional[List[str]] = []
+    regions: Optional[List[str]] = []
 
 class IngestNowRequest(BaseModel):
     topics: List[str] = ["ai", "tech", "markets"]
@@ -1221,8 +1221,8 @@ async def get_cached_dashboard(request: Request):
 async def force_refresh_dashboard(request: Request, payload_request: DashboardRequest):
     """Force a refresh. Uses requested topics or the saved profile when available."""
     user_topics, user_regions, _, has_saved_profile = await _get_user_prefs_from_header(request)
-    requested_topics = _normalize_profile_values(payload_request.topics)
-    requested_regions = _normalize_profile_values(payload_request.regions)
+    requested_topics = _normalize_profile_values(payload_request.topics or [])
+    requested_regions = _normalize_profile_values(payload_request.regions or [])
     effective_topics = requested_topics or (user_topics if has_saved_profile else [])
     effective_regions = requested_regions or (user_regions if has_saved_profile else [])
     return await _event_backed_dashboard_payload(effective_topics, effective_regions)
