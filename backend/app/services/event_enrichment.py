@@ -13,6 +13,7 @@ from sqlalchemy.orm.attributes import flag_modified
 import hf_client
 from app.core.config import get_settings
 from app.models.news import Event, EventArticle
+from app.services.intensity_scoring import dynamic_event_intensity, remember_intensity
 
 logger = logging.getLogger("news-intel-event-enrichment")
 
@@ -164,17 +165,9 @@ def ai_importance_score(payload: EventEnrichmentPayload | None) -> int:
 
 
 def hybrid_pulse_score(event: Event, payload: EventEnrichmentPayload | None, user_relevance: int = 50) -> tuple[int, dict[str, int]]:
-    base, breakdown = deterministic_base_score(event)
-    importance = ai_importance_score(payload)
-    final = round(base * 0.6 + importance * 0.4) if payload else base
-    breakdown.update(
-        {
-            "deterministic_base": base,
-            "ai_importance": importance,
-            "user_relevance": user_relevance,
-        }
-    )
-    return max(1, min(100, final)), breakdown
+    score, breakdown = dynamic_event_intensity(event, payload)
+    breakdown["user_relevance"] = user_relevance
+    return score, breakdown
 
 
 def hybrid_signal_tier(event: Event, payload: EventEnrichmentPayload | None, pulse: int) -> str:
@@ -374,6 +367,7 @@ class EventEnrichmentService:
                     "signal_tier": tier,
                 }
                 set_event_ai_metadata(event, ai)
+                remember_intensity(event, pulse, payload)
                 from app.services.geo_signals import ensure_event_geo
                 ensure_event_geo(event)
                 return AI_STATUS_ENRICHED
@@ -395,4 +389,5 @@ class EventEnrichmentService:
             "signal_tier": hybrid_signal_tier(event, None, base_pulse),
         }
         set_event_ai_metadata(event, ai)
+        remember_intensity(event, base_pulse, None)
         return AI_STATUS_FAILED

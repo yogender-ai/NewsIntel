@@ -9,6 +9,8 @@ from app.core.config import get_settings
 from app.models.news import Article, Event, EventArticle, RawArticle
 from app.services.event_clustering import should_cluster_titles
 from app.services.event_enrichment import mark_event_pending
+from app.services.semantic_clustering import compare_article_to_article, compare_article_to_event
+from app.services.semantic_embeddings import EMBEDDING_MODEL, article_embedding_text, embed_text, text_hash
 from app.services.text_fingerprint import content_hash, normalize_title, title_hash, title_similarity
 from app.services.url_normalizer import normalize_url, sha256_text
 
@@ -161,6 +163,9 @@ class IngestionRepository:
             last_seen_at=now,
             content_hash=body_hash,
             text_preview=(incoming.text or incoming.summary or "")[:600],
+            embedding_json=embed_text(article_embedding_text(incoming.title, incoming.text or incoming.summary, incoming.source)),
+            embedding_model=EMBEDDING_MODEL,
+            embedding_text_hash=text_hash(article_embedding_text(incoming.title, incoming.text or incoming.summary, incoming.source)),
         )
         self.session.add(article)
         return article, "new_article", True
@@ -182,7 +187,8 @@ class IngestionRepository:
         candidates = (await self.session.scalars(stmt)).all()
         threshold = self.settings.title_similarity_threshold
         for candidate in candidates:
-            if title_similarity(title, candidate.title) >= threshold:
+            decision = await compare_article_to_article(title, "", candidate)
+            if decision.decision == "merge":
                 return candidate
         return None
 
@@ -268,7 +274,18 @@ class IngestionRepository:
         candidates = (await self.session.scalars(stmt)).all()
         threshold = max(0.72, self.settings.title_similarity_threshold - 0.08)
         for event in candidates:
-            if should_cluster_titles(title, event.title, threshold=threshold):
+            decision = await compare_article_to_event(title, title, event)
+            if decision.decision == "merge":
+                metadata = dict(event.metadata_json or {})
+                phase6 = metadata.get("phase6") if isinstance(metadata.get("phase6"), dict) else {}
+                phase6["last_cluster_decision"] = {
+                    "method": decision.method,
+                    "confidence": decision.confidence,
+                    "reason": decision.reason,
+                    "embedding_similarity": decision.embedding_similarity,
+                }
+                metadata["phase6"] = phase6
+                event.metadata_json = metadata
                 return event
         return None
 

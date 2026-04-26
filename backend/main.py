@@ -15,6 +15,7 @@ import json
 import asyncio
 import time
 import os
+import statistics
 from contextlib import asynccontextmanager
 from typing import List, Optional
 from datetime import datetime, timezone, timedelta
@@ -32,6 +33,7 @@ from app.services.dashboard_read_model import build_dashboard_payload
 from app.services.event_relationships import load_orbit_payload
 from app.services.geo_signals import build_map_signals
 from app.services.scenario_simulator import run_scenario
+from app.services.semantic_personalization import semantic_relevance
 from app.services.schema_migrations import run_startup_migrations
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
@@ -620,20 +622,15 @@ def _personalize_payload(payload: dict, user_id: str, user_topics: list, user_re
         c["thread_id"] = signal_id
         c["entities"] = _cluster_entities(c, articles)
         c["story_graph"] = build_story_graph(c, articles, user_topics, user_regions)
-        c["why_relevant"] = _why_relevant(c, user_topics, user_regions, phase5, articles)
+        semantic = semantic_relevance(c, user_topics, user_regions, phase5, articles)
+        c["why_relevant"] = semantic
         if signal_id in dismissed:
             c["dismissed"] = True
-        base_relevance = c.get("exposure_score", 50)
-        entity_overlap = len([e for e in c["entities"] if any(t["entity_name"].lower() == e["name"].lower() for t in phase5.get("tracked_entities", []))])
-        region_bonus = 10 if "global" in user_regions else 0
-        watch_boost = 20 if signal_id in watched else 0
-        saved_boost = 16 if signal_id in saved else 0
-        engagement = interaction_weights.get(signal_id, 0) * 6
         dismissal_penalty = 100 if signal_id in dismissed else 0
-        relevance = max(0, min(100, base_relevance + entity_overlap * 18 + region_bonus + watch_boost + saved_boost + engagement - dismissal_penalty))
+        relevance = max(0, min(100, semantic["score"] - dismissal_penalty))
         c["relevance_score"] = round(relevance, 1)
-        c["confidence"] = min(0.95, 0.45 + min(c.get("source_count", 1), 5) * 0.08 + len(c["why_relevant"]["factors"]) * 0.04)
-        c["_personal_rank"] = relevance + c.get("pulse_score", 50) + watch_boost + saved_boost - dismissal_penalty
+        c["confidence"] = min(0.95, 0.45 + min(c.get("source_count", 1), 5) * 0.08 + semantic["score"] / 500)
+        c["_personal_rank"] = relevance * 1.35 + c.get("pulse_score", 50) * 0.75 - dismissal_penalty
         clusters.append(c)
 
     tier_order = {"CRITICAL": 40, "SIGNAL": 25, "WATCH": 10, "NOISE": 0}
@@ -755,8 +752,11 @@ async def compute_daily_delta(topics: list, current_clusters: list) -> list:
     deltas = []
     for topic in topics:
         current = topic_pulse_current.get(topic, 50.0)
-        snapshot = await db.get_pulse_snapshot_24h(topic)
-        previous = snapshot["pulse_score"] if snapshot else current
+        history = await db.get_pulse_history([topic], days=7)
+        points = [float(point["pulse_score"]) for point in history.get(topic, []) if point.get("pulse_score") is not None]
+        previous = round(sum(points) / len(points), 1) if points else current
+        volatility = round(statistics.pstdev(points), 2) if len(points) >= 2 else 0.0
+        confidence = round(min(1.0, len(points) / 12) * (1 / (1 + volatility / 35)), 3) if points else 0.25
         delta = round(current - previous, 1)
         deltas.append({
             "topic": topic,
@@ -764,7 +764,12 @@ async def compute_daily_delta(topics: list, current_clusters: list) -> list:
             "current": current,
             "previous": previous,
             "delta": delta,
-            "has_baseline": bool(snapshot),
+            "has_baseline": True,
+            "baseline_window": "7d_moving_average",
+            "sample_count": len(points),
+            "volatility": volatility,
+            "volatility_confidence": confidence,
+            "baseline_quality": "strong" if confidence >= 0.7 else "medium" if confidence >= 0.4 else "thin",
         })
 
         try:
@@ -1408,6 +1413,34 @@ async def simulate(request: Request, payload: SimulateInput):
             )
         except (json.JSONDecodeError, ValueError, ValidationError, TypeError) as exc:
             raise HTTPException(status_code=502, detail=f"Scenario AI returned invalid output: {str(exc)[:180]}")
+
+
+@app.get("/api/intelligence/phase6")
+async def phase6_status():
+    return {
+        "status": "active",
+        "clustering": {
+            "rule_prefilter": True,
+            "embedding_similarity": "newsintel-local-hash-embedding-v1",
+            "llm_validation": "ambiguous_pairs_only",
+        },
+        "pulse": {
+            "model": "phase6_dynamic_event_intensity_v1",
+            "features": ["velocity", "novelty", "source_acceleration", "entity_emergence", "historical_anomaly"],
+        },
+        "delta": {
+            "baseline": "7d_moving_average",
+            "volatility_confidence": True,
+        },
+        "personalization": {
+            "model": "phase6_semantic_profile_event_relevance_v1",
+            "signals": ["user_profile", "interaction_history", "event_embedding"],
+        },
+        "rollback": {
+            "code": "revert semantic_clustering/intensity_scoring/semantic_personalization imports and use previous migration head",
+            "schema": "alembic downgrade 20260426_0004",
+        },
+    }
 
 
 def _build_exposure_network(user_id: str, payload: dict, user_topics: list, phase5: dict) -> dict:

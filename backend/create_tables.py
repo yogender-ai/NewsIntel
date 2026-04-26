@@ -30,9 +30,9 @@ async def create_tables():
         ))
         await conn.execute(text("DELETE FROM alembic_version"))
         await conn.execute(text(
-            "INSERT INTO alembic_version (version_num) VALUES ('20260426_0004')"
+            "INSERT INTO alembic_version (version_num) VALUES ('20260426_0005')"
         ))
-        print("Alembic version stamped: 20260426_0004")
+        print("Alembic version stamped: 20260426_0005")
 
     # 4. Verify
     async with engine.connect() as conn:
