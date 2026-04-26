@@ -212,6 +212,8 @@ class User(Base, TimestampMixin):
 
     preference: Mapped["Preference | None"] = relationship(back_populates="user", uselist=False)
     alerts: Mapped[list["Alert"]] = relationship(back_populates="user")
+    alert_rules: Mapped[list["AlertRule"]] = relationship(back_populates="user")
+    daily_digests: Mapped[list["DailyDigest"]] = relationship(back_populates="user")
 
 
 class Preference(Base, TimestampMixin):
@@ -233,16 +235,82 @@ class Alert(Base, TimestampMixin):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
     event_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("events.id"))
+    rule_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("alert_rules.id"))
     severity: Mapped[str] = mapped_column(String(30), default="info", nullable=False)
     alert_type: Mapped[str] = mapped_column(String(60), default="event_update", nullable=False)
+    title: Mapped[str | None] = mapped_column(Text)
     message: Mapped[str] = mapped_column(Text, nullable=False)
+    reason_json: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    status: Mapped[str] = mapped_column(String(30), default="unread", nullable=False)
+    fingerprint: Mapped[str | None] = mapped_column(String(96), index=True)
     unread: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     resolved: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     user: Mapped[User] = relationship(back_populates="alerts")
+    rule: Mapped["AlertRule | None"] = relationship(back_populates="alerts")
 
     __table_args__ = (
         Index("ix_alerts_user_unread", "user_id", "unread", "resolved"),
         Index("ix_alerts_event_type", "event_id", "alert_type"),
+        Index("ix_alerts_user_status_created", "user_id", "status", "created_at"),
+        Index("ix_alerts_fingerprint_created", "fingerprint", "created_at"),
     )
+
+
+class AlertRule(Base, TimestampMixin):
+    __tablename__ = "alert_rules"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    rule_type: Mapped[str] = mapped_column(String(60), nullable=False, index=True)
+    target_type: Mapped[str] = mapped_column(String(60), default="any", nullable=False)
+    target_value: Mapped[str] = mapped_column(String(255), default="*", nullable=False)
+    threshold: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    cooldown_minutes: Mapped[int] = mapped_column(Integer, default=360, nullable=False)
+
+    user: Mapped[User] = relationship(back_populates="alert_rules")
+    alerts: Mapped[list[Alert]] = relationship(back_populates="rule")
+
+    __table_args__ = (
+        Index("ix_alert_rules_user_type", "user_id", "rule_type", "enabled"),
+    )
+
+
+class DailyDigest(Base):
+    __tablename__ = "daily_digests"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    digest_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    summary_json: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    provider_used: Mapped[str | None] = mapped_column(String(120))
+    status: Mapped[str] = mapped_column(String(40), default="pending", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    generated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error: Mapped[str | None] = mapped_column(Text)
+
+    user: Mapped[User] = relationship(back_populates="daily_digests")
+    delivery_logs: Mapped[list["DigestDeliveryLog"]] = relationship(back_populates="digest")
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "digest_date", name="uq_daily_digests_user_date"),
+        Index("ix_daily_digests_user_date", "user_id", "digest_date"),
+    )
+
+
+class DigestDeliveryLog(Base):
+    __tablename__ = "digest_delivery_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    digest_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("daily_digests.id"), nullable=False, index=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
+    channel: Mapped[str] = mapped_column(String(40), default="api", nullable=False)
+    status: Mapped[str] = mapped_column(String(40), default="created", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    error: Mapped[str | None] = mapped_column(Text)
+
+    digest: Mapped[DailyDigest] = relationship(back_populates="delivery_logs")

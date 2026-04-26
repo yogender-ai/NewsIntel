@@ -19,6 +19,7 @@ import statistics
 from contextlib import asynccontextmanager
 from typing import List, Optional
 from datetime import datetime, timezone, timedelta
+from uuid import UUID
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,7 +30,11 @@ import hf_client
 import news_fetcher
 from app.core.cors import ALLOWED_ORIGIN_REGEX, allowed_origins
 from app.core.database import AsyncSessionLocal as EventStoreSessionLocal
+from sqlalchemy import func, select
+from app.models.news import Alert, AlertRule, DailyDigest, User
+from app.services.alert_engine import ensure_user, evaluate_all_users, evaluate_user_alerts
 from app.services.dashboard_read_model import build_dashboard_payload
+from app.services.digest_engine import generate_all_digests, generate_digest
 from app.services.event_relationships import load_orbit_payload
 from app.services.geo_signals import build_map_signals
 from app.services.scenario_simulator import run_scenario
@@ -182,6 +187,22 @@ class SimulateInput(BaseModel):
     scenario: str
     base_event_id: Optional[str] = None
     assumptions: dict = {}
+
+class AlertRuleInput(BaseModel):
+    rule_type: str
+    target_type: str = "any"
+    target_value: str = "*"
+    threshold: float = 0
+    enabled: bool = True
+    cooldown_minutes: int = 360
+
+class AlertRulePatch(BaseModel):
+    rule_type: Optional[str] = None
+    target_type: Optional[str] = None
+    target_value: Optional[str] = None
+    threshold: Optional[float] = None
+    enabled: Optional[bool] = None
+    cooldown_minutes: Optional[int] = None
 
 
 # ---------------------------------------------------------------------------
@@ -563,6 +584,63 @@ def _interaction_weights(interactions: list) -> dict:
             continue
         weights[signal_id] = weights.get(signal_id, 0) + multipliers.get(item.get("interaction_type"), 0.5)
     return weights
+
+
+def _admin_secret_valid(request: Request) -> bool:
+    expected = os.getenv("ADMIN_SECRET") or os.getenv("INGEST_SECRET") or os.getenv("GATEWAY_SECRET")
+    supplied = (
+        request.headers.get("X-Admin-Secret", "").strip()
+        or request.headers.get("X-Ingest-Secret", "").strip()
+        or request.headers.get("X-Gateway-Secret", "").strip()
+    )
+    return bool(expected and supplied == expected)
+
+
+def _alert_payload(alert: Alert) -> dict:
+    return {
+        "id": str(alert.id),
+        "user_id": str(alert.user_id),
+        "event_id": str(alert.event_id) if alert.event_id else None,
+        "rule_id": str(alert.rule_id) if alert.rule_id else None,
+        "alert_type": alert.alert_type,
+        "severity": alert.severity,
+        "title": alert.title,
+        "message": alert.message,
+        "reason_json": alert.reason_json or {},
+        "status": alert.status,
+        "fingerprint": alert.fingerprint,
+        "created_at": alert.created_at.isoformat() if alert.created_at else None,
+        "read_at": alert.read_at.isoformat() if alert.read_at else None,
+        "dismissed_at": alert.dismissed_at.isoformat() if alert.dismissed_at else None,
+    }
+
+
+def _rule_payload(rule: AlertRule) -> dict:
+    return {
+        "id": str(rule.id),
+        "rule_type": rule.rule_type,
+        "target_type": rule.target_type,
+        "target_value": rule.target_value,
+        "threshold": rule.threshold,
+        "enabled": rule.enabled,
+        "cooldown_minutes": rule.cooldown_minutes,
+        "created_at": rule.created_at.isoformat() if rule.created_at else None,
+        "updated_at": rule.updated_at.isoformat() if rule.updated_at else None,
+    }
+
+
+def _digest_payload(digest: DailyDigest) -> dict:
+    return {
+        "id": str(digest.id),
+        "user_id": str(digest.user_id),
+        "digest_date": digest.digest_date.date().isoformat() if digest.digest_date else None,
+        "summary_json": digest.summary_json or {},
+        "provider_used": digest.provider_used,
+        "status": digest.status,
+        "created_at": digest.created_at.isoformat() if digest.created_at else None,
+        "generated_at": digest.generated_at.isoformat() if digest.generated_at else None,
+        "error": digest.error,
+    }
 
 
 def _why_relevant(cluster: dict, user_topics: list, user_regions: list, phase5: dict, articles: list) -> dict:
@@ -1260,8 +1338,20 @@ async def personalized_dashboard(request: Request):
         cluster["pulse_trend"] = [point["pulse_score"] for point in series[-12:]]
         cluster["pulse_history_topic"] = topic
     personalized["pulse_history"] = pulse_history
-    await _ensure_alerts(user_id, personalized, phase5)
-    personalized["alerts"] = await db.list_alerts(user_id, unresolved_only=True)
+    async with EventStoreSessionLocal() as session:
+        event_user = await ensure_user(session, user_id)
+        result = await evaluate_user_alerts(session, event_user, hours=24, limit=40)
+        alerts = (
+            await session.scalars(
+                select(Alert)
+                .where(Alert.user_id == event_user.id, Alert.status == "unread")
+                .order_by(Alert.created_at.desc())
+                .limit(20)
+            )
+        ).all()
+        await session.commit()
+    personalized["alerts"] = [_alert_payload(alert) for alert in alerts]
+    personalized["alert_check"] = result
     personalized["exposure_network"] = _build_exposure_network(user_id, personalized, user_topics, phase5)
     return personalized
 
@@ -1323,12 +1413,210 @@ async def record_interaction_endpoint(request: Request, payload: InteractionInpu
 
 
 @app.get("/api/alerts")
-async def get_alerts(request: Request):
-    user_id = _user_id_from_request(request)
-    rows = await db.list_alerts(user_id)
+async def get_alerts(
+    request: Request,
+    status: str = Query(default="unread", pattern="^(unread|read|dismissed|all)$"),
+    severity: Optional[str] = Query(default=None, pattern="^(low|medium|high|critical)$"),
+    limit: int = Query(default=50, ge=1, le=100),
+):
+    external_id = _user_id_from_request(request)
+    async with EventStoreSessionLocal() as session:
+        user = await ensure_user(session, external_id)
+        stmt = select(Alert).where(Alert.user_id == user.id).order_by(Alert.created_at.desc()).limit(limit)
+        if status != "all":
+            stmt = stmt.where(Alert.status == status)
+        if severity:
+            stmt = stmt.where(Alert.severity == severity)
+        alerts = (await session.scalars(stmt)).all()
+        unread_count = await session.scalar(select(func.count(Alert.id)).where(Alert.user_id == user.id, Alert.status == "unread"))
+        return {"alerts": [_alert_payload(alert) for alert in alerts], "unread_count": int(unread_count or 0)}
+
+
+@app.patch("/api/alerts/{alert_id}/read")
+async def mark_alert_read(request: Request, alert_id: str):
+    external_id = _user_id_from_request(request)
+    async with EventStoreSessionLocal() as session:
+        user = await ensure_user(session, external_id)
+        alert = await session.scalar(select(Alert).where(Alert.id == UUID(alert_id), Alert.user_id == user.id))
+        if not alert:
+            raise HTTPException(status_code=404, detail="Alert not found")
+        alert.status = "read"
+        alert.unread = False
+        alert.read_at = datetime.now(timezone.utc)
+        await session.commit()
+        return {"status": "success", "alert": _alert_payload(alert)}
+
+
+@app.patch("/api/alerts/{alert_id}/dismiss")
+async def dismiss_alert(request: Request, alert_id: str):
+    external_id = _user_id_from_request(request)
+    async with EventStoreSessionLocal() as session:
+        user = await ensure_user(session, external_id)
+        alert = await session.scalar(select(Alert).where(Alert.id == UUID(alert_id), Alert.user_id == user.id))
+        if not alert:
+            raise HTTPException(status_code=404, detail="Alert not found")
+        alert.status = "dismissed"
+        alert.unread = False
+        alert.resolved = True
+        alert.dismissed_at = datetime.now(timezone.utc)
+        await session.commit()
+        return {"status": "success", "alert": _alert_payload(alert)}
+
+
+@app.get("/api/alert-rules")
+async def get_alert_rules(request: Request):
+    external_id = _user_id_from_request(request)
+    async with EventStoreSessionLocal() as session:
+        user = await ensure_user(session, external_id)
+        rules = (await session.scalars(select(AlertRule).where(AlertRule.user_id == user.id).order_by(AlertRule.rule_type.asc()))).all()
+        return {"alert_rules": [_rule_payload(rule) for rule in rules]}
+
+
+@app.post("/api/alert-rules")
+async def create_alert_rule(request: Request, payload: AlertRuleInput):
+    external_id = _user_id_from_request(request)
+    async with EventStoreSessionLocal() as session:
+        user = await ensure_user(session, external_id)
+        rule = AlertRule(
+            user_id=user.id,
+            rule_type=payload.rule_type,
+            target_type=payload.target_type,
+            target_value=payload.target_value,
+            threshold=payload.threshold,
+            enabled=payload.enabled,
+            cooldown_minutes=max(15, min(payload.cooldown_minutes, 1440)),
+        )
+        session.add(rule)
+        await session.commit()
+        return {"status": "success", "alert_rule": _rule_payload(rule)}
+
+
+@app.patch("/api/alert-rules/{rule_id}")
+async def update_alert_rule(request: Request, rule_id: str, payload: AlertRulePatch):
+    external_id = _user_id_from_request(request)
+    async with EventStoreSessionLocal() as session:
+        user = await ensure_user(session, external_id)
+        rule = await session.scalar(select(AlertRule).where(AlertRule.id == UUID(rule_id), AlertRule.user_id == user.id))
+        if not rule:
+            raise HTTPException(status_code=404, detail="Alert rule not found")
+        updates = payload.model_dump(exclude_unset=True)
+        for key, value in updates.items():
+            if key == "cooldown_minutes" and value is not None:
+                value = max(15, min(int(value), 1440))
+            setattr(rule, key, value)
+        await session.commit()
+        return {"status": "success", "alert_rule": _rule_payload(rule)}
+
+
+@app.delete("/api/alert-rules/{rule_id}")
+async def delete_alert_rule(request: Request, rule_id: str):
+    external_id = _user_id_from_request(request)
+    async with EventStoreSessionLocal() as session:
+        user = await ensure_user(session, external_id)
+        rule = await session.scalar(select(AlertRule).where(AlertRule.id == UUID(rule_id), AlertRule.user_id == user.id))
+        if not rule:
+            raise HTTPException(status_code=404, detail="Alert rule not found")
+        await session.delete(rule)
+        await session.commit()
+        return {"status": "success"}
+
+
+@app.post("/api/alerts/run-check")
+async def run_alert_check(request: Request):
+    external_id = _user_id_from_request(request)
+    async with EventStoreSessionLocal() as session:
+        user = await ensure_user(session, external_id)
+        result = await evaluate_user_alerts(session, user)
+        await session.commit()
+        return result
+
+
+@app.get("/api/digest/today")
+async def get_today_digest(request: Request):
+    external_id = _user_id_from_request(request)
+    async with EventStoreSessionLocal() as session:
+        user = await ensure_user(session, external_id)
+        today = datetime.now(timezone.utc).replace(hour=0, minute=0, second=0, microsecond=0)
+        digest = await session.scalar(select(DailyDigest).where(DailyDigest.user_id == user.id, DailyDigest.digest_date == today))
+        if not digest:
+            digest = await generate_digest(session, user)
+            await session.commit()
+        return {"digest": _digest_payload(digest)}
+
+
+@app.post("/api/digest/generate")
+async def generate_digest_endpoint(request: Request):
+    external_id = _user_id_from_request(request)
+    async with EventStoreSessionLocal() as session:
+        user = await ensure_user(session, external_id)
+        digest = await generate_digest(session, user, force=True)
+        await session.commit()
+        return {"status": "success", "digest": _digest_payload(digest)}
+
+
+@app.get("/api/digests")
+async def list_digests(request: Request, limit: int = Query(default=30, ge=1, le=90)):
+    external_id = _user_id_from_request(request)
+    async with EventStoreSessionLocal() as session:
+        user = await ensure_user(session, external_id)
+        digests = (
+            await session.scalars(
+                select(DailyDigest)
+                .where(DailyDigest.user_id == user.id)
+                .order_by(DailyDigest.digest_date.desc())
+                .limit(limit)
+            )
+        ).all()
+        return {"digests": [_digest_payload(digest) for digest in digests]}
+
+
+@app.get("/api/digests/{digest_id}")
+async def get_digest(request: Request, digest_id: str):
+    external_id = _user_id_from_request(request)
+    async with EventStoreSessionLocal() as session:
+        user = await ensure_user(session, external_id)
+        digest = await session.scalar(select(DailyDigest).where(DailyDigest.id == UUID(digest_id), DailyDigest.user_id == user.id))
+        if not digest:
+            raise HTTPException(status_code=404, detail="Digest not found")
+        return {"digest": _digest_payload(digest)}
+
+
+@app.post("/api/digest/run-all")
+async def run_all_digests(request: Request):
+    if not _admin_secret_valid(request):
+        raise HTTPException(status_code=401, detail="Invalid admin secret")
+    async with EventStoreSessionLocal() as session:
+        result = await generate_all_digests(session)
+        await session.commit()
+        return result
+
+
+@app.post("/api/admin/run-alerts")
+async def admin_run_alerts(request: Request):
+    if not _admin_secret_valid(request):
+        raise HTTPException(status_code=401, detail="Invalid admin secret")
+    async with EventStoreSessionLocal() as session:
+        result = await evaluate_all_users(session)
+        await session.commit()
+        return result
+
+
+@app.post("/api/admin/generate-digests")
+async def admin_generate_digests(request: Request):
+    if not _admin_secret_valid(request):
+        raise HTTPException(status_code=401, detail="Invalid admin secret")
+    async with EventStoreSessionLocal() as session:
+        result = await generate_all_digests(session)
+        await session.commit()
+        return result
+
+
+@app.get("/api/live-signals")
+async def live_signals():
     return {
-        "alerts": rows,
-        "unread_count": sum(1 for row in rows if row.get("unread") and not row.get("resolved")),
+        "status": "polling_recommended",
+        "poll_endpoints": ["/api/alerts?status=unread", "/api/digest/today", "/api/dashboard"],
+        "suggested_interval_seconds": 30,
     }
 
 
