@@ -249,6 +249,8 @@ async def _call_gemini_embedding(text: str, model: str = None) -> dict:
         response = await _http.post(GEMINI_EMBEDDING_URL, headers=HEADERS, json=payload)
         if response.status_code == 200:
             data = response.json()
+            if isinstance(data, dict) and "model" not in data:
+                data["model"] = payload["model"]
             _put(k, data)
             return data
         logger.warning("Gemini embedding %s: %s", response.status_code, response.text[:200])

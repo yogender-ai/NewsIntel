@@ -122,9 +122,9 @@ def _parse_embedding_payload(data: Any) -> tuple[list[float], str] | None:
         first = candidate[0]
         if isinstance(first, dict):
             candidate = first.get("values") or first.get("embedding") or first.get("vector")
-        if isinstance(first, list):
+        elif isinstance(first, list):
             candidate = first
-        if all(isinstance(item, int | float) for item in candidate):
+        if isinstance(candidate, list) and all(isinstance(item, int | float) for item in candidate):
             return _normalize_vector(candidate), model
 
     nested = data.get("data")
