@@ -1,13 +1,31 @@
 import os
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 import databases
 import sqlalchemy
 from dotenv import load_dotenv
 
 load_dotenv()
+
+
+def _utcnow() -> datetime:
+    """Return current UTC as a NAIVE datetime (no tzinfo).
+
+    Legacy tables use ``TIMESTAMP WITHOUT TIME ZONE``. asyncpg strictly
+    rejects timezone-aware values for these columns, so we must strip tzinfo.
+    """
+    return datetime.utcnow()
+
+
+def _naive(dt: datetime) -> datetime:
+    """Strip tzinfo from a datetime for legacy table compatibility."""
+    if dt is None:
+        return dt
+    if dt.tzinfo is not None:
+        return dt.astimezone(timezone.utc).replace(tzinfo=None)
+    return dt
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./newsintel.db")
 
@@ -60,7 +78,7 @@ searches = sqlalchemy.Table(
     sqlalchemy.Column("topic", sqlalchemy.String(255), nullable=False),
     sqlalchemy.Column("region", sqlalchemy.String(50), nullable=False),
     sqlalchemy.Column("article_count", sqlalchemy.Integer, default=0),
-    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=lambda: datetime.now(timezone.utc)),
+    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=_utcnow),
 )
 
 # Table to track sentiment trends over time for topics
@@ -72,7 +90,7 @@ sentiment_trends = sqlalchemy.Table(
     sqlalchemy.Column("positive_count", sqlalchemy.Integer, default=0),
     sqlalchemy.Column("negative_count", sqlalchemy.Integer, default=0),
     sqlalchemy.Column("neutral_count", sqlalchemy.Integer, default=0),
-    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=lambda: datetime.now(timezone.utc)),
+    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=_utcnow),
 )
 
 # Table to track entity mentions
@@ -83,7 +101,7 @@ entities = sqlalchemy.Table(
     sqlalchemy.Column("entity_name", sqlalchemy.String(255), nullable=False),
     sqlalchemy.Column("entity_type", sqlalchemy.String(50), nullable=False),
     sqlalchemy.Column("mention_count", sqlalchemy.Integer, default=1),
-    sqlalchemy.Column("last_seen", sqlalchemy.DateTime, default=lambda: datetime.now(timezone.utc)),
+    sqlalchemy.Column("last_seen", sqlalchemy.DateTime, default=_utcnow),
 )
 
 # Feedback table (persistent version)
@@ -96,7 +114,7 @@ feedback = sqlalchemy.Table(
     sqlalchemy.Column("emotion", sqlalchemy.String(50), nullable=False),
     sqlalchemy.Column("rating", sqlalchemy.Integer, default=5),
     sqlalchemy.Column("github_issue_url", sqlalchemy.String(255), nullable=True),
-    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=lambda: datetime.now(timezone.utc)),
+    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=_utcnow),
 )
 
 # Pulse snapshots — stores topic-level pulse scores for Daily Delta
@@ -108,7 +126,7 @@ pulse_snapshots = sqlalchemy.Table(
     sqlalchemy.Column("pulse_score", sqlalchemy.Float, default=50.0),
     sqlalchemy.Column("source_count", sqlalchemy.Integer, default=0),
     sqlalchemy.Column("neg_ratio", sqlalchemy.Float, default=0.0),
-    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=lambda: datetime.now(timezone.utc)),
+    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=_utcnow),
 )
 
 # User preferences table — stores onboarding choices per user
@@ -118,7 +136,7 @@ saved_threads = sqlalchemy.Table(
     sqlalchemy.Column("id", sqlalchemy.Integer, primary_key=True),
     sqlalchemy.Column("user_id", sqlalchemy.String(128), nullable=False, index=True),
     sqlalchemy.Column("thread_id", sqlalchemy.String(255), nullable=False, index=True),
-    sqlalchemy.Column("saved_at", sqlalchemy.DateTime, default=lambda: datetime.now(timezone.utc)),
+    sqlalchemy.Column("saved_at", sqlalchemy.DateTime, default=_utcnow),
     sqlalchemy.UniqueConstraint("user_id", "thread_id", name="uq_saved_threads_user_thread"),
 )
 
@@ -129,7 +147,7 @@ watched_signals = sqlalchemy.Table(
     sqlalchemy.Column("user_id", sqlalchemy.String(128), nullable=False, index=True),
     sqlalchemy.Column("signal_id", sqlalchemy.String(255), nullable=False, index=True),
     sqlalchemy.Column("watch_priority", sqlalchemy.Integer, default=1),
-    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=lambda: datetime.now(timezone.utc)),
+    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=_utcnow),
     sqlalchemy.UniqueConstraint("user_id", "signal_id", name="uq_watched_signals_user_signal"),
 )
 
@@ -141,8 +159,8 @@ tracked_entities = sqlalchemy.Table(
     sqlalchemy.Column("entity_name", sqlalchemy.String(255), nullable=False, index=True),
     sqlalchemy.Column("entity_type", sqlalchemy.String(50), default="ENTITY"),
     sqlalchemy.Column("follow_weight", sqlalchemy.Float, default=1.0),
-    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=lambda: datetime.now(timezone.utc)),
-    sqlalchemy.Column("updated_at", sqlalchemy.DateTime, default=lambda: datetime.now(timezone.utc)),
+    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=_utcnow),
+    sqlalchemy.Column("updated_at", sqlalchemy.DateTime, default=_utcnow),
     sqlalchemy.UniqueConstraint("user_id", "entity_name", name="uq_tracked_entities_user_name"),
 )
 
@@ -153,7 +171,7 @@ dismissed_signals = sqlalchemy.Table(
     sqlalchemy.Column("user_id", sqlalchemy.String(128), nullable=False, index=True),
     sqlalchemy.Column("signal_id", sqlalchemy.String(255), nullable=False, index=True),
     sqlalchemy.Column("dismiss_reason", sqlalchemy.String(255), default="not_relevant"),
-    sqlalchemy.Column("dismissed_at", sqlalchemy.DateTime, default=lambda: datetime.now(timezone.utc)),
+    sqlalchemy.Column("dismissed_at", sqlalchemy.DateTime, default=_utcnow),
     sqlalchemy.UniqueConstraint("user_id", "signal_id", name="uq_dismissed_signals_user_signal"),
 )
 
@@ -166,7 +184,7 @@ user_interactions = sqlalchemy.Table(
     sqlalchemy.Column("interaction_type", sqlalchemy.String(50), nullable=False, index=True),
     sqlalchemy.Column("dwell_time_seconds", sqlalchemy.Integer, default=0),
     sqlalchemy.Column("metadata_json", sqlalchemy.Text, default="{}"),
-    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=lambda: datetime.now(timezone.utc)),
+    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=_utcnow),
 )
 
 alerts = sqlalchemy.Table(
@@ -180,7 +198,7 @@ alerts = sqlalchemy.Table(
     sqlalchemy.Column("alert_type", sqlalchemy.String(50), default="signal"),
     sqlalchemy.Column("unread", sqlalchemy.Boolean, default=True),
     sqlalchemy.Column("resolved", sqlalchemy.Boolean, default=False),
-    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=lambda: datetime.now(timezone.utc)),
+    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=_utcnow),
 )
 
 user_preferences = sqlalchemy.Table(
@@ -195,8 +213,8 @@ user_preferences = sqlalchemy.Table(
     sqlalchemy.Column("preferred_regions", sqlalchemy.Text, default="[]"),      # JSON array
     sqlalchemy.Column("youtube_channels", sqlalchemy.Text, default="[]"),       # JSON array
     sqlalchemy.Column("onboarded", sqlalchemy.Boolean, default=False),
-    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=lambda: datetime.now(timezone.utc)),
-    sqlalchemy.Column("updated_at", sqlalchemy.DateTime, default=lambda: datetime.now(timezone.utc)),
+    sqlalchemy.Column("created_at", sqlalchemy.DateTime, default=_utcnow),
+    sqlalchemy.Column("updated_at", sqlalchemy.DateTime, default=_utcnow),
 )
 
 engine = sqlalchemy.create_engine(_sync_url)
@@ -220,7 +238,7 @@ async def log_search(topic: str, region: str, article_count: int):
         topic=topic.lower().strip(),
         region=region,
         article_count=article_count,
-        created_at=datetime.now(timezone.utc)
+        created_at=_utcnow()
     )
     await database.execute(query)
 
@@ -235,7 +253,7 @@ async def update_sentiment_trends(topic: str, sentiment_data: list):
         positive_count=pos,
         negative_count=neg,
         neutral_count=neu,
-        created_at=datetime.now(timezone.utc)
+        created_at=_utcnow()
     )
     await database.execute(query)
 
@@ -253,7 +271,7 @@ async def track_entities(entity_list: list):
         if existing:
             update_query = entities.update().where(entities.c.entity_name == name).values(
                 mention_count=existing["mention_count"] + 1,
-                last_seen=datetime.now(timezone.utc)
+                last_seen=_utcnow()
             )
             await database.execute(update_query)
         else:
@@ -261,7 +279,7 @@ async def track_entities(entity_list: list):
                 entity_name=name,
                 entity_type=etype,
                 mention_count=1,
-                last_seen=datetime.now(timezone.utc)
+                last_seen=_utcnow()
             )
             await database.execute(insert_query)
 
@@ -301,7 +319,7 @@ async def upsert_user_prefs(firebase_uid: str, data: dict):
             preferred_regions=json.dumps(data.get("preferred_regions", json.loads(existing["preferred_regions"] or "[]"))),
             youtube_channels=json.dumps(data.get("youtube_channels", json.loads(existing["youtube_channels"] or "[]"))),
             onboarded=data.get("onboarded", existing["onboarded"]),
-            updated_at=datetime.now(timezone.utc),
+            updated_at=_utcnow(),
         )
         await database.execute(update_query)
     else:
@@ -314,8 +332,8 @@ async def upsert_user_prefs(firebase_uid: str, data: dict):
             preferred_regions=json.dumps(data.get("preferred_regions", [])),
             youtube_channels=json.dumps(data.get("youtube_channels", [])),
             onboarded=data.get("onboarded", False),
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            created_at=_utcnow(),
+            updated_at=_utcnow(),
         )
         await database.execute(insert_query)
 
@@ -380,7 +398,7 @@ async def track_user_entity(user_id: str, entity_name: str, entity_type: str = "
             .values(
                 entity_type=entity_type or existing["entity_type"],
                 follow_weight=max(float(follow_weight), float(existing["follow_weight"] or 1.0)),
-                updated_at=datetime.now(timezone.utc),
+                updated_at=_utcnow(),
             )
         )
     else:
@@ -459,8 +477,7 @@ async def list_alerts(user_id: str, unresolved_only: bool = False):
     return [dict(r) for r in rows]
 
 async def get_pulse_history(topics: list, days: int = 30):
-    from datetime import timedelta
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    cutoff = _utcnow() - timedelta(days=days)
     history = {}
     for topic in topics:
         rows = await database.fetch_all(
@@ -492,15 +509,14 @@ async def save_pulse_snapshot(topic: str, pulse: float, source_count: int = 0, n
         pulse_score=pulse,
         source_count=source_count,
         neg_ratio=neg_ratio,
-        created_at=datetime.now(timezone.utc),
+        created_at=_utcnow(),
     )
     await database.execute(query)
 
 
 async def get_pulse_snapshot_24h(topic: str):
     """Get the most recent pulse snapshot for a topic that is at least 20h old (allows some flex)."""
-    from datetime import timedelta
-    cutoff = datetime.now(timezone.utc) - timedelta(hours=20)
+    cutoff = _utcnow() - timedelta(hours=20)
     query = (
         pulse_snapshots.select()
         .where(pulse_snapshots.c.topic == topic.lower().strip())

@@ -98,7 +98,26 @@ class IngestionRepository:
         event, created_event = await self._find_or_create_event(article, incoming)
         await self._link_article_to_event(event, article, duplicate_reason)
 
-        await self.session.flush()
+        try:
+            await self.session.flush()
+        except Exception as exc:
+            # Handle concurrent duplicate inserts (race between multiple ingestion jobs)
+            exc_str = str(exc).lower()
+            if "unique" in exc_str or "duplicate" in exc_str or "integrity" in exc_str:
+                await self.session.rollback()
+                # Re-lookup — the article was inserted by a concurrent worker
+                existing = await self.session.scalar(select(Article).where(Article.url_hash == url_digest))
+                if existing:
+                    return IngestionResult(
+                        article=existing,
+                        raw_article=raw,
+                        event=event,
+                        duplicate_reason="concurrent_duplicate",
+                        created_article=False,
+                        created_event=False,
+                    )
+            raise
+
         return IngestionResult(
             article=article,
             raw_article=raw,
