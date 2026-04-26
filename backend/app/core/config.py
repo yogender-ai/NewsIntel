@@ -14,7 +14,7 @@ class Settings(BaseSettings):
         default="postgresql+asyncpg://newsintel:newsintel@localhost:5432/newsintel",
         alias="DATABASE_URL",
     )
-    redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
+    redis_url: str = Field(default="", alias="REDIS_URL")
     ingestion_batch_size: int = Field(default=80, alias="INGESTION_BATCH_SIZE")
     dashboard_cache_ttl_seconds: int = Field(default=300, alias="DASHBOARD_CACHE_TTL_SECONDS")
     article_duplicate_window_hours: int = Field(default=36, alias="ARTICLE_DUPLICATE_WINDOW_HOURS")
