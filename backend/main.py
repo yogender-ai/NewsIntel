@@ -38,7 +38,7 @@ from app.services.digest_engine import generate_all_digests, generate_digest
 from app.services.event_relationships import load_orbit_payload
 from app.services.geo_signals import build_map_signals
 from app.services.scenario_simulator import run_scenario
-from app.services.semantic_personalization import semantic_relevance_async
+from app.services.semantic_personalization import semantic_relevance
 from app.services.schema_migrations import run_startup_migrations
 from app.services.semantic_clustering import observability_snapshot
 from app.services.phase65_validation_audit import run_phase65_validation_audit
@@ -702,7 +702,10 @@ async def _personalize_payload(payload: dict, user_id: str, user_topics: list, u
         c["thread_id"] = signal_id
         c["entities"] = _cluster_entities(c, articles)
         c["story_graph"] = build_story_graph(c, articles, user_topics, user_regions)
-        semantic = await semantic_relevance_async(c, user_topics, user_regions, phase5, articles)
+        # Keep the first-screen dashboard fast. External embedding providers are
+        # used during ingestion/clustering; request-time personalization uses the
+        # deterministic local scorer so a slow gateway cannot hang the UI.
+        semantic = semantic_relevance(c, user_topics, user_regions, phase5, articles)
         c["why_relevant"] = semantic
         if signal_id in dismissed:
             c["dismissed"] = True
