@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import get_settings
 from app.models.news import Article, Event, EventArticle, RawArticle
 from app.services.event_clustering import should_cluster_titles
+from app.services.event_enrichment import mark_event_pending
 from app.services.text_fingerprint import content_hash, normalize_title, title_hash, title_similarity
 from app.services.url_normalizer import normalize_url, sha256_text
 
@@ -196,12 +197,14 @@ class IngestionRepository:
         if linked_event:
             linked_event.last_seen_at = now
             linked_event.source_count = await self._count_event_sources(linked_event.id)
+            mark_event_pending(linked_event, reason="linked_article_seen")
             return linked_event, False
 
         similar_event = await self._find_similar_event(article.title, incoming.category, incoming.region)
         if similar_event:
             similar_event.last_seen_at = now
             similar_event.last_meaningful_update_at = now
+            mark_event_pending(similar_event, reason="similar_event_updated")
             return similar_event, False
 
         slug = self._event_slug(article.title)
@@ -216,6 +219,7 @@ class IngestionRepository:
             first_seen_at=now,
             last_seen_at=now,
             last_meaningful_update_at=now,
+            metadata_json={"ai": {"status": "pending", "pending_reason": "new_event"}},
         )
         self.session.add(event)
         return event, True

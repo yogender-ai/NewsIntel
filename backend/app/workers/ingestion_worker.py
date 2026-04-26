@@ -43,13 +43,20 @@ async def _run_ingestion_unlocked(topics: list[str], regions: list[str] | None =
         pipeline = IngestionPipeline(session)
         results = await pipeline.ingest_topics(topics, regions or ["global"], max_articles=max_articles)
         created = sum(1 for result in results if result.created_article)
-        logger.info("ingested topics=%s total=%s new_articles=%s", topics, len(results), created)
+        logger.info(
+            "ingested topics=%s total=%s new_articles=%s enrichment=%s",
+            topics,
+            len(results),
+            created,
+            pipeline.last_enrichment_report,
+        )
         return {
             "status": "completed",
             "topics": topics,
             "regions": regions or ["global"],
             "total": len(results),
             "new_articles": created,
+            "ai_enrichment": pipeline.last_enrichment_report,
         }
 
 

@@ -18,6 +18,9 @@ settings = get_settings()
 
 
 def _event_payload(event: Event) -> dict:
+    ai = (event.metadata_json or {}).get("ai")
+    if not isinstance(ai, dict):
+        ai = {"status": "pending"}
     articles = []
     for link in event.article_links:
         article = link.article
@@ -47,6 +50,20 @@ def _event_payload(event: Event) -> dict:
         else None,
         "status": event.status,
         "entities": event.entities,
+        "ai_status": ai.get("status", "pending"),
+        "ai_summary": ai.get("summary"),
+        "ai_impact_line": ai.get("impact_line"),
+        "ai_why_it_matters": ai.get("why_it_matters"),
+        "ai_sentiment": ai.get("sentiment"),
+        "ai_entities": ai.get("entities", []),
+        "ai_risk_level": ai.get("risk_level"),
+        "ai_opportunity_level": ai.get("opportunity_level"),
+        "ai_story_graph_json": ai.get("story_graph_json"),
+        "ai_confidence_explanation": ai.get("confidence_explanation"),
+        "ai_enriched_at": ai.get("enriched_at"),
+        "ai_provider_used": ai.get("provider_used"),
+        "pulse_score": ai.get("pulse_score"),
+        "pulse_breakdown": ai.get("pulse_breakdown"),
         "articles": articles,
     }
 
