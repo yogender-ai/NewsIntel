@@ -13,16 +13,20 @@ from app.services.url_normalizer import normalize_url, sha256_text
 
 
 def db_utcnow() -> datetime:
-    """Return UTC as a naive datetime for compatibility with existing Postgres columns."""
-    return datetime.now(timezone.utc).replace(tzinfo=None)
+    """Return the current UTC datetime (timezone-aware)."""
+    return datetime.now(timezone.utc)
 
 
 def db_datetime(value: datetime | None) -> datetime | None:
+    """Normalize a datetime to UTC (timezone-aware).
+
+    asyncpg requires timezone-aware values for ``TIMESTAMP WITH TIME ZONE``.
+    """
     if value is None:
         return None
     if value.tzinfo is None:
-        return value
-    return value.astimezone(timezone.utc).replace(tzinfo=None)
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
 
 
 @dataclass(slots=True)
