@@ -19,7 +19,7 @@ from contextlib import asynccontextmanager
 from typing import List, Optional
 from datetime import datetime, timezone, timedelta
 
-from fastapi import BackgroundTasks, FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -1133,10 +1133,10 @@ async def force_refresh_dashboard(request: Request, payload_request: DashboardRe
     return await _event_backed_dashboard_payload(effective_topics, effective_regions)
 
 
-async def _run_admin_ingestion(topics: list[str], regions: list[str], max_articles: int) -> None:
+async def _run_admin_ingestion(topics: list[str], regions: list[str], max_articles: int) -> dict:
     from app.workers.ingestion_worker import run_ingestion
 
-    await run_ingestion(
+    return await run_ingestion(
         _normalize_profile_values(topics) or ["ai", "tech", "markets"],
         _normalize_profile_values(regions) or ["global"],
         max_articles=max(1, min(int(max_articles or 40), 100)),
@@ -1144,8 +1144,8 @@ async def _run_admin_ingestion(topics: list[str], regions: list[str], max_articl
 
 
 @app.post("/api/admin/ingest-now")
-async def ingest_now(request: Request, payload: IngestNowRequest, background_tasks: BackgroundTasks):
-    """Protected trigger for external schedulers such as Cloud Command or GitHub Actions."""
+async def ingest_now(request: Request, payload: IngestNowRequest):
+    """Protected trigger for external schedulers such as Cloud Command."""
     expected_secret = os.getenv("INGEST_SECRET") or os.getenv("GATEWAY_SECRET")
     supplied_secret = (
         request.headers.get("X-Ingest-Secret", "").strip()
@@ -1157,13 +1157,27 @@ async def ingest_now(request: Request, payload: IngestNowRequest, background_tas
     topics = _normalize_profile_values(payload.topics) or ["ai", "tech", "markets"]
     regions = _normalize_profile_values(payload.regions) or ["global"]
     max_articles = max(1, min(int(payload.max_articles or 40), 100))
-    background_tasks.add_task(_run_admin_ingestion, topics, regions, max_articles)
+    try:
+        result = await _run_admin_ingestion(topics, regions, max_articles)
+    except Exception as exc:
+        logger.error("Admin ingestion failed: %s", exc, exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "message": "Ingestion failed",
+                "error": str(exc)[:500],
+                "topics": topics,
+                "regions": regions,
+                "max_articles": max_articles,
+            },
+        )
     return {
-        "status": "accepted",
-        "message": "Ingestion queued",
+        "status": "success",
+        "message": "Ingestion completed",
         "topics": topics,
         "regions": regions,
         "max_articles": max_articles,
+        "result": result,
     }
 
 

@@ -20,23 +20,37 @@ MEDIUM_TOPICS = ["politics", "defense", "trade", "auto", "telecom"]
 SLOW_TOPICS = ["space", "climate", "healthcare", "real-estate", "media", "education", "legal"]
 
 
-async def run_ingestion(topics: list[str], regions: list[str] | None = None, max_articles: int = 40) -> None:
+async def run_ingestion(topics: list[str], regions: list[str] | None = None, max_articles: int = 40) -> dict:
     lock_payload = json.dumps({"topics": sorted(topics), "regions": sorted(regions or ["global"])}, separators=(",", ":"))
     lock_key = f"ingestion-lock:{hashlib.sha256(lock_payload.encode('utf-8')).hexdigest()[:24]}"
     async with cache.lock(lock_key, ttl_seconds=900) as acquired:
         if not acquired:
             logger.info("skipping duplicate ingestion job topics=%s regions=%s", topics, regions or ["global"])
-            return
+            return {
+                "status": "skipped",
+                "reason": "duplicate_ingestion_job",
+                "topics": topics,
+                "regions": regions or ["global"],
+                "total": 0,
+                "new_articles": 0,
+            }
 
-        await _run_ingestion_unlocked(topics, regions, max_articles)
+        return await _run_ingestion_unlocked(topics, regions, max_articles)
 
 
-async def _run_ingestion_unlocked(topics: list[str], regions: list[str] | None = None, max_articles: int = 40) -> None:
+async def _run_ingestion_unlocked(topics: list[str], regions: list[str] | None = None, max_articles: int = 40) -> dict:
     async with AsyncSessionLocal() as session:
         pipeline = IngestionPipeline(session)
         results = await pipeline.ingest_topics(topics, regions or ["global"], max_articles=max_articles)
         created = sum(1 for result in results if result.created_article)
         logger.info("ingested topics=%s total=%s new_articles=%s", topics, len(results), created)
+        return {
+            "status": "completed",
+            "topics": topics,
+            "regions": regions or ["global"],
+            "total": len(results),
+            "new_articles": created,
+        }
 
 
 async def run_once_from_env() -> None:
