@@ -4,14 +4,15 @@ import { compactLabel } from '../../lib/dashboardAdapter';
 export default function Sidebar({
   preferences,
   onHome,
+  onOrbit,
   onLocked,
   onWatchlist,
   onAlerts,
   onSetFocus,
   onSettings,
+  activeItem = 'home',
 }) {
   const locked = [
-    ['Orbit', <Orbit size={17} />],
     ['Map', <Map size={17} />],
     ['Simulator', <ShieldQuestion size={17} />],
   ];
@@ -24,7 +25,8 @@ export default function Sidebar({
       </div>
 
       <nav className="wp-nav">
-        <button className="active" onClick={onHome}><Home size={17} /> Home</button>
+        <button className={activeItem === 'home' ? 'active' : ''} onClick={onHome}><Home size={17} /> Home</button>
+        <button className={activeItem === 'orbit' ? 'active' : ''} onClick={onOrbit}><Orbit size={17} /> Orbit</button>
         {locked.map(([label, icon]) => (
           <button key={label} className="locked" onClick={() => onLocked(`${label} is not available yet.`)}>
             {icon} {label}<small><Lock size={12} /></small>

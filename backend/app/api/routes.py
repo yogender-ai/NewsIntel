@@ -11,6 +11,7 @@ from app.core.config import get_settings
 from app.core.database import get_session
 from app.models.news import Article, Event, EventArticle
 from app.services.dashboard_read_model import build_dashboard_payload
+from app.services.event_relationships import load_orbit_payload
 
 
 router = APIRouter(prefix="/api/v2", tags=["v2"])
@@ -141,3 +142,15 @@ async def dashboard_compatible(
     payload = await build_dashboard_payload(session, topics=category or [], regions=region or [])
     await cache.set_json(cache_key, payload, ttl_seconds=settings.dashboard_cache_ttl_seconds)
     return payload
+
+
+@router.get("/orbit")
+async def orbit(session: AsyncSession = Depends(get_session)):
+    return await load_orbit_payload(
+        session,
+        user_id="local_user_123",
+        display_name="You",
+        topics=["tech", "ai", "markets"],
+        regions=["global"],
+        limit=20,
+    )

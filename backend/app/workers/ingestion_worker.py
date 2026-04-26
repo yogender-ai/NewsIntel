@@ -57,6 +57,7 @@ async def _run_ingestion_unlocked(topics: list[str], regions: list[str] | None =
             "total": len(results),
             "new_articles": created,
             "ai_enrichment": pipeline.last_enrichment_report,
+            "event_relationships": pipeline.last_relationship_report,
         }
 
 

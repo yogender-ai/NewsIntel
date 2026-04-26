@@ -101,6 +101,14 @@ class Event(Base, TimestampMixin):
     metadata_json: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
 
     article_links: Mapped[list["EventArticle"]] = relationship(back_populates="event")
+    outgoing_relationships: Mapped[list["EventRelationship"]] = relationship(
+        foreign_keys="EventRelationship.source_event_id",
+        back_populates="source_event",
+    )
+    incoming_relationships: Mapped[list["EventRelationship"]] = relationship(
+        foreign_keys="EventRelationship.target_event_id",
+        back_populates="target_event",
+    )
 
     __table_args__ = (
         Index("ix_events_category_updated", "category", "last_seen_at"),
@@ -125,6 +133,47 @@ class EventArticle(Base, TimestampMixin):
     __table_args__ = (
         UniqueConstraint("event_id", "article_id", name="uq_event_articles_event_article"),
         Index("ix_event_articles_article", "article_id"),
+    )
+
+
+class EventRelationship(Base, TimestampMixin):
+    """AI-validated relationship edge between two event clusters."""
+
+    __tablename__ = "event_relationships"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    source_event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
+    target_event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
+    relationship_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    evidence: Mapped[str] = mapped_column(Text, nullable=False)
+    pair_hash: Mapped[str] = mapped_column(String(80), nullable=False, unique=True, index=True)
+
+    source_event: Mapped[Event] = relationship(foreign_keys=[source_event_id], back_populates="outgoing_relationships")
+    target_event: Mapped[Event] = relationship(foreign_keys=[target_event_id], back_populates="incoming_relationships")
+
+    __table_args__ = (
+        Index("ix_event_relationships_source", "source_event_id"),
+        Index("ix_event_relationships_target", "target_event_id"),
+        Index("ix_event_relationships_type_confidence", "relationship_type", "confidence"),
+    )
+
+
+class EventRelationshipCheck(Base, TimestampMixin):
+    """Pair-level cache for relationship validation, including disconnected pairs."""
+
+    __tablename__ = "event_relationship_checks"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    pair_hash: Mapped[str] = mapped_column(String(80), nullable=False, unique=True, index=True)
+    source_event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
+    target_event_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("events.id"), nullable=False)
+    candidate_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="checked")
+    reason: Mapped[str | None] = mapped_column(Text)
+
+    __table_args__ = (
+        Index("ix_event_relationship_checks_source_target", "source_event_id", "target_event_id"),
     )
 
 
@@ -173,4 +222,3 @@ class Alert(Base, TimestampMixin):
         Index("ix_alerts_user_unread", "user_id", "unread", "resolved"),
         Index("ix_alerts_event_type", "event_id", "alert_type"),
     )
-

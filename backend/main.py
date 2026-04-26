@@ -29,6 +29,7 @@ import news_fetcher
 from app.core.cors import ALLOWED_ORIGIN_REGEX, allowed_origins
 from app.core.database import AsyncSessionLocal as EventStoreSessionLocal
 from app.services.dashboard_read_model import build_dashboard_payload
+from app.services.event_relationships import load_orbit_payload
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("news-intel-api")
@@ -1347,6 +1348,29 @@ async def get_exposure_network(request: Request):
     base = await personalized_dashboard(request)
     phase5 = await _phase5_profile(user_id)
     return _build_exposure_network(user_id, base, user_topics, phase5)
+
+
+@app.get("/api/orbit")
+async def get_orbit(request: Request):
+    user_topics, user_regions, uid, _ = await _get_user_prefs_from_header(request)
+    user_id = uid or _user_id_from_request(request)
+    display_name = "You"
+    try:
+        prefs = await db.get_user_prefs(user_id)
+        if prefs and prefs.get("display_name"):
+            display_name = prefs["display_name"]
+    except Exception as exc:
+        logger.warning("Orbit profile lookup failed for %s: %s", user_id, exc)
+
+    async with EventStoreSessionLocal() as session:
+        return await load_orbit_payload(
+            session,
+            user_id=user_id,
+            display_name=display_name,
+            topics=user_topics,
+            regions=user_regions,
+            limit=20,
+        )
 
 
 def _build_exposure_network(user_id: str, payload: dict, user_topics: list, phase5: dict) -> dict:

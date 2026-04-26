@@ -353,7 +353,9 @@ export default function HomePage() {
       <LiveCursor />
       <Sidebar
         preferences={data.preferences}
+        activeItem="home"
         onHome={() => { setSelectedTopic(null); setInsightView(null); }}
+        onOrbit={() => navigate('/orbit')}
         onLocked={setLockedToast}
         onWatchlist={() => navigate('/watchlist')}
         onAlerts={() => navigate('/alerts')}

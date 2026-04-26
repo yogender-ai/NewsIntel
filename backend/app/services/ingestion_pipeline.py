@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import news_fetcher
 from app.repositories.ingestion import IncomingArticle, IngestionRepository, IngestionResult
 from app.services.event_enrichment import EventEnrichmentService
+from app.services.event_relationships import EventRelationshipService
 from app.services.redirect_resolver import RedirectResolver
 
 
@@ -33,6 +34,12 @@ class IngestionPipeline:
             "enriched": 0,
             "failed": 0,
             "skipped": 0,
+        }
+        self.last_relationship_report: dict = {
+            "selected": 0,
+            "connected": 0,
+            "disconnected": 0,
+            "failed": 0,
         }
 
     async def ingest_topics(
@@ -77,4 +84,6 @@ class IngestionPipeline:
         if event_ids:
             enricher = EventEnrichmentService(self.session)
             self.last_enrichment_report = await enricher.enrich_candidates(event_ids=event_ids, topics=topics)
+            relationship_engine = EventRelationshipService(self.session)
+            self.last_relationship_report = await relationship_engine.build_relationships(topics=topics, max_checks=20)
         return results
