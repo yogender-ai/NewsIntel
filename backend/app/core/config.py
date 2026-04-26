@@ -30,10 +30,14 @@ class Settings(BaseSettings):
 
         parts = urlsplit(url)
         query = dict(parse_qsl(parts.query, keep_blank_values=True))
-        sslmode = query.pop("sslmode", None)
+        sslmode = (query.pop("sslmode", None) or "").lower()
         query.pop("channel_binding", None)
+        # Neon direct URLs often include psycopg-style sslmode/channel_binding.
+        # asyncpg either wants a boolean-ish `ssl` query arg or no TLS hint at all.
         if sslmode and "ssl" not in query:
-            query["ssl"] = "true" if sslmode in {"require", "verify-ca", "verify-full"} else sslmode
+            query["ssl"] = "true" if sslmode in {"require", "verify-ca", "verify-full", "true", "1"} else "false"
+        if query.get("sslmode"):
+            query.pop("sslmode", None)
 
         return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
 
