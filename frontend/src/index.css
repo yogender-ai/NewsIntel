@@ -4757,3 +4757,229 @@ body::after {
     animation: none !important;
   }
 }
+
+/* ===================================================================
+   Phase 2 AI-enriched World Pulse details
+   =================================================================== */
+.wp-loading {
+  min-height: calc(100vh - 120px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+}
+
+.wp-loading span {
+  display: block;
+  width: min(760px, 78vw);
+  height: 2px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, rgba(154,168,255,0.22), rgba(126,231,196,0.78), rgba(154,168,255,0.22), transparent);
+  background-size: 220% 100%;
+  box-shadow: 0 0 28px rgba(126,231,196,0.28);
+  animation: liveLoadingLine 0.9s linear infinite;
+}
+
+@keyframes liveLoadingLine {
+  from { background-position: 220% 0; opacity: 0.45; }
+  50% { opacity: 1; }
+  to { background-position: -220% 0; opacity: 0.45; }
+}
+
+.top-shift-card.ai-pending,
+.top-shift-card.ai-failed,
+.top-shift-card.ai-rules_only {
+  border-style: dashed;
+}
+
+.shift-meta {
+  flex-wrap: wrap;
+}
+
+.sentiment-badge {
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  border: 1px solid rgba(148,163,184,0.18);
+}
+
+.sentiment-positive { color: #7ee7c4; background: rgba(126,231,196,0.1); }
+.sentiment-negative { color: #ff9ba9; background: rgba(255,155,169,0.1); }
+.sentiment-mixed { color: #ffd38a; background: rgba(255,211,138,0.1); }
+.sentiment-neutral { color: #a8b3ce; background: rgba(168,179,206,0.08); }
+
+.impact-copy {
+  color: #dbe3ff !important;
+  font-weight: 700;
+}
+
+.empty-copy {
+  color: #7f8ba8 !important;
+  font-style: normal;
+}
+
+.entity-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.entity-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  border-radius: 999px;
+  border: 1px solid rgba(126,231,196,0.2);
+  background: rgba(126,231,196,0.08);
+  color: #e8fff8;
+  padding: 5px 9px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.entity-chip small {
+  color: #8da2ff;
+  font-size: 9px;
+  text-transform: uppercase;
+}
+
+.ai-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.ai-detail section {
+  border-top: 1px solid rgba(148,163,184,0.12);
+  padding-top: 14px;
+}
+
+.ai-detail h3 {
+  color: #f7f8fb;
+  margin-bottom: 8px;
+}
+
+.detail-category {
+  color: #8da2ff;
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.ai-story-graph {
+  display: grid;
+  gap: 8px;
+}
+
+.story-node {
+  border: 1px solid rgba(154,168,255,0.18);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(15,23,42,0.68);
+}
+
+.story-node small {
+  display: block;
+  color: #7ee7c4;
+  font-size: 9px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 4px;
+}
+
+.story-node b {
+  color: #f7f8fb;
+  line-height: 1.35;
+}
+
+.story-edge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #8da2ff;
+  padding-left: 12px;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.pulse-breakdown,
+.risk-opportunity-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.pulse-breakdown div,
+.risk-opportunity-grid div {
+  border: 1px solid rgba(148,163,184,0.12);
+  border-radius: 10px;
+  background: rgba(15,23,42,0.52);
+  padding: 10px;
+}
+
+.pulse-breakdown span,
+.risk-opportunity-grid small {
+  display: block;
+  color: #94a3b8;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.pulse-breakdown b,
+.risk-opportunity-grid b {
+  color: #fff;
+  font-size: 18px;
+}
+
+.source-list {
+  display: grid;
+  gap: 8px;
+}
+
+.source-list a {
+  display: grid;
+  gap: 4px;
+  border: 1px solid rgba(148,163,184,0.12);
+  border-radius: 10px;
+  padding: 10px;
+  background: rgba(15,23,42,0.48);
+}
+
+.source-list b {
+  color: #7ee7c4;
+  font-size: 11px;
+}
+
+.source-list span {
+  color: #dce5ff;
+  line-height: 1.35;
+}
+
+.wp-nav button.locked,
+.wp-nav button.locked:hover {
+  color: #7f8ba8;
+  border-color: rgba(148,163,184,0.12);
+  background: rgba(15,23,42,0.38);
+  box-shadow: none;
+}
+
+.wp-nav button.locked small {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+}
+
+@media (max-width: 760px) {
+  .pulse-breakdown,
+  .risk-opportunity-grid {
+    grid-template-columns: 1fr;
+  }
+}

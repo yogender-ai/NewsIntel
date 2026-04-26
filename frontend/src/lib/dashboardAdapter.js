@@ -38,21 +38,45 @@ const trendFromPulseHistory = (pulseHistory) => {
     }));
 };
 
-const normalizeShift = (cluster, index) => ({
-  id: cluster.signal_id || cluster.thread_id || cluster.id || `shift-${index}`,
-  rank: index + 1,
-  category: cluster.matched_preferences?.[0]?.label || compactLabel(cluster.matched_preferences?.[0]?.id) || compactLabel(cluster.category),
-  headline: cluster.thread_title || cluster.title || '',
-  summary: cluster.impact_line || cluster.why_it_matters || cluster.summary || '',
-  impactLevel: cluster.signal_tier || null,
-  updatedAt: cluster.updated_at || cluster.last_seen_at || null,
-  imageUrl: cluster.image_url || cluster.thumbnail_url || null,
-  sources: cluster.sources || [],
-  sourceCount: cluster.source_count,
-  pulse: Number.isFinite(Number(cluster.pulse_score)) ? Number(cluster.pulse_score) : null,
-  exposure: Number.isFinite(Number(cluster.exposure_score || cluster.relevance_score)) ? Number(cluster.exposure_score || cluster.relevance_score) : null,
-  raw: cluster,
-});
+const normalizeAiStatus = (value) => {
+  const status = String(value || '').toLowerCase();
+  if (status === 'enriched' || status === 'pending' || status === 'failed') return status;
+  return 'rules_only';
+};
+
+const normalizeShift = (cluster, index) => {
+  const aiStatus = normalizeAiStatus(cluster.ai_status);
+  const aiAvailable = aiStatus === 'enriched';
+  return {
+    id: cluster.signal_id || cluster.thread_id || cluster.id || `shift-${index}`,
+    rank: index + 1,
+    category: cluster.matched_preferences?.[0]?.label || compactLabel(cluster.matched_preferences?.[0]?.id) || compactLabel(cluster.category),
+    headline: cluster.thread_title || cluster.title || '',
+    summary: aiAvailable ? cluster.summary || '' : '',
+    impactLine: aiAvailable ? cluster.impact_line || '' : '',
+    whyItMatters: aiAvailable ? cluster.why_it_matters || '' : '',
+    sentiment: aiAvailable ? cluster.sentiment || '' : '',
+    entities: aiAvailable && Array.isArray(cluster.entities) ? cluster.entities : [],
+    riskLevel: aiAvailable ? cluster.risk_level || '' : '',
+    opportunityLevel: aiAvailable ? cluster.opportunity_level || '' : '',
+    storyGraph: aiAvailable && cluster.story_graph ? cluster.story_graph : null,
+    confidenceExplanation: aiAvailable ? cluster.confidence_explanation || '' : '',
+    uncertainty: aiAvailable ? cluster.uncertainty || '' : '',
+    aiStatus,
+    aiProvider: cluster.ai_provider_used || '',
+    aiEnrichedAt: cluster.ai_enriched_at || '',
+    pulseBreakdown: cluster.pulse_breakdown && typeof cluster.pulse_breakdown === 'object' ? cluster.pulse_breakdown : null,
+    impactLevel: cluster.signal_tier || null,
+    updatedAt: cluster.updated_at || cluster.last_seen_at || null,
+    imageUrl: cluster.image_url || cluster.thumbnail_url || null,
+    sources: cluster.sources || [],
+    sourceCount: cluster.source_count,
+    pulse: Number.isFinite(Number(cluster.pulse_score)) ? Number(cluster.pulse_score) : null,
+    exposure: Number.isFinite(Number(cluster.exposure_score || cluster.relevance_score)) ? Number(cluster.exposure_score || cluster.relevance_score) : null,
+    articles: Array.isArray(cluster.article_ids) ? cluster.article_ids : [],
+    raw: cluster,
+  };
+};
 
 export function normalizeDashboardData({ dashboard, preferences, alerts, user }) {
   const clusters = Array.isArray(dashboard?.clusters) ? dashboard.clusters : [];
@@ -156,4 +180,4 @@ export function formatRelativeTime(value) {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-export { compactLabel, clamp };
+export { compactLabel, clamp, normalizeAiStatus };

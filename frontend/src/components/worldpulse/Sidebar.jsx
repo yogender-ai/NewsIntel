@@ -1,23 +1,19 @@
-import { Bell, Compass, Home, Map, Orbit, Search, Settings, ShieldQuestion, Star } from 'lucide-react';
+import { Bell, Compass, Home, Lock, Map, Orbit, Search, Settings, ShieldQuestion, Star } from 'lucide-react';
 import { compactLabel } from '../../lib/dashboardAdapter';
 
 export default function Sidebar({
   preferences,
   onHome,
-  onOrbit,
-  onMap,
-  onSimulator,
+  onLocked,
   onWatchlist,
   onAlerts,
   onSetFocus,
   onSettings,
 }) {
-  const nav = [
-    ['Orbit', <Orbit size={17} />, onOrbit],
-    ['Map', <Map size={17} />, onMap],
-    ['Simulator', <ShieldQuestion size={17} />, onSimulator],
-    ['Watchlist', <Star size={17} />, onWatchlist],
-    ['Alerts', <Bell size={17} />, onAlerts],
+  const locked = [
+    ['Orbit', <Orbit size={17} />],
+    ['Map', <Map size={17} />],
+    ['Simulator', <ShieldQuestion size={17} />],
   ];
 
   return (
@@ -29,11 +25,13 @@ export default function Sidebar({
 
       <nav className="wp-nav">
         <button className="active" onClick={onHome}><Home size={17} /> Home</button>
-        {nav.map(([label, icon, action]) => (
-          <button key={label} onClick={action}>
-            {icon} {label}
+        {locked.map(([label, icon]) => (
+          <button key={label} className="locked" onClick={() => onLocked(`${label} is not available yet.`)}>
+            {icon} {label}<small><Lock size={12} /></small>
           </button>
         ))}
+        <button onClick={onWatchlist}><Star size={17} /> Watchlist</button>
+        <button onClick={onAlerts}><Bell size={17} /> Alerts</button>
         <button onClick={onSettings}><Settings size={17} /> Settings</button>
       </nav>
 
@@ -62,9 +60,10 @@ export default function Sidebar({
         )}
       </section>
 
-      <button className="ask-disabled" onClick={onSimulator}>
+      <button className="ask-disabled" onClick={() => onLocked('Ask NewsIntel is not available yet.')}>
         <Search size={16} />
         <span>Ask NewsIntel</span>
+        <Lock size={13} />
       </button>
     </aside>
   );

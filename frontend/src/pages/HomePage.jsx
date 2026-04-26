@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { X } from 'lucide-react';
+import { ArrowRight, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api';
 import { normalizeDashboardData } from '../lib/dashboardAdapter';
@@ -14,11 +14,12 @@ import TopShiftCard from '../components/worldpulse/TopShiftCard';
 import EmptyState from '../components/worldpulse/EmptyState';
 import StartTourCard from '../components/worldpulse/StartTourCard';
 import FreshnessBadge from '../components/worldpulse/FreshnessBadge';
+import LockedNavToast from '../components/worldpulse/LockedNavToast';
 
 function LoadingSkeleton() {
   return (
     <div className="wp-loading">
-      <div /><div /><div /><div />
+      <span />
     </div>
   );
 }
@@ -74,35 +75,160 @@ function readableLiveError(err) {
   return raw.replace(/^\d+:\s*/, '').slice(0, 180);
 }
 
-function DetailDrawer({ shift, onClose }) {
-  if (!shift) return null;
+const aiStatusLabel = {
+  enriched: 'AI enriched',
+  pending: 'Analysis pending',
+  failed: 'Analysis unavailable',
+  rules_only: 'Rules only',
+};
+
+function EmptyLine({ children }) {
+  return <p className="empty-copy">{children}</p>;
+}
+
+function EntityChip({ entity }) {
+  const name = typeof entity === 'string' ? entity : entity?.name;
+  const type = typeof entity === 'string' ? '' : entity?.type;
+  if (!name) return null;
+  return <span className="entity-chip">{name}{type ? <small>{type}</small> : null}</span>;
+}
+
+function StoryGraph({ graph }) {
+  const nodes = Array.isArray(graph?.nodes) ? graph.nodes : [];
+  const edges = Array.isArray(graph?.edges) ? graph.edges : [];
+  if (!nodes.length) return <EmptyLine>Story graph building.</EmptyLine>;
+
   return (
-    <aside className="shift-drawer">
+    <div className="ai-story-graph">
+      {nodes.map((node, index) => (
+        <React.Fragment key={node.id || `${node.label}-${index}`}>
+          <div className={`story-node story-node-${node.type || 'node'}`}>
+            <small>{node.type || 'node'}</small>
+            <b>{node.label}</b>
+          </div>
+          {index < nodes.length - 1 && (
+            <div className="story-edge">
+              <span>{edges[index]?.label || ''}</span>
+              <ArrowRight size={15} />
+            </div>
+          )}
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
+
+function PulseBreakdown({ breakdown }) {
+  const rows = [
+    ['Freshness', breakdown?.freshness],
+    ['Source count', breakdown?.source_count],
+    ['Confidence', breakdown?.confidence],
+    ['AI importance', breakdown?.ai_importance],
+    ['User relevance', breakdown?.user_relevance],
+  ];
+  if (!breakdown) return <EmptyLine>Pulse breakdown unavailable.</EmptyLine>;
+  return (
+    <div className="pulse-breakdown">
+      {rows.map(([label, value]) => (
+        <div key={label}>
+          <span>{label}</span>
+          <b>{Number.isFinite(Number(value)) ? Math.round(Number(value)) : '-'}</b>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SourcesList({ sources }) {
+  if (!sources.length) return <EmptyLine>No source details available.</EmptyLine>;
+  return (
+    <div className="source-list">
+      {sources.map((source) => (
+        <a key={source.id || source.url || source.title} href={source.url} target="_blank" rel="noreferrer">
+          <b>{source.source || 'Source'}</b>
+          <span>{source.title}</span>
+        </a>
+      ))}
+    </div>
+  );
+}
+
+function DetailDrawer({ shift, sources, onClose }) {
+  if (!shift) return null;
+  const isEnriched = shift.aiStatus === 'enriched';
+  return (
+    <aside className={`shift-drawer ai-detail ai-${shift.aiStatus}`}>
       <button className="drawer-close" onClick={onClose}><X size={18} /></button>
-      <span>{shift.category || 'Signal'}</span>
+      <span>{aiStatusLabel[shift.aiStatus] || aiStatusLabel.rules_only}</span>
       <h2>{shift.headline}</h2>
-      {shift.summary && <p>{shift.summary}</p>}
+      {shift.category && <em className="detail-category">{shift.category}</em>}
       <div className="drawer-grid">
         <div><small>Pulse</small><b>{shift.pulse ?? '-'}</b></div>
         <div><small>Exposure</small><b>{shift.exposure ?? '-'}</b></div>
-        <div><small>Impact</small><b>{shift.impactLevel || '-'}</b></div>
-        <div><small>Sources</small><b>{shift.sourceCount ?? '-'}</b></div>
+        <div><small>Risk</small><b>{isEnriched ? shift.riskLevel || '-' : '-'}</b></div>
+        <div><small>Opportunity</small><b>{isEnriched ? shift.opportunityLevel || '-' : '-'}</b></div>
       </div>
+
+      <section>
+        <h3>Summary</h3>
+        {isEnriched && shift.summary ? <p>{shift.summary}</p> : <EmptyLine>{aiStatusLabel[shift.aiStatus] || aiStatusLabel.rules_only}</EmptyLine>}
+      </section>
+
       <section>
         <h3>Why it matters</h3>
-        <p>{shift.raw?.why_it_matters || shift.summary || 'No additional backend explanation available.'}</p>
+        {isEnriched && shift.whyItMatters ? <p>{shift.whyItMatters}</p> : <EmptyLine>No AI explanation available.</EmptyLine>}
+      </section>
+
+      <section>
+        <h3>Entities</h3>
+        {isEnriched && shift.entities?.length ? (
+          <div className="entity-row detail-entities">
+            {shift.entities.map((entity) => <EntityChip key={entity.name || entity} entity={entity} />)}
+          </div>
+        ) : <EmptyLine>No AI entities available.</EmptyLine>}
+      </section>
+
+      <section>
+        <h3>Sources</h3>
+        <SourcesList sources={sources} />
+      </section>
+
+      <section>
+        <h3>Story graph</h3>
+        <StoryGraph graph={isEnriched ? shift.storyGraph : null} />
+      </section>
+
+      <section>
+        <h3>Risk / Opportunity</h3>
+        <div className="risk-opportunity-grid">
+          <div><small>Risk level</small><b>{isEnriched ? shift.riskLevel || '-' : '-'}</b></div>
+          <div><small>Opportunity level</small><b>{isEnriched ? shift.opportunityLevel || '-' : '-'}</b></div>
+          <div><small>Sentiment</small><b>{isEnriched ? shift.sentiment || '-' : '-'}</b></div>
+        </div>
+      </section>
+
+      <section>
+        <h3>Pulse explainability</h3>
+        <PulseBreakdown breakdown={shift.pulseBreakdown} />
+      </section>
+
+      <section>
+        <h3>Confidence explanation</h3>
+        {isEnriched && shift.confidenceExplanation ? <p>{shift.confidenceExplanation}</p> : <EmptyLine>No confidence explanation available.</EmptyLine>}
+      </section>
+
+      <section>
+        <h3>Uncertainty</h3>
+        {isEnriched && shift.uncertainty ? <p>{shift.uncertainty}</p> : <EmptyLine>No uncertainty note available.</EmptyLine>}
       </section>
     </aside>
   );
 }
 
-function InsightDrawer({ view, data, onClose, onSelectTopic, onOpenShift, onRefresh }) {
+function InsightDrawer({ view, data, onClose }) {
   if (!view) return null;
 
   const titles = {
-    orbit: 'Signal Orbit',
-    map: 'Signal Map',
-    simulator: 'Scenario Simulator',
     countries: 'Countries In Focus',
     sources: 'Sources Monitored',
   };
@@ -112,46 +238,6 @@ function InsightDrawer({ view, data, onClose, onSelectTopic, onOpenShift, onRefr
       <button className="drawer-close" onClick={onClose}><X size={18} /></button>
       <span>Live Lens</span>
       <h2>{titles[view] || 'Live Intelligence'}</h2>
-
-      {view === 'orbit' && (
-        <div className="orbit-lens">
-          {(data.changesToday || []).slice(0, 6).map((item, index) => (
-            <button
-              key={item.id}
-              style={{ '--i': index, '--orbit-power': `${Math.max(24, Math.abs(item.delta || item.current || 20))}%` }}
-              onClick={() => onSelectTopic(item.id)}
-            >
-              <b>{item.topic}</b>
-              <small>{item.delta === null ? item.direction : `${item.delta > 0 ? '+' : ''}${item.delta}`}</small>
-            </button>
-          ))}
-          {!data.changesToday?.length && <p>Movement baseline is still building from live snapshots.</p>}
-        </div>
-      )}
-
-      {view === 'map' && (
-        <div className="map-lens">
-          {(data.preferences?.regions || []).map((region, index) => (
-            <button key={region} style={{ '--i': index }} onClick={() => onSelectTopic(null)}>
-              <b>{String(region).replace(/-/g, ' ')}</b>
-              <small>Focus region</small>
-            </button>
-          ))}
-          {!data.preferences?.regions?.length && <p>No focus regions are set yet.</p>}
-        </div>
-      )}
-
-      {view === 'simulator' && (
-        <div className="scenario-lens">
-          {(data.topShifts || []).slice(0, 3).map((shift) => (
-            <button key={shift.id} onClick={() => onOpenShift(shift)}>
-              <b>{shift.headline}</b>
-              <small>Pulse {shift.pulse ?? '-'} / Sources {shift.sourceCount ?? '-'}</small>
-            </button>
-          ))}
-          <button onClick={onRefresh}>Recalculate from live feed</button>
-        </div>
-      )}
 
       {view === 'countries' && (
         <div className="drawer-list">
@@ -167,7 +253,7 @@ function InsightDrawer({ view, data, onClose, onSelectTopic, onOpenShift, onRefr
               {source.name || source.domain || source.url || `Source ${index + 1}`}
             </button>
           ))}
-          {!data.sources?.length && <p>Source details will appear when the backend includes source rows.</p>}
+          {!data.sources?.length && <p>Source details will appear when backend source rows are available.</p>}
         </div>
       )}
     </aside>
@@ -198,6 +284,7 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [lockedToast, setLockedToast] = useState('');
   const [selectedTopic, setSelectedTopic] = useState(null);
   const [selectedShift, setSelectedShift] = useState(null);
   const [insightView, setInsightView] = useState(null);
@@ -236,6 +323,12 @@ export default function HomePage() {
     return () => window.clearTimeout(timer);
   }, [user, load]);
 
+  useEffect(() => {
+    if (!lockedToast) return undefined;
+    const timer = window.setTimeout(() => setLockedToast(''), 2200);
+    return () => window.clearTimeout(timer);
+  }, [lockedToast]);
+
   const data = useMemo(
     () => normalizeDashboardData({ dashboard, preferences, alerts, user }),
     [dashboard, preferences, alerts, user],
@@ -245,15 +338,23 @@ export default function HomePage() {
     ? data.topShifts.filter((shift) => shift.raw?.matched_preferences?.some((item) => item.id === selectedTopic || item.label === selectedTopic))
     : data.topShifts;
 
+  const articleIndex = useMemo(() => {
+    const index = new Map();
+    (data.raw?.articles || []).forEach((article) => index.set(String(article.id), article));
+    return index;
+  }, [data.raw]);
+
+  const selectedSources = selectedShift?.articles?.length
+    ? selectedShift.articles.map((id) => articleIndex.get(String(id))).filter(Boolean)
+    : [];
+
   return (
     <div className="world-pulse-page">
       <LiveCursor />
       <Sidebar
         preferences={data.preferences}
         onHome={() => { setSelectedTopic(null); setInsightView(null); }}
-        onOrbit={() => setInsightView('orbit')}
-        onMap={() => setInsightView('map')}
-        onSimulator={() => setInsightView('simulator')}
+        onLocked={setLockedToast}
         onWatchlist={() => navigate('/watchlist')}
         onAlerts={() => navigate('/alerts')}
         onSetFocus={() => navigate('/onboarding')}
@@ -303,7 +404,7 @@ export default function HomePage() {
                 <QuickGlance
                   data={data.quickGlance}
                   onCountries={() => setInsightView('countries')}
-                  onSignals={() => setInsightView('orbit')}
+                  onSignals={() => setSelectedTopic(null)}
                   onAlerts={() => navigate('/alerts')}
                   onSources={() => setInsightView('sources')}
                 />
@@ -321,16 +422,14 @@ export default function HomePage() {
           </>
         )}
       </main>
-      <DetailDrawer shift={selectedShift} onClose={() => setSelectedShift(null)} />
+      <DetailDrawer shift={selectedShift} sources={selectedSources} onClose={() => setSelectedShift(null)} />
       <InsightDrawer
         view={insightView}
         data={data}
         onClose={() => setInsightView(null)}
-        onSelectTopic={(topic) => { setSelectedTopic(topic); setInsightView(null); }}
-        onOpenShift={(shift) => { setSelectedShift(shift); setInsightView(null); }}
-        onRefresh={() => load({ force: true })}
       />
       {tourOpen && <TourModal onClose={() => setTourOpen(false)} />}
+      <LockedNavToast message={lockedToast} />
     </div>
   );
 }
