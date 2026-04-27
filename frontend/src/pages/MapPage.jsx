@@ -38,12 +38,9 @@ export default function MapPage() {
     setLoading(true);
     setError('');
     try {
-      const [mapResult, prefsResult] = await Promise.all([
-        api.getMapSignals(layer, timeWindow),
-        api.getPreferences().catch(() => null),
-      ]);
+      const mapResult = await api.getMapSignals(layer, timeWindow);
       setData({ layers: mapResult?.layers || [], regions: Array.isArray(mapResult?.regions) ? mapResult.regions : [] });
-      setPrefs(prefsResult);
+      setPrefs({ data: { preferred_categories: mapResult?.layers || [], preferred_regions: ['global'] } });
     } catch (err) {
       setError((err?.message || 'Unable to load map signals.').replace(/^\d+:\s*/, '').slice(0, 180));
       setData({ layers: [], regions: [] });

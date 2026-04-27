@@ -163,11 +163,7 @@ export function PersonalizationProvider({ children }) {
   useEffect(() => {
     if (!user) return;
     loadDashboard();
-    loadWatchlist();
-    loadAlerts();
-    loadPulseHistory();
-    loadEntities();
-  }, [user, loadDashboard, loadWatchlist, loadAlerts, loadPulseHistory, loadEntities]);
+  }, [user, loadDashboard]);
 
   /* ── Local state helpers ── */
   const persistLocalSet = (key, setter, updater) => {
@@ -319,8 +315,8 @@ export function PersonalizationProvider({ children }) {
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    await Promise.all([loadDashboard(), loadWatchlist(), loadAlerts(), loadPulseHistory(), loadEntities()]);
-  }, [loadDashboard, loadWatchlist, loadAlerts, loadPulseHistory, loadEntities]);
+    await loadDashboard();
+  }, [loadDashboard]);
 
   const value = useMemo(() => ({
     // State

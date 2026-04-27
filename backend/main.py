@@ -31,7 +31,8 @@ import news_fetcher
 from app.core.cors import ALLOWED_ORIGIN_REGEX, allowed_origins
 from app.core.database import AsyncSessionLocal as EventStoreSessionLocal
 from sqlalchemy import func, select
-from app.models.news import Alert, AlertRule, DailyDigest, User
+from app.core.config import get_settings
+from app.models.news import Alert, AlertRule, DailyDigest, EventMetric, HomeSnapshot, Story, User
 from app.services.alert_engine import ensure_user, evaluate_all_users, evaluate_user_alerts
 from app.services.dashboard_read_model import build_dashboard_payload
 from app.services.digest_engine import generate_all_digests, generate_digest
@@ -42,9 +43,11 @@ from app.services.semantic_personalization import semantic_relevance
 from app.services.schema_migrations import run_startup_migrations
 from app.services.semantic_clustering import observability_snapshot
 from app.services.phase65_validation_audit import run_phase65_validation_audit
+from app.services.mvp_pipeline import MVPNewsPipeline
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("news-intel-api")
+mvp_settings = get_settings()
 
 
 # ---------------------------------------------------------------------------
@@ -1212,26 +1215,23 @@ async def _background_scheduler():
 @app.get("/api/dashboard")
 async def get_cached_dashboard(request: Request):
     """
-    Serve cached intelligence INSTANTLY, personalized per user.
-    Reads X-User-Id header to personalize exposure scores and delta.
-    Uses the event-backed dashboard read model.
+    Serve the controlled MVP cached snapshot.
+    Frontend reads never fetch RSS or call AI.
     """
-    user_topics, user_regions, _, _ = await _get_user_prefs_from_header(request)
-    return await _event_backed_dashboard_payload(user_topics, user_regions)
+    return await home_snapshot()
 
 
 @app.post("/api/dashboard")
 async def force_refresh_dashboard(request: Request, payload_request: DashboardRequest):
-    """Force a refresh. Uses requested topics or the saved profile when available."""
-    user_topics, user_regions, _, has_saved_profile = await _get_user_prefs_from_header(request)
-    requested_topics = _normalize_profile_values(payload_request.topics or [])
-    requested_regions = _normalize_profile_values(payload_request.regions or [])
-    effective_topics = requested_topics or (user_topics if has_saved_profile else [])
-    effective_regions = requested_regions or (user_regions if has_saved_profile else [])
-    return await _event_backed_dashboard_payload(effective_topics, effective_regions)
+    """Return the latest cached MVP snapshot; ingestion is scheduler/admin-only."""
+    return await home_snapshot()
 
 
 async def _run_admin_ingestion(topics: list[str], regions: list[str], max_articles: int) -> dict:
+    if not mvp_settings.enable_heavy_ingestion:
+        async with EventStoreSessionLocal() as session:
+            return await MVPNewsPipeline(session, settings=mvp_settings).run_ingestion()
+
     from app.workers.ingestion_worker import run_ingestion
 
     return await run_ingestion(
@@ -1242,7 +1242,7 @@ async def _run_admin_ingestion(topics: list[str], regions: list[str], max_articl
 
 
 @app.post("/api/admin/ingest-now")
-async def ingest_now(request: Request, payload: IngestNowRequest):
+async def ingest_now(request: Request, payload: IngestNowRequest | None = None):
     """Protected trigger for external schedulers such as Cloud Command."""
     expected_secret = os.getenv("INGEST_SECRET") or os.getenv("GATEWAY_SECRET")
     supplied_secret = (
@@ -1252,9 +1252,10 @@ async def ingest_now(request: Request, payload: IngestNowRequest):
     if not expected_secret or supplied_secret != expected_secret:
         raise HTTPException(status_code=401, detail="Invalid ingestion secret")
 
-    topics = _normalize_profile_values(payload.topics) or ["ai", "tech", "markets"]
-    regions = _normalize_profile_values(payload.regions) or ["global"]
-    max_articles = max(1, min(int(payload.max_articles or 40), 100))
+    payload = payload or IngestNowRequest()
+    topics = mvp_settings.mvp_categories if not mvp_settings.enable_heavy_ingestion else (_normalize_profile_values(payload.topics) or ["ai", "tech", "markets"])
+    regions = ["global"] if not mvp_settings.enable_heavy_ingestion else (_normalize_profile_values(payload.regions) or ["global"])
+    max_articles = mvp_settings.newsintel_articles_per_category * len(mvp_settings.mvp_categories) if not mvp_settings.enable_heavy_ingestion else max(1, min(int(payload.max_articles or 40), 100))
     try:
         result = await _run_admin_ingestion(topics, regions, max_articles)
     except Exception as exc:
@@ -1277,6 +1278,81 @@ async def ingest_now(request: Request, payload: IngestNowRequest):
         "max_articles": max_articles,
         "result": result,
     }
+
+
+@app.post("/api/admin/enrich-batch")
+async def enrich_batch(request: Request):
+    expected_secret = os.getenv("INGEST_SECRET") or os.getenv("GATEWAY_SECRET")
+    supplied_secret = (
+        request.headers.get("X-Ingest-Secret", "").strip()
+        or request.headers.get("X-Gateway-Secret", "").strip()
+    )
+    if expected_secret and supplied_secret != expected_secret:
+        raise HTTPException(status_code=401, detail="Invalid ingestion secret")
+    async with EventStoreSessionLocal() as session:
+        return await MVPNewsPipeline(session, settings=mvp_settings).enrich_batch()
+
+
+@app.get("/api/admin/ingestion-status")
+async def ingestion_status(request: Request):
+    expected_secret = os.getenv("INGEST_SECRET") or os.getenv("GATEWAY_SECRET")
+    supplied_secret = (
+        request.headers.get("X-Ingest-Secret", "").strip()
+        or request.headers.get("X-Gateway-Secret", "").strip()
+    )
+    if expected_secret and supplied_secret != expected_secret:
+        raise HTTPException(status_code=401, detail="Invalid ingestion secret")
+    async with EventStoreSessionLocal() as session:
+        return await MVPNewsPipeline(session, settings=mvp_settings).status()
+
+
+@app.post("/api/admin/cleanup")
+async def cleanup_mvp_data(request: Request):
+    expected_secret = os.getenv("INGEST_SECRET") or os.getenv("GATEWAY_SECRET")
+    supplied_secret = (
+        request.headers.get("X-Ingest-Secret", "").strip()
+        or request.headers.get("X-Gateway-Secret", "").strip()
+    )
+    if expected_secret and supplied_secret != expected_secret:
+        raise HTTPException(status_code=401, detail="Invalid ingestion secret")
+    async with EventStoreSessionLocal() as session:
+        return await MVPNewsPipeline(session, settings=mvp_settings).cleanup()
+
+
+@app.get("/api/home-snapshot")
+async def home_snapshot():
+    async with EventStoreSessionLocal() as session:
+        payload = await MVPNewsPipeline(session, settings=mvp_settings).latest_snapshot()
+        await session.commit()
+        return payload
+
+
+@app.get("/api/feed")
+async def mvp_feed(cursor: int = Query(default=0, ge=0), limit: int = Query(default=3, ge=1, le=20)):
+    async with EventStoreSessionLocal() as session:
+        payload = await MVPNewsPipeline(session, settings=mvp_settings).feed(cursor=cursor, limit=limit)
+        await session.commit()
+        return payload
+
+
+@app.get("/api/story/{story_id}")
+async def mvp_story(story_id: str):
+    async with EventStoreSessionLocal() as session:
+        try:
+            story_uuid = UUID(story_id)
+        except ValueError:
+            raise HTTPException(status_code=404, detail="Story not found")
+        story = await session.scalar(select(Story).where(Story.id == story_uuid))
+        if not story:
+            raise HTTPException(status_code=404, detail="Story not found")
+        from app.services.mvp_pipeline import story_to_card
+
+        return {"story": story_to_card(story), "source_url": story.source_url}
+
+
+@app.get("/api/categories")
+async def mvp_categories():
+    return {"categories": mvp_settings.mvp_categories, "regions": ["global"]}
 
 
 async def _silent_refresh(run_llm: bool = False):
@@ -1328,6 +1404,11 @@ async def story_deep_dive(request: StoryDeepDiveRequest):
 # ---------------------------------------------------------------------------
 @app.get("/api/personalized-dashboard")
 async def personalized_dashboard(request: Request):
+    if not mvp_settings.enable_personalization:
+        payload = await home_snapshot()
+        payload["personalization_mode"] = "disabled_mvp"
+        return payload
+
     user_topics, user_regions, uid, _ = await _get_user_prefs_from_header(request)
     user_id = uid or _user_id_from_request(request)
     base = await get_cached_dashboard(request)
@@ -1361,6 +1442,8 @@ async def personalized_dashboard(request: Request):
 
 @app.get("/api/watchlist")
 async def get_watchlist(request: Request):
+    if not mvp_settings.enable_watchlist:
+        return {"watched_signals": [], "saved_threads": [], "status": "disabled_mvp"}
     user_id = _user_id_from_request(request)
     return {
         "watched_signals": await db.list_watched_signals(user_id),
@@ -1370,6 +1453,8 @@ async def get_watchlist(request: Request):
 
 @app.post("/api/watchlist")
 async def add_watchlist(request: Request, payload: WatchlistInput):
+    if not mvp_settings.enable_watchlist:
+        return {"status": "disabled_mvp", "watched_signals": []}
     user_id = _user_id_from_request(request)
     await db.watch_signal(user_id, payload.signal_id, payload.watch_priority)
     return {"status": "success", "watched_signals": await db.list_watched_signals(user_id)}
@@ -1377,6 +1462,8 @@ async def add_watchlist(request: Request, payload: WatchlistInput):
 
 @app.post("/api/saved-threads")
 async def add_saved_thread(request: Request, payload: SavedThreadInput):
+    if not mvp_settings.enable_watchlist:
+        return {"status": "disabled_mvp", "saved_threads": []}
     user_id = _user_id_from_request(request)
     await db.save_thread(user_id, payload.thread_id)
     return {"status": "success", "saved_threads": await db.list_saved_threads(user_id)}
@@ -1422,6 +1509,8 @@ async def get_alerts(
     severity: Optional[str] = Query(default=None, pattern="^(low|medium|high|critical)$"),
     limit: int = Query(default=50, ge=1, le=100),
 ):
+    if not mvp_settings.enable_alerts:
+        return {"alerts": [], "unread_count": 0, "status": "disabled_mvp"}
     external_id = _user_id_from_request(request)
     async with EventStoreSessionLocal() as session:
         user = await ensure_user(session, external_id)
@@ -1526,6 +1615,8 @@ async def delete_alert_rule(request: Request, rule_id: str):
 
 @app.post("/api/alerts/run-check")
 async def run_alert_check(request: Request):
+    if not mvp_settings.enable_alerts:
+        return {"status": "disabled_mvp", "alerts_created": 0}
     external_id = _user_id_from_request(request)
     async with EventStoreSessionLocal() as session:
         user = await ensure_user(session, external_id)
@@ -1536,6 +1627,8 @@ async def run_alert_check(request: Request):
 
 @app.get("/api/digest/today")
 async def get_today_digest(request: Request):
+    if not mvp_settings.enable_digests:
+        return {"digest": None, "status": "disabled_mvp"}
     external_id = _user_id_from_request(request)
     async with EventStoreSessionLocal() as session:
         user = await ensure_user(session, external_id)
@@ -1549,6 +1642,8 @@ async def get_today_digest(request: Request):
 
 @app.post("/api/digest/generate")
 async def generate_digest_endpoint(request: Request):
+    if not mvp_settings.enable_digests:
+        return {"status": "disabled_mvp", "digest": None}
     external_id = _user_id_from_request(request)
     async with EventStoreSessionLocal() as session:
         user = await ensure_user(session, external_id)
@@ -1559,6 +1654,8 @@ async def generate_digest_endpoint(request: Request):
 
 @app.get("/api/digests")
 async def list_digests(request: Request, limit: int = Query(default=30, ge=1, le=90)):
+    if not mvp_settings.enable_digests:
+        return {"digests": [], "status": "disabled_mvp"}
     external_id = _user_id_from_request(request)
     async with EventStoreSessionLocal() as session:
         user = await ensure_user(session, external_id)
@@ -1586,6 +1683,8 @@ async def get_digest(request: Request, digest_id: str):
 
 @app.post("/api/digest/run-all")
 async def run_all_digests(request: Request):
+    if not mvp_settings.enable_digests:
+        return {"status": "disabled_mvp", "digests_created": 0}
     if not _admin_secret_valid(request):
         raise HTTPException(status_code=401, detail="Invalid admin secret")
     async with EventStoreSessionLocal() as session:
@@ -1596,6 +1695,8 @@ async def run_all_digests(request: Request):
 
 @app.post("/api/admin/run-alerts")
 async def admin_run_alerts(request: Request):
+    if not mvp_settings.enable_alerts:
+        return {"status": "disabled_mvp", "alerts_created": 0}
     if not _admin_secret_valid(request):
         raise HTTPException(status_code=401, detail="Invalid admin secret")
     async with EventStoreSessionLocal() as session:
@@ -1606,6 +1707,8 @@ async def admin_run_alerts(request: Request):
 
 @app.post("/api/admin/generate-digests")
 async def admin_generate_digests(request: Request):
+    if not mvp_settings.enable_digests:
+        return {"status": "disabled_mvp", "digests_created": 0}
     if not _admin_secret_valid(request):
         raise HTTPException(status_code=401, detail="Invalid admin secret")
     async with EventStoreSessionLocal() as session:
@@ -1633,19 +1736,34 @@ async def get_story_graph(request: Request, thread_id: str):
 
 
 @app.get("/api/pulse-history")
-async def get_pulse_history(request: Request, days: int = Query(30, ge=1, le=90)):
-    user_topics, _, _, has_profile = await _get_user_prefs_from_header(request)
-    topics = user_topics if has_profile else list(TOPIC_KEYWORDS.keys())[:6]
-    history = await db.get_pulse_history(topics, days=days)
-    return {
-        "topics": topics,
-        "history": history,
-        "windows": {
-            "24h": {topic: values[-24:] for topic, values in history.items()},
-            "7d": {topic: values[-168:] for topic, values in history.items()},
-            "30d": history,
-        },
-    }
+async def get_pulse_history(
+    request: Request,
+    story_id: Optional[str] = Query(default=None),
+    days: int = Query(7, ge=1, le=7),
+):
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    async with EventStoreSessionLocal() as session:
+        stmt = (
+            select(EventMetric.category, EventMetric.pulse_score, EventMetric.exposure_score, EventMetric.created_at)
+            .where(EventMetric.created_at >= cutoff)
+            .order_by(EventMetric.created_at.asc())
+        )
+        if story_id:
+            try:
+                stmt = stmt.where(EventMetric.story_id == UUID(story_id))
+            except ValueError:
+                raise HTTPException(status_code=404, detail="Story not found")
+        rows = (await session.execute(stmt)).all()
+    history = {}
+    for row in rows:
+        history.setdefault(row.category, []).append(
+            {
+                "pulse_score": round(float(row.pulse_score), 2),
+                "exposure_score": round(float(row.exposure_score), 2),
+                "created_at": row.created_at.isoformat(),
+            }
+        )
+    return {"topics": list(history.keys()) or mvp_settings.mvp_categories, "history": history}
 
 
 @app.get("/api/exposure-network")
@@ -1685,8 +1803,40 @@ async def get_map_signals(
     layer: Optional[str] = Query(default=None),
     time_window: str = Query(default="7d", pattern="^(24h|7d|30d)$"),
 ):
-    async with EventStoreSessionLocal() as session:
-        return await build_map_signals(session, layer=layer, time_window=time_window)
+    snapshot = await home_snapshot()
+    regions = []
+    for item in snapshot.get("map", []):
+        if layer and layer != "all" and item.get("category") != layer:
+            continue
+        regions.append(
+            {
+                "id": item.get("id"),
+                "name": item.get("name"),
+                "lat": 20,
+                "lng": 0,
+                "intensity": item.get("intensity", 0),
+                "event_count": item.get("event_count", 0),
+                "risk": "medium" if item.get("intensity", 0) >= 55 else "low",
+                "opportunity": "medium",
+                "delta": 0,
+                "top_events": [
+                    {
+                        "id": story.get("id"),
+                        "title": story.get("thread_title"),
+                        "pulse": story.get("pulse_score"),
+                        "category": story.get("category"),
+                        "why_it_matters": story.get("why_it_matters"),
+                    }
+                    for story in snapshot.get("categories", {}).get(item.get("category"), [])[:3]
+                ],
+            }
+        )
+    return {
+        "mode": "global_category",
+        "layers": mvp_settings.mvp_categories,
+        "regions": regions,
+        "note": "Global-only MVP: category intensity is shown without fake country-level signals.",
+    }
 
 
 @app.post("/api/simulate")

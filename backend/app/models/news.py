@@ -54,6 +54,8 @@ class Article(Base, TimestampMixin):
     __tablename__ = "articles"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    url: Mapped[str | None] = mapped_column(Text)
+    description: Mapped[str | None] = mapped_column(Text)
     canonical_url: Mapped[str] = mapped_column(Text, nullable=False)
     url_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True, index=True)
     title: Mapped[str] = mapped_column(Text, nullable=False)
@@ -65,6 +67,8 @@ class Article(Base, TimestampMixin):
     first_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
     content_hash: Mapped[str | None] = mapped_column(String(64), index=True)
+    category: Mapped[str | None] = mapped_column(String(80), index=True)
+    rss_query: Mapped[str | None] = mapped_column(Text)
     text_preview: Mapped[str | None] = mapped_column(Text)
     embedding_json: Mapped[list[float]] = mapped_column(JSONB, default=list, nullable=False)
     embedding_model: Mapped[str | None] = mapped_column(String(80))
@@ -183,6 +187,121 @@ class EventRelationshipCheck(Base, TimestampMixin):
     __table_args__ = (
         Index("ix_event_relationship_checks_source_target", "source_event_id", "target_event_id"),
     )
+
+
+class NewsCycle(Base):
+    __tablename__ = "news_cycles"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(40), default="RUNNING", nullable=False, index=True)
+    fetched_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    deduped_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    ranked_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    enriched_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    error_message: Mapped[str | None] = mapped_column(Text)
+
+
+class RankedStory(Base):
+    __tablename__ = "ranked_stories"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    cycle_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("news_cycles.id"), nullable=False, index=True)
+    article_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("articles.id"), nullable=False, index=True)
+    rank_position: Mapped[int] = mapped_column(Integer, nullable=False)
+    ai_score: Mapped[float] = mapped_column(Float, default=0.0, nullable=False)
+    ai_reason: Mapped[str | None] = mapped_column(Text)
+    importance_level: Mapped[str | None] = mapped_column(String(20))
+    selected_for_enrichment: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("cycle_id", "article_id", name="uq_ranked_stories_cycle_article"),
+        Index("ix_ranked_stories_cycle_rank", "cycle_id", "rank_position"),
+    )
+
+
+class EnrichmentQueue(Base, TimestampMixin):
+    __tablename__ = "enrichment_queue"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    article_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("articles.id"), nullable=False, index=True)
+    cycle_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("news_cycles.id"), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(20), default="PENDING", nullable=False, index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    locked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    error_message: Mapped[str | None] = mapped_column(Text)
+
+    __table_args__ = (
+        UniqueConstraint("article_id", "cycle_id", name="uq_enrichment_queue_article_cycle"),
+        Index("ix_enrichment_queue_status_next", "status", "next_attempt_at"),
+    )
+
+
+class Story(Base):
+    __tablename__ = "stories"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    article_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("articles.id"), nullable=False, unique=True, index=True)
+    cycle_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("news_cycles.id"), nullable=False, index=True)
+    category: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    display_title: Mapped[str] = mapped_column(Text, nullable=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    why_it_matters: Mapped[str] = mapped_column(Text, nullable=False)
+    entities_json: Mapped[list] = mapped_column(JSONB, default=list, nullable=False)
+    sentiment: Mapped[str] = mapped_column(String(20), default="neutral", nullable=False)
+    pulse_score: Mapped[float] = mapped_column(Float, default=50.0, nullable=False)
+    exposure_score: Mapped[float] = mapped_column(Float, default=50.0, nullable=False)
+    importance_level: Mapped[str] = mapped_column(String(20), default="MEDIUM", nullable=False)
+    risk_level: Mapped[str] = mapped_column(String(20), default="LOW", nullable=False)
+    source_url: Mapped[str] = mapped_column(Text, nullable=False)
+    source_name: Mapped[str] = mapped_column(String(160), nullable=False)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    enriched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("ix_stories_created_category", "created_at", "category"),
+        Index("ix_stories_pulse_created", "pulse_score", "created_at"),
+    )
+
+
+class EventMetric(Base):
+    __tablename__ = "event_metrics"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    story_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("stories.id"), nullable=False, index=True)
+    cycle_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("news_cycles.id"), nullable=False, index=True)
+    pulse_score: Mapped[float] = mapped_column(Float, default=50.0, nullable=False)
+    exposure_score: Mapped[float] = mapped_column(Float, default=50.0, nullable=False)
+    category: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+    __table_args__ = (
+        Index("ix_event_metrics_category_created", "category", "created_at"),
+    )
+
+
+class HomeSnapshot(Base):
+    __tablename__ = "home_snapshots"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    cycle_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("news_cycles.id"), index=True)
+    payload_json: Mapped[dict] = mapped_column(JSONB, default=dict, nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class IngestionLock(Base, TimestampMixin):
+    __tablename__ = "ingestion_locks"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    lock_name: Mapped[str] = mapped_column(String(80), nullable=False, unique=True, index=True)
+    locked_until: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    locked_by: Mapped[str | None] = mapped_column(String(160))
 
 
 class ScenarioRun(Base):

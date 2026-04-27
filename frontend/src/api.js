@@ -57,10 +57,10 @@ async function request(path, options = {}, retries = 2) {
 export const api = {
   // GET: Serve cached intelligence, personalized per user via X-User-Id header
   getCachedDashboard: () =>
-    request('/api/dashboard', { method: 'GET' }),
+    request('/api/home-snapshot', { method: 'GET' }),
 
   getPersonalizedDashboard: () =>
-    request('/api/personalized-dashboard', { method: 'GET' }),
+    request('/api/home-snapshot', { method: 'GET' }),
 
   // POST: Force full pipeline refresh (user-triggered)
   forceDashboardRefresh: (topics = [], regions = []) =>
@@ -71,9 +71,7 @@ export const api = {
 
   // Legacy alias (used by Dashboard.jsx)
   getDashboard: (topics = [], regions = [], force = false) =>
-    force
-      ? request('/api/dashboard', { method: 'POST', body: JSON.stringify({ topics, regions }) })
-      : request('/api/dashboard', { method: 'GET' }),
+    request('/api/home-snapshot', { method: 'GET' }),
 
   storyDeepDive: (title, text, source) =>
     request('/api/stories/deep-dive', {

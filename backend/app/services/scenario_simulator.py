@@ -2,15 +2,13 @@ import hashlib
 import json
 from datetime import datetime, timezone
 from typing import Any
-from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
 
 import hf_client
-from app.models.news import Event, EventArticle, EventRelationship, ScenarioRun
+from app.models.news import HomeSnapshot, ScenarioRun
 from app.services.event_enrichment import clean_json_text
 
 
@@ -86,47 +84,18 @@ def parse_scenario_result(raw: str) -> ScenarioResult:
 
 
 async def scenario_context(session: AsyncSession, base_event_id: str | None = None) -> dict[str, Any]:
+    snapshot = await session.scalar(
+        select(HomeSnapshot).where(HomeSnapshot.active.is_(True)).order_by(HomeSnapshot.created_at.desc()).limit(1)
+    )
+    payload = snapshot.payload_json if snapshot and isinstance(snapshot.payload_json, dict) else {}
+    items = payload.get("simulatorContext") if isinstance(payload.get("simulatorContext"), list) else []
     base_event = None
-    related = []
     if base_event_id:
-        try:
-            event_uuid = UUID(base_event_id)
-            base_event = await session.scalar(
-                select(Event)
-                .options(selectinload(Event.article_links).selectinload(EventArticle.article))
-                .where(Event.id == event_uuid)
-            )
-            if base_event:
-                edges = (await session.scalars(
-                    select(EventRelationship).where(
-                        or_(
-                            EventRelationship.source_event_id == event_uuid,
-                            EventRelationship.target_event_id == event_uuid,
-                        )
-                    ).limit(8)
-                )).all()
-                ids = {edge.source_event_id if edge.target_event_id == event_uuid else edge.target_event_id for edge in edges}
-                if ids:
-                    related = (await session.scalars(select(Event).where(Event.id.in_(ids)).limit(8))).all()
-        except ValueError:
-            pass
-    if not base_event:
-        related = (await session.scalars(select(Event).where(Event.status == "active").order_by(Event.last_seen_at.desc()).limit(8))).all()
-    def event_payload(event: Event) -> dict[str, Any]:
-        ai = (event.metadata_json or {}).get("ai") if isinstance(event.metadata_json, dict) else {}
-        geo = (event.metadata_json or {}).get("geo") if isinstance(event.metadata_json, dict) else {}
-        return {
-            "id": str(event.id),
-            "title": event.title,
-            "category": event.category,
-            "region": event.region,
-            "ai_summary": ai.get("summary") if isinstance(ai, dict) else None,
-            "story_graph": ai.get("story_graph_json") if isinstance(ai, dict) else None,
-            "geo": geo if isinstance(geo, dict) else {},
-        }
+        base_event = next((item for item in items if str(item.get("id")) == str(base_event_id)), None)
     return {
-        "base_event": event_payload(base_event) if base_event else None,
-        "related_events": [event_payload(event) for event in related],
+        "base_event": base_event,
+        "related_events": items[:8],
+        "source": "home_snapshots.simulatorContext",
     }
 
 
@@ -194,7 +163,7 @@ async def run_scenario(
     run = ScenarioRun(
         user_id=user_id,
         input_text=scenario,
-        base_event_id=UUID(base_event_id) if base_event_id else None,
+        base_event_id=None,
         assumptions_json=assumptions or {},
         result_json=result,
         provider_used=provider,

@@ -21,6 +21,30 @@ class Settings(BaseSettings):
     title_similarity_threshold: float = Field(default=0.86, alias="TITLE_SIMILARITY_THRESHOLD")
     ai_enrichment_max_events_per_run: int = Field(default=10, alias="AI_ENRICHMENT_MAX_EVENTS_PER_RUN")
     ai_enrichment_stale_hours: int = Field(default=6, alias="AI_ENRICHMENT_STALE_HOURS")
+    newsintel_categories: str = Field(default="tech,education,entertainment,politics", alias="NEWSINTEL_CATEGORIES")
+    newsintel_articles_per_category: int = Field(default=5, alias="NEWSINTEL_ARTICLES_PER_CATEGORY")
+    newsintel_ingest_interval_minutes: int = Field(default=10, alias="NEWSINTEL_INGEST_INTERVAL_MINUTES")
+    newsintel_rank_top_n: int = Field(default=15, alias="NEWSINTEL_RANK_TOP_N")
+    newsintel_enrich_batch_size: int = Field(default=3, alias="NEWSINTEL_ENRICH_BATCH_SIZE")
+    newsintel_retention_days: int = Field(default=7, alias="NEWSINTEL_RETENTION_DAYS")
+    ai_circuit_breaker_cooldown_minutes: int = Field(default=360, alias="AI_CIRCUIT_BREAKER_COOLDOWN_MINUTES")
+    enable_heavy_ingestion: bool = Field(default=False, alias="ENABLE_HEAVY_INGESTION")
+    enable_personalization: bool = Field(default=False, alias="ENABLE_PERSONALIZATION")
+    enable_watchlist: bool = Field(default=False, alias="ENABLE_WATCHLIST")
+    enable_alerts: bool = Field(default=False, alias="ENABLE_ALERTS")
+    enable_digests: bool = Field(default=False, alias="ENABLE_DIGESTS")
+    enable_country_filters: bool = Field(default=False, alias="ENABLE_COUNTRY_FILTERS")
+
+    @property
+    def mvp_categories(self) -> list[str]:
+        allowed = {"tech", "education", "entertainment", "politics"}
+        categories = [
+            item.strip().lower()
+            for item in self.newsintel_categories.split(",")
+            if item.strip()
+        ]
+        filtered = [item for item in categories if item in allowed]
+        return filtered or ["tech", "education", "entertainment", "politics"]
 
     @property
     def async_database_url(self) -> str:

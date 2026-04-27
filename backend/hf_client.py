@@ -147,6 +147,32 @@ async def _call_openrouter(prompt: str, model: str = "openrouter/auto") -> str:
         return ""
 
 
+async def call_openrouter_raw(prompt: str, model: str = "openrouter/auto", max_tokens: int = 2000) -> dict:
+    """Raw OpenRouter call for pipeline code that needs status-aware circuit breaking."""
+    payload = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": 0.2,
+        "max_tokens": max_tokens,
+    }
+    try:
+        response = await _http.post(OPENROUTER_URL, headers=HEADERS, json=payload)
+        content = ""
+        if response.status_code == 200:
+            data = response.json()
+            content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+        return {
+            "ok": response.status_code == 200 and bool(content),
+            "status_code": response.status_code,
+            "content": content,
+            "body": response.text[:1000],
+            "provider": "openrouter",
+        }
+    except Exception as exc:
+        logger.error("OpenRouter raw call failed: %s", exc)
+        return {"ok": False, "status_code": None, "content": "", "body": str(exc), "provider": "openrouter"}
+
+
 async def diagnose_openrouter(
     prompt: str = "Reply with exactly: OPENROUTER_OK",
     model: str = "openrouter/auto",
@@ -233,6 +259,34 @@ async def _call_gemini(prompt: str, model: str = None) -> str:
 
     logger.error("All Gemini models exhausted.")
     return ""
+
+
+async def call_gemini_raw(prompt: str, model: str = None, max_tokens: int = 2000) -> dict:
+    """Raw Gemini call for status-aware pipeline AI requests."""
+    models = [model] if model else _GEMINI_MODELS
+    last = {"ok": False, "status_code": None, "content": "", "body": "", "provider": "gemini"}
+    for selected_model in models:
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "model": selected_model,
+            "generationConfig": {"temperature": 0.2, "maxOutputTokens": max_tokens},
+        }
+        try:
+            response = await _http.post(GEMINI_URL, headers=HEADERS, json=payload)
+            content = _extract_gemini(response.json()) if response.status_code == 200 else ""
+            last = {
+                "ok": response.status_code == 200 and bool(content),
+                "status_code": response.status_code,
+                "content": content,
+                "body": response.text[:1000],
+                "provider": f"gemini:{selected_model}",
+            }
+            if last["ok"] or response.status_code in (402, 429):
+                return last
+        except Exception as exc:
+            logger.error("Gemini raw call failed: %s", exc)
+            last = {"ok": False, "status_code": None, "content": "", "body": str(exc), "provider": f"gemini:{selected_model}"}
+    return last
 
 
 async def _call_gemini_embedding(text: str, model: str = None) -> dict:

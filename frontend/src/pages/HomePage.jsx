@@ -295,15 +295,9 @@ export default function HomePage() {
     if (force) setRefreshing(true);
     else setLoading(true);
     try {
-      const prefsResult = await api.getPreferences().catch(() => null);
-      const prefsData = prefsResult?.data || null;
-      const topics = prefsData?.preferred_categories || [];
-      const regions = prefsData?.preferred_regions || [];
-      const [dashResult, alertsResult] = await Promise.all([
-        force ? api.forceDashboardRefresh(topics, regions) : api.getPersonalizedDashboard(),
-        api.getAlerts().catch(() => null),
-      ]);
-      setPreferences(prefsResult);
+      const dashResult = await api.getCachedDashboard();
+      const alertsResult = { alerts: [], unread_count: 0 };
+      setPreferences({ data: { preferred_categories: dashResult?.topics_used || [], preferred_regions: ['global'] } });
       setDashboard(dashResult);
       setAlerts(alertsResult);
     } catch (err) {

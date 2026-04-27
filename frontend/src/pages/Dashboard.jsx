@@ -8,7 +8,6 @@ import {
 import { AppContext } from '../App';
 import { useAuth } from '../context/AuthContext';
 import { usePersonalization } from '../context/PersonalizationContext';
-import { api } from '../api';
 
 /* ── Utilities (imported from context) ──────── */
 const clamp = (v, lo = 0, hi = 100) => Math.max(lo, Math.min(hi, Number(v) || 0));
@@ -332,14 +331,8 @@ export default function Dashboard() {
   // Check if user needs onboarding
   useEffect(() => {
     if (!user) return;
-    (async () => {
-      try {
-        const prefs = await api.getPreferences();
-        if (prefs.status === 'not_found' || !prefs.data?.onboarded) { navigate('/onboarding'); return; }
-      } catch { /* Dashboard load will show API errors or cached data. */ }
-      setCheckingPrefs(false);
-    })();
-  }, [navigate, user]);
+    setCheckingPrefs(false);
+  }, [user]);
 
   // Handle deep link from Watchlist/Alerts pages
   useEffect(() => {

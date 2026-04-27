@@ -47,6 +47,13 @@ TOPIC_QUERIES = {
     "legal": "regulation law antitrust compliance",
 }
 
+MVP_CATEGORY_QUERIES = {
+    "tech": "global technology AI startups cybersecurity semiconductors",
+    "education": "global education universities students exams online learning",
+    "entertainment": "global entertainment movies music celebrities streaming",
+    "politics": "global politics elections government diplomacy policy",
+}
+
 REGION_BOOST = {
     "global": "",
     "us": "United States",
@@ -222,6 +229,52 @@ async def _fetch_rss(query: str) -> list:
     except Exception as e:
         logger.error(f"RSS fetch error for '{query}': {e}")
         return []
+
+
+async def fetch_mvp_category(category: str, limit: int = 5) -> list:
+    """Fetch real Google News RSS items for one controlled MVP category."""
+    query = MVP_CATEGORY_QUERIES.get(category, category)
+    query_variants = [
+        query,
+        f"{query} latest",
+        f"{query} today",
+        f"{query} breaking",
+    ]
+    unique = []
+    seen = set()
+    for query_variant in query_variants:
+        if len(unique) >= limit:
+            break
+        items = await _fetch_rss(query_variant)
+        for item in items:
+            url_key = (item.get("url") or "").strip().lower()
+            title_key = re.sub(r"[^a-z0-9]", "", (item.get("title") or "").lower())[:90]
+            key = url_key or title_key
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            normalized = dict(item)
+            normalized["category"] = category
+            normalized["rss_query"] = query
+            unique.append(normalized)
+            if len(unique) >= limit:
+                break
+    return unique
+
+
+async def fetch_mvp_articles(categories: list[str], per_category: int = 5) -> list:
+    """Fetch the controlled MVP batch: N real RSS articles per category."""
+    results = await asyncio.gather(
+        *[fetch_mvp_category(category, per_category) for category in categories],
+        return_exceptions=True,
+    )
+    articles = []
+    for category, result in zip(categories, results):
+        if isinstance(result, Exception):
+            logger.warning("MVP RSS fetch error for %s: %s", category, result)
+            continue
+        articles.extend(result[:per_category])
+    return articles
 
 
 async def extract_article_text(url: str) -> str:
