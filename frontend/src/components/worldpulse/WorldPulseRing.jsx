@@ -1,14 +1,13 @@
 import { useEffect, useRef, useMemo } from 'react';
 
-/* ── ECG Heartbeat Canvas — real medical-style waveform ── */
-function HeartbeatCanvas({ size, pulseValue }) {
+/* ── Breathing Ripple Canvas — slow pulsing rings that fade like a heartbeat ── */
+function BreathingRipple({ size, pulseValue }) {
   const canvasRef = useRef(null);
   const frameRef = useRef(null);
 
-  const bpm = useMemo(() => {
-    if (!pulseValue || pulseValue <= 0) return 40;
-    const t = Math.max(0, Math.min(1, (pulseValue - 10) / 90));
-    return 40 + t * 80; // 40bpm (quiet) → 120bpm (intense)
+  const intensity = useMemo(() => {
+    if (!pulseValue || pulseValue <= 0) return 0.3;
+    return Math.max(0.3, Math.min(1, pulseValue / 100));
   }, [pulseValue]);
 
   useEffect(() => {
@@ -16,102 +15,90 @@ function HeartbeatCanvas({ size, pulseValue }) {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
-    const pxSize = size * dpr;
-    canvas.width = pxSize;
-    canvas.height = pxSize;
+    canvas.width = size * dpr;
+    canvas.height = size * dpr;
     canvas.style.width = `${size}px`;
     canvas.style.height = `${size}px`;
     ctx.scale(dpr, dpr);
 
     const cx = size / 2;
     const cy = size / 2;
-    const radius = size * 0.38;
-    let phase = 0;
-
-    /* ECG-style waveform shape */
-    function ecgSample(t) {
-      t = t % 1;
-      if (t < 0.1) return 0;
-      if (t < 0.15) return Math.sin((t - 0.1) / 0.05 * Math.PI) * 0.15;
-      if (t < 0.2) return 0;
-      if (t < 0.24) return -0.1;
-      if (t < 0.28) return ((t - 0.24) / 0.04) * 1.0;
-      if (t < 0.32) return 1.0 - ((t - 0.28) / 0.04) * 1.3;
-      if (t < 0.36) return -0.3 + ((t - 0.32) / 0.04) * 0.3;
-      if (t < 0.42) return Math.sin((t - 0.36) / 0.06 * Math.PI) * 0.2;
-      if (t < 0.48) return Math.sin((t - 0.42) / 0.06 * Math.PI) * 0.12;
-      return 0;
-    }
+    const baseRadius = size * 0.34;
 
     function tick(now) {
-      const beatDuration = 60000 / bpm;
-      phase = (now % beatDuration) / beatDuration;
-
       ctx.clearRect(0, 0, size, size);
 
-      /* Ripple rings that pulse with heartbeat */
-      const beatPhase = phase;
-      const rippleAlpha = Math.max(0, 0.3 - beatPhase * 0.35);
-      const rippleScale = 1 + beatPhase * 0.3;
+      /* Slow breathing cycle — 4 seconds per full breath */
+      const breathCycle = 4000;
+      const breathPhase = (now % breathCycle) / breathCycle;
+      /* Smooth sine breathing */
+      const breath = Math.sin(breathPhase * Math.PI * 2) * 0.5 + 0.5;
 
-      for (let i = 0; i < 3; i++) {
-        const rPhase = (beatPhase + i * 0.33) % 1;
-        const rAlpha = Math.max(0, 0.25 - rPhase * 0.3);
-        const rScale = 1 + rPhase * 0.35;
-        if (rAlpha > 0.01) {
+      /* Draw 3 concentric dotted orbit rings */
+      const rings = [
+        { r: baseRadius * 1.18, dots: 60, dotSize: 1.2, speed: 0.00003, alpha: 0.15 },
+        { r: baseRadius * 1.35, dots: 80, dotSize: 1.0, speed: -0.00002, alpha: 0.10 },
+        { r: baseRadius * 1.52, dots: 100, dotSize: 0.8, speed: 0.000015, alpha: 0.07 },
+      ];
+
+      rings.forEach((ring) => {
+        const rotation = now * ring.speed;
+        /* Ripple: some dots glow brighter in a wave pattern */
+        for (let i = 0; i < ring.dots; i++) {
+          const angle = rotation + (i / ring.dots) * Math.PI * 2;
+          const dx = cx + Math.cos(angle) * ring.r;
+          const dy = cy + Math.sin(angle) * ring.r;
+
+          /* Wave effect — a "pulse" of brightness travels around the ring */
+          const wavePos = (now * 0.0004 * intensity) % 1;
+          const dotPos = i / ring.dots;
+          const dist = Math.abs(dotPos - wavePos);
+          const waveDist = Math.min(dist, 1 - dist); // wrap-around distance
+          const waveGlow = Math.max(0, 1 - waveDist * 8); // sharp falloff
+
+          const dotAlpha = ring.alpha + waveGlow * 0.5 * intensity;
+          const dotR = ring.dotSize + waveGlow * 1.5 * intensity;
+
           ctx.beginPath();
-          ctx.arc(cx, cy, radius * rScale, 0, Math.PI * 2);
-          const grad = ctx.createRadialGradient(cx, cy, radius * rScale * 0.8, cx, cy, radius * rScale);
-          grad.addColorStop(0, `rgba(139, 92, 246, ${rAlpha})`);
-          grad.addColorStop(1, `rgba(139, 92, 246, 0)`);
-          ctx.strokeStyle = grad;
-          ctx.lineWidth = 2;
-          ctx.stroke();
+          ctx.arc(dx, dy, dotR, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(167, 139, 250, ${dotAlpha})`;
+          ctx.fill();
+
+          /* Extra glow on wave peak */
+          if (waveGlow > 0.3) {
+            ctx.beginPath();
+            ctx.arc(dx, dy, dotR * 2.5, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(139, 92, 246, ${waveGlow * 0.15 * intensity})`;
+            ctx.fill();
+          }
         }
-      }
+      });
 
-      /* Draw ECG waveform around the ring */
-      const totalPoints = 180;
+      /* Breathing ripple — a single soft ring that expands/contracts */
+      const rippleR = baseRadius * (1.05 + breath * 0.12);
+      const rippleAlpha = (1 - breath) * 0.12 * intensity;
       ctx.beginPath();
-      for (let i = 0; i <= totalPoints; i++) {
-        const angle = (i / totalPoints) * Math.PI * 2 - Math.PI / 2;
-        const sampleT = ((i / totalPoints) + phase * 2) % 1;
-        const amplitude = ecgSample(sampleT) * (size * 0.06);
-        const r = radius + amplitude;
-        const x = cx + Math.cos(angle) * r;
-        const y = cy + Math.sin(angle) * r;
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      }
-      ctx.closePath();
-      ctx.strokeStyle = `rgba(167, 139, 250, 0.6)`;
-      ctx.lineWidth = 1.8;
-      ctx.shadowColor = 'rgba(139, 92, 246, 0.5)';
-      ctx.shadowBlur = 8;
+      ctx.arc(cx, cy, rippleR, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(139, 92, 246, ${rippleAlpha})`;
+      ctx.lineWidth = 1.5;
       ctx.stroke();
-      ctx.shadowBlur = 0;
 
-      /* Glowing dot that traces the waveform */
-      const dotAngle = phase * Math.PI * 2 - Math.PI / 2;
-      const dotSample = ecgSample(phase * 2 % 1);
-      const dotR = radius + dotSample * (size * 0.06);
-      const dotX = cx + Math.cos(dotAngle) * dotR;
-      const dotY = cy + Math.sin(dotAngle) * dotR;
-
+      /* Second ripple slightly delayed */
+      const breath2 = Math.sin((breathPhase + 0.3) * Math.PI * 2) * 0.5 + 0.5;
+      const rippleR2 = baseRadius * (1.1 + breath2 * 0.15);
+      const rippleAlpha2 = (1 - breath2) * 0.08 * intensity;
       ctx.beginPath();
-      ctx.arc(dotX, dotY, 4, 0, Math.PI * 2);
-      ctx.fillStyle = '#c084fc';
-      ctx.shadowColor = 'rgba(192, 132, 252, 0.8)';
-      ctx.shadowBlur = 12;
-      ctx.fill();
-      ctx.shadowBlur = 0;
+      ctx.arc(cx, cy, rippleR2, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(94, 234, 212, ${rippleAlpha2})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
 
       frameRef.current = requestAnimationFrame(tick);
     }
 
     frameRef.current = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frameRef.current);
-  }, [size, bpm]);
+  }, [size, intensity]);
 
   return (
     <canvas
@@ -122,16 +109,14 @@ function HeartbeatCanvas({ size, pulseValue }) {
   );
 }
 
-/* ── Arc Ring SVG ────────────────────────────── */
+/* ── Arc Ring SVG — the main value arc ────────────────── */
 function ArcRing({ value, size }) {
-  const id = 'wp-ring-grad';
-  const filterId = 'wp-glow';
   const center = size / 2;
   const radius = size * 0.345;
   const circ = 2 * Math.PI * radius;
   const pct = Math.max(0, Math.min(100, Number(value) || 0));
   const offset = circ - (pct / 100) * circ;
-  const stroke = size * 0.042;
+  const stroke = size * 0.038;
 
   return (
     <svg
@@ -141,32 +126,35 @@ function ArcRing({ value, size }) {
       aria-hidden="true"
     >
       <defs>
-        <linearGradient id={id} x1="0%" y1="0%" x2="100%" y2="100%">
+        <linearGradient id="wp-arc-grad" x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor="#7c3aed" />
-          <stop offset="45%" stopColor="#818cf8" />
+          <stop offset="50%" stopColor="#8b5cf6" />
           <stop offset="100%" stopColor="#c084fc" />
         </linearGradient>
-        <filter id={filterId} x="-30%" y="-30%" width="160%" height="160%">
-          <feGaussianBlur stdDeviation="5" result="blur" />
+        <filter id="wp-arc-glow" x="-30%" y="-30%" width="160%" height="160%">
+          <feGaussianBlur stdDeviation="6" result="blur" />
           <feMerge>
             <feMergeNode in="blur" />
             <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
       </defs>
-      <circle cx={center} cy={center} r={radius} fill="none" stroke="rgba(139,92,246,0.08)" strokeWidth={stroke} />
+
+      {/* Track ring */}
       <circle
-        cx={center} cy={center} r={radius} fill="none"
-        stroke={`url(#${id})`} strokeWidth={stroke} strokeLinecap="round"
+        cx={center} cy={center} r={radius}
+        fill="none" stroke="rgba(139,92,246,0.06)" strokeWidth={stroke}
+      />
+
+      {/* Value arc */}
+      <circle
+        cx={center} cy={center} r={radius}
+        fill="none" stroke="url(#wp-arc-grad)"
+        strokeWidth={stroke} strokeLinecap="round"
         strokeDasharray={circ} strokeDashoffset={offset}
         transform={`rotate(-90 ${center} ${center})`}
-        filter={`url(#${filterId})`}
-        style={{ transition: 'stroke-dashoffset 1.2s cubic-bezier(0.4,0,0.2,1)' }}
-      />
-      <circle
-        cx={center} cy={center} r={radius * 1.18} fill="none"
-        stroke="rgba(139,92,246,0.12)" strokeWidth="1" strokeDasharray="3 9"
-        style={{ transformOrigin: 'center', animation: 'orbitSpin 42s linear infinite' }}
+        filter="url(#wp-arc-glow)"
+        style={{ transition: 'stroke-dashoffset 1.5s cubic-bezier(0.22,1,0.36,1)' }}
       />
     </svg>
   );
@@ -179,15 +167,14 @@ function DeltaArrow({ delta }) {
   const dn = delta < 0;
   const cls = up ? 'wp-ring-up' : dn ? 'wp-ring-down' : 'wp-ring-neutral';
   const sym = up ? '↑' : dn ? '↓' : '—';
-  const abs = Math.abs(delta);
   return (
     <span className={`wp-ring-delta ${cls}`}>
-      {sym} {abs} from yesterday
+      {sym} {Math.abs(delta)} from yesterday
     </span>
   );
 }
 
-/* ── Main Component — NO hardcoded values ────── */
+/* ── Main Component ──────────────────────────── */
 export default function WorldPulseRing({ worldPulse }) {
   const value = worldPulse?.value;
   const hasValue = value !== null && value !== undefined && Number.isFinite(Number(value));
@@ -197,8 +184,13 @@ export default function WorldPulseRing({ worldPulse }) {
   return (
     <section className="world-pulse-card wp-ring-card">
       <div className="wp-ring-scene" style={{ width: SIZE, height: SIZE }}>
-        <HeartbeatCanvas size={SIZE} pulseValue={pct} />
+        {/* Layer 0: breathing dotted orbits + ripple */}
+        <BreathingRipple size={SIZE} pulseValue={pct} />
+
+        {/* Layer 1: gradient arc */}
         <ArcRing value={pct} size={SIZE} />
+
+        {/* Layer 2: center content */}
         <div className="wp-ring-center">
           <span className="wp-ring-eyebrow">WORLD PULSE</span>
           <span className="wp-ring-value">
@@ -210,10 +202,11 @@ export default function WorldPulseRing({ worldPulse }) {
           <DeltaArrow delta={worldPulse?.delta} />
         </div>
       </div>
+
       <p className="wp-ring-copy">
         {hasValue
-          ? <>Live global intensity of events<br />across all key dimensions.</>
-          : <>Waiting for backend pulse data.<br />No fallback values used.</>
+          ? <>Overall global intensity of events<br />across all key dimensions.</>
+          : <>Waiting for backend pulse data.</>
         }
       </p>
     </section>

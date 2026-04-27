@@ -17,91 +17,48 @@ import FreshnessBadge from '../components/worldpulse/FreshnessBadge';
 import LockedNavToast from '../components/worldpulse/LockedNavToast';
 
 
-
-const BOOT_STEPS = [
-  { key: 'connect', icon: '🔌', label: 'Connecting' },
-  { key: 'fetch',   icon: '📡', label: 'Fetching Intel' },
-  { key: 'analyze', icon: '🧠', label: 'AI Analysis' },
-  { key: 'cluster', icon: '🔗', label: 'Clustering' },
-  { key: 'render',  icon: '✨', label: 'Rendering' },
+const BOOT_PHASES = [
+  { key: 'uplink',  label: 'Establishing secure uplink' },
+  { key: 'fetch',   label: 'Fetching live signals' },
+  { key: 'analyze', label: 'Analyzing global shifts' },
+  { key: 'init',    label: 'Initializing pipeline' },
 ];
 
-function DashboardBoot({ status, bootElapsed }) {
-  const latest = status?.latest_cycle?.status || status?.news || 'warming';
-  const queue = status?.queue;
-
-  // Calculate which step is active based on elapsed time
-  // Total boot: ~3.5s, so each step gets ~700ms
-  const stepMs = 650;
+function DashboardBoot({ bootElapsed }) {
+  const stepMs = 900;
   const activeIndex = Math.min(
     Math.floor((bootElapsed || 0) / stepMs),
-    BOOT_STEPS.length - 1,
+    BOOT_PHASES.length - 1,
   );
 
   return (
-    <div className="dashboard-boot">
-      <div className="dashboard-boot-card wp-card">
-        <span className="boot-kicker">
-          <Activity size={12} style={{ marginRight: 6 }} />
-          Intelligence Pipeline
-        </span>
-        <h2>Initializing command center…</h2>
-        <p>
-          {queue
-            ? `${queue.running || 0} running / ${queue.pending || 0} pending`
-            : `Phase: ${BOOT_STEPS[activeIndex]?.label || String(latest).replace(/_/g, ' ')}`}
-        </p>
-
-        <div className="boot-steps" aria-hidden="true">
-          {BOOT_STEPS.map((step, i) => {
-            const state = i < activeIndex ? 'completed' : i === activeIndex ? 'active' : '';
-            return (
-              <div key={step.key} className={`boot-step ${state}`}>
-                <span className="boot-step-icon">{step.icon}</span>
-                <span className="boot-step-label">{step.label}</span>
-                <div className="boot-step-bar" />
-              </div>
-            );
-          })}
-        </div>
-
-        <div className="boot-progress" aria-hidden="true"><span /></div>
+    <div className="pipeline-boot">
+      <div className="pipeline-boot-list">
+        {BOOT_PHASES.map((phase, i) => {
+          const done = i < activeIndex;
+          const active = i === activeIndex;
+          return (
+            <div key={phase.key} className={`pipeline-boot-item ${done ? 'done' : ''} ${active ? 'active' : ''}`}>
+              <span className="pipeline-boot-dot" />
+              <span className="pipeline-boot-label">{phase.label}</span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
 function LiveCursor() {
-  const [point, setPoint] = useState({ x: -80, y: -80 });
-  const [pressed, setPressed] = useState(false);
-
   useEffect(() => {
-    const move = (event) => {
-      setPoint({ x: event.clientX, y: event.clientY });
-      document.documentElement.style.setProperty('--cursor-x', `${event.clientX}px`);
-      document.documentElement.style.setProperty('--cursor-y', `${event.clientY}px`);
+    const move = (e) => {
+      document.documentElement.style.setProperty('--cursor-x', `${e.clientX}px`);
+      document.documentElement.style.setProperty('--cursor-y', `${e.clientY}px`);
     };
-    const down = () => setPressed(true);
-    const up = () => setPressed(false);
     window.addEventListener('pointermove', move);
-    window.addEventListener('pointerdown', down);
-    window.addEventListener('pointerup', up);
-    return () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerdown', down);
-      window.removeEventListener('pointerup', up);
-    };
+    return () => window.removeEventListener('pointermove', move);
   }, []);
-
-  return (
-    <div
-      className={`live-cursor-advanced ${pressed ? 'pressed' : ''}`}
-      style={{ transform: `translate(${point.x}px, ${point.y}px)` }}
-    >
-      <div className="cursor-ring" />
-      <div className="cursor-dot" />
-    </div>
-  );
+  return null; // spotlight is CSS-only via --cursor-x/y
 }
 
 function readableLiveError(err) {
@@ -384,8 +341,8 @@ export default function HomePage() {
       setAlerts(null);
       setError(readableLiveError(err));
     } finally {
-      // Ensure the boot animation walks through all 5 steps (650ms each = 3250ms + buffer)
-      const minVisibleMs = force ? 600 : 3800;
+      // 4 pipeline steps × 900ms each + buffer
+      const minVisibleMs = force ? 600 : 4200;
       const elapsed = performance.now() - started;
       if (elapsed < minVisibleMs) {
         await new Promise((resolve) => window.setTimeout(resolve, minVisibleMs - elapsed));
@@ -460,7 +417,7 @@ export default function HomePage() {
           alertCount={data.alerts?.length || 0}
         />
 
-        {loading ? <DashboardBoot status={data.pipelineStatus} bootElapsed={bootElapsed} /> : (
+        {loading ? <DashboardBoot bootElapsed={bootElapsed} /> : (
           <>
             {error && (
               <div className="wp-error">

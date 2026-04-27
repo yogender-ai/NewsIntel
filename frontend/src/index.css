@@ -1104,76 +1104,8 @@ svg {
   to { background-position: -240% 0, 0 0; }
 }
 
-.dashboard-boot {
-  min-height: calc(100vh - 92px);
-  display: grid;
-  place-items: center;
-  padding: 24px;
-}
+/* Pipeline boot styling is in premium.css */
 
-.dashboard-boot-card {
-  width: min(860px, 100%);
-  padding: 22px;
-  overflow: hidden;
-  position: relative;
-}
-
-.dashboard-boot-card::before {
-  content: "";
-  position: absolute;
-  inset: -1px;
-  background:
-    linear-gradient(90deg, transparent, rgba(94, 234, 212, 0.16), transparent),
-    radial-gradient(circle at 86% 12%, rgba(255, 211, 138, 0.14), transparent 28%);
-  opacity: 0.86;
-  pointer-events: none;
-}
-
-.dashboard-boot-card > * {
-  position: relative;
-  z-index: 1;
-}
-
-.boot-kicker {
-  display: inline-flex;
-  margin-bottom: 10px;
-  color: var(--green);
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 900;
-  text-transform: uppercase;
-}
-
-.dashboard-boot-card h2 {
-  margin: 0 0 6px;
-  font-size: 24px;
-}
-
-.dashboard-boot-card p {
-  margin: 0 0 18px;
-  color: var(--muted);
-}
-
-.boot-progress {
-  height: 5px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.boot-progress span {
-  display: block;
-  width: 46%;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, var(--cyan), var(--amber), var(--rose));
-  animation: bootRail 1.4s ease-in-out infinite;
-}
-
-@keyframes bootRail {
-  0% { transform: translateX(-105%); }
-  100% { transform: translateX(225%); }
-}
 
 .wp-error,
 .phase5-error {
