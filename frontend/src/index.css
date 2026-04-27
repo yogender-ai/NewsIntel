@@ -4530,23 +4530,96 @@ body::after {
    World Pulse professional polish
    =================================================================== */
 .world-pulse-page {
-  background:
-    linear-gradient(180deg, rgba(11, 14, 28, 0.96), rgba(5, 7, 15, 0.98)),
-    #060812;
+  background: linear-gradient(180deg, rgba(11, 14, 28, 0.98), rgba(5, 7, 15, 1)), #060812;
   color: #e7ebf5;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  position: relative;
 }
 
 .world-pulse-page::before {
-  opacity: 0.26;
-  animation: wpAmbientDrift 18s ease-in-out infinite alternate;
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: 
+    linear-gradient(rgba(141, 162, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(141, 162, 255, 0.05) 1px, transparent 1px);
+  background-size: 80px 80px;
+  transform-origin: center;
+  animation: wpRadarSpin 150s linear infinite;
+  pointer-events: none;
+  z-index: 0;
+  mask-image: radial-gradient(circle at center, black 0%, transparent 60%);
+  -webkit-mask-image: radial-gradient(circle at center, black 0%, transparent 60%);
 }
 
-@keyframes wpAmbientDrift {
-  from { transform: translate3d(0, 0, 0); }
-  to { transform: translate3d(-12px, 10px, 0); }
+.world-pulse-page::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 120vw;
+  height: 120vh;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle at center, rgba(141, 162, 255, 0.07) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes wpRadarSpin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.world-pulse-main {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  padding: 16px 32px 32px;
+}
+
+.wp-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 32px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.wp-primary,
+.wp-right {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  min-height: 0;
+  height: 100%;
+}
+
+.top-shifts-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.top-shifts-list {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 8px;
 }
 
 .wp-sidebar {
+  position: relative;
+  z-index: 2;
   background: rgba(7, 9, 18, 0.9);
   border-right: 1px solid rgba(148, 163, 184, 0.12);
   box-shadow: none;
@@ -4620,11 +4693,13 @@ body::after {
   color: #f7f8fb;
   font-size: clamp(30px, 3vw, 40px);
   line-height: 1.02;
+  text-shadow: 0 4px 20px rgba(141,162,255,0.2);
 }
 
 .wp-kicker {
-  color: #7dd3fc;
+  color: #7ee7c4;
   letter-spacing: 0.18em;
+  text-shadow: 0 0 16px rgba(126,231,196,0.4);
 }
 
 .wp-icon-btn,
@@ -4633,21 +4708,27 @@ body::after {
 .freshness-badge {
   border-radius: 10px;
   background: rgba(15, 23, 42, 0.82);
-  border-color: rgba(148, 163, 184, 0.18);
+  border: 1px solid rgba(148, 163, 184, 0.18);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  backdrop-filter: blur(8px);
 }
 
 .wp-card,
 .world-pulse-card,
 .tour-card {
   border-radius: 14px;
-  background: rgba(11, 15, 29, 0.82);
-  border-color: rgba(148, 163, 184, 0.14);
-  box-shadow: 0 18px 60px rgba(0, 0, 0, 0.22);
-  backdrop-filter: blur(14px);
+  background: linear-gradient(145deg, rgba(14, 18, 36, 0.7), rgba(8, 10, 20, 0.85));
+  border: 1px solid rgba(141, 162, 255, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 18px 60px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
 }
 
 .wp-card:hover,
-.world-pulse-card:hover,
+.world-pulse-card:hover {
+  border-color: rgba(141, 162, 255, 0.25);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 24px 80px rgba(0, 0, 0, 0.5), 0 0 32px rgba(141,162,255,0.1);
+}
 .tour-card:hover {
   transform: translateY(-1px);
   border-color: rgba(148, 163, 184, 0.24);
