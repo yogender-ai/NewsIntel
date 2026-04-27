@@ -6422,6 +6422,26 @@ body::after {
     linear-gradient(180deg, rgba(5, 10, 22, 0.95), rgba(4, 8, 18, 0.98));
 }
 
+.wp-pulse-page::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image: 
+    radial-gradient(circle at 50% 50%, rgba(141, 162, 255, 0.08) 0%, transparent 60%),
+    linear-gradient(rgba(141, 162, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(141, 162, 255, 0.04) 1px, transparent 1px) !important;
+  background-size: 100% 100%, 60px 60px, 60px 60px !important;
+  background-position: center;
+  pointer-events: none;
+  z-index: -1;
+  animation: gridFloat 30s linear infinite !important;
+}
+
+@keyframes gridFloat {
+  0% { background-position: center, 0 0, 0 0; }
+  100% { background-position: center, 60px 60px, 60px 60px; }
+}
+
 .map-world-svg {
   position: absolute;
   inset: 8% 5%;
@@ -7015,14 +7035,20 @@ body::after {
   height: 100%;
 }
 
+.world-pulse-main {
+  position: relative;
+  z-index: 1;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 16px 24px;
+}
+
 .world-pulse-page::before {
-  content: '';
+  content: ' ';
   position: absolute;
   top: 0; left: 0; right: 0; bottom: 0;
-  background-image: 
-    radial-gradient(circle at 50% 50%, rgba(141, 162, 255, 0.08) 0%, transparent 60%),
-    linear-gradient(rgba(141, 162, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(141, 162, 255, 0.04) 1px, transparent 1px) !important;
+  background-image: radial-gradient(circle at 50% 50%, rgba(141, 162, 255, 0.08) 0%, transparent 60%), linear-gradient(rgba(141, 162, 255, 0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(141, 162, 255, 0.04) 1px, transparent 1px) !important;
   background-size: 100% 100%, 60px 60px, 60px 60px !important;
   background-position: center;
   pointer-events: none;
