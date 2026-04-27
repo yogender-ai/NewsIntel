@@ -1,0 +1,172 @@
+/* ==============================
+   Premium Dashboard Styles
+   ============================== */
+
+/* Root palette */
+:root {
+  --primary: #8b5cf6;               /* deep violet */
+  --accent:  #34d399;               /* emerald */
+  --bg-dark: #0a0c12;
+  --bg-card: rgba(13, 20, 36, 0.55);
+  --border-card: rgba(255,255,255,0.07);
+  --text-primary: #e5e7eb;
+  --text-muted:   #a0aec0;
+}
+
+/* Body animated gradient (already in index.css, but kept for consistency) */
+body {
+  background: linear-gradient(135deg, #0d0e1a, #15171f, #0a0c12);
+  background-size: 400% 400%;
+  animation: gradientShift 30s ease infinite;
+}
+@keyframes gradientShift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Glass‑morphism card base – reuse across the app */
+.glass-card,
+.wp-card,
+.panel,
+.world-pulse-card,
+.abstract-world-map,
+.shift-drawer,
+.insight-drawer {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  backdrop-filter: blur(12px);
+  border-radius: 12px;
+  box-shadow: 0 12px 24px rgba(0,0,0,.4);
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+.glass-card:hover,
+.wp-card:hover,
+.panel:hover,
+.world-pulse-card:hover,
+.abstract-world-map:hover,
+.shift-drawer:hover,
+.insight-drawer:hover {
+  transform: translateY(-6px) scale(1.02);
+  box-shadow: 0 18px 36px rgba(0,0,0,.45);
+}
+
+/* Header gradient overlay */
+.orbit-header {
+  position: relative;
+  padding: 1.8rem 1.2rem;
+  border-radius: 12px;
+  overflow: hidden;
+}
+.orbit-header::before {
+  content: "";
+  inset: 0;
+  position: absolute;
+  background: linear-gradient(135deg, rgba(139,92,246,.13), rgba(34,197,94,.07));
+  opacity: .6;
+  pointer-events: none;
+}
+
+/* Button enhancements */
+.wp-icon-btn,
+.btn,
+.wire-btn,
+.primary-action,
+.btn-premium {
+  border: 1px solid var(--border-card);
+  background: rgba(255,255,255,.04);
+  color: var(--text-primary);
+  transition: background .2s, border-color .2s, transform .2s;
+}
+.wp-icon-btn:hover,
+.btn:hover,
+.wire-btn:hover,
+.primary-action:hover,
+.btn-premium:hover {
+  background: rgba(255,255,255,.08);
+  border-color: var(--accent);
+  transform: translateY(-2px) scale(1.02);
+}
+
+/* Map statistics layout */
+.map-stats {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.map-stat {
+  flex: 1 1 180px;
+  min-width: 180px;
+}
+
+/* Map controls */
+.map-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .8rem;
+  align-items: center;
+}
+
+/* Map layout – map + side panel */
+.map-layout {
+  display: grid;
+  grid-template-columns: 1fr 300px;
+  gap: 1.5rem;
+}
+.abstract-world-map {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  backdrop-filter: blur(8px);
+}
+
+/* Sidebar & drawer glass effect */
+.world-pulse-page .wp-sidebar,
+.shift-drawer {
+  background: var(--bg-card);
+  border: 1px solid var(--border-card);
+  backdrop-filter: blur(10px);
+}
+
+/* Typography */
+h1, h2, h3, h4 { color: var(--text-primary); }
+p, span, li { color: var(--text-muted); }
+
+/* Subtle floating particles */
+body::before {
+  content: "";
+  inset: 0;
+  position: fixed;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 20% 30%, rgba(139,92,246,.04), transparent 40%),
+    radial-gradient(circle at 80% 70%, rgba(34,197,94,.04), transparent 45%);
+  animation: particlesShift 45s linear infinite;
+}
+@keyframes particlesShift {
+  0%   { background-position: 0% 0%; }
+  100% { background-position: 100% 100%; }
+}
+
+/* Map point hover */
+.map-heat-point:hover {
+  transform: scale(1.2) rotate(5deg);
+  filter: drop-shadow(0 0 8px rgba(255,255,255,.6));
+}
+
+/* Premium dashboard wrapper */
+.premium-dashboard {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+  display: grid;
+  gap: 2rem;
+  background: var(--bg-dark);
+}
+
+/* Ensure any new cards use the glass base */
+.wp-card {
+  background: var(--bg-card);
+}
