@@ -139,9 +139,9 @@ export function normalizeDashboardData({ dashboard, preferences, alerts, user })
     },
     worldPulse: {
       value: worldPulseValue,
-      label: dashboard?.world_pulse_label || 'Establishing baseline',
+      label: dashboard?.world_pulse_label || null,
       delta: averageDelta,
-      deltaLabel: averageDelta === null ? 'Establishing baseline' : averageDelta > 0 ? `+${averageDelta} from yesterday` : averageDelta < 0 ? `${averageDelta} from yesterday` : 'Stable',
+      deltaLabel: averageDelta === null ? null : averageDelta > 0 ? `+${averageDelta} from yesterday` : averageDelta < 0 ? `${averageDelta} from yesterday` : 'Stable',
     },
     pulseHistory,
     changesToday,
