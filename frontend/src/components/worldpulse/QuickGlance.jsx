@@ -7,11 +7,11 @@ function Stat({ id, label, value, delta, deltaColor, onClick }) {
   const Icon = icons[id] || Radio;
   const color = colors[id] || '#8da2ff';
   return (
-    <button className="qg-stat" onClick={onClick}>
-      <i className="qg-icon" style={{ color, background: color + '18' }}><Icon size={16} /></i>
-      <span>{label}</span>
-      <b>{value === null || value === undefined ? '—' : value}</b>
-      {delta && <em className="qg-delta" style={{ color: deltaColor || '#7ee7c4' }}>{delta}</em>}
+    <button className="qg-stat" onClick={onClick} style={{ padding: '8px 0', minHeight: '32px' }}>
+      <i className="qg-icon" style={{ color, background: color + '18', width: '20px', height: '20px' }}><Icon size={12} /></i>
+      <span style={{ fontSize: '11px' }}>{label}</span>
+      <b style={{ fontSize: '18px' }}>{value === null || value === undefined ? '—' : value}</b>
+      {delta && <em className="qg-delta" style={{ color: deltaColor || '#7ee7c4', fontSize: '9px' }}>{delta}</em>}
     </button>
   );
 }

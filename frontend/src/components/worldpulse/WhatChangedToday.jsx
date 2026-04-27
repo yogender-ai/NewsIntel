@@ -1,10 +1,20 @@
-import { Activity, ArrowDown, ArrowRight, ArrowUp, TrendingUp, TrendingDown, Radio } from 'lucide-react';
+import { Activity, ArrowDown, ArrowRight, ArrowUp, TrendingUp, TrendingDown, Radio, Globe, Building, Cpu, Coins, ShieldAlert, Zap } from 'lucide-react';
 import EmptyState from './EmptyState';
 
 const DirectionIcon = ({ direction }) => {
   if (direction === 'Rising') return <TrendingUp size={14} />;
   if (direction === 'Cooling') return <TrendingDown size={14} />;
   return <ArrowRight size={14} />;
+};
+
+const TopicIcon = ({ topic }) => {
+  const t = (topic || '').toLowerCase();
+  if (t.includes('tech') || t.includes('cyber')) return <Cpu size={16} />;
+  if (t.includes('econ') || t.includes('market') || t.includes('finance')) return <Coins size={16} />;
+  if (t.includes('geopol') || t.includes('secur')) return <ShieldAlert size={16} />;
+  if (t.includes('energy') || t.includes('climate')) return <Zap size={16} />;
+  if (t.includes('corp') || t.includes('business')) return <Building size={16} />;
+  return <Globe size={16} />;
 };
 
 function BottomSparkline({ current, previous }) {
@@ -23,31 +33,33 @@ function BottomSparkline({ current, previous }) {
 
 export default function WhatChangedToday({ changes, selectedTopic, onSelect }) {
   return (
-    <section className="wp-card what-changed-advanced">
-      <div className="wca-header">
+    <section className="wp-card what-changed-advanced" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div className="wca-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,255,255,0.06)', paddingBottom: '12px' }}>
         <div style={{display:'flex', alignItems:'center', gap:'8px'}}>
           <Activity size={16} color="#a5b4fc" />
           <span style={{fontSize: '12px', fontWeight: 800, letterSpacing: '0.08em'}}>WHAT CHANGED TODAY</span>
         </div>
-        <span style={{fontSize: '12px', color: '#94a3b8'}}>Key global shifts in the last 24 hours</span>
+        <span style={{fontSize: '12px', color: '#94a3b8', whiteSpace: 'nowrap'}}>Key global shifts in the last 24 hours</span>
       </div>
       
       {changes?.length ? (
-        <div className="wca-list">
+        <div className="wca-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', paddingRight: '4px' }}>
           {changes.map((item) => (
-            <button key={item.id} className="wca-row" onClick={() => onSelect(selectedTopic === item.id ? null : item.id)}>
-              <div className="wca-left">
-                <div className="wca-icon-circle">
-                  <ArrowRight size={16} />
+            <button key={item.id} className="wca-row" onClick={() => onSelect(selectedTopic === item.id ? null : item.id)} style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderRadius: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', position: 'relative', cursor: 'pointer', transition: 'all 0.2s', gap: '12px', overflow: 'hidden' }}>
+              <div className="wca-left" style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: '140px' }}>
+                <div className="wca-icon-circle" style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(141,162,255,0.08)', color: '#a5b4fc', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <TopicIcon topic={item.topic} />
                 </div>
-                <span className="wca-topic">{item.topic}</span>
+                <span className="wca-topic" style={{ fontSize: '14px', fontWeight: 800, color: '#f8fafc', textTransform: 'capitalize' }}>{item.topic}</span>
               </div>
               
-              <div className="wca-right">
-                <span className="wca-reason">{item.reason?.slice(0, 40) || 'Live movement across...'}</span>
-                <div className={`wca-pill ${(item.direction || 'stable').toLowerCase().replace(/\s/g, '-')}`}>
+              <div className="wca-right" style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, justifyContent: 'flex-end', minWidth: '0' }}>
+                <span className="wca-reason" style={{ fontSize: '11px', color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, textAlign: 'right' }}>
+                  {item.reason || 'Live movement across sources'}
+                </span>
+                <div className={`wca-pill ${(item.direction || 'stable').toLowerCase().replace(/\s/g, '-')}`} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '999px', background: 'rgba(15,23,42,0.8)', border: '1px solid rgba(255,255,255,0.05)', fontSize: '11px', fontWeight: 800, flexShrink: 0 }}>
                   <DirectionIcon direction={item.direction} />
-                  <span>{item.severityLabel || 'Medium'}</span>
+                  <span style={{ color: item.direction === 'Rising' ? '#f43f5e' : item.direction === 'Cooling' ? '#34d399' : '#fcd34d' }}>{item.severityLabel || 'Medium'}</span>
                 </div>
               </div>
               
@@ -58,6 +70,7 @@ export default function WhatChangedToday({ changes, selectedTopic, onSelect }) {
       ) : (
         <EmptyState title="Movement baseline is building." body="Daily delta will appear after backend pulse snapshots are available." />
       )}
+
     </section>
   );
 }

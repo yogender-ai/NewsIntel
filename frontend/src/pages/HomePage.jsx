@@ -48,9 +48,12 @@ function LiveCursor() {
 
   return (
     <div
-      className={`live-cursor ${pressed ? 'pressed' : ''}`}
-      style={{ '--cursor-x': `${point.x}px`, '--cursor-y': `${point.y}px` }}
-    />
+      className={`live-cursor-advanced ${pressed ? 'pressed' : ''}`}
+      style={{ transform: `translate(${point.x}px, ${point.y}px)` }}
+    >
+      <div className="cursor-ring" />
+      <div className="cursor-dot" />
+    </div>
   );
 }
 

@@ -280,7 +280,7 @@ async def build_dashboard_payload(
     except Exception:
         pass
 
-    world_pulse = sum(pulse_history_dict.get("history", [{"value": 50}])[-1]["value"] for _ in [1]) if pulse_history_dict.get("history") else 50
+    world_pulse = exposure_score
     world_pulse_label = "High Pressure" if world_pulse > 75 else "Elevated" if world_pulse > 55 else "Normal" if world_pulse > 30 else "Calm"
 
     quick_glance = [

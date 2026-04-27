@@ -21,38 +21,48 @@ export const AppContext = createContext({ headlines: [], setHeadlines: () => {},
 /* ── Pipeline Loading Screen ─────────────── */
 const PipelineLoading = () => {
   const [step, setStep] = useState(0);
-  const steps = ['ESTABLISHING SECURE UPLINK...', 'FETCHING LIVE SIGNALS...', 'ANALYZING GLOBAL SHIFTS...', 'INITIALIZING PIPELINE...'];
+  const steps = [
+    { label: 'ESTABLISHING SECURE UPLINK', color: '#ff9ba9' },
+    { label: 'FETCHING LIVE SIGNALS', color: '#ffd38a' },
+    { label: 'ANALYZING GLOBAL SHIFTS', color: '#8da2ff' },
+    { label: 'INITIALIZING PIPELINE', color: '#7ee7c4' }
+  ];
   
   useEffect(() => {
     const int = setInterval(() => {
       setStep(s => (s < steps.length - 1 ? s + 1 : s));
-    }, 800);
+    }, 600);
     return () => clearInterval(int);
   }, []);
 
   return (
     <div style={{ 
-      width: '100vw', height: '100vh', background: '#05060f', 
+      width: '100vw', height: '100vh', background: 'rgba(5, 6, 15, 0.85)', backdropFilter: 'blur(20px)',
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
       color: '#e7ebf5', zIndex: 9999, position: 'fixed', top: 0, left: 0
     }}>
       <div style={{
         position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
-        background: 'linear-gradient(rgba(141, 162, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(141, 162, 255, 0.03) 1px, transparent 1px)',
+        background: 'linear-gradient(rgba(141, 162, 255, 0.05) 1px, transparent 1px), linear-gradient(90deg, rgba(141, 162, 255, 0.05) 1px, transparent 1px)',
         backgroundSize: '40px 40px', maskImage: 'radial-gradient(circle at center, black, transparent 70%)',
-        animation: 'wpRadarSpin 100s linear infinite'
+        animation: 'wpRadarSpin 100s linear infinite', pointerEvents: 'none'
       }} />
-      <div style={{
-        width: 12, height: 12, borderRadius: '50%', background: '#7ee7c4',
-        boxShadow: '0 0 20px #7ee7c4', animation: 'pulseGlow 1.5s ease-in-out infinite',
-        marginBottom: 24, zIndex: 1
-      }} />
-      <span className="mono" style={{ 
-        fontSize: 10, color: '#8da2ff', letterSpacing: 3, fontWeight: 800,
-        zIndex: 1, textShadow: '0 0 10px rgba(141,162,255,0.5)'
-      }}>
-        {steps[step]}
-      </span>
+      
+      <div style={{ zIndex: 1, display: 'flex', flexDirection: 'column', gap: '16px', minWidth: '300px' }}>
+        {steps.map((s, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '12px', opacity: i <= step ? 1 : 0.2, transition: 'opacity 0.3s' }}>
+            <div style={{ 
+              width: '16px', height: '16px', borderRadius: '50%', border: `2px solid ${s.color}`, 
+              background: i === step ? s.color : 'transparent',
+              boxShadow: i === step ? `0 0 16px ${s.color}` : 'none',
+              transition: 'all 0.3s'
+            }} />
+            <span className="mono" style={{ fontSize: '11px', color: i <= step ? '#f8fafc' : '#4c5773', letterSpacing: '0.2em', fontWeight: 800 }}>
+              {s.label}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };

@@ -11,7 +11,19 @@ export default function WorldPulseRing({ worldPulse }) {
 
   return (
     <section className="world-pulse-card advanced-ring-card">
-      <div className="advanced-ring-wrap">
+      <style>{`
+        @keyframes heartbeat {
+          0% { transform: scale(1); }
+          14% { transform: scale(1.05); }
+          28% { transform: scale(1); }
+          42% { transform: scale(1.05); }
+          70% { transform: scale(1); }
+        }
+        .heartbeat-active {
+          animation: heartbeat 1.5s infinite cubic-bezier(0.215, 0.61, 0.355, 1);
+        }
+      `}</style>
+      <div className={`advanced-ring-wrap ${value > 60 ? 'heartbeat-active' : ''}`}>
         <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
           <defs>
             <linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%">
