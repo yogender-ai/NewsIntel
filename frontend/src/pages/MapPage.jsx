@@ -5,6 +5,7 @@ import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import Sidebar from '../components/worldpulse/Sidebar';
 import LockedNavToast from '../components/worldpulse/LockedNavToast';
+import WorldMap from '../components/worldpulse/WorldMap';
 
 
 function project(region) {

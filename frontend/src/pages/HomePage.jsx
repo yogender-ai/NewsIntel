@@ -361,7 +361,14 @@ export default function HomePage() {
   return (
     <div className="world-pulse-page">
       <LiveCursor />
-      <Sidebar
+      <div className="premium-dashboard">
+  {/* Existing content stays the same */}
+  <Sidebar ... />
+  <main className="world-pulse-main">
+    {/* all existing elements */}
+  </main>
+  <LockedNavToast ... />
+</div>
         preferences={data.preferences}
         activeItem="home"
         onHome={() => { setSelectedTopic(null); setInsightView(null); }}
