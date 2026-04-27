@@ -4534,7 +4534,8 @@ body::after {
   color: #e7ebf5;
   height: 100vh;
   overflow: hidden;
-  display: flex;
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
   position: relative;
 }
 
