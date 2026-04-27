@@ -16,7 +16,8 @@ def settings(**overrides):
         "newsintel_retention_days": 7,
         "newsintel_ai_rank_max_tokens": 520,
         "newsintel_ai_enrich_max_tokens": 500,
-        "newsintel_openrouter_model": "openrouter/auto",
+        "newsintel_openrouter_model": "openrouter/free",
+        "openrouter_model_chain": ["openrouter/free", "meta-llama/llama-3.3-70b-instruct:free"],
         "title_similarity_threshold": 0.86,
         "ai_circuit_breaker_cooldown_minutes": 360,
         "newsintel_ingest_interval_minutes": 10,
@@ -149,3 +150,59 @@ def test_openrouter_size_error_is_not_quota_circuit():
     assert MVPNewsPipeline.is_openrouter_size_response(response)
     assert not MVPNewsPipeline.is_quota_response(response)
     assert MVPNewsPipeline.retry_token_budget(response, 700) == 530
+
+
+def test_call_ai_tries_next_openrouter_free_model(monkeypatch):
+    async def run():
+        calls = []
+
+        async def fake_openrouter(prompt, model, max_tokens):
+            calls.append(model)
+            if model == "openrouter/free":
+                return {"ok": False, "status_code": 503, "content": "", "body": "unavailable", "provider": "openrouter"}
+            return {"ok": True, "status_code": 200, "content": '{"ok":true}', "body": "{}", "provider": "openrouter"}
+
+        async def fake_gemini(prompt, max_tokens):
+            raise AssertionError("Gemini should not be called when an OpenRouter free model succeeds")
+
+        from app.services import mvp_pipeline
+
+        monkeypatch.setattr(mvp_pipeline.hf_client, "call_openrouter_raw", fake_openrouter)
+        monkeypatch.setattr(mvp_pipeline.hf_client, "call_gemini_raw", fake_gemini)
+
+        pipeline = MVPNewsPipeline(None, settings=settings())
+        assert await pipeline.call_ai("rank real news", max_tokens=500) == '{"ok":true}'
+        assert calls == ["openrouter/free", "meta-llama/llama-3.3-70b-instruct:free"]
+
+    asyncio.run(run())
+
+
+def test_call_ai_tries_next_model_after_openrouter_token_budget_error(monkeypatch):
+    async def run():
+        calls = []
+
+        async def fake_openrouter(prompt, model, max_tokens):
+            calls.append((model, max_tokens))
+            if model == "openrouter/free":
+                return {
+                    "ok": False,
+                    "status_code": 402,
+                    "content": "",
+                    "body": "This request requires more credits, or fewer max_tokens. You requested up to 500 tokens, but can only afford 172.",
+                    "provider": "openrouter",
+                }
+            return {"ok": True, "status_code": 200, "content": '{"ok":true}', "body": "{}", "provider": "openrouter"}
+
+        async def fake_gemini(prompt, max_tokens):
+            raise AssertionError("Gemini should not be called before trying the next OpenRouter free model")
+
+        from app.services import mvp_pipeline
+
+        monkeypatch.setattr(mvp_pipeline.hf_client, "call_openrouter_raw", fake_openrouter)
+        monkeypatch.setattr(mvp_pipeline.hf_client, "call_gemini_raw", fake_gemini)
+
+        pipeline = MVPNewsPipeline(None, settings=settings())
+        assert await pipeline.call_ai("rank real news", max_tokens=500) == '{"ok":true}'
+        assert calls == [("openrouter/free", 500), ("meta-llama/llama-3.3-70b-instruct:free", 500)]
+
+    asyncio.run(run())

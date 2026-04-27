@@ -29,7 +29,18 @@ class Settings(BaseSettings):
     newsintel_retention_days: int = Field(default=7, alias="NEWSINTEL_RETENTION_DAYS")
     newsintel_ai_rank_max_tokens: int = Field(default=520, alias="NEWSINTEL_AI_RANK_MAX_TOKENS")
     newsintel_ai_enrich_max_tokens: int = Field(default=500, alias="NEWSINTEL_AI_ENRICH_MAX_TOKENS")
-    newsintel_openrouter_model: str = Field(default="openrouter/auto", alias="NEWSINTEL_OPENROUTER_MODEL")
+    newsintel_openrouter_model: str = Field(default="openrouter/free", alias="NEWSINTEL_OPENROUTER_MODEL")
+    newsintel_openrouter_models: str = Field(
+        default=(
+            "openrouter/free,"
+            "inclusionai/ling-2.6-1t:free,"
+            "meta-llama/llama-3.3-70b-instruct:free,"
+            "nvidia/nemotron-3-super-120b-a12b:free,"
+            "google/gemma-4-31b-it:free,"
+            "minimax/minimax-m2.5:free"
+        ),
+        alias="NEWSINTEL_OPENROUTER_MODELS",
+    )
     ai_circuit_breaker_cooldown_minutes: int = Field(default=360, alias="AI_CIRCUIT_BREAKER_COOLDOWN_MINUTES")
     enable_heavy_ingestion: bool = Field(default=False, alias="ENABLE_HEAVY_INGESTION")
     enable_personalization: bool = Field(default=False, alias="ENABLE_PERSONALIZATION")
@@ -48,6 +59,17 @@ class Settings(BaseSettings):
         ]
         filtered = [item for item in categories if item in allowed]
         return filtered or ["tech", "education", "entertainment", "politics"]
+
+    @property
+    def openrouter_model_chain(self) -> list[str]:
+        models = [
+            item.strip()
+            for item in self.newsintel_openrouter_models.split(",")
+            if item.strip()
+        ]
+        if self.newsintel_openrouter_model and self.newsintel_openrouter_model not in models:
+            models.insert(0, self.newsintel_openrouter_model)
+        return models or ["openrouter/free"]
 
     @property
     def async_database_url(self) -> str:

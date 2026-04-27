@@ -171,7 +171,7 @@ class MVPNewsPipeline:
         return (
             f"rank:{self.settings.newsintel_ai_rank_max_tokens}:"
             f"enrich:{self.settings.newsintel_ai_enrich_max_tokens}:"
-            f"model:{self.settings.newsintel_openrouter_model}"
+            f"models:{'|'.join(self.settings.openrouter_model_chain)}"
         )
 
     async def run_ingestion(self) -> dict:
@@ -513,27 +513,46 @@ class MVPNewsPipeline:
         return story
 
     async def call_ai(self, prompt: str, max_tokens: int) -> str:
-        response = await hf_client.call_openrouter_raw(
-            prompt,
-            model=self.settings.newsintel_openrouter_model,
-            max_tokens=max_tokens,
-        )
-        if self.is_openrouter_size_response(response):
-            retry_tokens = self.retry_token_budget(response, max_tokens)
-            if retry_tokens:
-                response = await hf_client.call_openrouter_raw(
-                    prompt,
-                    model=self.settings.newsintel_openrouter_model,
-                    max_tokens=retry_tokens,
-                )
+        last_response: dict | None = None
+        for model in self.settings.openrouter_model_chain:
+            response = await hf_client.call_openrouter_raw(
+                prompt,
+                model=model,
+                max_tokens=max_tokens,
+            )
+            if self.is_openrouter_size_response(response):
+                retry_tokens = self.retry_token_budget(response, max_tokens)
+                if retry_tokens:
+                    response = await hf_client.call_openrouter_raw(
+                        prompt,
+                        model=model,
+                        max_tokens=retry_tokens,
+                    )
+            if response.get("ok") and response.get("content"):
+                return response["content"]
+            last_response = response
+            if self.is_openrouter_size_response(response):
+                continue
+            if self.is_quota_response(response):
+                continue
+            if self.is_retryable_openrouter_response(response):
+                continue
+            break
+
+        response = last_response or {"ok": False, "status_code": None, "body": "OpenRouter model chain did not run"}
+        if self.is_quota_response(response):
+            response = await hf_client.call_gemini_raw(prompt, max_tokens=max_tokens)
+            if response.get("ok") and response.get("content"):
+                return response["content"]
+        elif not response.get("ok"):
+            gemini_response = await hf_client.call_gemini_raw(prompt, max_tokens=max_tokens)
+            if gemini_response.get("ok") and gemini_response.get("content"):
+                return gemini_response["content"]
+            response = gemini_response
+
         if self.is_quota_response(response):
             await self.open_ai_circuit(response)
             raise AICircuitOpen(f"AI provider quota/payment error: {response.get('status_code')}")
-        if not response.get("ok"):
-            response = await hf_client.call_gemini_raw(prompt, max_tokens=max_tokens)
-            if self.is_quota_response(response):
-                await self.open_ai_circuit(response)
-                raise AICircuitOpen(f"AI provider quota/payment error: {response.get('status_code')}")
         if not response.get("ok") or not response.get("content"):
             raise ValueError(f"AI provider failed: {response.get('status_code')} {response.get('body', '')[:160]}")
         return response["content"]
@@ -550,6 +569,12 @@ class MVPNewsPipeline:
     def is_openrouter_size_response(response: dict) -> bool:
         body = str(response.get("body") or "").lower()
         return response.get("status_code") == 402 and "fewer max_tokens" in body
+
+    @staticmethod
+    def is_retryable_openrouter_response(response: dict) -> bool:
+        status = response.get("status_code")
+        body = str(response.get("body") or "").lower()
+        return status in (404, 408, 409, 425, 429, 500, 502, 503, 504) or "high demand" in body or "unavailable" in body
 
     @staticmethod
     def retry_token_budget(response: dict, requested_tokens: int) -> int | None:
