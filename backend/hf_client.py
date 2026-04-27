@@ -152,7 +152,7 @@ async def call_openrouter_raw(prompt: str, model: str = "openrouter/auto", max_t
     payload = {
         "model": model,
         "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.2,
+        "temperature": 0,
         "max_tokens": max_tokens,
     }
     try:

@@ -31,8 +31,9 @@ import news_fetcher
 from app.core.cors import ALLOWED_ORIGIN_REGEX, allowed_origins
 from app.core.database import AsyncSessionLocal as EventStoreSessionLocal
 from sqlalchemy import func, select
+from sqlalchemy import delete
 from app.core.config import get_settings
-from app.models.news import Alert, AlertRule, DailyDigest, EventMetric, HomeSnapshot, Story, User
+from app.models.news import Alert, AlertRule, DailyDigest, EventMetric, HomeSnapshot, IngestionLock, Story, User
 from app.services.alert_engine import ensure_user, evaluate_all_users, evaluate_user_alerts
 from app.services.dashboard_read_model import build_dashboard_payload
 from app.services.digest_engine import generate_all_digests, generate_digest
@@ -1270,6 +1271,8 @@ async def ingest_now(request: Request, payload: IngestNowRequest | None = None):
                 "max_articles": max_articles,
             },
         )
+    if result.get("status") in {"ai_deferred", "failed"}:
+        raise HTTPException(status_code=502, detail=result)
     return {
         "status": "success",
         "message": "Ingestion completed",
@@ -1290,7 +1293,25 @@ async def enrich_batch(request: Request):
     if expected_secret and supplied_secret != expected_secret:
         raise HTTPException(status_code=401, detail="Invalid ingestion secret")
     async with EventStoreSessionLocal() as session:
-        return await MVPNewsPipeline(session, settings=mvp_settings).enrich_batch()
+        result = await MVPNewsPipeline(session, settings=mvp_settings).enrich_batch()
+        if result.get("status") == "deferred":
+            raise HTTPException(status_code=502, detail=result)
+        return result
+
+
+@app.post("/api/admin/reset-ai-circuit")
+async def reset_ai_circuit(request: Request):
+    expected_secret = os.getenv("INGEST_SECRET") or os.getenv("GATEWAY_SECRET")
+    supplied_secret = (
+        request.headers.get("X-Ingest-Secret", "").strip()
+        or request.headers.get("X-Gateway-Secret", "").strip()
+    )
+    if expected_secret and supplied_secret != expected_secret:
+        raise HTTPException(status_code=401, detail="Invalid ingestion secret")
+    async with EventStoreSessionLocal() as session:
+        result = await session.execute(delete(IngestionLock).where(IngestionLock.lock_name == "ai_circuit_breaker"))
+        await session.commit()
+        return {"status": "success", "cleared": int(result.rowcount or 0)}
 
 
 @app.get("/api/admin/ingestion-status")

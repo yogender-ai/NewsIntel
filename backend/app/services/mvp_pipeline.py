@@ -311,25 +311,27 @@ class MVPNewsPipeline:
 
         listing = [
             {
-                "article_index": index,
-                "title": article.title,
-                "description": article.description or article.text_preview or "",
-                "source": article.source,
-                "category": article.category,
-                "published_at": article.published_at.isoformat() if article.published_at else None,
+                "i": index,
+                "t": (article.title or "")[:160],
+                "d": (article.description or article.text_preview or "")[:220],
+                "s": (article.source or "")[:60],
+                "c": article.category,
+                "p": article.published_at.isoformat()[:10] if article.published_at else None,
             }
             for index, article in enumerate(articles)
         ]
         prompt = (
-            "You are ranking global news for a lightweight MVP pipeline. Rank by global importance, "
-            "freshness, public impact, credibility, category balance, newsworthiness, and long-term relevance.\n"
-            "Return ONLY strict JSON with this exact shape:\n"
+            "Rank real global RSS news by importance, freshness, public impact, credibility, "
+            "category balance, newsworthiness, and long-term relevance. "
+            "Return ONLY minified strict JSON, no markdown. Use compact reasons of max 6 words. "
+            "Use each article_index at most once. Do not invent articles.\n"
+            "Required shape:\n"
             '{"ranked":[{"article_index":0,"rank":1,"score":0,"reason":"...","importance":"HIGH/MEDIUM/LOW"}]}\n'
-            f"Select the top {min(self.settings.newsintel_rank_top_n, len(articles))} articles. "
-            "Use every article_index at most once. Do not invent articles.\n\n"
-            f"ARTICLES:\n{json.dumps(listing, ensure_ascii=False)}"
+            f"Return exactly {min(self.settings.newsintel_rank_top_n, len(articles))} ranked items. "
+            f"Articles use keys i=article_index,t=title,d=description,s=source,c=category,p=date:\n"
+            f"{json.dumps(listing, ensure_ascii=False, separators=(',', ':'))}"
         )
-        response = await self.call_ai(prompt, max_tokens=2600)
+        response = await self.call_ai(prompt, max_tokens=max(350, min(700, self.settings.newsintel_ai_rank_max_tokens)))
         parsed = clean_ai_json(response)
         ranked = parsed.get("ranked")
         if not isinstance(ranked, list):
@@ -448,13 +450,15 @@ class MVPNewsPipeline:
         if await self.is_ai_circuit_open():
             raise AICircuitOpen("AI circuit breaker is cooling down; enrichment deferred.")
         prompt = (
-            "You are enriching one real RSS article for News-Intel. Do not invent facts beyond the article metadata. "
-            "Return ONLY strict JSON with this shape:\n"
+            "Enrich one real RSS article for News-Intel using only the metadata below. "
+            "Do not invent facts. Return ONLY minified strict JSON, no markdown. "
+            "Keep display_title <= 12 words, summary <= 22 words, why_it_matters <= 20 words, entities <= 6.\n"
+            "Required shape:\n"
             '{"display_title":"","summary":"","why_it_matters":"","entities":[],"sentiment":"positive/neutral/negative/mixed",'
             '"pulse_score":0,"exposure_score":0,"importance_level":"HIGH/MEDIUM/LOW","risk_level":"LOW/MEDIUM/HIGH"}\n\n'
-            f"ARTICLE:\n{json.dumps({'title': article.title, 'description': article.description or article.text_preview or '', 'source': article.source, 'category': article.category, 'published_at': article.published_at.isoformat() if article.published_at else None, 'url': article.canonical_url}, ensure_ascii=False)}"
+            f"ARTICLE:{json.dumps({'title': (article.title or '')[:180], 'description': (article.description or article.text_preview or '')[:260], 'source': article.source, 'category': article.category, 'published_at': article.published_at.isoformat() if article.published_at else None, 'url': article.canonical_url}, ensure_ascii=False, separators=(',', ':'))}"
         )
-        parsed = clean_ai_json(await self.call_ai(prompt, max_tokens=1400))
+        parsed = clean_ai_json(await self.call_ai(prompt, max_tokens=max(320, min(650, self.settings.newsintel_ai_enrich_max_tokens))))
         category = parsed.get("category") if parsed.get("category") in self.settings.mvp_categories else article.category
         story = await self.session.scalar(select(Story).where(Story.article_id == article.id))
         if not story:
@@ -499,7 +503,11 @@ class MVPNewsPipeline:
         return story
 
     async def call_ai(self, prompt: str, max_tokens: int) -> str:
-        response = await hf_client.call_openrouter_raw(prompt, max_tokens=max_tokens)
+        response = await hf_client.call_openrouter_raw(
+            prompt,
+            model=self.settings.newsintel_openrouter_model,
+            max_tokens=max_tokens,
+        )
         if self.is_quota_response(response):
             await self.open_ai_circuit(response)
             raise AICircuitOpen(f"AI provider quota/payment error: {response.get('status_code')}")
