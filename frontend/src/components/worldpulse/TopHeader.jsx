@@ -15,7 +15,6 @@ export default function TopHeader({ user, cache, refreshing, onRefresh, onAlerts
   return (
     <header className="wp-top-header">
       <div>
-        <span className="wp-kicker">HOME / WORLD PULSE</span>
         <h1>{greeting()}, {displayName}</h1>
         <p>Here's what's moving the world right now.</p>
       </div>
@@ -30,8 +29,7 @@ export default function TopHeader({ user, cache, refreshing, onRefresh, onAlerts
           {alertCount > 0 && <b>{alertCount}</b>}
         </button>
         <div className="wp-user">
-          {user?.photoURL ? <img src={user.photoURL} alt="" /> : <User size={18} />}
-          <span>{displayName}</span>
+          {user?.photoURL ? <img src={user.photoURL} alt="" /> : <span className="wp-avatar-initial">{(displayName || '?')[0].toUpperCase()}</span>}
         </div>
       </div>
     </header>

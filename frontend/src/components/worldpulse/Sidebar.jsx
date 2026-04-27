@@ -1,4 +1,4 @@
-import { Bell, Compass, Home, Lock, Map, Orbit, Search, Settings, ShieldQuestion, Star } from 'lucide-react';
+import { Bell, Compass, Home, Lock, Map, Orbit, Pencil, Search, Settings, ShieldQuestion, Star } from 'lucide-react';
 import { compactLabel } from '../../lib/dashboardAdapter';
 
 function asArray(value) {
@@ -36,7 +36,7 @@ export default function Sidebar({
   return (
     <aside className="wp-sidebar">
       <div className="wp-brand">
-        <div>NEWS<span>INTEL</span></div>
+        <div>NEWS<span>INTEL</span><sup>®</sup></div>
         <p>Global Intelligence, Simplified.</p>
       </div>
 
@@ -56,7 +56,12 @@ export default function Sidebar({
       </nav>
 
       <section className="wp-focus">
-        <h3><Compass size={15} /> My Focus</h3>
+        <h3>
+          <Compass size={15} /> My Focus
+          {preferences?.hasPreferences && (
+            <button className="focus-edit-btn" onClick={onSetFocus}><Pencil size={11} /> Edit</button>
+          )}
+        </h3>
         {preferences?.hasPreferences ? (
           <>
             <div className="focus-block">
@@ -80,10 +85,13 @@ export default function Sidebar({
         )}
       </section>
 
-      <button className="ask-disabled" onClick={() => onLocked('Ask NewsIntel is not available yet.')}>
+      <button className="ask-ni" onClick={() => onLocked('Ask NewsIntel is coming soon.')}>
         <Search size={16} />
-        <span>Ask NewsIntel</span>
-        <Lock size={13} />
+        <div className="ask-ni-text">
+          <span>Ask NewsIntel</span>
+          <small>What do you want to know?</small>
+        </div>
+        <span className="ask-ni-arrow">→</span>
       </button>
     </aside>
   );

@@ -406,14 +406,13 @@ export default function HomePage() {
                   onAlerts={() => navigate('/alerts')}
                   onSources={() => setInsightView('sources')}
                 />
-                <section className="wp-card trust-card">
-                  <div className="wp-section-head"><span>Source / Freshness Trust</span></div>
-                  <FreshnessBadge cache={data.cache} />
-                  {data.cache?.isStale && <p>Showing latest cached intelligence. Refreshing in background.</p>}
-                  <dl>
-                    <div><dt>Refresh type</dt><dd>{data.cache?.refreshType || '-'}</dd></div>
-                    <div><dt>Next refresh</dt><dd>{data.cache?.nextRefreshAt || '-'}</dd></div>
-                  </dl>
+                <section className="wp-card quote-card">
+                  <div className="quote-open">"</div>
+                  <blockquote>
+                    <p>The world is not random.<br />It's connected.<br />We help you see it.</p>
+                    <cite>— NewsIntel</cite>
+                  </blockquote>
+                  <div className="quote-close">"</div>
                 </section>
               </aside>
             </section>

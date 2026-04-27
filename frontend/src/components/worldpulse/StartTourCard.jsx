@@ -1,11 +1,13 @@
+import { ArrowRight, Sparkles } from 'lucide-react';
+
 export default function StartTourCard({ onStart }) {
   return (
     <section className="tour-card">
       <div>
-        <h2>New to NewsIntel?</h2>
-        <p>Take a 1-minute tour to understand World Pulse, Delta, and Signals.</p>
+        <div className="tour-kicker"><Sparkles size={13} /> New to NewsIntel?</div>
+        <p>Take a 1-min tour to unlock the power of real-time intelligence.</p>
       </div>
-      <button onClick={onStart}>Start Tour</button>
+      <button onClick={onStart}>Start Tour <ArrowRight size={14} /></button>
     </section>
   );
 }

@@ -1,12 +1,15 @@
 import { Clock, Layers, Radio } from 'lucide-react';
 import { formatRelativeTime } from '../../lib/dashboardAdapter';
 
-const statusLabel = {
-  enriched: 'AI enriched',
-  pending: 'Analysis pending',
-  failed: 'Analysis unavailable',
-  rules_only: 'Rules only',
-};
+const impactColor = { high: '#ff9ba9', medium: '#ffd38a', low: '#7ee7c4' };
+const impactBg = { high: 'rgba(255,155,169,0.1)', medium: 'rgba(255,211,138,0.1)', low: 'rgba(126,231,196,0.1)' };
+
+function getImpact(shift) {
+  const pulse = shift.pulse ?? 0;
+  if (pulse >= 70) return 'high';
+  if (pulse >= 40) return 'medium';
+  return 'low';
+}
 
 function EntityChip({ entity }) {
   const name = typeof entity === 'string' ? entity : entity?.name;
@@ -15,8 +18,9 @@ function EntityChip({ entity }) {
   return <span className="entity-chip">{name}{type ? <small>{type}</small> : null}</span>;
 }
 
-export default function TopShiftCard({ shift, onOpen }) {
+export default function TopShiftCard({ shift, onOpen, index }) {
   const isEnriched = shift.aiStatus === 'enriched';
+  const impact = getImpact(shift);
 
   return (
     <button className={`top-shift-card ai-${shift.aiStatus}`} onClick={() => onOpen(shift)}>
@@ -27,20 +31,15 @@ export default function TopShiftCard({ shift, onOpen }) {
       <div className="shift-body">
         <div className="shift-meta">
           {shift.category && <span>{shift.category}</span>}
-          <em>{statusLabel[shift.aiStatus] || statusLabel.rules_only}</em>
-          {isEnriched && shift.sentiment && <strong className={`sentiment-badge sentiment-${shift.sentiment}`}>{shift.sentiment}</strong>}
         </div>
         <h3>{shift.headline}</h3>
-        {isEnriched && shift.summary ? <p>{shift.summary}</p> : <p className="empty-copy">{statusLabel[shift.aiStatus] || statusLabel.rules_only}</p>}
-        {isEnriched && shift.impactLine ? <p className="impact-copy">{shift.impactLine}</p> : null}
-        {isEnriched && shift.entities?.length ? (
-          <div className="entity-row">
-            {shift.entities.slice(0, 4).map((entity) => <EntityChip key={entity.name || entity} entity={entity} />)}
-          </div>
-        ) : null}
+        {isEnriched && shift.summary ? <p>{shift.summary}</p> : <p className="empty-copy">Analysis pending</p>}
         <div className="shift-foot">
-          <small><Clock size={13} /> {formatRelativeTime(shift.updatedAt) || 'Updated time unavailable'}</small>
-          <small><Layers size={13} /> {shift.sourceCount ?? '-'} sources</small>
+          <small className="shift-impact" style={{ color: impactColor[impact], background: impactBg[impact] }}>
+            <span className="shift-impact-dot" style={{ background: impactColor[impact] }} />
+            {impact === 'high' ? 'High' : impact === 'medium' ? 'Medium' : 'Low'} Impact
+          </small>
+          <small><Clock size={13} /> {formatRelativeTime(shift.updatedAt) || 'Just now'}</small>
         </div>
       </div>
     </button>

@@ -4086,6 +4086,351 @@ body::after {
   background: rgba(255,255,255,0.04);
 }
 
+/* ── Quote Card (replaces trust card) ──────────────────────── */
+.quote-card {
+  position: relative;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.quote-card blockquote {
+  margin: 0;
+  padding: 0 16px;
+  position: relative;
+  z-index: 1;
+}
+
+.quote-card blockquote p {
+  font-size: 16px;
+  font-weight: 600;
+  color: #dfe6ff;
+  line-height: 1.65;
+  font-style: italic;
+}
+
+.quote-card cite {
+  display: block;
+  margin-top: 14px;
+  font-size: 12px;
+  font-weight: 800;
+  color: #8da2ff;
+  font-style: normal;
+  letter-spacing: 0.04em;
+}
+
+.quote-open, .quote-close {
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 100px;
+  font-weight: 900;
+  color: rgba(141,162,255,0.08);
+  line-height: 0.6;
+  position: absolute;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.quote-open {
+  top: 10px;
+  left: 14px;
+}
+
+.quote-close {
+  bottom: 10px;
+  right: 14px;
+}
+
+/* ── Quick Glance Icons & Delta ────────────────────────────── */
+.qg-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  transition: all 0.25s var(--ease);
+}
+
+.qg-stat {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  justify-content: flex-start;
+  padding: 11px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+  cursor: pointer;
+  border: none;
+  background: none;
+  width: 100%;
+  text-align: left;
+  color: inherit;
+  font: inherit;
+}
+
+.qg-stat:last-child { border-bottom: 0; }
+
+.qg-stat span {
+  flex: 1;
+  color: #9aa6c3;
+  font-size: 13px;
+}
+
+.qg-stat b {
+  color: #fff;
+  font-size: 26px;
+  font-weight: 950;
+  min-width: 42px;
+  text-align: right;
+}
+
+.qg-delta {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(126,231,196,0.1);
+  margin-left: 4px;
+  white-space: nowrap;
+}
+
+.qg-stat:hover .qg-icon {
+  transform: scale(1.1);
+}
+
+.qg-stat:hover {
+  background: rgba(255,255,255,0.03);
+  border-radius: 12px;
+}
+
+/* ── WhatChanged Sparkline & Severity ──────────────────────── */
+.wc-sub {
+  font-size: 11px !important;
+  color: #7f8aa7 !important;
+  font-weight: 500 !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+}
+
+.wc-sparkline {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+
+.change-list button {
+  grid-template-columns: 38px minmax(110px, 150px) minmax(0, 1fr) auto auto;
+}
+
+.change-list em {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.change-list em.rising {
+  color: #ff9ba9;
+  background: rgba(255,155,169,0.1);
+}
+
+.change-list em.cooling {
+  color: #7ee7c4;
+  background: rgba(126,231,196,0.1);
+}
+
+.change-list em.stable {
+  color: #ffd38a;
+  background: rgba(255,211,138,0.1);
+}
+
+.change-list em.establishing-baseline {
+  color: #8d98b5;
+}
+
+/* ── Pulse Trend Chart Hero Value ──────────────────────────── */
+.pulse-chart-hero {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.pulse-chart-value {
+  font-size: 42px;
+  font-weight: 950;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+
+.pulse-chart-label {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.pulse-chart-badge {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 900;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: rgba(141,162,255,0.12);
+  color: #8da2ff;
+  letter-spacing: 0.06em;
+}
+
+/* ── Ask NewsIntel Redesign ────────────────────────────────── */
+.ask-ni {
+  margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #9aa6c3;
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: 16px;
+  padding: 14px;
+  background: rgba(255,255,255,0.035);
+  cursor: pointer;
+  transition: all 0.25s var(--ease);
+  text-align: left;
+  font: inherit;
+  width: 100%;
+}
+
+.ask-ni:hover {
+  border-color: rgba(141,162,255,0.3);
+  background: rgba(141,162,255,0.06);
+  color: #dfe6ff;
+}
+
+.ask-ni-text {
+  flex: 1;
+}
+
+.ask-ni-text span {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: #dfe6ff;
+}
+
+.ask-ni-text small {
+  display: block;
+  font-size: 11px;
+  color: #7f8aa7;
+  margin-top: 2px;
+}
+
+.ask-ni-arrow {
+  font-size: 18px;
+  color: #8da2ff;
+  transition: transform 0.2s;
+}
+
+.ask-ni:hover .ask-ni-arrow {
+  transform: translateX(3px);
+}
+
+/* ── Focus Edit Button ─────────────────────────────────────── */
+.focus-edit-btn {
+  margin-left: auto;
+  border: 1px solid rgba(141,162,255,0.2);
+  background: rgba(141,162,255,0.08);
+  color: #8da2ff;
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s var(--ease);
+}
+
+.focus-edit-btn:hover {
+  background: rgba(141,162,255,0.18);
+  border-color: rgba(141,162,255,0.4);
+  transform: scale(1.05);
+}
+
+/* ── Tour Card Kicker ──────────────────────────────────────── */
+.tour-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  font-weight: 800;
+  color: #dfe6ff;
+  margin-bottom: 4px;
+}
+
+.tour-kicker svg {
+  color: #ffd38a;
+}
+
+.tour-card button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+/* ── Sidebar Registered Trademark ──────────────────────────── */
+.wp-brand sup {
+  font-size: 10px;
+  color: #8da2ff;
+  vertical-align: super;
+  margin-left: 1px;
+}
+
+/* ── Avatar Initial Circle ─────────────────────────────────── */
+.wp-avatar-initial {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: linear-gradient(135deg, #8da2ff, #7ee7c4);
+  color: #070817;
+  font-size: 14px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  box-shadow: 0 0 20px rgba(141,162,255,0.3);
+}
+
+.wp-user {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+/* ── Shift Impact Badges ───────────────────────────────────── */
+.shift-impact {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px !important;
+  font-weight: 800 !important;
+}
+
+.shift-impact-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  animation: impactPulse 2s ease-in-out infinite;
+}
+
+@keyframes impactPulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 transparent; }
+  50% { opacity: 0.7; box-shadow: 0 0 8px currentColor; }
+}
+
 /* ── WP Section Head Underline ─────────────────────────────── */
 .wp-section-head {
   position: relative;

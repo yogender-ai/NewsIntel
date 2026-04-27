@@ -1,18 +1,37 @@
-const Stat = ({ label, value, onClick }) => (
-  <button className="qg-stat" onClick={onClick}>
-    <span>{label}</span>
-    <b>{value === null || value === undefined ? '-' : value}</b>
-  </button>
-);
+import { Globe, Radio, AlertTriangle, Wifi, ArrowRight } from 'lucide-react';
+
+const icons = { countries: Globe, signals: Radio, alerts: AlertTriangle, sources: Wifi };
+const colors = { countries: '#8da2ff', signals: '#7ee7c4', alerts: '#ff9ba9', sources: '#ffd38a' };
+
+function Stat({ id, label, value, delta, deltaColor, onClick }) {
+  const Icon = icons[id] || Radio;
+  const color = colors[id] || '#8da2ff';
+  return (
+    <button className="qg-stat" onClick={onClick}>
+      <i className="qg-icon" style={{ color, background: color + '18' }}><Icon size={16} /></i>
+      <span>{label}</span>
+      <b>{value === null || value === undefined ? '—' : value}</b>
+      {delta && <em className="qg-delta" style={{ color: deltaColor || '#7ee7c4' }}>{delta}</em>}
+    </button>
+  );
+}
 
 export default function QuickGlance({ data, onCountries, onSignals, onAlerts, onSources }) {
   return (
     <section className="wp-card quick-glance">
       <div className="wp-section-head"><span>Quick Glance</span></div>
-      <Stat label="Countries in focus" value={data?.countriesInFocus} onClick={onCountries} />
-      <Stat label="Signals tracked" value={data?.signalsTracked} onClick={onSignals} />
-      <Stat label="High impact alerts" value={data?.highImpactAlerts} onClick={onAlerts} />
-      <Stat label="Sources monitored" value={data?.sourcesMonitored} onClick={onSources} />
+      <Stat id="countries" label="Countries in Focus" value={data?.countriesInFocus}
+            delta={data?.countriesInFocus ? `${data.countriesInFocus} active` : null}
+            deltaColor="#7ee7c4" onClick={onCountries} />
+      <Stat id="signals" label="Signals Tracked" value={data?.signalsTracked}
+            delta={data?.signalsTracked ? `${data.signalsTracked} live` : null}
+            deltaColor="#7ee7c4" onClick={onSignals} />
+      <Stat id="alerts" label="High Impact Alerts" value={data?.highImpactAlerts}
+            delta={data?.highImpactAlerts > 0 ? 'View alerts →' : null}
+            deltaColor="#ff9ba9" onClick={onAlerts} />
+      <Stat id="sources" label="Sources Monitored" value={data?.sourcesMonitored}
+            delta={data?.sourcesMonitored ? 'Live' : null}
+            deltaColor="#7ee7c4" onClick={onSources} />
     </section>
   );
 }
