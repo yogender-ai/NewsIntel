@@ -149,6 +149,7 @@ export function normalizeDashboardData({ dashboard, preferences, alerts, user })
     quickGlance: Array.isArray(dashboard?.quick_glance) ? dashboard.quick_glance : [],
     alerts: alertRows,
     sources: dashboard?.sources || [],
+    pipelineStatus: dashboard?.pipeline_status || null,
     raw: dashboard,
   };
 }

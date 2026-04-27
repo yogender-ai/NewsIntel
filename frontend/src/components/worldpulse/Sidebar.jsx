@@ -36,7 +36,7 @@ export default function Sidebar({
   return (
     <aside className="wp-sidebar">
       <div className="wp-brand">
-        <div>NEWS<span>INTEL</span><sup>®</sup></div>
+        <div>NEWS<span>INTEL</span><sup>R</sup></div>
         <p>Global Intelligence, Simplified.</p>
       </div>
 
@@ -92,7 +92,7 @@ export default function Sidebar({
           <span>Ask NewsIntel</span>
           <small>What do you want to know?</small>
         </div>
-        <span className="ask-ni-arrow">→</span>
+        <span className="ask-ni-arrow">-&gt;</span>
       </button>
     </aside>
   );

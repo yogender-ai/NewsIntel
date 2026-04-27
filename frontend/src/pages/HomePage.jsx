@@ -16,10 +16,76 @@ import StartTourCard from '../components/worldpulse/StartTourCard';
 import FreshnessBadge from '../components/worldpulse/FreshnessBadge';
 import LockedNavToast from '../components/worldpulse/LockedNavToast';
 
-function LoadingSkeleton() {
+function pipelineSteps(status) {
+  const cycle = status?.latest_cycle || {};
+  const queue = status?.queue || {};
+  const cycleStatus = String(cycle.status || '').toUpperCase();
+  const aiBlocked = Boolean(status?.ai_circuit_open);
+  const fetched = Number(cycle.fetched_count || 0);
+  const ranked = Number(cycle.ranked_count || 0);
+  const enriched = Number(cycle.enriched_count || queue.done || 0);
+  const pending = Number(queue.pending || 0);
+  const running = Number(queue.running || 0);
+
+  return [
+    {
+      title: 'Collect',
+      state: fetched || cycleStatus ? 'done' : 'active',
+      detail: fetched ? `${fetched} RSS candidates fetched` : 'Opening live source feeds',
+    },
+    {
+      title: 'Rank',
+      state: ranked || ['RANKED', 'AI_DEFERRED', 'NO_AI_RANKING'].includes(cycleStatus) ? 'done' : cycleStatus === 'RUNNING' ? 'active' : 'waiting',
+      detail: ranked ? `${ranked} stories selected` : 'AI ranker checks importance',
+    },
+    {
+      title: 'Enrich',
+      state: aiBlocked ? 'blocked' : running || pending ? 'active' : enriched ? 'done' : 'waiting',
+      detail: aiBlocked ? 'AI quota circuit is cooling down' : running ? `${running} running, ${pending} pending` : pending ? `${pending} waiting for enrichment` : enriched ? `${enriched} enriched stories ready` : 'Waiting for ranked stories',
+    },
+    {
+      title: 'Snapshot',
+      state: status ? 'done' : 'active',
+      detail: status ? 'Dashboard read model loaded' : 'Preparing dashboard cache',
+    },
+  ];
+}
+
+function PipelineRunway({ status, compact = false }) {
+  const steps = pipelineSteps(status);
+  const cycle = status?.latest_cycle;
+  const queue = status?.queue;
   return (
-    <div className="wp-loading">
-      <span />
+    <section className={`pipeline-runway wp-card ${compact ? 'compact' : ''}`}>
+      <div className="wp-section-head">
+        <span>Live Pipeline</span>
+        <em className="pulse-chart-badge">{status?.ai_circuit_open ? 'AI WAIT' : 'ACTIVE'}</em>
+      </div>
+      <div className="pipeline-track">
+        {steps.map((step) => (
+          <div className={`pipeline-step ${step.state}`} key={step.title}>
+            <div className="pipeline-dot" />
+            <strong>{step.title}</strong>
+            <span>{step.detail}</span>
+          </div>
+        ))}
+      </div>
+      <div className="pipeline-meta">
+        <span>Cycle <b>{cycle?.status || 'syncing'}</b></span>
+        {queue && <span>Queue <b>{queue.running || 0} running / {queue.pending || 0} pending</b></span>}
+      </div>
+    </section>
+  );
+}
+
+function DashboardBoot({ status }) {
+  return (
+    <div className="dashboard-boot">
+      <div className="dashboard-boot-card wp-card">
+        <h2>Building the intelligence board</h2>
+        <p>NewsIntel is checking the cached snapshot, pipeline queue, ranking stage, and enrichment status before showing the dashboard.</p>
+        <PipelineRunway status={status} compact />
+      </div>
     </div>
   );
 }
@@ -297,6 +363,7 @@ export default function HomePage() {
     setError('');
     if (force) setRefreshing(true);
     else setLoading(true);
+    const started = performance.now();
     try {
       const [dashResult, alertsResult] = await Promise.all([
         api.getCachedDashboard(),
@@ -311,6 +378,11 @@ export default function HomePage() {
       setAlerts(null);
       setError(readableLiveError(err));
     } finally {
+      const minVisibleMs = force ? 500 : 1600;
+      const elapsed = performance.now() - started;
+      if (elapsed < minVisibleMs) {
+        await new Promise((resolve) => window.setTimeout(resolve, minVisibleMs - elapsed));
+      }
       setLoading(false);
       setRefreshing(false);
     }
@@ -373,7 +445,7 @@ export default function HomePage() {
           alertCount={data.alerts?.length || 0}
         />
 
-        {loading ? <LoadingSkeleton /> : (
+        {loading ? <DashboardBoot status={data.pipelineStatus} /> : (
           <>
             {error && (
               <div className="wp-error">
@@ -399,6 +471,7 @@ export default function HomePage() {
                     <EmptyState title="No live shifts available." body="Event-backed signals will appear after ingestion produces dashboard events." />
                   )}
                 </section>
+                <PipelineRunway status={data.pipelineStatus} />
                 <StartTourCard onStart={() => setTourOpen(true)} />
               </div>
 
@@ -423,7 +496,15 @@ export default function HomePage() {
                     </div>
                     <div className="status-metric">
                       <small>Pipeline</small>
-                      <strong style={{textTransform: 'capitalize'}}>{(data.cache?.refreshType || 'active').replace('_', ' ')}</strong>
+                      <strong style={{ textTransform: 'capitalize' }}>{(data.pipelineStatus?.latest_cycle?.status || data.cache?.refreshType || 'active').replace(/_/g, ' ')}</strong>
+                    </div>
+                    <div className="status-metric">
+                      <small>Queue</small>
+                      <strong>{data.pipelineStatus?.queue ? `${data.pipelineStatus.queue.running || 0} running / ${data.pipelineStatus.queue.pending || 0} pending` : 'Checking'}</strong>
+                    </div>
+                    <div className="status-metric">
+                      <small>AI Circuit</small>
+                      <strong>{data.pipelineStatus?.ai_circuit_open ? 'Cooling down' : 'Ready'}</strong>
                     </div>
                   </div>
                 </section>
