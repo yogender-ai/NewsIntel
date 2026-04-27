@@ -449,6 +449,7 @@ class MVPNewsPipeline:
                         queue_row.status = "PENDING"
                         queue_row.next_attempt_at = utcnow() + timedelta(minutes=10)
 
+            await self.session.flush()
             await self.rebuild_home_snapshot()
             await self.session.commit()
             return {"status": "success", "processed": processed, "failed": failed, "deferred": deferred}
