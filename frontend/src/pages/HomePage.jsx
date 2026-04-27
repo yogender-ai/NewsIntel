@@ -425,21 +425,7 @@ export default function HomePage() {
                 {/* status metrics here */}
               </div>
             </section>
-          </aside>
-        </section>
-      </>
-    )}
-  </main>
-  <LockedNavToast message={lockedToast} />
-</div>
       <LiveCursor />
-      <div className="premium-dashboard">
-  <Sidebar
-    preferences={{
-      hasPreferences: Boolean(topics.length),
-      topics,
-      regions: prefs?.data?.preferred_regions || [],
-      entities: [],
     }}
     activeItem="home"
     onHome={() => { setSelectedTopic(null); setInsightView(null); }}
