@@ -1649,6 +1649,24 @@ svg {
   50% { transform: scale(1.28); opacity: 0.08; }
 }
 
+@keyframes mapScan {
+  0%   { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+
+.map-connection-line {
+  animation: connPulse 3s ease-in-out infinite;
+}
+
+@keyframes connPulse {
+  0%, 100% { opacity: 0.06; }
+  50%      { opacity: 0.14; }
+}
+
+.map-grid-lines line {
+  vector-effect: non-scaling-stroke;
+}
+
 .map-world-svg {
   position: absolute;
   inset: 7% 5%;

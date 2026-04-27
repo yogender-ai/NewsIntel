@@ -18,19 +18,53 @@ import LockedNavToast from '../components/worldpulse/LockedNavToast';
 
 
 
-function DashboardBoot({ status }) {
+const BOOT_STEPS = [
+  { key: 'connect', icon: '🔌', label: 'Connecting' },
+  { key: 'fetch',   icon: '📡', label: 'Fetching Intel' },
+  { key: 'analyze', icon: '🧠', label: 'AI Analysis' },
+  { key: 'cluster', icon: '🔗', label: 'Clustering' },
+  { key: 'render',  icon: '✨', label: 'Rendering' },
+];
+
+function DashboardBoot({ status, bootElapsed }) {
   const latest = status?.latest_cycle?.status || status?.news || 'warming';
   const queue = status?.queue;
+
+  // Calculate which step is active based on elapsed time
+  // Total boot: ~3.5s, so each step gets ~700ms
+  const stepMs = 650;
+  const activeIndex = Math.min(
+    Math.floor((bootElapsed || 0) / stepMs),
+    BOOT_STEPS.length - 1,
+  );
+
   return (
     <div className="dashboard-boot">
       <div className="dashboard-boot-card wp-card">
-        <span className="boot-kicker">Live pipeline</span>
-        <h2>Loading intelligence board...</h2>
+        <span className="boot-kicker">
+          <Activity size={12} style={{ marginRight: 6 }} />
+          Intelligence Pipeline
+        </span>
+        <h2>Initializing command center…</h2>
         <p>
           {queue
             ? `${queue.running || 0} running / ${queue.pending || 0} pending`
-            : `Status: ${String(latest).replace(/_/g, ' ')}`}
+            : `Phase: ${BOOT_STEPS[activeIndex]?.label || String(latest).replace(/_/g, ' ')}`}
         </p>
+
+        <div className="boot-steps" aria-hidden="true">
+          {BOOT_STEPS.map((step, i) => {
+            const state = i < activeIndex ? 'completed' : i === activeIndex ? 'active' : '';
+            return (
+              <div key={step.key} className={`boot-step ${state}`}>
+                <span className="boot-step-icon">{step.icon}</span>
+                <span className="boot-step-label">{step.label}</span>
+                <div className="boot-step-bar" />
+              </div>
+            );
+          })}
+        </div>
+
         <div className="boot-progress" aria-hidden="true"><span /></div>
       </div>
     </div>
@@ -321,6 +355,7 @@ export default function HomePage() {
   const [alerts, setAlerts] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [bootElapsed, setBootElapsed] = useState(0);
   const [error, setError] = useState('');
   const [lockedToast, setLockedToast] = useState('');
   const [selectedTopic, setSelectedTopic] = useState(null);
@@ -330,6 +365,7 @@ export default function HomePage() {
 
   const load = useCallback(async ({ force = false } = {}) => {
     setError('');
+    setBootElapsed(0);
     if (force) setRefreshing(true);
     else setLoading(true);
     const started = performance.now();
@@ -348,7 +384,8 @@ export default function HomePage() {
       setAlerts(null);
       setError(readableLiveError(err));
     } finally {
-      const minVisibleMs = force ? 500 : 1600;
+      // Ensure the boot animation walks through all 5 steps (650ms each = 3250ms + buffer)
+      const minVisibleMs = force ? 600 : 3800;
       const elapsed = performance.now() - started;
       if (elapsed < minVisibleMs) {
         await new Promise((resolve) => window.setTimeout(resolve, minVisibleMs - elapsed));
@@ -363,6 +400,15 @@ export default function HomePage() {
     const timer = window.setTimeout(() => load(), 0);
     return () => window.clearTimeout(timer);
   }, [user, load]);
+
+  // Tick bootElapsed every 200ms while loading
+  useEffect(() => {
+    if (!loading) return undefined;
+    const interval = window.setInterval(() => {
+      setBootElapsed((prev) => prev + 200);
+    }, 200);
+    return () => window.clearInterval(interval);
+  }, [loading]);
 
   useEffect(() => {
     if (!lockedToast) return undefined;
@@ -414,7 +460,7 @@ export default function HomePage() {
           alertCount={data.alerts?.length || 0}
         />
 
-        {loading ? <DashboardBoot status={data.pipelineStatus} /> : (
+        {loading ? <DashboardBoot status={data.pipelineStatus} bootElapsed={bootElapsed} /> : (
           <>
             {error && (
               <div className="wp-error">

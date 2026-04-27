@@ -1,31 +1,94 @@
-/* ==============================
-   Premium Dashboard Styles
-   ============================== */
+/* ═══════════════════════════════════════════════════════════
+   PREMIUM LAYER — Luxurious Aurora Intelligence Theme
+   ═══════════════════════════════════════════════════════════ */
 
-/* Root palette */
-:root {
-  --primary: #8b5cf6;               /* deep violet */
-  --accent:  #34d399;               /* emerald */
-  --bg-dark: #0a0c12;
-  --bg-card: rgba(13, 20, 36, 0.55);
-  --border-card: rgba(255,255,255,0.07);
-  --text-primary: #e5e7eb;
-  --text-muted:   #a0aec0;
-}
-
-/* Body animated gradient (already in index.css, but kept for consistency) */
+/* ── Ambient Aurora Background ────────────────────────────── */
 body {
-  background: linear-gradient(135deg, #0d0e1a, #15171f, #0a0c12);
-  background-size: 400% 400%;
-  animation: gradientShift 30s ease infinite;
-}
-@keyframes gradientShift {
-  0%   { background-position: 0% 50%; }
-  50%  { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+  background: #050710 !important;
+  position: relative;
+  overflow-x: hidden;
 }
 
-/* Glass‑morphism card base – reuse across the app */
+/* Layer 1 – Deep space base */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -3;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 120% 80% at 15% 5%, rgba(99,102,241,0.13), transparent 50%),
+    radial-gradient(ellipse 100% 60% at 85% 15%, rgba(139,92,246,0.10), transparent 45%),
+    radial-gradient(ellipse 90% 70% at 50% 95%, rgba(6,182,212,0.08), transparent 50%),
+    radial-gradient(ellipse 80% 50% at 20% 60%, rgba(236,72,153,0.05), transparent 40%);
+}
+
+/* Layer 2 – Animated aurora curtain */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 140% 40% at 25% 0%, rgba(94,234,212,0.09), transparent 60%),
+    radial-gradient(ellipse 120% 50% at 75% 10%, rgba(167,139,250,0.08), transparent 55%),
+    radial-gradient(ellipse 100% 40% at 50% 100%, rgba(56,189,248,0.06), transparent 50%);
+  animation: auroraShift 20s ease-in-out infinite alternate;
+}
+
+@keyframes auroraShift {
+  0% {
+    opacity: 0.7;
+    filter: hue-rotate(0deg);
+    transform: translateY(0) scale(1);
+  }
+  33% {
+    opacity: 1;
+    filter: hue-rotate(12deg);
+    transform: translateY(-2%) scale(1.02);
+  }
+  66% {
+    opacity: 0.8;
+    filter: hue-rotate(-8deg);
+    transform: translateY(1%) scale(0.99);
+  }
+  100% {
+    opacity: 0.9;
+    filter: hue-rotate(5deg);
+    transform: translateY(-1%) scale(1.01);
+  }
+}
+
+/* Layer 3 – Floating particles via conic sprinkles */
+.world-pulse-page::after,
+.app-container::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    radial-gradient(1.5px 1.5px at 18% 22%, rgba(167,139,250,0.5), transparent),
+    radial-gradient(1px 1px at 42% 68%, rgba(94,234,212,0.4), transparent),
+    radial-gradient(1.5px 1.5px at 73% 15%, rgba(251,191,36,0.35), transparent),
+    radial-gradient(1px 1px at 88% 77%, rgba(244,114,182,0.3), transparent),
+    radial-gradient(1px 1px at 55% 42%, rgba(129,140,248,0.3), transparent),
+    radial-gradient(1.5px 1.5px at 31% 85%, rgba(94,234,212,0.35), transparent),
+    radial-gradient(1px 1px at 65% 92%, rgba(167,139,250,0.25), transparent),
+    radial-gradient(1.5px 1.5px at 12% 55%, rgba(56,189,248,0.3), transparent),
+    radial-gradient(1px 1px at 92% 38%, rgba(52,211,153,0.35), transparent),
+    radial-gradient(1px 1px at 48% 12%, rgba(251,113,133,0.25), transparent);
+  animation: particleDrift 60s linear infinite;
+}
+
+@keyframes particleDrift {
+  0%   { transform: translateY(0) rotate(0deg); }
+  50%  { transform: translateY(-8px) rotate(0.5deg); }
+  100% { transform: translateY(0) rotate(0deg); }
+}
+
+/* ── Premium card styling — NO boxy feel ─────────────────── */
 .glass-card,
 .wp-card,
 .panel,
@@ -33,140 +96,516 @@ body {
 .abstract-world-map,
 .shift-drawer,
 .insight-drawer {
-  background: var(--bg-card);
-  border: 1px solid var(--border-card);
-  backdrop-filter: blur(12px);
-  border-radius: 12px;
-  box-shadow: 0 12px 24px rgba(0,0,0,.4);
-  transition: transform .2s ease, box-shadow .2s ease;
+  background: rgba(13, 18, 36, 0.45) !important;
+  border: 1px solid rgba(148,163,184,0.08) !important;
+  backdrop-filter: blur(20px) saturate(1.3) !important;
+  border-radius: 16px !important;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.03) inset,
+    0 1px 0 rgba(255,255,255,0.04) inset,
+    0 20px 60px -12px rgba(0,0,0,0.5) !important;
+  transition: transform 0.3s cubic-bezier(0.4,0,0.2,1),
+              box-shadow 0.3s cubic-bezier(0.4,0,0.2,1),
+              border-color 0.3s ease !important;
 }
+
 .glass-card:hover,
 .wp-card:hover,
 .panel:hover,
-.world-pulse-card:hover,
+.world-pulse-card:hover {
+  transform: translateY(-3px) !important;
+  border-color: rgba(148,163,184,0.14) !important;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.05) inset,
+    0 1px 0 rgba(255,255,255,0.06) inset,
+    0 28px 80px -16px rgba(0,0,0,0.55),
+    0 0 40px rgba(94,234,212,0.04) !important;
+}
+
+/* Don't float drawers on hover */
 .abstract-world-map:hover,
 .shift-drawer:hover,
 .insight-drawer:hover {
-  transform: translateY(-6px) scale(1.02);
-  box-shadow: 0 18px 36px rgba(0,0,0,.45);
+  transform: none !important;
 }
 
-/* Header gradient overlay */
+/* ── Sidebar premium glass ───────────────────────────────── */
+.world-pulse-page .wp-sidebar {
+  background: rgba(7,11,24,0.55) !important;
+  border: none !important;
+  border-right: 1px solid rgba(148,163,184,0.07) !important;
+  backdrop-filter: blur(24px) saturate(1.2) !important;
+  box-shadow: 18px 0 70px rgba(0,0,0,0.3) !important;
+}
+
+/* ── Typography — remove muted overrides ─────────────────── */
+h1, h2, h3, h4 { color: #f0f4ff; }
+p, span, li { color: inherit; }
+
+/* ── Button shimmer effect ───────────────────────────────── */
+.wp-icon-btn,
+.btn,
+.wire-btn,
+.primary-action,
+.btn-premium {
+  border: 1px solid rgba(148,163,184,0.10);
+  background: rgba(255,255,255,0.03);
+  color: #e2e8f0;
+  transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
+  position: relative;
+  overflow: hidden;
+}
+
+.wp-icon-btn::before,
+.btn::before,
+.wire-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(94,234,212,0.08), rgba(167,139,250,0.06));
+  opacity: 0;
+  transition: opacity 0.25s ease;
+}
+
+.wp-icon-btn:hover::before,
+.btn:hover::before,
+.wire-btn:hover::before {
+  opacity: 1;
+}
+
+.wp-icon-btn:hover,
+.btn:hover,
+.wire-btn:hover,
+.primary-action:hover,
+.btn-premium:hover {
+  background: rgba(255,255,255,0.06);
+  border-color: rgba(94,234,212,0.3);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px rgba(94,234,212,0.08);
+}
+
+/* ── Premium dashboard wrapper glow ──────────────────────── */
+.premium-dashboard-shell {
+  background:
+    radial-gradient(circle at var(--cursor-x, 50%) var(--cursor-y, 50%), rgba(94,234,212,0.06), transparent 280px),
+    radial-gradient(ellipse 60% 40% at 80% 10%, rgba(139,92,246,0.05), transparent),
+    radial-gradient(ellipse 50% 30% at 10% 90%, rgba(244,114,182,0.04), transparent) !important;
+}
+
+/* ── Boot / Loading screen — cinematic ───────────────────── */
+.dashboard-boot {
+  position: relative;
+}
+
+.dashboard-boot::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 50% 40%, rgba(94,234,212,0.06), transparent 60%),
+    radial-gradient(ellipse 60% 40% at 30% 70%, rgba(139,92,246,0.05), transparent 50%);
+  animation: bootGlow 3s ease-in-out infinite alternate;
+  pointer-events: none;
+}
+
+@keyframes bootGlow {
+  0%   { opacity: 0.4; transform: scale(1); }
+  100% { opacity: 1;   transform: scale(1.05); }
+}
+
+/* ── Map — Cinematic Upgrade ─────────────────────────────── */
+.abstract-world-map {
+  background:
+    radial-gradient(ellipse 100% 80% at 50% 40%, rgba(6,182,212,0.08), transparent 60%),
+    radial-gradient(ellipse 70% 50% at 20% 60%, rgba(139,92,246,0.05), transparent 45%),
+    radial-gradient(ellipse 60% 40% at 80% 30%, rgba(94,234,212,0.06), transparent 40%),
+    rgba(5,9,20,0.7) !important;
+  border-radius: 20px !important;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Map ambient glow overlay */
+.abstract-world-map::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 30% 35%, rgba(94,234,212,0.10), transparent 40%),
+    radial-gradient(circle at 70% 60%, rgba(139,92,246,0.08), transparent 35%);
+  animation: mapAmbience 8s ease-in-out infinite alternate;
+}
+
+@keyframes mapAmbience {
+  0%   { opacity: 0.5; filter: hue-rotate(0deg); }
+  100% { opacity: 1;   filter: hue-rotate(15deg); }
+}
+
+/* Map side panel premium */
+.map-side-panel {
+  background: rgba(10,14,30,0.6) !important;
+  border: 1px solid rgba(148,163,184,0.07) !important;
+  backdrop-filter: blur(16px) !important;
+}
+
+.map-side-panel button {
+  transition: all 0.2s ease;
+  border-radius: 10px;
+}
+
+.map-side-panel button:hover {
+  background: rgba(94,234,212,0.08);
+  border-color: rgba(94,234,212,0.25);
+  transform: translateX(4px);
+}
+
+/* ── Map Statistics — premium cards ──────────────────────── */
+.map-stat {
+  position: relative;
+  overflow: hidden;
+}
+
+.map-stat::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, currentColor, transparent);
+  opacity: 0.3;
+}
+
+.map-stat i {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  font-style: normal;
+}
+
+/* Map controls premium */
+.map-controls {
+  background: rgba(10,14,30,0.35) !important;
+  border: 1px solid rgba(148,163,184,0.06) !important;
+  padding: 16px !important;
+  border-radius: 14px !important;
+}
+
+.map-controls select {
+  background: rgba(5,8,18,0.6) !important;
+  border: 1px solid rgba(148,163,184,0.12) !important;
+  border-radius: 8px !important;
+}
+
+.map-controls .toggle {
+  border-radius: 8px;
+  padding: 8px 16px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(148,163,184,0.10);
+  color: #94a3b8;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.map-controls .toggle.active {
+  background: rgba(94,234,212,0.12);
+  border-color: rgba(94,234,212,0.35);
+  color: #5eead4;
+}
+
+/* ── Orbit header premium gradient ───────────────────────── */
 .orbit-header {
   position: relative;
   padding: 1.8rem 1.2rem;
-  border-radius: 12px;
+  border-radius: 16px;
   overflow: hidden;
 }
 .orbit-header::before {
   content: "";
   inset: 0;
   position: absolute;
-  background: linear-gradient(135deg, rgba(139,92,246,.13), rgba(34,197,94,.07));
-  opacity: .6;
+  background: linear-gradient(135deg, rgba(139,92,246,0.08), rgba(94,234,212,0.05));
+  opacity: 0.6;
   pointer-events: none;
 }
 
-/* Button enhancements */
-.wp-icon-btn,
-.btn,
-.wire-btn,
-.primary-action,
-.btn-premium {
-  border: 1px solid var(--border-card);
-  background: rgba(255,255,255,.04);
-  color: var(--text-primary);
-  transition: background .2s, border-color .2s, transform .2s;
-}
-.wp-icon-btn:hover,
-.btn:hover,
-.wire-btn:hover,
-.primary-action:hover,
-.btn-premium:hover {
-  background: rgba(255,255,255,.08);
-  border-color: var(--accent);
-  transform: translateY(-2px) scale(1.02);
+/* ── Quick Glance stat hover ─────────────────────────────── */
+.qg-stat {
+  transition: all 0.25s cubic-bezier(0.4,0,0.2,1);
 }
 
-/* Map statistics layout */
-.map-stats {
-  display: flex;
-  gap: 1rem;
-  flex-wrap: wrap;
-}
-.map-stat {
-  flex: 1 1 180px;
-  min-width: 180px;
+.qg-stat:hover {
+  border-color: rgba(94,234,212,0.25) !important;
+  background: rgba(94,234,212,0.05) !important;
+  transform: translateX(3px);
 }
 
-/* Map controls */
-.map-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: .8rem;
-  align-items: center;
+/* ── Status card subtle glow ─────────────────────────────── */
+.system-status-card .status-icon {
+  color: #34d399;
+  filter: drop-shadow(0 0 6px rgba(52,211,153,0.4));
+  animation: statusPulse 2s ease-in-out infinite;
 }
 
-/* Map layout – map + side panel */
-.map-layout {
+@keyframes statusPulse {
+  50% { filter: drop-shadow(0 0 10px rgba(52,211,153,0.6)); }
+}
+
+/* ── Pipeline boot steps — staggered completion ──────────── */
+.boot-steps {
   display: grid;
-  grid-template-columns: 1fr 300px;
-  gap: 1.5rem;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+  margin: 20px 0 16px;
 }
-.abstract-world-map {
+
+.boot-step {
+  position: relative;
+  padding: 12px 10px;
+  border: 1px solid rgba(148,163,184,0.08);
+  border-radius: 10px;
+  background: rgba(7,12,26,0.5);
+  text-align: center;
+  overflow: hidden;
+}
+
+.boot-step::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 0%;
+  background: linear-gradient(90deg, rgba(94,234,212,0.12), rgba(139,92,246,0.08));
+  transition: width 0.6s cubic-bezier(0.4,0,0.2,1);
+  z-index: 0;
+}
+
+.boot-step.completed::before {
+  width: 100%;
+}
+
+.boot-step.active::before {
+  width: 60%;
+  animation: stepPulse 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes stepPulse {
+  0%   { width: 30%; }
+  100% { width: 80%; }
+}
+
+.boot-step-label {
+  position: relative;
+  z-index: 1;
+  display: block;
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #65708a;
+  transition: color 0.3s ease;
+}
+
+.boot-step.completed .boot-step-label { color: #5eead4; }
+.boot-step.active .boot-step-label { color: #a78bfa; }
+
+.boot-step-icon {
+  position: relative;
+  z-index: 1;
+  display: block;
+  font-size: 18px;
+  margin-bottom: 4px;
+}
+
+.boot-step.completed .boot-step-icon { filter: drop-shadow(0 0 4px rgba(94,234,212,0.5)); }
+
+.boot-step-bar {
+  position: absolute;
+  left: 0; bottom: 0;
+  height: 3px;
+  width: 0%;
+  background: linear-gradient(90deg, #5eead4, #a78bfa);
+  border-radius: 0 0 10px 10px;
+  transition: width 0.5s cubic-bezier(0.4,0,0.2,1);
+}
+
+.boot-step.completed .boot-step-bar { width: 100%; }
+.boot-step.active .boot-step-bar {
+  width: 50%;
+  animation: barPulse 1.2s ease-in-out infinite alternate;
+}
+
+@keyframes barPulse {
+  0%   { width: 20%; }
+  100% { width: 70%; }
+}
+
+/* ── World map SVG premium ───────────────────────────────── */
+.world-map-svg {
+  filter: drop-shadow(0 0 30px rgba(94,234,212,0.04));
+}
+
+.world-map-geo {
+  fill: rgba(22,42,78,0.75) !important;
+  stroke: rgba(94,234,212,0.18) !important;
+  stroke-width: 0.5 !important;
+  transition: fill 0.3s ease, stroke 0.3s ease, filter 0.3s ease !important;
+}
+
+.world-map-geo:hover {
+  fill: rgba(30,58,108,0.95) !important;
+  stroke: rgba(94,234,212,0.55) !important;
+  filter: drop-shadow(0 0 8px rgba(94,234,212,0.15)) !important;
+}
+
+.world-map-ocean {
+  fill: rgba(5,9,20,0.3) !important;
+}
+
+.world-map-heat-aura {
+  filter: url(#map-point-glow) blur(1px) !important;
+}
+
+.world-map-heat-core {
+  stroke: rgba(255,255,255,0.85) !important;
+  stroke-width: 1.5 !important;
+}
+
+.world-map-label {
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  fill: #f0f4ff !important;
+}
+
+/* ── Scanline overlay premium ────────────────────────────── */
+.scanline {
+  opacity: 0.08 !important;
+}
+
+/* ── Grid lines subtle ───────────────────────────────────── */
+.app-container::before {
+  background-image:
+    linear-gradient(rgba(94,234,212,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(94,234,212,0.015) 1px, transparent 1px) !important;
+  background-size: 80px 80px !important;
+}
+
+/* ── Smooth page transitions ─────────────────────────────── */
+.world-pulse-main {
+  animation: fadeInUp 0.5s cubic-bezier(0.4,0,0.2,1) both;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Map legend premium ──────────────────────────────────── */
+.map-legend {
+  background: rgba(7,12,26,0.7);
+  backdrop-filter: blur(12px);
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(148,163,184,0.08);
+}
+
+.map-legend i {
+  height: 5px !important;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #34d399, #fbbf24, #fb7185) !important;
+  box-shadow: 0 0 12px rgba(251,191,36,0.2);
+}
+
+/* ── Selected map signal ─────────────────────────────────── */
+.selected-map-signal {
+  padding: 16px;
+  border-radius: 12px;
+  background: rgba(94,234,212,0.04);
+  border: 1px solid rgba(94,234,212,0.12);
+  margin-bottom: 12px;
+}
+
+.selected-map-signal b {
+  font-size: 32px;
+  color: #5eead4;
+  display: block;
+}
+
+.selected-map-signal span {
+  font-size: 11px;
+  color: #65708a;
+  text-transform: uppercase;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+}
+
+/* ── Tour card shimmer ───────────────────────────────────── */
+.tour-card {
   position: relative;
   overflow: hidden;
-  border-radius: 12px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-card);
-  backdrop-filter: blur(8px);
 }
 
-/* Sidebar & drawer glass effect */
-.world-pulse-page .wp-sidebar,
-.shift-drawer {
-  background: var(--bg-card);
-  border: 1px solid var(--border-card);
-  backdrop-filter: blur(10px);
-}
-
-/* Typography */
-h1, h2, h3, h4 { color: var(--text-primary); }
-p, span, li { color: var(--text-muted); }
-
-/* Subtle floating particles */
-body::before {
+.tour-card::after {
   content: "";
-  inset: 0;
-  position: fixed;
+  position: absolute;
+  inset: -2px;
+  background: linear-gradient(135deg, rgba(94,234,212,0.1), transparent 30%, rgba(139,92,246,0.08));
+  border-radius: inherit;
+  z-index: 0;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.tour-card:hover::after {
+  opacity: 1;
+}
+
+/* ── Shift cards — premium entrance ──────────────────────── */
+.shift-card-advanced {
+  animation: cardSlideIn 0.4s cubic-bezier(0.4,0,0.2,1) both;
+  border-radius: 14px !important;
+}
+
+.shift-card-advanced:nth-child(1) { animation-delay: 0.05s; }
+.shift-card-advanced:nth-child(2) { animation-delay: 0.12s; }
+.shift-card-advanced:nth-child(3) { animation-delay: 0.19s; }
+
+@keyframes cardSlideIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── "What changed" row entrance ─────────────────────────── */
+.wca-row {
+  animation: rowFadeIn 0.35s cubic-bezier(0.4,0,0.2,1) both;
+}
+
+.wca-row:nth-child(1) { animation-delay: 0s; }
+.wca-row:nth-child(2) { animation-delay: 0.06s; }
+.wca-row:nth-child(3) { animation-delay: 0.12s; }
+.wca-row:nth-child(4) { animation-delay: 0.18s; }
+.wca-row:nth-child(5) { animation-delay: 0.24s; }
+
+@keyframes rowFadeIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ── Pulse trend chart glow ──────────────────────────────── */
+.pulse-chart-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.pulse-chart-card::after {
+  content: "";
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  height: 40%;
+  background: linear-gradient(to top, rgba(139,92,246,0.04), transparent);
   pointer-events: none;
-  background:
-    radial-gradient(circle at 20% 30%, rgba(139,92,246,.04), transparent 40%),
-    radial-gradient(circle at 80% 70%, rgba(34,197,94,.04), transparent 45%);
-  animation: particlesShift 45s linear infinite;
-}
-@keyframes particlesShift {
-  0%   { background-position: 0% 0%; }
-  100% { background-position: 100% 100%; }
-}
-
-/* Map point hover */
-.map-heat-point:hover {
-  transform: scale(1.2) rotate(5deg);
-  filter: drop-shadow(0 0 8px rgba(255,255,255,.6));
-}
-
-/* Premium dashboard wrapper */
-.premium-dashboard {
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: 2rem 1.5rem;
-  display: grid;
-  gap: 2rem;
-  background: var(--bg-dark);
-}
-
-/* Ensure any new cards use the glass base */
-.wp-card {
-  background: var(--bg-card);
+  border-radius: 0 0 16px 16px;
 }
