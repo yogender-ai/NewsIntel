@@ -22,7 +22,7 @@ export default function TopHeader({ user, cache, refreshing, onRefresh, onAlerts
         <FreshnessBadge cache={cache} />
         <button className="wp-icon-btn" onClick={onRefresh} disabled={refreshing} title="Refresh">
           <RefreshCw size={18} className={refreshing ? 'spin' : ''} />
-          <span>{updated ? `Updated ${updated}` : 'Refresh'}</span>
+          <span>{refreshing ? 'Finishing pipeline' : updated ? `Updated ${updated}` : 'Refresh'}</span>
         </button>
         <button className="wp-icon-only" title="Alerts" onClick={onAlerts}>
           <Bell size={18} />

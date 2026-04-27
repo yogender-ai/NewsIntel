@@ -6,14 +6,7 @@ import { useAuth } from '../context/AuthContext';
 import Sidebar from '../components/worldpulse/Sidebar';
 import LockedNavToast from '../components/worldpulse/LockedNavToast';
 import WorldMap from '../components/worldpulse/WorldMap';
-
-
-function project(region) {
-  return {
-    left: `${((Number(region.lng) + 180) / 360) * 100}%`,
-    top: `${((90 - Number(region.lat)) / 180) * 100}%`,
-  };
-}
+import { compactLabel } from '../lib/dashboardAdapter';
 
 function colorFor(region, mode) {
   if (mode === 'opportunity' || region.opportunity === 'high') return '#45e5a8';
@@ -42,19 +35,6 @@ function MapStats({ regions }) {
         );
       })}
     </section>
-  );
-}
-
-function WorldBackdrop() {
-  return (
-    <svg className="map-world-svg" viewBox="0 0 1000 520" aria-hidden="true">
-      <path d="M121 171l47-28 66 5 41 32 15 54-27 38-59 8-60-23-38-38z" />
-      <path d="M256 297l57 31 28 55-22 72-54 37-45-45 5-69z" />
-      <path d="M426 156l57-26 69 18 24 45-21 43-78 13-58-34z" />
-      <path d="M500 266l64-18 58 37 7 81-48 63-65-18-36-72z" />
-      <path d="M608 140l103-35 146 19 72 65-37 78-124 14-109-42z" />
-      <path d="M708 310l79 8 52 57-28 73-84-2-45-54z" />
-    </svg>
   );
 }
 
@@ -139,21 +119,14 @@ export default function MapPage() {
             ) : (
               <section className="map-layout">
                 <div className="abstract-world-map">
-                  <WorldMap regions={data.regions} onRegionSelect={setSelected} />
-                  {data.regions.map((region) => (
-                    <div key={region.id} className="map-signal-group" style={project(region)}>
-                      <button
-                        className="map-heat-point"
-                        onClick={() => setSelected(region)}
-                        style={{ '--point-color': colorFor(region, mode), '--point-size': `${18 + region.intensity * 0.34}px` }}
-                        title={region.name}
-                      />
-                      <button className="map-callout" onClick={() => setSelected(region)}>
-                        <b>{region.name}</b>
-                        <span>{mode === 'risk' ? region.risk : region.opportunity} / {region.event_count} events</span>
-                      </button>
-                    </div>
-                  ))}
+                  <WorldMap
+                    regions={data.regions.map((region) => ({
+                      ...region,
+                      color: colorFor(region, mode),
+                      label: `${mode === 'risk' ? region.risk : region.opportunity} / ${region.event_count} events`,
+                    }))}
+                    onRegionSelect={setSelected}
+                  />
                   <div className="map-legend"><span>Signal intensity</span><i /><b>Very high</b></div>
                 </div>
                 <aside className="orbit-list wp-card map-side-panel">

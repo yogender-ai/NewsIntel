@@ -19,11 +19,19 @@ import LockedNavToast from '../components/worldpulse/LockedNavToast';
 
 
 function DashboardBoot({ status }) {
+  const latest = status?.latest_cycle?.status || status?.news || 'warming';
+  const queue = status?.queue;
   return (
     <div className="dashboard-boot">
       <div className="dashboard-boot-card wp-card">
-        <h2>Loading intelligence board…</h2>
-        <p>Preparing data, please wait.</p>
+        <span className="boot-kicker">Live pipeline</span>
+        <h2>Loading intelligence board...</h2>
+        <p>
+          {queue
+            ? `${queue.running || 0} running / ${queue.pending || 0} pending`
+            : `Status: ${String(latest).replace(/_/g, ' ')}`}
+        </p>
+        <div className="boot-progress" aria-hidden="true"><span /></div>
       </div>
     </div>
   );
@@ -89,6 +97,28 @@ const aiStatusLabel = {
   failed: 'Analysis unavailable',
   rules_only: 'Rules only',
 };
+
+const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+function pipelineSettled(snapshot) {
+  const status = snapshot?.pipeline_status;
+  const queue = status?.queue;
+  const running = Number(queue?.running || 0);
+  const pending = Number(queue?.pending || 0);
+  const latest = String(status?.latest_cycle?.status || '').toLowerCase();
+  const cycleActive = ['running', 'started', 'queued', 'pending'].includes(latest);
+  return !cycleActive && running === 0 && pending === 0;
+}
+
+async function readSettledSnapshot(initialSnapshot) {
+  let snapshot = initialSnapshot;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    if (pipelineSettled(snapshot)) return snapshot;
+    await wait(1800 + attempt * 300);
+    snapshot = await api.getCachedDashboard();
+  }
+  return snapshot;
+}
 
 function EmptyLine({ children }) {
   return <p className="empty-copy">{children}</p>;
@@ -304,10 +334,11 @@ export default function HomePage() {
     else setLoading(true);
     const started = performance.now();
     try {
-      const [dashResult, alertsResult] = await Promise.all([
-        api.getCachedDashboard(),
-        api.getAlerts().catch(() => ({ alerts: [] })),
-      ]);
+      const firstSnapshot = force
+        ? await api.forceDashboardRefresh()
+        : await api.getCachedDashboard();
+      const dashResult = force ? await readSettledSnapshot(firstSnapshot) : firstSnapshot;
+      const alertsResult = await api.getAlerts().catch(() => ({ alerts: [] }));
       setPreferences({ data: { preferred_categories: dashResult?.topics_used || [], preferred_regions: dashResult?.regions_used || [] } });
       setDashboard(dashResult);
       setAlerts(alertsResult);
@@ -359,97 +390,8 @@ export default function HomePage() {
     : [];
 
   return (
-    <div className="premium-dashboard">
-  <Sidebar
-    preferences={{
-      hasPreferences: Boolean(topics.length),
-      topics,
-      regions: prefs?.data?.preferred_regions || [],
-      entities: [],
-    }}
-    activeItem="home"
-    onHome={() => { setSelectedTopic(null); setInsightView(null); }}
-    onOrbit={() => navigate('/orbit')}
-    onMap={() => navigate('/map')}
-    onSimulator={() => navigate('/simulator')}
-    onLocked={setLockedToast}
-    onWatchlist={() => navigate('/watchlist')}
-    onAlerts={() => navigate('/alerts')}
-    onSettings={() => navigate('/settings')}
-    onSetFocus={() => navigate('/onboarding')}
-  />
-  <main className="world-pulse-main">
-    <TopHeader
-      user={user}
-      cache={data.cache}
-      refreshing={refreshing}
-      onRefresh={() => load({ force: true })}
-      onAlerts={() => navigate('/alerts')}
-      alertCount={data.alerts?.length || 0}
-    />
-    {loading ? <DashboardBoot status={data.pipelineStatus} /> : (
-      <>
-        {error && (
-          <div className="wp-error"><b>Live data unavailable</b><span>{error}</span><button onClick={() => load()}>Retry</button></div>
-        )}
-        <section className="wp-grid">
-          <div className="wp-primary">
-            <WorldPulseRing worldPulse={data.worldPulse} />
-            <WhatChangedToday changes={data.changesToday} selectedTopic={selectedTopic} onSelect={setSelectedTopic} />
-            <section className="wp-card top-shifts-section">
-              <div className="wp-section-head"><span>Top 3 Shifts You Must Know</span></div>
-              {topShifts.length ? (
-                <div className="top-shifts-list">
-                  {topShifts.slice(0,3).map((shift)=> (
-                    <TopShiftCard key={shift.id} shift={shift} onOpen={(s)=>navigate(`/dashboard/event/${s.id}`)} index={topShifts.indexOf(shift)} />
-                  ))}
-                </div>
-              ) : (
-                <EmptyState title="No live shifts available." body="Event-backed signals will appear after ingestion produces dashboard events." />
-              )}
-            </section>
-            <StartTourCard onStart={()=>setTourOpen(true)} />
-          </div>
-          <aside className="wp-right">
-            <PulseTrendChart history={data.pulseHistory} worldPulse={data.worldPulse} />
-            <QuickGlance
-              data={data.quickGlance}
-              onCountries={()=>setInsightView('countries')}
-              onSignals={()=>setSelectedTopic(null)}
-              onAlerts={()=>navigate('/alerts')}
-              onSources={()=>setInsightView('sources')}
-            />
-            <section className="wp-card system-status-card">
-              <div className="status-header"><Activity size={14} className="status-icon"/><span>System Status</span></div>
-              <div className="status-metrics">
-                {/* status metrics here */}
-              </div>
-            </section>
-      <LiveCursor />
-    }}
-    activeItem="home"
-    onHome={() => { setSelectedTopic(null); setInsightView(null); }}
-    onOrbit={() => navigate('/orbit')}
-    onMap={() => navigate('/map')}
-    onSimulator={() => navigate('/simulator')}
-    onLocked={setLockedToast}
-    onWatchlist={() => navigate('/watchlist')}
-    onAlerts={() => navigate('/alerts')}
-    onSettings={() => navigate('/settings')}
-    onSetFocus={() => navigate('/onboarding')}
-  />
-  <main className="world-pulse-main">
-    {/* all existing elements */}
-  </main>
-  <LockedNavToast message={lockedToast} />
-</div>
-  {/* Existing content stays the same */}
-  <Sidebar ... />
-  <main className="world-pulse-main">
-    {/* all existing elements */}
-  </main>
-  <LockedNavToast ... />
-</div>
+    <div className="world-pulse-page premium-dashboard-shell">
+      <Sidebar
         preferences={data.preferences}
         activeItem="home"
         onHome={() => { setSelectedTopic(null); setInsightView(null); }}
@@ -491,7 +433,12 @@ export default function HomePage() {
                   {topShifts.length ? (
                     <div className="top-shifts-list">
                       {topShifts.slice(0, 3).map((shift) => (
-                        <TopShiftCard key={shift.id} shift={shift} onOpen={(s) => navigate(`/dashboard/event/${s.id}`)} index={topShifts.indexOf(shift)} />
+                        <TopShiftCard
+                          key={shift.id}
+                          shift={shift}
+                          onOpen={(s) => navigate(`/dashboard/event/${s.id}`)}
+                          index={topShifts.indexOf(shift)}
+                        />
                       ))}
                     </div>
                   ) : (
@@ -522,11 +469,17 @@ export default function HomePage() {
                     </div>
                     <div className="status-metric">
                       <small>Pipeline</small>
-                      <strong style={{ textTransform: 'capitalize' }}>{(data.pipelineStatus?.latest_cycle?.status || data.cache?.refreshType || 'active').replace(/_/g, ' ')}</strong>
+                      <strong style={{ textTransform: 'capitalize' }}>
+                        {(data.pipelineStatus?.latest_cycle?.status || data.cache?.refreshType || 'active').replace(/_/g, ' ')}
+                      </strong>
                     </div>
                     <div className="status-metric">
                       <small>Queue</small>
-                      <strong>{data.pipelineStatus?.queue ? `${data.pipelineStatus.queue.running || 0} running / ${data.pipelineStatus.queue.pending || 0} pending` : 'Checking'}</strong>
+                      <strong>
+                        {data.pipelineStatus?.queue
+                          ? `${data.pipelineStatus.queue.running || 0} running / ${data.pipelineStatus.queue.pending || 0} pending`
+                          : 'Checking'}
+                      </strong>
                     </div>
                     <div className="status-metric">
                       <small>AI Circuit</small>
@@ -539,6 +492,7 @@ export default function HomePage() {
           </>
         )}
       </main>
+      <LiveCursor />
       <DetailDrawer shift={selectedShift} sources={selectedSources} onClose={() => setSelectedShift(null)} />
       <InsightDrawer
         view={insightView}
