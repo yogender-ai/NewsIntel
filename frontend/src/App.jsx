@@ -155,7 +155,7 @@ function App() {
 
 function AppRoutes() {
   const location = useLocation();
-  const isWorldPulse = ['/', '/dashboard', '/orbit', '/map', '/simulator'].includes(location.pathname);
+  const isWorldPulse = ['/', '/dashboard', '/orbit', '/map', '/simulator', '/story'].includes(location.pathname);
   return (
     <>
       {!isWorldPulse && <TopBar />}

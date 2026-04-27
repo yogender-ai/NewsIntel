@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowDownWideNarrow, Circle, GitBranch, RefreshCw, Tags, X } from 'lucide-react';
+import { ArrowDownWideNarrow, Atom, BrainCircuit, Circle, Flame, GitBranch, Globe2, RefreshCw, Shield, Tags, X } from 'lucide-react';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import Sidebar from '../components/worldpulse/Sidebar';
@@ -15,6 +15,15 @@ const categoryColors = {
   defense: '#fb7185',
   crypto: '#c084fc',
   climate: '#34d399',
+};
+
+const categoryIcons = {
+  ai: BrainCircuit,
+  tech: Atom,
+  markets: Globe2,
+  politics: Shield,
+  defense: Shield,
+  energy: Flame,
 };
 
 function LiveCursor() {
@@ -77,22 +86,30 @@ function OrbitGraph({ nodes, edges, showLabels, onSelect }) {
       {nodes.map((node, index) => {
         const point = points.get(node.id) || { x: 50, y: 50 };
         const color = categoryColors[node.category] || '#8da2ff';
+        const Icon = categoryIcons[node.category] || Circle;
         return (
           <button
             key={node.id}
-            className={`orbit-event-node orbit-${node.status || 'stable'}`}
+            className={`orbit-event-node orbit-${node.status || 'stable'} orbit-labeled-node`}
             type="button"
             onClick={() => onSelect(node)}
             style={{
               left: `${point.x}%`,
               top: `${point.y}%`,
-              width: `${node.size || 18}px`,
-              height: `${node.size || 18}px`,
+              width: `${Math.max(76, node.size || 76)}px`,
+              height: `${Math.max(76, node.size || 76)}px`,
               '--node-color': color,
             }}
             title={node.label}
           >
-            {showLabels && <span>{node.label}</span>}
+            <i><Icon size={20} /></i>
+            {showLabels && (
+              <span>
+                <b>{compactLabel(node.category) || 'Signal'}</b>
+                <strong>{Math.round(node.pulse || 0)}</strong>
+                <small>{compactLabel(node.status || 'stable')}</small>
+              </span>
+            )}
           </button>
         );
       })}
@@ -211,6 +228,7 @@ export default function OrbitPage() {
     [filteredEdges, visibleIds],
   );
   const nodesById = useMemo(() => new Map(visibleNodes.map((node) => [node.id, node])), [visibleNodes]);
+  const activeNode = selected || visibleNodes[0] || null;
 
   const openStory = (node) => navigate('/story', {
     state: {
@@ -250,13 +268,15 @@ export default function OrbitPage() {
         onSettings={() => navigate('/settings')}
       />
       <main className="world-pulse-main orbit-main">
-        <header className="orbit-header">
+        <header className="orbit-header ni-screen-header">
           <div>
-            <div className="wp-kicker">Home / Signal Orbit</div>
             <h1>Signal Orbit</h1>
-            <p>Cross-event relationships from recent validated intelligence.</p>
+            <p>Live signals orbiting around what matters to you.</p>
           </div>
-          <button className="wp-icon-btn" onClick={load} disabled={loading}><RefreshCw size={18} /> Refresh</button>
+          <div className="ni-header-tools">
+            <button className="wp-icon-btn" onClick={() => setLockedToast('The orbit is built from backend relationship edges.')}><Circle size={14} /> How it works</button>
+            <button className="wp-icon-btn" onClick={load} disabled={loading}><RefreshCw size={18} /> Refresh</button>
+          </div>
         </header>
 
         <section className="orbit-controls wp-card">
@@ -278,21 +298,35 @@ export default function OrbitPage() {
             ) : (
               <section className="orbit-layout">
                 <OrbitGraph nodes={visibleNodes} edges={visibleEdges} showLabels={showLabels} onSelect={setSelected} />
-                <div className="orbit-list wp-card">
-                  <div className="wp-section-head"><span>Visible Signals</span></div>
-                  {visibleNodes.map((node) => (
-                    <button key={node.id} onClick={() => setSelected(node)}>
-                      <b>{node.label}</b>
-                      <span>{compactLabel(node.category)} · pulse {node.pulse} · exposure {node.exposure}</span>
-                    </button>
-                  ))}
+                <div className="orbit-list wp-card orbit-focus-panel">
+                  <div className="wp-section-head"><span>{activeNode?.label || 'Visible Signals'}</span></div>
+                  {activeNode && (
+                    <>
+                      <div className="drawer-grid">
+                        <div><small>Pulse</small><b>{activeNode.pulse ?? '-'}</b></div>
+                        <div><small>Exposure</small><b>{activeNode.exposure ?? '-'}</b></div>
+                        <div><small>Distance</small><b>{Math.round((activeNode.distance ?? 0) * 100)}</b></div>
+                        <div><small>Status</small><b>{compactLabel(activeNode.status || 'stable')}</b></div>
+                      </div>
+                      <p className="orbit-focus-copy">{activeNode.why_it_matters || 'Relationship context is still being confirmed across sources.'}</p>
+                      <button className="orbit-story-button" onClick={() => openStory(activeNode)}>Explore Signal</button>
+                    </>
+                  )}
+                  <div className="orbit-mini-list">
+                    {visibleNodes.slice(0, 6).map((node) => (
+                      <button key={node.id} onClick={() => setSelected(node)}>
+                        <b>{node.label}</b>
+                        <span>{compactLabel(node.category)} / pulse {node.pulse}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </section>
             )}
           </>
         )}
       </main>
-      <OrbitDrawer node={selected} edges={visibleEdges} nodesById={nodesById} onClose={() => setSelected(null)} onStory={openStory} />
+      <OrbitDrawer node={null} edges={visibleEdges} nodesById={nodesById} onClose={() => setSelected(null)} onStory={openStory} />
       <LockedNavToast message={lockedToast} />
     </div>
   );

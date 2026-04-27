@@ -1,4 +1,4 @@
-import { Bell, Compass, Home, Lock, Map, Orbit, Pencil, Search, Settings, ShieldQuestion, Star } from 'lucide-react';
+import { Bell, Bookmark, Compass, Home, Lock, Map, Orbit, Pencil, Search, Settings, ShieldQuestion, Star } from 'lucide-react';
 import { compactLabel } from '../../lib/dashboardAdapter';
 
 function asArray(value) {
@@ -43,6 +43,7 @@ export default function Sidebar({
       <nav className="wp-nav">
         <button className={activeItem === 'home' ? 'active' : ''} onClick={onHome}><Home size={17} /> Home</button>
         <button className={activeItem === 'orbit' ? 'active' : ''} onClick={onOrbit}><Orbit size={17} /> Orbit</button>
+        <button className={activeItem === 'stories' ? 'active' : ''} onClick={() => onLocked('Open a story from any live signal card.')}><Bookmark size={17} /> Stories</button>
         <button className={activeItem === 'map' ? 'active' : ''} onClick={onMap}><Map size={17} /> Map</button>
         <button className={activeItem === 'simulator' ? 'active' : ''} onClick={onSimulator}><ShieldQuestion size={17} /> Simulator</button>
         {locked.map(([label, icon]) => (

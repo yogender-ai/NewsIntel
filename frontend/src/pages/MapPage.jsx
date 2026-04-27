@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { RefreshCw, X } from 'lucide-react';
+import { AlertTriangle, Filter, Globe2, Layers, RefreshCw, ShieldAlert, Sparkles, X } from 'lucide-react';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import Sidebar from '../components/worldpulse/Sidebar';
@@ -15,10 +15,46 @@ function project(region) {
 }
 
 function colorFor(region, mode) {
-  if (mode === 'opportunity' || region.opportunity === 'high') return '#7ee7c4';
-  if (region.risk === 'high') return '#ff6b7c';
-  if (region.risk === 'medium') return '#ffd38a';
-  return '#8da2ff';
+  if (mode === 'opportunity' || region.opportunity === 'high') return '#45e5a8';
+  if (region.risk === 'high') return '#ff4d5f';
+  if (region.risk === 'medium') return '#ff9f2e';
+  return '#5b7cfa';
+}
+
+function MapStats({ regions }) {
+  const rows = [
+    { label: 'High Impact', value: regions.filter((region) => region.risk === 'high').length, icon: ShieldAlert, color: '#ff4d5f' },
+    { label: 'Moderate', value: regions.filter((region) => region.risk === 'medium').length, icon: AlertTriangle, color: '#ff9f2e' },
+    { label: 'Low Impact', value: regions.filter((region) => region.risk === 'low').length, icon: Globe2, color: '#45e5a8' },
+    { label: 'Opportunities', value: regions.filter((region) => ['high', 'medium'].includes(region.opportunity)).length, icon: Sparkles, color: '#5b7cfa' },
+  ];
+  return (
+    <section className="map-stats">
+      {rows.map((row) => {
+        const Icon = row.icon;
+        return (
+          <div className="wp-card map-stat" key={row.label}>
+            <i style={{ color: row.color, background: `${row.color}18` }}><Icon size={18} /></i>
+            <span>{row.label}</span>
+            <b>{row.value}</b>
+          </div>
+        );
+      })}
+    </section>
+  );
+}
+
+function WorldBackdrop() {
+  return (
+    <svg className="map-world-svg" viewBox="0 0 1000 520" aria-hidden="true">
+      <path d="M121 171l47-28 66 5 41 32 15 54-27 38-59 8-60-23-38-38z" />
+      <path d="M256 297l57 31 28 55-22 72-54 37-45-45 5-69z" />
+      <path d="M426 156l57-26 69 18 24 45-21 43-78 13-58-34z" />
+      <path d="M500 266l64-18 58 37 7 81-48 63-65-18-36-72z" />
+      <path d="M608 140l103-35 146 19 72 65-37 78-124 14-109-42z" />
+      <path d="M708 310l79 8 52 57-28 73-84-2-45-54z" />
+    </svg>
+  );
 }
 
 export default function MapPage() {
@@ -57,6 +93,7 @@ export default function MapPage() {
 
   const topRegions = useMemo(() => [...data.regions].sort((a, b) => b.intensity - a.intensity), [data.regions]);
   const topics = prefs?.data?.preferred_categories || [];
+  const selectedRegion = selected || topRegions[0] || null;
 
   return (
     <div className="world-pulse-page signal-map-page">
@@ -74,20 +111,25 @@ export default function MapPage() {
         onSettings={() => navigate('/settings')}
       />
       <main className="world-pulse-main map-main">
-        <header className="orbit-header">
+        <header className="orbit-header ni-screen-header">
           <div>
-            <div className="wp-kicker">Home / Signal Map</div>
             <h1>Signal Map</h1>
-            <p>Live geographic intensity from enriched event metadata.</p>
+            <p>Live intensity of events and opportunities across the world.</p>
           </div>
-          <button className="wp-icon-btn" onClick={load} disabled={loading}><RefreshCw size={18} /> Refresh</button>
+          <div className="ni-header-tools">
+            <button className="wp-icon-btn" onClick={() => setMode(mode === 'risk' ? 'opportunity' : 'risk')}><Filter size={16} /> {mode === 'risk' ? 'Risk' : 'Opportunity'}</button>
+            <button className="wp-icon-btn" onClick={load} disabled={loading}><RefreshCw size={18} /> Refresh</button>
+          </div>
         </header>
-        <section className="orbit-controls wp-card">
-          <label>Window<select value={timeWindow} onChange={(event) => setTimeWindow(event.target.value)}><option value="24h">24h</option><option value="7d">7d</option><option value="30d">30d</option></select></label>
-          <label>Layer<select value={layer} onChange={(event) => setLayer(event.target.value)}><option value="all">All</option>{data.layers.map((item) => <option key={item} value={item}>{compactLabel(item)}</option>)}</select></label>
+
+        <MapStats regions={data.regions} />
+        <section className="orbit-controls wp-card map-controls">
+          <label><Layers size={15} /> Window<select value={timeWindow} onChange={(event) => setTimeWindow(event.target.value)}><option value="24h">24h</option><option value="7d">7d</option><option value="30d">30d</option></select></label>
+          <label><Globe2 size={15} /> Layer<select value={layer} onChange={(event) => setLayer(event.target.value)}><option value="all">All</option>{data.layers.map((item) => <option key={item} value={item}>{compactLabel(item)}</option>)}</select></label>
           <button className={mode === 'risk' ? 'toggle active' : 'toggle'} onClick={() => setMode('risk')}>Risk</button>
           <button className={mode === 'opportunity' ? 'toggle active' : 'toggle'} onClick={() => setMode('opportunity')}>Opportunity</button>
         </section>
+
         {loading ? <div className="wp-loading"><span /></div> : (
           <>
             {error && <div className="wp-error"><b>Map unavailable</b><span>{error}</span><button onClick={load}>Retry</button></div>}
@@ -96,26 +138,36 @@ export default function MapPage() {
             ) : (
               <section className="map-layout">
                 <div className="abstract-world-map">
-                  <div className="world-shape shape-americas" />
-                  <div className="world-shape shape-europe" />
-                  <div className="world-shape shape-asia" />
-                  <div className="world-shape shape-africa" />
+                  <WorldBackdrop />
                   {data.regions.map((region) => (
-                    <button
-                      key={region.id}
-                      className="map-heat-point"
-                      onClick={() => setSelected(region)}
-                      style={{ ...project(region), '--point-color': colorFor(region, mode), '--point-size': `${18 + region.intensity * 0.34}px` }}
-                      title={region.name}
-                    />
+                    <div key={region.id} className="map-signal-group" style={project(region)}>
+                      <button
+                        className="map-heat-point"
+                        onClick={() => setSelected(region)}
+                        style={{ '--point-color': colorFor(region, mode), '--point-size': `${18 + region.intensity * 0.34}px` }}
+                        title={region.name}
+                      />
+                      <button className="map-callout" onClick={() => setSelected(region)}>
+                        <b>{region.name}</b>
+                        <span>{mode === 'risk' ? region.risk : region.opportunity} / {region.event_count} events</span>
+                      </button>
+                    </div>
                   ))}
+                  <div className="map-legend"><span>Signal intensity</span><i /><b>Very high</b></div>
                 </div>
-                <aside className="orbit-list wp-card">
-                  <div className="wp-section-head"><span>Top Regions</span></div>
+                <aside className="orbit-list wp-card map-side-panel">
+                  <div className="wp-section-head"><span>{selectedRegion?.name || 'Top Regions'}</span></div>
+                  {selectedRegion && (
+                    <div className="selected-map-signal">
+                      <b>{selectedRegion.intensity}</b>
+                      <span>Pulse intensity</span>
+                      <p>{selectedRegion.event_count} live events / {mode === 'risk' ? selectedRegion.risk : selectedRegion.opportunity} {mode}</p>
+                    </div>
+                  )}
                   {topRegions.map((region) => (
                     <button key={region.id} onClick={() => setSelected(region)}>
                       <b>{region.name}</b>
-                      <span>intensity {region.intensity} · {region.event_count} events · {mode === 'risk' ? region.risk : region.opportunity}</span>
+                      <span>intensity {region.intensity} / {region.event_count} events / {mode === 'risk' ? region.risk : region.opportunity}</span>
                     </button>
                   ))}
                 </aside>
@@ -140,7 +192,7 @@ export default function MapPage() {
             {selected.top_events?.map((event) => (
               <div className="orbit-connection" key={event.id}>
                 <b>{event.title}</b>
-                <small>pulse {event.pulse} · {compactLabel(event.category)}</small>
+                <small>pulse {event.pulse} / {compactLabel(event.category)}</small>
                 <p>{event.why_it_matters || 'Impact is still being confirmed.'}</p>
                 <button className="orbit-story-button" onClick={() => navigate('/story', { state: { article: { id: event.id, title: event.title, text_preview: event.why_it_matters, source: 'NewsIntel Map', pulse_score: event.pulse } } })}>Open Story</button>
               </div>
