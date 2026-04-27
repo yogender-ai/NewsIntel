@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Clock, Activity, Radio, Share2, ShieldAlert } from 'lucide-react';
-import api from '../api';
+import { api } from '../api';
 import { formatRelativeTime } from '../lib/dashboardAdapter';
 import Sidebar from '../components/worldpulse/Sidebar';
 
