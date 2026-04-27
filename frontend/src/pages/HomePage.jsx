@@ -50,15 +50,24 @@ function DashboardBoot({ bootElapsed }) {
 }
 
 function LiveCursor() {
+  const [pos, setPos] = useState({ x: -100, y: -100 });
+
   useEffect(() => {
     const move = (e) => {
+      setPos({ x: e.clientX, y: e.clientY });
       document.documentElement.style.setProperty('--cursor-x', `${e.clientX}px`);
       document.documentElement.style.setProperty('--cursor-y', `${e.clientY}px`);
     };
     window.addEventListener('pointermove', move);
     return () => window.removeEventListener('pointermove', move);
   }, []);
-  return null; // spotlight is CSS-only via --cursor-x/y
+
+  return (
+    <div className="custom-cursor" style={{ transform: `translate(${pos.x}px, ${pos.y}px)` }}>
+      <span className="cursor-core" />
+      <span className="cursor-glow" />
+    </div>
+  );
 }
 
 function readableLiveError(err) {
@@ -417,7 +426,7 @@ export default function HomePage() {
           alertCount={data.alerts?.length || 0}
         />
 
-        {loading ? <DashboardBoot bootElapsed={bootElapsed} /> : (
+        {loading ? null : (
           <>
             {error && (
               <div className="wp-error">
@@ -496,6 +505,7 @@ export default function HomePage() {
         )}
       </main>
       <LiveCursor />
+      {loading && <DashboardBoot bootElapsed={bootElapsed} />}
       <DetailDrawer shift={selectedShift} sources={selectedSources} onClose={() => setSelectedShift(null)} />
       <InsightDrawer
         view={insightView}
