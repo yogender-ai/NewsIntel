@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, X } from 'lucide-react';
+import { ArrowRight, X, Activity } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { api } from '../api';
-import { normalizeDashboardData } from '../lib/dashboardAdapter';
+import { normalizeDashboardData, formatRelativeTime } from '../lib/dashboardAdapter';
 import Sidebar from '../components/worldpulse/Sidebar';
 import TopHeader from '../components/worldpulse/TopHeader';
 import WorldPulseRing from '../components/worldpulse/WorldPulseRing';
