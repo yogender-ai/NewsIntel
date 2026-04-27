@@ -139,3 +139,13 @@ def test_ai_quota_circuit_breaker_detection(response):
 
 def test_clean_ai_json_strips_markdown_fences():
     assert clean_ai_json('```json\n{"ok": true}\n```') == {"ok": True}
+
+
+def test_openrouter_size_error_is_not_quota_circuit():
+    response = {
+        "status_code": 402,
+        "body": "This request requires more credits, or fewer max_tokens. You requested up to 2600 tokens, but can only afford 562.",
+    }
+    assert MVPNewsPipeline.is_openrouter_size_response(response)
+    assert not MVPNewsPipeline.is_quota_response(response)
+    assert MVPNewsPipeline.retry_token_budget(response, 700) == 530

@@ -1,5 +1,6 @@
 import json
 import logging
+import re
 import socket
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -164,6 +165,14 @@ class MVPNewsPipeline:
         self.settings = settings or get_settings()
         self.rss_fetcher = rss_fetcher or news_fetcher.fetch_mvp_articles
         self.lock_owner = f"{socket.gethostname()}:{id(self)}"
+
+    @property
+    def ai_circuit_signature(self) -> str:
+        return (
+            f"rank:{self.settings.newsintel_ai_rank_max_tokens}:"
+            f"enrich:{self.settings.newsintel_ai_enrich_max_tokens}:"
+            f"model:{self.settings.newsintel_openrouter_model}"
+        )
 
     async def run_ingestion(self) -> dict:
         acquired = await self.acquire_lock("mvp_ingestion", minutes=max(2, self.settings.newsintel_ingest_interval_minutes))
@@ -508,6 +517,14 @@ class MVPNewsPipeline:
             model=self.settings.newsintel_openrouter_model,
             max_tokens=max_tokens,
         )
+        if self.is_openrouter_size_response(response):
+            retry_tokens = self.retry_token_budget(response, max_tokens)
+            if retry_tokens:
+                response = await hf_client.call_openrouter_raw(
+                    prompt,
+                    model=self.settings.newsintel_openrouter_model,
+                    max_tokens=retry_tokens,
+                )
         if self.is_quota_response(response):
             await self.open_ai_circuit(response)
             raise AICircuitOpen(f"AI provider quota/payment error: {response.get('status_code')}")
@@ -524,22 +541,46 @@ class MVPNewsPipeline:
     def is_quota_response(response: dict) -> bool:
         status = response.get("status_code")
         body = str(response.get("body") or "").lower()
+        if status == 402 and "fewer max_tokens" in body:
+            return False
         return status in (402, 429) or "quota" in body or "credit" in body or "payment" in body
+
+    @staticmethod
+    def is_openrouter_size_response(response: dict) -> bool:
+        body = str(response.get("body") or "").lower()
+        return response.get("status_code") == 402 and "fewer max_tokens" in body
+
+    @staticmethod
+    def retry_token_budget(response: dict, requested_tokens: int) -> int | None:
+        body = str(response.get("body") or "")
+        match = re.search(r"afford\s+(\d+)", body, flags=re.IGNORECASE)
+        if not match:
+            return None
+        affordable = max(0, int(match.group(1)) - 32)
+        retry_tokens = min(requested_tokens, affordable)
+        return retry_tokens if retry_tokens >= 240 and retry_tokens < requested_tokens else None
 
     async def is_ai_circuit_open(self) -> bool:
         if self.session is None:
             return False
         lock = await self.session.scalar(select(IngestionLock).where(IngestionLock.lock_name == "ai_circuit_breaker"))
-        return bool(lock and lock.locked_until > utcnow())
+        if not lock:
+            return False
+        if not str(lock.locked_by or "").endswith(self.ai_circuit_signature):
+            await self.session.delete(lock)
+            await self.session.flush()
+            return False
+        return lock.locked_until > utcnow()
 
     async def open_ai_circuit(self, response: dict) -> None:
         until = utcnow() + timedelta(minutes=self.settings.ai_circuit_breaker_cooldown_minutes)
         existing = await self.session.scalar(select(IngestionLock).where(IngestionLock.lock_name == "ai_circuit_breaker"))
+        lock_owner = f"quota:{response.get('provider')}:{self.ai_circuit_signature}"
         if existing:
             existing.locked_until = until
-            existing.locked_by = f"quota:{response.get('provider')}"
+            existing.locked_by = lock_owner
         else:
-            self.session.add(IngestionLock(lock_name="ai_circuit_breaker", locked_until=until, locked_by=f"quota:{response.get('provider')}"))
+            self.session.add(IngestionLock(lock_name="ai_circuit_breaker", locked_until=until, locked_by=lock_owner))
         await self.session.flush()
 
     async def acquire_lock(self, name: str, minutes: int) -> bool:
@@ -619,6 +660,7 @@ class MVPNewsPipeline:
             )
         now = utcnow()
         latest_cycle_id = stories[0].cycle_id if stories else None
+        pipeline_health = await self.status()
         payload = {
             "lastUpdated": now.isoformat(),
             "cycleId": str(latest_cycle_id) if latest_cycle_id else "",
@@ -647,7 +689,13 @@ class MVPNewsPipeline:
             "generated_at": now.isoformat(),
             "cached_at": now.isoformat(),
             "refresh_type": "cached_mvp_snapshot",
-            "pipeline_status": {"news": "cached_mvp_snapshot", "source_of_truth": "home_snapshots,stories,event_metrics"},
+            "pipeline_status": {
+                "news": "cached_mvp_snapshot",
+                "source_of_truth": "home_snapshots,stories,event_metrics",
+                "latest_cycle": pipeline_health.get("latest_cycle"),
+                "queue": pipeline_health.get("queue"),
+                "ai_circuit_open": pipeline_health.get("ai_circuit_open"),
+            },
             "daily_delta": self.category_deltas(metrics),
             "pulse_history": {"history": pulse},
             "world_pulse": round(sum(card["pulse_score"] for card in cards[:5]) / max(len(cards[:5]), 1), 2) if cards else None,
@@ -690,6 +738,9 @@ class MVPNewsPipeline:
             select(HomeSnapshot).where(HomeSnapshot.active.is_(True)).order_by(HomeSnapshot.created_at.desc()).limit(1)
         )
         if snapshot and isinstance(snapshot.payload_json, dict):
+            pipeline_status = snapshot.payload_json.get("pipeline_status")
+            if not isinstance(pipeline_status, dict) or "queue" not in pipeline_status:
+                return await self.rebuild_home_snapshot()
             return snapshot.payload_json
         return await self.rebuild_home_snapshot()
 
