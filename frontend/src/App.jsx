@@ -13,22 +13,54 @@ import MoversPage from './pages/MoversPage';
 import OrbitPage from './pages/OrbitPage';
 import MapPage from './pages/MapPage';
 import SimulatorPage from './pages/SimulatorPage';
+import EventDetail from './pages/EventDetail';
 import './index.css';
 
 export const AppContext = createContext({ headlines: [], setHeadlines: () => {}, mode: 'command', setMode: () => {} });
 
-/* ── Loading Screen ─────────────── */
-const AuthLoading = () => (
-  <div className="auth-loading">
-    <div className="pulse-glow" style={{ width: 16, height: 16, background: 'var(--accent)', borderRadius: '50%' }} />
-    <span className="mono" style={{ fontSize: 11, color: 'var(--accent)', letterSpacing: 2 }}>INITIALIZING SECURE SESSION...</span>
-  </div>
-);
+/* ── Pipeline Loading Screen ─────────────── */
+const PipelineLoading = () => {
+  const [step, setStep] = useState(0);
+  const steps = ['ESTABLISHING SECURE UPLINK...', 'FETCHING LIVE SIGNALS...', 'ANALYZING GLOBAL SHIFTS...', 'INITIALIZING PIPELINE...'];
+  
+  useEffect(() => {
+    const int = setInterval(() => {
+      setStep(s => (s < steps.length - 1 ? s + 1 : s));
+    }, 800);
+    return () => clearInterval(int);
+  }, []);
+
+  return (
+    <div style={{ 
+      width: '100vw', height: '100vh', background: '#05060f', 
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      color: '#e7ebf5', zIndex: 9999, position: 'fixed', top: 0, left: 0
+    }}>
+      <div style={{
+        position: 'absolute', top: 0, left: 0, width: '100%', height: '100%',
+        background: 'linear-gradient(rgba(141, 162, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(141, 162, 255, 0.03) 1px, transparent 1px)',
+        backgroundSize: '40px 40px', maskImage: 'radial-gradient(circle at center, black, transparent 70%)',
+        animation: 'wpRadarSpin 100s linear infinite'
+      }} />
+      <div style={{
+        width: 12, height: 12, borderRadius: '50%', background: '#7ee7c4',
+        boxShadow: '0 0 20px #7ee7c4', animation: 'pulseGlow 1.5s ease-in-out infinite',
+        marginBottom: 24, zIndex: 1
+      }} />
+      <span className="mono" style={{ 
+        fontSize: 10, color: '#8da2ff', letterSpacing: 3, fontWeight: 800,
+        zIndex: 1, textShadow: '0 0 10px rgba(141,162,255,0.5)'
+      }}>
+        {steps[step]}
+      </span>
+    </div>
+  );
+};
 
 /* ── Login Page ────────────────────────────────────────────────────── */
 const Login = () => {
   const { login, user, loading } = useAuth();
-  if (loading) return <AuthLoading />;
+  if (loading) return <PipelineLoading />;
   if (user) return <Navigate to="/dashboard" />;
 
   return (
@@ -55,7 +87,7 @@ const Login = () => {
 /* ── Protected Route ───────────────────────────────────────────────── */
 const Protected = ({ children }) => {
   const { user, loading } = useAuth();
-  if (loading) return <AuthLoading />;
+  if (loading) return <PipelineLoading />;
   return user ? children : <Navigate to="/login" />;
 };
 
@@ -151,11 +183,11 @@ function App() {
       </AppContext.Provider>
     </AuthProvider>
   );
-}
+
 
 function AppRoutes() {
   const location = useLocation();
-  const isWorldPulse = ['/', '/dashboard', '/orbit', '/map', '/simulator', '/story'].includes(location.pathname);
+  const isWorldPulse = ['/', '/dashboard', '/orbit', '/map', '/simulator', '/story'].includes(location.pathname) || location.pathname.startsWith('/dashboard/event/');
   return (
     <>
       {!isWorldPulse && <TopBar />}
@@ -164,6 +196,7 @@ function AppRoutes() {
           <Route path="/login" element={<Login />} />
           <Route path="/" element={<Protected><HomePage /></Protected>} />
           <Route path="/dashboard" element={<Protected><HomePage /></Protected>} />
+          <Route path="/dashboard/event/:id" element={<Protected><EventDetail /></Protected>} />
           <Route path="/orbit" element={<Protected><OrbitPage /></Protected>} />
           <Route path="/map" element={<Protected><MapPage /></Protected>} />
           <Route path="/simulator" element={<Protected><SimulatorPage /></Protected>} />

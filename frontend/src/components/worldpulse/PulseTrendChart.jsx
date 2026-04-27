@@ -93,18 +93,19 @@ export default function PulseTrendChart({ history, worldPulse }) {
           <line key={`g-${value}`} x1="20" y1={y} x2="275" y2={y} stroke="rgba(255,255,255,0.04)" strokeDasharray="3,3" />
         ))}
 
-        {/* Area fill */}
-        <polygon
-          points={`10,108 ${points} 270,108`}
-          fill="url(#pulseGrad)"
-        />
-
-        {/* Main line with draw animation */}
+        {/* Main sharp line with glow filter */}
         <polyline
           points={points}
+          fill="none"
+          stroke="#8da2ff"
+          strokeWidth="3.5"
+          strokeLinecap="round"
+          strokeLinejoin="miter"
+          filter="url(#glowFilter)"
           style={{
-            strokeDasharray: drawn ? 0 : 800,
-            strokeDashoffset: drawn ? 0 : 800,
+            transition: 'stroke-dashoffset 2s ease-in-out',
+            strokeDasharray: 1000,
+            strokeDashoffset: drawn ? 0 : 1000,
           }}
         />
 

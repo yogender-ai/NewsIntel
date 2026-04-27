@@ -261,7 +261,11 @@ async def build_dashboard_payload(
             else:
                 direction = "Stable"
                 severity = "Medium"
-                
+            # Find top cluster for this topic to extract a real reason
+            topic_clusters = [c for c in clusters if (c.get("matched_preferences") and c["matched_preferences"][0]["label"] == topic) or (not c.get("matched_preferences") and topic == "Global")]
+            topic_clusters.sort(key=lambda x: x.get("pulse_score", 0), reverse=True)
+            top_reason = topic_clusters[0].get("impact_line", f"Active tracking across {len(scores)} signals.") if topic_clusters else f"Active tracking across {len(scores)} signals."
+            
             daily_delta.append({
                 "label": topic,
                 "topic": topic.lower(),
@@ -271,7 +275,7 @@ async def build_dashboard_payload(
                 "delta": delta,
                 "direction": direction,
                 "severity_label": severity,
-                "reason": f"Active tracking across {len(scores)} signals."
+                "reason": top_reason
             })
     except Exception:
         pass

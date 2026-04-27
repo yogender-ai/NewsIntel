@@ -389,7 +389,7 @@ export default function HomePage() {
                   {topShifts.length ? (
                     <div className="top-shifts-list">
                       {topShifts.slice(0, 3).map((shift) => (
-                        <TopShiftCard key={shift.id} shift={shift} onOpen={setSelectedShift} />
+                        <TopShiftCard key={shift.id} shift={shift} onOpen={(s) => navigate(`/dashboard/event/${s.id}`)} index={topShifts.indexOf(shift)} />
                       ))}
                     </div>
                   ) : (
