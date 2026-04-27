@@ -5,7 +5,7 @@ import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import Sidebar from '../components/worldpulse/Sidebar';
 import LockedNavToast from '../components/worldpulse/LockedNavToast';
-import { compactLabel } from '../lib/dashboardAdapter';
+
 
 function project(region) {
   return {
@@ -138,7 +138,7 @@ export default function MapPage() {
             ) : (
               <section className="map-layout">
                 <div className="abstract-world-map">
-                  <WorldBackdrop />
+                  <WorldMap regions={data.regions} onRegionSelect={setSelected} />
                   {data.regions.map((region) => (
                     <div key={region.id} className="map-signal-group" style={project(region)}>
                       <button
