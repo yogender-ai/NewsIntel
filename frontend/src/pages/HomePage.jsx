@@ -359,7 +359,79 @@ export default function HomePage() {
     : [];
 
   return (
-    <div className="world-pulse-page">
+    <div className="premium-dashboard">
+  <Sidebar
+    preferences={{
+      hasPreferences: Boolean(topics.length),
+      topics,
+      regions: prefs?.data?.preferred_regions || [],
+      entities: [],
+    }}
+    activeItem="home"
+    onHome={() => { setSelectedTopic(null); setInsightView(null); }}
+    onOrbit={() => navigate('/orbit')}
+    onMap={() => navigate('/map')}
+    onSimulator={() => navigate('/simulator')}
+    onLocked={setLockedToast}
+    onWatchlist={() => navigate('/watchlist')}
+    onAlerts={() => navigate('/alerts')}
+    onSettings={() => navigate('/settings')}
+    onSetFocus={() => navigate('/onboarding')}
+  />
+  <main className="world-pulse-main">
+    <TopHeader
+      user={user}
+      cache={data.cache}
+      refreshing={refreshing}
+      onRefresh={() => load({ force: true })}
+      onAlerts={() => navigate('/alerts')}
+      alertCount={data.alerts?.length || 0}
+    />
+    {loading ? <DashboardBoot status={data.pipelineStatus} /> : (
+      <>
+        {error && (
+          <div className="wp-error"><b>Live data unavailable</b><span>{error}</span><button onClick={() => load()}>Retry</button></div>
+        )}
+        <section className="wp-grid">
+          <div className="wp-primary">
+            <WorldPulseRing worldPulse={data.worldPulse} />
+            <WhatChangedToday changes={data.changesToday} selectedTopic={selectedTopic} onSelect={setSelectedTopic} />
+            <section className="wp-card top-shifts-section">
+              <div className="wp-section-head"><span>Top 3 Shifts You Must Know</span></div>
+              {topShifts.length ? (
+                <div className="top-shifts-list">
+                  {topShifts.slice(0,3).map((shift)=> (
+                    <TopShiftCard key={shift.id} shift={shift} onOpen={(s)=>navigate(`/dashboard/event/${s.id}`)} index={topShifts.indexOf(shift)} />
+                  ))}
+                </div>
+              ) : (
+                <EmptyState title="No live shifts available." body="Event-backed signals will appear after ingestion produces dashboard events." />
+              )}
+            </section>
+            <StartTourCard onStart={()=>setTourOpen(true)} />
+          </div>
+          <aside className="wp-right">
+            <PulseTrendChart history={data.pulseHistory} worldPulse={data.worldPulse} />
+            <QuickGlance
+              data={data.quickGlance}
+              onCountries={()=>setInsightView('countries')}
+              onSignals={()=>setSelectedTopic(null)}
+              onAlerts={()=>navigate('/alerts')}
+              onSources={()=>setInsightView('sources')}
+            />
+            <section className="wp-card system-status-card">
+              <div className="status-header"><Activity size={14} className="status-icon"/><span>System Status</span></div>
+              <div className="status-metrics">
+                {/* status metrics here */}
+              </div>
+            </section>
+          </aside>
+        </section>
+      </>
+    )}
+  </main>
+  <LockedNavToast message={lockedToast} />
+</div>
       <LiveCursor />
       <div className="premium-dashboard">
   <Sidebar
