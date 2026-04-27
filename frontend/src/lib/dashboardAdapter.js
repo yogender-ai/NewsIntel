@@ -4,10 +4,12 @@ const compactLabel = (value) => String(value || '').replace(/-/g, ' ').trim();
 
 const trendFromPulseHistory = (pulseHistory) => {
   const source = pulseHistory?.history || pulseHistory || {};
-  const series = Object.values(source).flatMap((points) => Array.isArray(points) ? points : []);
-  if (series.length && series[0].createdAt) {
-      // already normalized from backend
-      return series;
+  const series = Array.isArray(source)
+    ? source
+    : Object.values(source).flatMap((points) => Array.isArray(points) ? points : []);
+  if (series.length && series[0].createdAt) return series;
+  if (series.length && series[0].created_at && series[0].value !== undefined) {
+    return series.map((point) => ({ createdAt: point.created_at, value: Math.round(Number(point.value) || 0) }));
   }
   const byTime = new Map();
   series.forEach((point) => {

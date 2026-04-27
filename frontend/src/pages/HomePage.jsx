@@ -295,9 +295,11 @@ export default function HomePage() {
     if (force) setRefreshing(true);
     else setLoading(true);
     try {
-      const dashResult = await api.getCachedDashboard();
-      const alertsResult = { alerts: [], unread_count: 0 };
-      setPreferences({ data: { preferred_categories: dashResult?.topics_used || [], preferred_regions: ['global'] } });
+      const [dashResult, alertsResult] = await Promise.all([
+        api.getCachedDashboard(),
+        api.getAlerts().catch(() => ({ alerts: [] })),
+      ]);
+      setPreferences({ data: { preferred_categories: dashResult?.topics_used || [], preferred_regions: dashResult?.regions_used || [] } });
       setDashboard(dashResult);
       setAlerts(alertsResult);
     } catch (err) {

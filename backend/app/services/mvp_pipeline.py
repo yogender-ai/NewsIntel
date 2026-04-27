@@ -685,6 +685,19 @@ class MVPNewsPipeline:
                 }
             )
         now = utcnow()
+        world_pulse = round(sum(card["pulse_score"] for card in cards[:5]) / max(len(cards[:5]), 1), 2) if cards else None
+        if world_pulse is None:
+            world_pulse_label = None
+        elif world_pulse >= 76:
+            world_pulse_label = "High Pressure"
+        elif world_pulse >= 56:
+            world_pulse_label = "Elevated"
+        elif world_pulse >= 31:
+            world_pulse_label = "Normal"
+        else:
+            world_pulse_label = "Calm"
+        active_regions = len({region for region in ["global"] if region})
+        critical_count = len([card for card in cards if card.get("signal_tier") == "CRITICAL"])
         latest_cycle_id = stories[0].cycle_id if stories else None
         pipeline_health = await self.status()
         payload = {
@@ -724,8 +737,39 @@ class MVPNewsPipeline:
             },
             "daily_delta": self.category_deltas(metrics),
             "pulse_history": {"history": pulse},
-            "world_pulse": round(sum(card["pulse_score"] for card in cards[:5]) / max(len(cards[:5]), 1), 2) if cards else None,
-            "global_pulse": round(sum(card["pulse_score"] for card in cards[:5]) / max(len(cards[:5]), 1), 2) if cards else None,
+            "world_pulse": world_pulse,
+            "global_pulse": world_pulse,
+            "world_pulse_label": world_pulse_label,
+            "quick_glance": [
+                {
+                    "id": "countries",
+                    "label": "Countries in Focus",
+                    "value": active_regions,
+                    "delta": f"{active_regions} live",
+                    "deltaColor": "#7ee7c4",
+                },
+                {
+                    "id": "signals",
+                    "label": "Signals Tracked",
+                    "value": len(cards),
+                    "delta": f"{len(cards)} live",
+                    "deltaColor": "#7ee7c4",
+                },
+                {
+                    "id": "alerts",
+                    "label": "High Impact Alerts",
+                    "value": critical_count,
+                    "delta": f"{critical_count} critical" if critical_count else None,
+                    "deltaColor": "#ff9ba9",
+                },
+                {
+                    "id": "sources",
+                    "label": "Sources Monitored",
+                    "value": len({source["source"] for card in cards for source in card["sources"]}),
+                    "delta": "Live",
+                    "deltaColor": "#7ee7c4",
+                },
+            ],
             "exposure_score": round(sum(card["exposure_score"] for card in cards[:5]) / max(len(cards[:5]), 1), 2) if cards else 50,
             "next_refresh_at": (now + timedelta(minutes=2)).isoformat(),
         }
@@ -747,14 +791,20 @@ class MVPNewsPipeline:
             rows = [row for row in metrics if row.category == category]
             current = rows[-1].pulse_score if rows else None
             previous = rows[-2].pulse_score if len(rows) > 1 else None
+            delta = float(current - previous) if current is not None and previous is not None else None
+            direction = "Rising" if delta is not None and delta > 1 else "Cooling" if delta is not None and delta < -1 else "Stable"
+            severity = "High" if delta is not None and abs(delta) >= 8 else "Medium" if delta is not None and abs(delta) >= 2 else "Stable"
             output.append(
                 {
                     "topic": category,
                     "label": category.title(),
                     "current": round(float(current), 2) if current is not None else None,
                     "previous": round(float(previous), 2) if previous is not None else None,
-                    "delta": round(float(current - previous), 2) if current is not None and previous is not None else None,
+                    "delta": round(delta, 2) if delta is not None else None,
                     "has_baseline": current is not None and previous is not None,
+                    "direction": direction,
+                    "severity_label": severity,
+                    "reason": f"Live movement across {len(rows)} metric points.",
                 }
             )
         return output

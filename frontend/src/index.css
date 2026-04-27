@@ -6576,3 +6576,360 @@ body::after {
     display: none;
   }
 }
+
+/* ===================================================================
+   Dashboard first-screen composition
+   =================================================================== */
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) {
+  grid-template-columns: clamp(118px, 9.2vw, 150px) minmax(0, 1fr);
+  height: 100vh;
+  overflow: hidden;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .wp-sidebar {
+  width: clamp(118px, 9.2vw, 150px);
+  padding: 15px 10px 12px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .wp-brand div {
+  font-size: clamp(13px, 1.15vw, 17px);
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .wp-brand p {
+  font-size: 7px;
+  line-height: 1.2;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .wp-nav {
+  gap: 5px;
+  margin-top: 16px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .wp-nav button {
+  min-height: 30px;
+  padding: 0 8px;
+  gap: 8px;
+  font-size: 9px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .wp-nav svg {
+  width: 12px;
+  height: 12px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .wp-focus {
+  margin-top: auto;
+  padding: 9px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .wp-focus h3,
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .focus-block span {
+  font-size: 7px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .focus-block div {
+  gap: 4px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .focus-block b {
+  padding: 4px 6px;
+  font-size: 7px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .ask-ni {
+  min-height: 43px;
+  padding: 8px;
+  margin-top: 10px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .ask-ni-text span {
+  font-size: 8px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .ask-ni-text small {
+  font-size: 6px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .world-pulse-main {
+  height: 100vh;
+  overflow: hidden;
+  padding: clamp(10px, 1.3vh, 16px) clamp(10px, 1.2vw, 18px);
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .wp-top-header {
+  min-height: 38px;
+  margin-bottom: clamp(8px, 1.1vh, 12px);
+  align-items: center;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .wp-top-header h1 {
+  font-size: clamp(12px, 1vw, 16px);
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .wp-top-header p {
+  font-size: 8px;
+  margin-top: 2px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .wp-header-actions {
+  gap: 7px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .wp-icon-btn,
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .wp-icon-only,
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .wp-user {
+  min-height: 28px;
+  height: 28px;
+  border-radius: 8px;
+  font-size: 8px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .wp-icon-only,
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .wp-user {
+  width: 28px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .wp-grid {
+  height: calc(100vh - clamp(56px, 7vh, 70px));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(178px, 22vw, 292px);
+  gap: clamp(8px, 1vw, 12px);
+  align-items: stretch;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .wp-primary {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(220px, 0.92fr) minmax(280px, 1.08fr);
+  grid-template-rows: minmax(188px, 42%) minmax(162px, 1fr) 44px;
+  gap: clamp(8px, 1vw, 12px);
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .wp-right {
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(148px, 31%) minmax(150px, 1fr) minmax(74px, 18%);
+  gap: clamp(8px, 1vw, 12px);
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .world-pulse-card {
+  min-height: 0;
+  height: 100%;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  text-align: center;
+  padding: clamp(12px, 1.4vw, 18px);
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .pulse-ring-wrap {
+  width: clamp(128px, 17vw, 224px);
+  height: clamp(128px, 17vw, 224px);
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .pulse-ring {
+  width: clamp(116px, 15vw, 196px);
+  height: clamp(116px, 15vw, 196px);
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .pulse-ring span {
+  font-size: clamp(38px, 5vw, 72px);
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .pulse-copy span {
+  font-size: 8px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .pulse-copy h2 {
+  font-size: clamp(14px, 1.4vw, 20px);
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .pulse-copy p {
+  max-width: 210px;
+  margin: 8px auto 0;
+  font-size: 8px;
+  line-height: 1.4;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .what-changed {
+  min-height: 0;
+  height: 100%;
+  padding: clamp(10px, 1.1vw, 14px);
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .wp-section-head {
+  margin-bottom: 9px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .wp-section-head span {
+  font-size: 9px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .wp-section-head small,
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .wc-sub {
+  font-size: 7px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .change-list {
+  gap: 7px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .change-list button {
+  min-height: clamp(38px, 5.5vh, 52px);
+  grid-template-columns: 30px minmax(0, 1fr) 82px 58px;
+  padding: 7px 8px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .change-list strong {
+  font-size: 9px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .change-list small,
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .change-list em {
+  font-size: 7px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .top-shifts-section {
+  min-height: 0;
+  height: 100%;
+  padding: clamp(10px, 1vw, 14px);
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .top-shifts-list {
+  height: calc(100% - 22px);
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .top-shift-card {
+  height: 100%;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr;
+  grid-template-rows: 24px minmax(54px, 36%) 1fr;
+  gap: 6px;
+  padding: 9px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .shift-rank {
+  width: 23px;
+  height: 23px;
+  font-size: 10px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .shift-visual {
+  min-height: 0;
+  height: 100%;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .shift-body {
+  min-height: 0;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .shift-meta span {
+  font-size: 7px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .shift-body h3 {
+  font-size: clamp(9px, 0.9vw, 13px);
+  line-height: 1.2;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .shift-body p {
+  margin-top: 4px;
+  font-size: 7px;
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .shift-foot {
+  margin-top: 6px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .shift-foot small {
+  font-size: 6px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .tour-card {
+  min-height: 0;
+  height: 44px;
+  padding: 0 12px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .tour-card h3 {
+  font-size: 9px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .tour-card p {
+  font-size: 7px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .pulse-chart-card,
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .quick-glance,
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .system-status-card {
+  min-height: 0;
+  height: 100%;
+  padding: clamp(10px, 1vw, 14px);
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .pulse-chart-hero {
+  gap: 7px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .pulse-chart-value {
+  font-size: clamp(26px, 3vw, 42px);
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .pulse-chart-label {
+  font-size: 8px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .pulse-trend {
+  height: calc(100% - 52px);
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .qg-stat {
+  min-height: 36px;
+  grid-template-columns: 26px 1fr auto;
+  padding: 7px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .qg-icon {
+  width: 24px;
+  height: 24px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .qg-stat span,
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .qg-stat em {
+  font-size: 7px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .qg-stat b {
+  font-size: 14px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .status-header span,
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .status-metric small {
+  font-size: 7px;
+}
+
+.world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .status-metric strong {
+  font-size: 10px;
+}
+
+@media (max-height: 760px) {
+  .world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .wp-focus {
+    display: none;
+  }
+
+  .world-pulse-page:not(.orbit-page):not(.signal-map-page):not(.simulator-page):not(.story-page) .wp-primary {
+    grid-template-rows: minmax(168px, 42%) minmax(142px, 1fr) 38px;
+  }
+}
