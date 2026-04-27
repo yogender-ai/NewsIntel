@@ -362,6 +362,29 @@ export default function HomePage() {
     <div className="world-pulse-page">
       <LiveCursor />
       <div className="premium-dashboard">
+  <Sidebar
+    preferences={{
+      hasPreferences: Boolean(topics.length),
+      topics,
+      regions: prefs?.data?.preferred_regions || [],
+      entities: [],
+    }}
+    activeItem="home"
+    onHome={() => { setSelectedTopic(null); setInsightView(null); }}
+    onOrbit={() => navigate('/orbit')}
+    onMap={() => navigate('/map')}
+    onSimulator={() => navigate('/simulator')}
+    onLocked={setLockedToast}
+    onWatchlist={() => navigate('/watchlist')}
+    onAlerts={() => navigate('/alerts')}
+    onSettings={() => navigate('/settings')}
+    onSetFocus={() => navigate('/onboarding')}
+  />
+  <main className="world-pulse-main">
+    {/* all existing elements */}
+  </main>
+  <LockedNavToast message={lockedToast} />
+</div>
   {/* Existing content stays the same */}
   <Sidebar ... />
   <main className="world-pulse-main">
