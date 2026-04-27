@@ -42,11 +42,44 @@ body {
     radial-gradient(circle at 20% 0%, rgba(94, 234, 212, 0.11), transparent 32%),
     radial-gradient(circle at 90% 12%, rgba(255, 211, 138, 0.08), transparent 28%),
     linear-gradient(180deg, #080a16 0%, #050712 100%);
+  /* animated gradient overlay */
+  background: linear-gradient(135deg, #0d0e1a, #15171f, #0a0c12);
+  background-size: 400% 400%;
+  animation: gradientShift 30s ease infinite;
   color: var(--text);
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   text-rendering: geometricPrecision;
 }
+
+@keyframes gradientShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* Card hover effect */
+.wp-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.wp-card:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 12px 24px rgba(0,0,0,0.4);
+}
+
+/* Button hover enhancements */
+.btn:hover, .wire-btn:hover, .primary-action:hover, .btn-premium:hover {
+  border-color: rgba(94, 234, 212, 0.75);
+  background: rgba(94, 234, 212, 0.15);
+  transform: translateY(-2px) scale(1.02);
+}
+
+/* Map heat point hover */
+.map-heat-point:hover {
+  transform: scale(1.2) rotate(5deg);
+  filter: drop-shadow(0 0 8px rgba(255,255,255,0.6));
+}
+
 
 button,
 input,
