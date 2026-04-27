@@ -183,7 +183,7 @@ function App() {
       </AppContext.Provider>
     </AuthProvider>
   );
-
+}
 
 function AppRoutes() {
   const location = useLocation();
