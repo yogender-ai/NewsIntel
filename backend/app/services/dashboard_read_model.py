@@ -1,10 +1,10 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.news import Event, EventArticle
+from app.models.news import Event, EventArticle, EventMetric
 from app.services.event_enrichment import (
     AI_STATUS_ENRICHED,
     AI_STATUS_FAILED,
@@ -196,6 +196,120 @@ async def build_dashboard_payload(
         else 50
     )
     now = datetime.now(timezone.utc)
+    yesterday = now - timedelta(days=1)
+    
+    # Calculate live Pulse History from EventMetric
+    pulse_history_dict = {}
+    metrics_stmt = select(EventMetric.created_at, EventMetric.pulse_score).where(EventMetric.created_at >= now - timedelta(hours=24))
+    try:
+        metrics = (await session.execute(metrics_stmt)).all()
+        by_hour = {}
+        for created_at, score in metrics:
+            hour_key = created_at.replace(minute=0, second=0, microsecond=0).isoformat()
+            if hour_key not in by_hour:
+                by_hour[hour_key] = []
+            by_hour[hour_key].append(score)
+        
+        pulse_history_array = []
+        for hour_key in sorted(by_hour.keys()):
+            scores = by_hour[hour_key]
+            pulse_history_array.append({
+                "createdAt": hour_key,
+                "value": sum(scores) / len(scores)
+            })
+        pulse_history_dict = {"history": pulse_history_array}
+    except Exception:
+        pass
+
+    # Calculate live Daily Delta
+    daily_delta = []
+    topics_current = {}
+    for cluster in clusters:
+        cat = cluster["matched_preferences"][0]["label"] if cluster.get("matched_preferences") else "Global"
+        if cat not in topics_current:
+            topics_current[cat] = []
+        topics_current[cat].append(cluster["pulse_score"])
+        
+    prev_stmt = select(EventMetric.category, EventMetric.pulse_score).where(
+        EventMetric.created_at >= yesterday - timedelta(hours=12),
+        EventMetric.created_at <= yesterday + timedelta(hours=12)
+    )
+    try:
+        prev_metrics = (await session.execute(prev_stmt)).all()
+        topics_prev = {}
+        for cat, score in prev_metrics:
+            if cat not in topics_prev:
+                topics_prev[cat] = []
+            topics_prev[cat].append(score)
+            
+        for topic, scores in topics_current.items():
+            current_avg = sum(scores) / len(scores)
+            prev_scores = topics_prev.get(topic, [])
+            has_baseline = len(prev_scores) > 0
+            prev_avg = sum(prev_scores) / len(prev_scores) if has_baseline else current_avg
+            
+            delta = current_avg - prev_avg
+            if not has_baseline:
+                direction = "Establishing baseline"
+                severity = "Stable"
+            elif delta > 1:
+                direction = "Rising"
+                severity = "High"
+            elif delta < -1:
+                direction = "Cooling"
+                severity = "Low"
+            else:
+                direction = "Stable"
+                severity = "Medium"
+                
+            daily_delta.append({
+                "label": topic,
+                "topic": topic.lower(),
+                "has_baseline": has_baseline,
+                "current": current_avg,
+                "previous": prev_avg,
+                "delta": delta,
+                "direction": direction,
+                "severity_label": severity,
+                "reason": f"Active tracking across {len(scores)} signals."
+            })
+    except Exception:
+        pass
+
+    world_pulse = sum(pulse_history_dict.get("history", [{"value": 50}])[-1]["value"] for _ in [1]) if pulse_history_dict.get("history") else 50
+    world_pulse_label = "High Pressure" if world_pulse > 75 else "Elevated" if world_pulse > 55 else "Normal" if world_pulse > 30 else "Calm"
+
+    quick_glance = [
+        {
+            "id": "countries",
+            "label": "Countries in Focus",
+            "value": len(regions) if regions else len({cluster.get("region") for cluster in clusters if cluster.get("region")}),
+            "delta": f"{len(regions) if regions else len({cluster.get('region') for cluster in clusters if cluster.get('region')})} active",
+            "deltaColor": "#7ee7c4"
+        },
+        {
+            "id": "signals",
+            "label": "Signals Tracked",
+            "value": len(clusters),
+            "delta": f"{len(clusters)} live",
+            "deltaColor": "#7ee7c4"
+        },
+        {
+            "id": "alerts",
+            "label": "High Impact Alerts",
+            "value": len([c for c in clusters if c.get("signal_tier") == "CRITICAL"]),
+            "delta": "View alerts →" if any(c.get("signal_tier") == "CRITICAL" for c in clusters) else None,
+            "deltaColor": "#ff9ba9"
+        },
+        {
+            "id": "sources",
+            "label": "Sources Monitored",
+            "value": len(articles),
+            "delta": "Live",
+            "deltaColor": "#7ee7c4"
+        }
+    ]
+
     return {
         "status": "success",
         "version": "2.0.0-event-backed",
@@ -204,7 +318,11 @@ async def build_dashboard_payload(
         "clusters": clusters,
         "impact": {},
         "tension_index": {},
-        "daily_delta": [],
+        "daily_delta": daily_delta,
+        "pulse_history": pulse_history_dict,
+        "world_pulse": world_pulse,
+        "world_pulse_label": world_pulse_label,
+        "quick_glance": quick_glance,
         "exposure_score": exposure_score,
         "opportunity_radar": {},
         "monitoring_queue": [cluster for cluster in clusters if cluster["signal_tier"] == "WATCH"],

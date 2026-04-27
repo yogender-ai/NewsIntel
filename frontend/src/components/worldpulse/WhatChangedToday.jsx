@@ -7,19 +7,6 @@ const DirectionIcon = ({ direction }) => {
   return <ArrowRight size={15} />;
 };
 
-const severityColor = (direction) => {
-  if (direction === 'Rising') return '#ff9ba9';
-  if (direction === 'Cooling') return '#7ee7c4';
-  return '#ffd38a';
-};
-
-const severityLabel = (direction) => {
-  if (direction === 'Rising') return 'High';
-  if (direction === 'Cooling') return 'Low';
-  if (direction === 'Stable') return 'Stable';
-  return 'Medium';
-};
-
 function MiniSparkline({ current, previous }) {
   if (current === null || current === undefined) return null;
   const prev = previous ?? current;
@@ -56,10 +43,10 @@ export default function WhatChangedToday({ changes, selectedTopic, onSelect }) {
             <button key={item.id} className={selectedTopic === item.id ? 'selected' : ''} onClick={() => onSelect(selectedTopic === item.id ? null : item.id)}>
               <i><DirectionIcon direction={item.direction} /></i>
               <strong>{item.topic}</strong>
-              <small>{item.reason || 'Establishing baseline'}</small>
-              <em className={item.direction.toLowerCase().replace(/\s/g, '-')}>
+              <small>{item.reason}</small>
+              <em className={(item.direction || 'stable').toLowerCase().replace(/\s/g, '-')}>
                 <DirectionIcon direction={item.direction} />
-                {' '}{severityLabel(item.direction)}
+                {' '}{item.severityLabel || 'Medium'}
               </em>
               <MiniSparkline current={item.current} previous={item.previous} />
             </button>

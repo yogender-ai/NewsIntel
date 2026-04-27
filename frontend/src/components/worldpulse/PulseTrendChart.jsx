@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import EmptyState from './EmptyState';
 
-export default function PulseTrendChart({ history }) {
+export default function PulseTrendChart({ history, worldPulse }) {
   const [drawn, setDrawn] = useState(false);
   const svgRef = useRef(null);
 
@@ -24,8 +24,10 @@ export default function PulseTrendChart({ history }) {
     );
   }
 
-  const latestValue = history[history.length - 1]?.value ?? 0;
-  const latestLabel = latestValue >= 76 ? 'Critical' : latestValue >= 56 ? 'Elevated' : latestValue >= 31 ? 'Moderate' : 'Calm';
+  const latestValue = worldPulse?.value ?? history[history.length - 1]?.value ?? 0;
+  const latestLabel = worldPulse?.label ?? 'Establishing baseline';
+  
+  // Use generic colors based on value safely
   const latestColor = latestValue >= 76 ? '#ff9ba9' : latestValue >= 56 ? '#ffd38a' : latestValue >= 31 ? '#8da2ff' : '#7ee7c4';
 
   const max = Math.max(...history.map((p) => p.value), 100);

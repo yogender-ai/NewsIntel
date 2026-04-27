@@ -2,24 +2,13 @@ const clamp = (value, min = 0, max = 100) => Math.max(min, Math.min(max, Number(
 
 const compactLabel = (value) => String(value || '').replace(/-/g, ' ').trim();
 
-const pulseLabel = (value) => {
-  if (value === null || value === undefined) return 'Establishing baseline';
-  if (value <= 30) return 'Calm';
-  if (value <= 55) return 'Normal';
-  if (value <= 75) return 'Elevated';
-  return 'High Pressure';
-};
-
-const directionFromDelta = (delta, hasBaseline) => {
-  if (!hasBaseline || delta === null || delta === undefined) return 'Establishing baseline';
-  if (delta > 1) return 'Rising';
-  if (delta < -1) return 'Cooling';
-  return 'Stable';
-};
-
 const trendFromPulseHistory = (pulseHistory) => {
   const source = pulseHistory?.history || pulseHistory || {};
   const series = Object.values(source).flatMap((points) => Array.isArray(points) ? points : []);
+  if (series.length && series[0].createdAt) {
+      // already normalized from backend
+      return series;
+  }
   const byTime = new Map();
   series.forEach((point) => {
     const key = point?.created_at;
@@ -52,16 +41,16 @@ const normalizeShift = (cluster, index) => {
     rank: index + 1,
     category: cluster.matched_preferences?.[0]?.label || compactLabel(cluster.matched_preferences?.[0]?.id) || compactLabel(cluster.category),
     headline: cluster.thread_title || cluster.title || '',
-    summary: aiAvailable ? cluster.summary || '' : '',
-    impactLine: aiAvailable ? cluster.impact_line || '' : '',
-    whyItMatters: aiAvailable ? cluster.why_it_matters || '' : '',
-    sentiment: aiAvailable ? cluster.sentiment || '' : '',
-    entities: aiAvailable && Array.isArray(cluster.entities) ? cluster.entities : [],
-    riskLevel: aiAvailable ? cluster.risk_level || '' : '',
-    opportunityLevel: aiAvailable ? cluster.opportunity_level || '' : '',
-    storyGraph: aiAvailable && cluster.story_graph ? cluster.story_graph : null,
-    confidenceExplanation: aiAvailable ? cluster.confidence_explanation || '' : '',
-    uncertainty: aiAvailable ? cluster.uncertainty || '' : '',
+    summary: cluster.summary || '',
+    impactLine: cluster.impact_line || '',
+    whyItMatters: cluster.why_it_matters || '',
+    sentiment: cluster.sentiment || '',
+    entities: Array.isArray(cluster.entities) ? cluster.entities : [],
+    riskLevel: cluster.risk_level || '',
+    opportunityLevel: cluster.opportunity_level || '',
+    storyGraph: cluster.story_graph || null,
+    confidenceExplanation: cluster.confidence_explanation || '',
+    uncertainty: cluster.uncertainty || '',
     aiStatus,
     aiProvider: cluster.ai_provider_used || '',
     aiEnrichedAt: cluster.ai_enriched_at || '',
@@ -100,9 +89,8 @@ export function normalizeDashboardData({ dashboard, preferences, alerts, user })
       : null;
 
   const deltas = Array.isArray(dashboard?.daily_delta) ? dashboard.daily_delta : [];
-  const baselineDeltas = deltas.filter((item) => item?.has_baseline && Number.isFinite(Number(item.delta)));
-  const averageDelta = baselineDeltas.length
-    ? Math.round(baselineDeltas.reduce((sum, item) => sum + Number(item.delta), 0) / baselineDeltas.length)
+  const averageDelta = deltas.length
+    ? Math.round(deltas.reduce((sum, item) => sum + Number(item.delta || 0), 0) / deltas.length)
     : null;
 
   const prefData = preferences?.data || preferences || {};
@@ -117,8 +105,9 @@ export function normalizeDashboardData({ dashboard, preferences, alerts, user })
   const changesToday = deltas.slice(0, 6).map((item) => ({
     id: item.topic || item.label,
     topic: item.label || compactLabel(item.topic),
-    reason: item.has_baseline ? 'Pulse movement from latest event-backed snapshot.' : '',
-    direction: directionFromDelta(Number(item.delta), item.has_baseline),
+    reason: item.reason || '',
+    direction: item.direction || 'Stable',
+    severityLabel: item.severity_label || 'Medium',
     delta: item.has_baseline && Number.isFinite(Number(item.delta)) ? Number(item.delta) : null,
     current: Number.isFinite(Number(item.current)) ? Number(item.current) : null,
     previous: Number.isFinite(Number(item.previous)) ? Number(item.previous) : null,
@@ -148,19 +137,14 @@ export function normalizeDashboardData({ dashboard, preferences, alerts, user })
     },
     worldPulse: {
       value: worldPulseValue,
-      label: pulseLabel(worldPulseValue),
+      label: dashboard?.world_pulse_label || 'Establishing baseline',
       delta: averageDelta,
       deltaLabel: averageDelta === null ? 'Establishing baseline' : averageDelta > 0 ? `+${averageDelta} from yesterday` : averageDelta < 0 ? `${averageDelta} from yesterday` : 'Stable',
     },
     pulseHistory,
     changesToday,
     topShifts,
-    quickGlance: {
-      countriesInFocus: regions.length ? regions.length : null,
-      signalsTracked: Number.isFinite(Number(dashboard?.clusters?.length)) ? dashboard.clusters.length : null,
-      highImpactAlerts: alertsAvailable ? highImpactAlerts : null,
-      sourcesMonitored: Number.isFinite(Number(dashboard?.sources_count)) ? Number(dashboard.sources_count) : null,
-    },
+    quickGlance: Array.isArray(dashboard?.quick_glance) ? dashboard.quick_glance : [],
     alerts: alertRows,
     sources: dashboard?.sources || [],
     raw: dashboard,

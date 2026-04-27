@@ -398,7 +398,7 @@ export default function HomePage() {
               </div>
 
               <aside className="wp-right">
-                <PulseTrendChart history={data.pulseHistory} />
+                <PulseTrendChart history={data.pulseHistory} worldPulse={data.worldPulse} />
                 <QuickGlance
                   data={data.quickGlance}
                   onCountries={() => setInsightView('countries')}
@@ -406,13 +406,21 @@ export default function HomePage() {
                   onAlerts={() => navigate('/alerts')}
                   onSources={() => setInsightView('sources')}
                 />
-                <section className="wp-card quote-card">
-                  <div className="quote-open">"</div>
-                  <blockquote>
-                    <p>The world is not random.<br />It's connected.<br />We help you see it.</p>
-                    <cite>— NewsIntel</cite>
-                  </blockquote>
-                  <div className="quote-close">"</div>
+                <section className="wp-card system-status-card">
+                  <div className="status-header">
+                    <Activity size={14} className="status-icon" />
+                    <span>System Status</span>
+                  </div>
+                  <div className="status-metrics">
+                    <div className="status-metric">
+                      <small>Last Sync</small>
+                      <strong>{data.cache?.cachedAt ? formatRelativeTime(data.cache.cachedAt) : 'Live'}</strong>
+                    </div>
+                    <div className="status-metric">
+                      <small>Pipeline</small>
+                      <strong style={{textTransform: 'capitalize'}}>{(data.cache?.refreshType || 'active').replace('_', ' ')}</strong>
+                    </div>
+                  </div>
                 </section>
               </aside>
             </section>

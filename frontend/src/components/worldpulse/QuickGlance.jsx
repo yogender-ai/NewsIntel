@@ -17,21 +17,27 @@ function Stat({ id, label, value, delta, deltaColor, onClick }) {
 }
 
 export default function QuickGlance({ data, onCountries, onSignals, onAlerts, onSources }) {
+  const handlers = {
+    countries: onCountries,
+    signals: onSignals,
+    alerts: onAlerts,
+    sources: onSources
+  };
+
   return (
     <section className="wp-card quick-glance">
       <div className="wp-section-head"><span>Quick Glance</span></div>
-      <Stat id="countries" label="Countries in Focus" value={data?.countriesInFocus}
-            delta={data?.countriesInFocus ? `${data.countriesInFocus} active` : null}
-            deltaColor="#7ee7c4" onClick={onCountries} />
-      <Stat id="signals" label="Signals Tracked" value={data?.signalsTracked}
-            delta={data?.signalsTracked ? `${data.signalsTracked} live` : null}
-            deltaColor="#7ee7c4" onClick={onSignals} />
-      <Stat id="alerts" label="High Impact Alerts" value={data?.highImpactAlerts}
-            delta={data?.highImpactAlerts > 0 ? 'View alerts →' : null}
-            deltaColor="#ff9ba9" onClick={onAlerts} />
-      <Stat id="sources" label="Sources Monitored" value={data?.sourcesMonitored}
-            delta={data?.sourcesMonitored ? 'Live' : null}
-            deltaColor="#7ee7c4" onClick={onSources} />
+      {Array.isArray(data) && data.map((stat) => (
+        <Stat 
+          key={stat.id} 
+          id={stat.id} 
+          label={stat.label} 
+          value={stat.value}
+          delta={stat.delta}
+          deltaColor={stat.deltaColor}
+          onClick={handlers[stat.id]} 
+        />
+      ))}
     </section>
   );
 }

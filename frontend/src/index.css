@@ -4419,6 +4419,52 @@ body::after {
   font-weight: 800 !important;
 }
 
+/* ── System Status Card ────────────────────────────────────── */
+.system-status-card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: linear-gradient(145deg, rgba(14,18,36,0.6), rgba(8,10,20,0.8));
+  border: 1px solid rgba(141,162,255,0.1);
+}
+
+.status-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #dfe6ff;
+}
+
+.status-icon {
+  color: #7ee7c4;
+}
+
+.status-metrics {
+  display: flex;
+  gap: 24px;
+}
+
+.status-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.status-metric small {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: #7f8aa7;
+  font-weight: 600;
+}
+
+.status-metric strong {
+  font-size: 14px;
+  color: #8da2ff;
+}
+
 .shift-impact-dot {
   width: 6px;
   height: 6px;
