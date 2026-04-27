@@ -590,11 +590,115 @@ svg {
   padding: 18px;
 }
 
-.world-pulse-card {
-  min-height: 344px;
+/* ── World Pulse Ring — premium wave edition ───────────── */
+.world-pulse-card,
+.wp-ring-card {
+  min-height: 420px;
   display: grid;
   place-items: center;
   text-align: center;
+  gap: 18px;
+}
+
+.wp-ring-card {
+  background:
+    radial-gradient(circle at 50% 42%, rgba(124, 58, 237, 0.12) 0%, transparent 65%),
+    linear-gradient(180deg, rgba(255,255,255,0.035), transparent 42%),
+    var(--panel);
+}
+
+.wp-ring-scene {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.wp-ring-center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 2px;
+  pointer-events: none;
+}
+
+.wp-ring-eyebrow {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #a78bfa;
+  margin-bottom: 2px;
+}
+
+.wp-ring-value {
+  font-size: 72px;
+  line-height: 1;
+  font-weight: 950;
+  background: linear-gradient(135deg, #c4b5fd 0%, #818cf8 50%, #a78bfa 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  filter: drop-shadow(0 0 18px rgba(139, 92, 246, 0.55));
+}
+
+.wp-ring-label {
+  font-size: 15px;
+  font-weight: 800;
+  color: #c4b5fd;
+  margin-top: 4px;
+}
+
+.wp-ring-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.wp-ring-up    { color: #34d399; }
+.wp-ring-down  { color: #f87171; }
+.wp-ring-neutral { color: #94a3b8; }
+
+.wp-ring-copy {
+  margin: 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* keep orbitSpin for ArcRing inner dotted orbit */
+@keyframes orbitSpin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes orbitSpinRev {
+  to { transform: rotate(-360deg); }
+}
+
+/* legacy aliases kept for any remaining usages */
+.orbit-spin-slow {
+  transform-origin: center;
+  animation: orbitSpin 40s linear infinite;
+}
+
+.orbit-spin-fast-reverse {
+  transform-origin: center;
+  animation: orbitSpinRev 22s linear infinite;
+}
+
+.ring-label,
+.pulse-chart-badge {
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
 }
 
 .advanced-ring-wrap {
@@ -614,15 +718,6 @@ svg {
   display: grid;
   place-content: center;
   justify-items: center;
-}
-
-.ring-label,
-.pulse-chart-badge {
-  color: var(--accent);
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 900;
-  text-transform: uppercase;
 }
 
 .ring-value {
@@ -657,33 +752,6 @@ svg {
   color: var(--muted);
   font-size: 12px;
   line-height: 1.45;
-}
-
-.orbit-spin-slow {
-  transform-origin: center;
-  animation: orbitSpin 40s linear infinite;
-}
-
-.orbit-spin-fast-reverse {
-  transform-origin: center;
-  animation: orbitSpinRev 22s linear infinite;
-}
-
-@keyframes orbitSpin {
-  to { transform: rotate(360deg); }
-}
-
-@keyframes orbitSpinRev {
-  to { transform: rotate(-360deg); }
-}
-
-@keyframes heartbeat {
-  0%, 100% { transform: scale(1); }
-  45% { transform: scale(1.025); }
-}
-
-.heartbeat-active {
-  animation: heartbeat 1.8s ease-in-out infinite;
 }
 
 .wp-section-head,

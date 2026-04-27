@@ -16,75 +16,14 @@ import StartTourCard from '../components/worldpulse/StartTourCard';
 import FreshnessBadge from '../components/worldpulse/FreshnessBadge';
 import LockedNavToast from '../components/worldpulse/LockedNavToast';
 
-function pipelineSteps(status) {
-  const cycle = status?.latest_cycle || {};
-  const queue = status?.queue || {};
-  const cycleStatus = String(cycle.status || '').toUpperCase();
-  const aiBlocked = Boolean(status?.ai_circuit_open);
-  const fetched = Number(cycle.fetched_count || 0);
-  const ranked = Number(cycle.ranked_count || 0);
-  const enriched = Number(cycle.enriched_count || queue.done || 0);
-  const pending = Number(queue.pending || 0);
-  const running = Number(queue.running || 0);
 
-  return [
-    {
-      title: 'Collect',
-      state: fetched || cycleStatus ? 'done' : 'active',
-      detail: fetched ? `${fetched} RSS candidates fetched` : 'Opening live source feeds',
-    },
-    {
-      title: 'Rank',
-      state: ranked || ['RANKED', 'AI_DEFERRED', 'NO_AI_RANKING'].includes(cycleStatus) ? 'done' : cycleStatus === 'RUNNING' ? 'active' : 'waiting',
-      detail: ranked ? `${ranked} stories selected` : 'AI ranker checks importance',
-    },
-    {
-      title: 'Enrich',
-      state: aiBlocked ? 'blocked' : running || pending ? 'active' : enriched ? 'done' : 'waiting',
-      detail: aiBlocked ? 'AI quota circuit is cooling down' : running ? `${running} running, ${pending} pending` : pending ? `${pending} waiting for enrichment` : enriched ? `${enriched} enriched stories ready` : 'Waiting for ranked stories',
-    },
-    {
-      title: 'Snapshot',
-      state: status ? 'done' : 'active',
-      detail: status ? 'Dashboard read model loaded' : 'Preparing dashboard cache',
-    },
-  ];
-}
-
-function PipelineRunway({ status, compact = false }) {
-  const steps = pipelineSteps(status);
-  const cycle = status?.latest_cycle;
-  const queue = status?.queue;
-  return (
-    <section className={`pipeline-runway wp-card ${compact ? 'compact' : ''}`}>
-      <div className="wp-section-head">
-        <span>Live Pipeline</span>
-        <em className="pulse-chart-badge">{status?.ai_circuit_open ? 'AI WAIT' : 'ACTIVE'}</em>
-      </div>
-      <div className="pipeline-track">
-        {steps.map((step) => (
-          <div className={`pipeline-step ${step.state}`} key={step.title}>
-            <div className="pipeline-dot" />
-            <strong>{step.title}</strong>
-            <span>{step.detail}</span>
-          </div>
-        ))}
-      </div>
-      <div className="pipeline-meta">
-        <span>Cycle <b>{cycle?.status || 'syncing'}</b></span>
-        {queue && <span>Queue <b>{queue.running || 0} running / {queue.pending || 0} pending</b></span>}
-      </div>
-    </section>
-  );
-}
 
 function DashboardBoot({ status }) {
   return (
     <div className="dashboard-boot">
       <div className="dashboard-boot-card wp-card">
-        <h2>Building the intelligence board</h2>
-        <p>NewsIntel is checking the cached snapshot, pipeline queue, ranking stage, and enrichment status before showing the dashboard.</p>
-        <PipelineRunway status={status} compact />
+        <h2>Loading intelligence board…</h2>
+        <p>Preparing data, please wait.</p>
       </div>
     </div>
   );
@@ -471,7 +410,6 @@ export default function HomePage() {
                     <EmptyState title="No live shifts available." body="Event-backed signals will appear after ingestion produces dashboard events." />
                   )}
                 </section>
-                <PipelineRunway status={data.pipelineStatus} />
                 <StartTourCard onStart={() => setTourOpen(true)} />
               </div>
 
