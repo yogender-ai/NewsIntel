@@ -1,7 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
+import Sidebar from '../components/worldpulse/Sidebar';
+import LockedNavToast from '../components/worldpulse/LockedNavToast';
+import { Pencil, Shield, Trash2, User, Info, ChevronRight } from 'lucide-react';
 
 export default function Settings() {
   const { user, logout } = useAuth();
@@ -11,6 +14,7 @@ export default function Settings() {
   const [deleting, setDeleting] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [showMethodology, setShowMethodology] = useState(false);
+  const [lockedToast, setLockedToast] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -22,6 +26,12 @@ export default function Settings() {
     })();
   }, []);
 
+  useEffect(() => {
+    if (!lockedToast) return;
+    const t = setTimeout(() => setLockedToast(''), 2200);
+    return () => clearTimeout(t);
+  }, [lockedToast]);
+
   const handleDelete = async () => {
     setDeleting(true);
     try {
@@ -30,129 +40,154 @@ export default function Settings() {
       navigate('/login');
     } catch (e) {
       console.error(e);
-      alert('Failed to delete account data. Try again.');
+      setLockedToast('Failed to delete account data. Try again.');
     }
     setDeleting(false);
   };
 
-  const cats = prefs?.preferred_categories ? JSON.parse(prefs.preferred_categories) : [];
-  const regs = prefs?.preferred_regions ? JSON.parse(prefs.preferred_regions) : [];
+  const cats = useMemo(() => {
+    const raw = prefs?.preferred_categories;
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string') try { return JSON.parse(raw); } catch { return []; }
+    return [];
+  }, [prefs]);
+
+  const regs = useMemo(() => {
+    const raw = prefs?.preferred_regions;
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string') try { return JSON.parse(raw); } catch { return []; }
+    return [];
+  }, [prefs]);
 
   return (
-    <div style={{ maxWidth: 600, margin: '40px auto 0' }}>
-      <div className="label" style={{ marginBottom: 24 }}>ACCOUNT SETTINGS</div>
+    <div className="world-pulse-page settings-wp-page">
+      <Sidebar
+        preferences={{ hasPreferences: Boolean(cats.length || regs.length), topics: cats, regions: regs, entities: [] }}
+        activeItem="settings"
+        onHome={() => navigate('/dashboard')}
+        onOrbit={() => navigate('/orbit')}
+        onMap={() => navigate('/map')}
+        onSimulator={() => navigate('/simulator')}
+        onLocked={setLockedToast}
+        onWatchlist={() => navigate('/watchlist')}
+        onAlerts={() => navigate('/alerts')}
+        onSetFocus={() => navigate('/onboarding')}
+        onSettings={() => {}}
+      />
+      <main className="world-pulse-main settings-main">
+        <header className="ni-screen-header">
+          <div>
+            <h1>Account Settings</h1>
+            <p>Manage your intelligence profile, preferences, and account data.</p>
+          </div>
+        </header>
 
-      {/* User Info */}
-      {user && (
-        <div className="panel fin" style={{ padding: 24, marginBottom: 16 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
-            {user.photoURL && (
-              <img src={user.photoURL} alt="" style={{ width: 48, height: 48, borderRadius: '50%', border: '2px solid var(--accent-border)' }} />
+        <div className="settings-grid">
+          {/* User Info */}
+          {user && (
+            <section className="wp-card settings-section">
+              <div className="settings-section-head"><User size={16} /> <span>Account</span></div>
+              <div className="settings-user-row">
+                {user.photoURL && (
+                  <img src={user.photoURL} alt="" className="settings-avatar" />
+                )}
+                <div>
+                  <div className="settings-name">{user.displayName}</div>
+                  <div className="settings-email">{user.email}</div>
+                  <div className="settings-uid">UID: {user.uid?.slice(0, 12)}...</div>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* Intelligence Profile */}
+          <section className="wp-card settings-section">
+            <div className="settings-section-head">
+              <Shield size={16} /> <span>Intelligence Profile</span>
+              <button className="wp-icon-btn" onClick={() => navigate('/onboarding')}><Pencil size={13} /> Edit</button>
+            </div>
+            {loading ? (
+              <div className="settings-loading">Loading profile...</div>
+            ) : prefs ? (
+              <>
+                <div className="settings-pref-block">
+                  <span className="settings-pref-label">Tracked Topics</span>
+                  <div className="settings-chips">
+                    {cats.length > 0 ? cats.map(c => (
+                      <span key={c} className="settings-chip">{c}</span>
+                    )) : <span className="settings-empty-text">None set</span>}
+                  </div>
+                </div>
+                <div className="settings-pref-block">
+                  <span className="settings-pref-label">Tracked Regions</span>
+                  <div className="settings-chips">
+                    {regs.length > 0 ? regs.map(r => (
+                      <span key={r} className="settings-chip">{r}</span>
+                    )) : <span className="settings-empty-text">None set</span>}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <div className="settings-no-prefs">
+                <p>No preferences saved yet.</p>
+                <button className="orbit-story-button" onClick={() => navigate('/onboarding')}>
+                  Set Up Your Feed <ChevronRight size={14} />
+                </button>
+              </div>
             )}
-            <div>
-              <div style={{ fontSize: 16, fontWeight: 700 }}>{user.displayName}</div>
-              <div className="mono" style={{ fontSize: 10, color: 'var(--text-3)' }}>{user.email}</div>
-              <div className="mono" style={{ fontSize: 9, color: 'var(--text-3)', marginTop: 2 }}>UID: {user.uid?.slice(0, 12)}...</div>
-            </div>
-          </div>
-        </div>
-      )}
+          </section>
 
-      {/* Current Preferences */}
-      <div className="panel fin" style={{ padding: 24, marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-          <div className="label">YOUR INTELLIGENCE PROFILE</div>
-          <button className="wire-btn" onClick={() => navigate('/onboarding')}>EDIT →</button>
-        </div>
-        {loading ? (
-          <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>Loading...</span>
-        ) : prefs ? (
-          <>
-            <div style={{ marginBottom: 12 }}>
-              <div className="mono" style={{ fontSize: 9, color: 'var(--text-3)', marginBottom: 6, letterSpacing: 1 }}>TRACKED TOPICS</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {cats.length > 0 ? cats.map(c => (
-                  <span key={c} className="chip chip-sel" style={{ fontSize: 11, padding: '4px 10px' }}>{c}</span>
-                )) : <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>None set</span>}
-              </div>
+          {/* How Scores Work */}
+          <section className="wp-card settings-section">
+            <div className="settings-section-head">
+              <Info size={16} /> <span>How Scores Work</span>
+              <button className="wp-icon-btn" onClick={() => setShowMethodology(v => !v)}>
+                {showMethodology ? 'Hide' : 'Show'}
+              </button>
             </div>
-            <div>
-              <div className="mono" style={{ fontSize: 9, color: 'var(--text-3)', marginBottom: 6, letterSpacing: 1 }}>TRACKED REGIONS</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {regs.length > 0 ? regs.map(r => (
-                  <span key={r} className="chip chip-sel" style={{ fontSize: 11, padding: '4px 10px' }}>{r}</span>
-                )) : <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>None set</span>}
+            <p className="settings-desc">Transparent methodology for Delta, Pulse, Exposure, and Signal Tiers.</p>
+            {showMethodology && (
+              <div className="settings-methodology">
+                {[
+                  ['Daily Delta', 'Current Pulse minus the previous 24h baseline. Shows topic movement once enough history exists.'],
+                  ['Pulse Score', '0-100 intensity score using velocity, source count, sentiment, entity impact, and user relevance.'],
+                  ['Exposure Score', 'How much a signal may affect you based on topics, entities, regions, and interaction history.'],
+                  ['Signal Tier', 'Critical, Signal, Watch, and Noise thresholds turn scores into action priority.'],
+                ].map(([title, body]) => (
+                  <div key={title} className="settings-method-card">
+                    <div className="settings-method-title">{title}</div>
+                    <div className="settings-method-body">{body}</div>
+                  </div>
+                ))}
               </div>
-            </div>
-          </>
-        ) : (
-          <div>
-            <span className="mono" style={{ fontSize: 11, color: 'var(--warn)' }}>No preferences saved yet.</span>
-            <button className="btn btn-primary" style={{ marginTop: 12, width: '100%' }} onClick={() => navigate('/onboarding')}>
-              Set Up Your Feed →
-            </button>
-          </div>
-        )}
-      </div>
+            )}
+          </section>
 
-      <div className="panel fin" style={{ padding: 24, marginBottom: 16 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
-          <div>
-            <div className="label" style={{ marginBottom: 8 }}>HOW SCORES WORK</div>
-            <p style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.6 }}>
-              Transparent methodology for Delta, Pulse, Exposure, and Signal Tiers.
+          {/* Danger Zone */}
+          <section className="wp-card settings-section settings-danger">
+            <div className="settings-section-head danger">
+              <Trash2 size={16} /> <span>Danger Zone</span>
+            </div>
+            <p className="settings-desc">
+              This will permanently delete your saved preferences and log you out.
+              You'll need to set up your intelligence profile again on next login.
             </p>
-          </div>
-          <button className="wire-btn" onClick={() => setShowMethodology(v => !v)}>
-            {showMethodology ? 'HIDE' : 'OPEN'}
-          </button>
-        </div>
-        {showMethodology && (
-          <div style={{ display: 'grid', gap: 10, marginTop: 16 }}>
-            {[
-              ['Daily Delta', 'Current Pulse minus the previous 24h baseline. Shows topic movement once enough history exists.'],
-              ['Pulse Score', '0-100 intensity score using velocity, source count, sentiment, entity impact, and user relevance.'],
-              ['Exposure Score', 'How much a signal may affect you based on topics, entities, regions, and interaction history.'],
-              ['Signal Tier', 'Critical, Signal, Watch, and Noise thresholds turn scores into action priority.'],
-            ].map(([title, body]) => (
-              <div key={title} style={{ padding: 12, borderRadius: 'var(--br)', background: 'rgba(255,255,255,0.035)', border: '1px solid rgba(255,255,255,0.06)' }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: 'var(--text-0)', marginBottom: 4 }}>{title}</div>
-                <div style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.55 }}>{body}</div>
+            {!confirmDelete ? (
+              <button className="wp-icon-btn danger" onClick={() => setConfirmDelete(true)}>
+                <Trash2 size={14} /> Delete My Account Data
+              </button>
+            ) : (
+              <div className="settings-confirm-row">
+                <button className="wp-icon-btn danger-fill" onClick={handleDelete} disabled={deleting}>
+                  {deleting ? 'Deleting...' : 'Yes, Delete Everything'}
+                </button>
+                <button className="wp-icon-btn" onClick={() => setConfirmDelete(false)}>Cancel</button>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Danger Zone */}
-      <div className="panel" style={{ padding: 24, borderColor: 'rgba(255,59,92,0.2)' }}>
-        <div className="label" style={{ color: 'var(--neg)', marginBottom: 12 }}>DANGER ZONE</div>
-        <p style={{ fontSize: 12, color: 'var(--text-2)', lineHeight: 1.6, marginBottom: 16 }}>
-          This will permanently delete your saved preferences and log you out. 
-          You'll need to set up your intelligence profile again on next login.
-        </p>
-        {!confirmDelete ? (
-          <button
-            className="wire-btn"
-            style={{ borderColor: 'rgba(255,59,92,0.3)', color: 'var(--neg)' }}
-            onClick={() => setConfirmDelete(true)}
-          >
-            Delete My Account Data
-          </button>
-        ) : (
-          <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-            <button
-              className="btn"
-              style={{ background: 'rgba(255,59,92,0.15)', color: '#ff3b5c', border: '1px solid rgba(255,59,92,0.3)', fontWeight: 700 }}
-              onClick={handleDelete}
-              disabled={deleting}
-            >
-              {deleting ? 'Deleting...' : 'Yes, Delete Everything'}
-            </button>
-            <button className="wire-btn" onClick={() => setConfirmDelete(false)}>Cancel</button>
-          </div>
-        )}
-      </div>
+            )}
+          </section>
+        </div>
+      </main>
+      <LockedNavToast message={lockedToast} />
     </div>
   );
 }

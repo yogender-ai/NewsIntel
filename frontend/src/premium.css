@@ -7,7 +7,7 @@
   cursor: none !important;
 }
 
-/* ── Custom cursor ───────────────────────────────────────── */
+/* ── Custom cursor — GLOBAL, works on every page ─────────── */
 .custom-cursor {
   position: fixed;
   left: 0; top: 0;
@@ -40,21 +40,25 @@
   50%      { opacity: .8; transform: translate(-50%,-50%) scale(1.2); }
 }
 
-/* ── Deep space base ─────────────────────────────────────── */
+/* ── Pulse-reactive deep space background ────────────────── */
 body {
   background: #050811 !important;
 }
 
-/* Nebula wash */
+/* Nebula wash — intensity reacts to --pulse-intensity */
 body::before {
   content: "";
   position: fixed; inset: 0; z-index: -3;
   pointer-events: none;
   background:
-    radial-gradient(ellipse 130% 65% at 8% 5%, rgba(124,58,237,0.10), transparent 50%),
-    radial-gradient(ellipse 100% 50% at 92% 10%, rgba(99,102,241,0.07), transparent 45%),
-    radial-gradient(ellipse 80% 55% at 45% 95%, rgba(6,182,212,0.05), transparent 50%),
-    radial-gradient(ellipse 60% 35% at 70% 55%, rgba(236,72,153,0.03), transparent 40%);
+    radial-gradient(ellipse 130% 65% at 8% 5%,
+      hsla(var(--pulse-hue, 260), 78%, 58%, calc(0.06 * var(--pulse-intensity, 0.3))), transparent 50%),
+    radial-gradient(ellipse 100% 50% at 92% 10%,
+      hsla(240, 65%, 67%, calc(0.05 * var(--pulse-intensity, 0.3))), transparent 45%),
+    radial-gradient(ellipse 80% 55% at 45% 95%,
+      hsla(190, 85%, 43%, calc(0.04 * var(--pulse-intensity, 0.3))), transparent 50%),
+    radial-gradient(ellipse 60% 35% at 70% 55%,
+      hsla(330, 80%, 60%, calc(0.025 * var(--pulse-intensity, 0.3))), transparent 40%);
   animation: nebulaShift 30s ease-in-out infinite alternate;
 }
 @keyframes nebulaShift {
@@ -63,7 +67,7 @@ body::before {
   100% { opacity: .6; }
 }
 
-/* Starfield */
+/* Starfield — twinkle rate also responds to pulse */
 body::after {
   content: "";
   position: fixed; inset: 0; z-index: -2;
@@ -85,7 +89,7 @@ body::after {
   50%      { opacity: .85; }
 }
 
-/* ── Cards — minimal glass ───────────────────────────────── */
+/* ── Cards — refined glass morphism ─────────────────────── */
 .glass-card, .wp-card, .panel, .world-pulse-card,
 .abstract-world-map, .shift-drawer, .insight-drawer {
   background: rgba(8,12,28,0.32) !important;
@@ -130,14 +134,15 @@ p, span, li { color: inherit; }
   transform: translateY(-1px);
 }
 
-/* ── Cursor spotlight ────────────────────────────────────── */
-.premium-dashboard-shell {
+/* ── Cursor spotlight on all world-pulse pages ──────────── */
+.premium-dashboard-shell,
+.world-pulse-page {
   background:
     radial-gradient(400px circle at var(--cursor-x, 50%) var(--cursor-y, 50%),
       rgba(139,92,246,0.035), transparent 40%) !important;
 }
 
-/* hide old cursor elements */
+/* hide old cursor elements from individual pages */
 .live-cursor-advanced { display: none !important; }
 
 /* ═══ PIPELINE BOOT — FULLSCREEN OVERLAY ═══════════════════ */
@@ -148,14 +153,12 @@ p, span, li { color: inherit; }
   display: grid;
   place-items: center;
   background: #050811;
-  /* Grid lines like the reference */
   background-image:
     linear-gradient(rgba(251,113,133,0.025) 1px, transparent 1px),
     linear-gradient(90deg, rgba(251,113,133,0.018) 1px, transparent 1px);
   background-size: 72px 72px;
 }
 
-/* Subtle vignette on the boot screen */
 .pipeline-boot::before {
   content: "";
   position: absolute; inset: 0;
@@ -363,7 +366,237 @@ p, span, li { color: inherit; }
   pointer-events: none;
 }
 
-/* ── Touch/mobile: hide cursor ───────────────────────────── */
+/* ── Watchlist / Alerts / Settings — sidebar layout pages ── */
+.watchlist-page.fin,
+.alerts-page.fin,
+.settings-page.fin {
+  animation: fadeUp 0.5s cubic-bezier(0.22,1,0.36,1) both;
+}
+
+/* ── Professional typography cleanup ─────────────────────── */
+.wp-brand div {
+  letter-spacing: -0.5px;
+}
+.wp-brand p {
+  letter-spacing: 0.02em;
+}
+
+/* ── Orbit page polish ───────────────────────────────────── */
+.orbit-ring {
+  fill: none;
+  stroke: rgba(139,92,246,0.06);
+  stroke-width: 0.3;
+  stroke-dasharray: 2 3;
+}
+.orbit-edge {
+  stroke: rgba(94,234,212,0.12);
+  stroke-width: 0.5;
+  stroke-dasharray: 3 4;
+  transition: stroke 0.3s;
+}
+.orbit-event-node {
+  border-radius: 50% !important;
+  transition: all 0.3s cubic-bezier(0.22,1,0.36,1);
+  border-color: rgba(139,92,246,0.2) !important;
+}
+.orbit-event-node:hover {
+  border-color: rgba(94,234,212,0.5) !important;
+  transform: scale(1.08);
+  box-shadow: 0 0 24px rgba(94,234,212,0.15);
+}
+.orbit-event-node i {
+  width: 36px; height: 36px;
+  display: grid; place-items: center;
+  border-radius: 50%;
+  background: rgba(139,92,246,0.08);
+  color: var(--node-color, #a5b4fc);
+}
+.orbit-event-node span {
+  position: absolute;
+  bottom: -30px; left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  font-size: 9px;
+  text-align: center;
+}
+.orbit-event-node span b {
+  display: block;
+  font-size: 10px;
+  color: #e2e8f0;
+}
+.orbit-event-node span strong {
+  font-size: 14px;
+  color: #c4b5fd;
+}
+.orbit-event-node span small {
+  display: block;
+  font-size: 8px;
+  color: #64748b;
+  text-transform: uppercase;
+}
+.orbit-story-button {
+  width: 100%;
+  min-height: 40px;
+  border: 1px solid rgba(94,234,212,0.3);
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(94,234,212,0.08), rgba(139,92,246,0.06));
+  color: #e2e8f0;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: none;
+  transition: all 0.2s;
+}
+.orbit-story-button:hover {
+  border-color: rgba(94,234,212,0.5);
+  background: rgba(94,234,212,0.12);
+  transform: translateY(-1px);
+}
+.orbit-focus-copy {
+  color: #94a3b8;
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 0;
+}
+.orbit-mini-list {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+}
+.orbit-mini-list button {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,0.025);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.012);
+  color: #e2e8f0;
+  text-align: left;
+  cursor: none;
+  transition: all 0.2s;
+}
+.orbit-mini-list button:hover {
+  background: rgba(139,92,246,0.03);
+  border-color: rgba(139,92,246,0.08);
+  transform: translateX(2px);
+}
+.orbit-mini-list button b {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 2px;
+}
+.orbit-mini-list button span {
+  font-size: 11px;
+  color: #64748b;
+}
+.orbit-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.orbit-controls label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 800;
+}
+.orbit-controls select {
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: 7px;
+  background: rgba(5,8,18,0.78);
+  color: #e2e8f0;
+  padding: 6px 10px;
+  font-size: 11px;
+}
+.orbit-controls .toggle {
+  border-radius: 8px; padding: 6px 14px;
+  background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.03);
+  color: #64748b; cursor: none; transition: all 0.2s ease;
+  font-weight: 800; font-size: 11px;
+}
+.orbit-controls .toggle.active {
+  background: rgba(139,92,246,0.06); border-color: rgba(139,92,246,0.15); color: #c4b5fd;
+}
+
+/* ── Simulator polish ────────────────────────────────────── */
+.scenario-input-panel textarea {
+  min-height: 100px;
+  resize: vertical;
+}
+.run-scenario {
+  width: 100%;
+  margin-top: 8px;
+  min-height: 44px;
+  font-size: 14px;
+}
+.scenario-score {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.scenario-score b {
+  font-size: 32px;
+  color: #c4b5fd;
+}
+.scenario-score span {
+  font-size: 10px;
+  color: #64748b;
+  text-transform: uppercase;
+  font-weight: 800;
+}
+.scenario-disclaimer {
+  font-size: 11px;
+  color: #64748b;
+  font-style: italic;
+  border-top: 1px solid rgba(255,255,255,0.04);
+  padding-top: 10px;
+  margin-top: 10px;
+}
+.assumption-list {
+  display: grid;
+  gap: 6px;
+}
+.assumption-list > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid rgba(255,255,255,0.025);
+  border-radius: 8px;
+  background: rgba(255,255,255,0.012);
+  font-size: 12px;
+  color: #94a3b8;
+}
+.assumption-list > div b {
+  margin-left: auto;
+  color: #e2e8f0;
+  text-transform: capitalize;
+}
+
+/* ── Sim chain / outcomes ────────────────────────────────── */
+.sim-chain-step i {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: rgba(139,92,246,0.1);
+  color: #c4b5fd;
+  font-style: normal;
+  font-weight: 900;
+  font-size: 11px;
+  margin-right: 8px;
+}
+.sim-outcome b {
+  font-size: 22px;
+  color: #c4b5fd;
+}
+
+/* ── Touch/mobile: show default cursor ───────────────────── */
 @media (pointer: coarse) {
   .custom-cursor { display: none !important; }
   *, *::before, *::after { cursor: auto !important; }

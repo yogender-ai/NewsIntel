@@ -1,7 +1,8 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, X, Activity } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { AppContext } from '../App';
 import { api } from '../api';
 import { normalizeDashboardData, formatRelativeTime } from '../lib/dashboardAdapter';
 import Sidebar from '../components/worldpulse/Sidebar';
@@ -49,26 +50,7 @@ function DashboardBoot({ bootElapsed }) {
   );
 }
 
-function LiveCursor() {
-  const [pos, setPos] = useState({ x: -100, y: -100 });
-
-  useEffect(() => {
-    const move = (e) => {
-      setPos({ x: e.clientX, y: e.clientY });
-      document.documentElement.style.setProperty('--cursor-x', `${e.clientX}px`);
-      document.documentElement.style.setProperty('--cursor-y', `${e.clientY}px`);
-    };
-    window.addEventListener('pointermove', move);
-    return () => window.removeEventListener('pointermove', move);
-  }, []);
-
-  return (
-    <div className="custom-cursor" style={{ transform: `translate(${pos.x}px, ${pos.y}px)` }}>
-      <span className="cursor-core" />
-      <span className="cursor-glow" />
-    </div>
-  );
-}
+/* LiveCursor is now global in App.jsx */
 
 function readableLiveError(err) {
   const raw = err?.message || 'Unable to load live intelligence.';
@@ -316,6 +298,7 @@ function TourModal({ onClose }) {
 export default function HomePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { setWorldPulseValue } = useContext(AppContext);
   const [dashboard, setDashboard] = useState(null);
   const [preferences, setPreferences] = useState(null);
   const [alerts, setAlerts] = useState(null);
@@ -386,6 +369,13 @@ export default function HomePage() {
     () => normalizeDashboardData({ dashboard, preferences, alerts, user }),
     [dashboard, preferences, alerts, user],
   );
+
+  // Propagate world pulse value for reactive background
+  useEffect(() => {
+    if (data.worldPulse?.value != null) {
+      setWorldPulseValue(Number(data.worldPulse.value) || 0);
+    }
+  }, [data.worldPulse?.value, setWorldPulseValue]);
 
   const topShifts = selectedTopic
     ? data.topShifts.filter((shift) => shift.raw?.matched_preferences?.some((item) => item.id === selectedTopic || item.label === selectedTopic))
@@ -504,7 +494,7 @@ export default function HomePage() {
           </>
         )}
       </main>
-      <LiveCursor />
+      {/* LiveCursor is now global in App.jsx */}
       {loading && <DashboardBoot bootElapsed={bootElapsed} />}
       <DetailDrawer shift={selectedShift} sources={selectedSources} onClose={() => setSelectedShift(null)} />
       <InsightDrawer

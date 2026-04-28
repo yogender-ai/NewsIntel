@@ -26,19 +26,7 @@ const categoryIcons = {
   energy: Flame,
 };
 
-function LiveCursor() {
-  const [point, setPoint] = useState({ x: -80, y: -80 });
-  useEffect(() => {
-    const move = (event) => {
-      setPoint({ x: event.clientX, y: event.clientY });
-      document.documentElement.style.setProperty('--cursor-x', `${event.clientX}px`);
-      document.documentElement.style.setProperty('--cursor-y', `${event.clientY}px`);
-    };
-    window.addEventListener('pointermove', move);
-    return () => window.removeEventListener('pointermove', move);
-  }, []);
-  return <div className="live-cursor" style={{ '--cursor-x': `${point.x}px`, '--cursor-y': `${point.y}px` }} />;
-}
+/* LiveCursor is now global in App.jsx */
 
 function nodePoint(node, index, total) {
   const angle = (Math.PI * 2 * index) / Math.max(total, 1) - Math.PI / 2;
@@ -248,7 +236,7 @@ export default function OrbitPage() {
 
   return (
     <div className="world-pulse-page orbit-page">
-      <LiveCursor />
+      {/* LiveCursor is now global in App.jsx */}
       <Sidebar
         preferences={{
           hasPreferences: Boolean(profileTopics.length || orbit.center?.regions?.length),

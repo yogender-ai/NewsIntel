@@ -1,12 +1,15 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AlertTriangle, Bell, BellOff, Check, CheckCheck, ChevronRight, Info, Shield, Zap } from 'lucide-react';
 import { usePersonalization } from '../context/PersonalizationContext';
+import Sidebar from '../components/worldpulse/Sidebar';
+import LockedNavToast from '../components/worldpulse/LockedNavToast';
+import { api } from '../api';
 
 const SEVERITY_CONFIG = {
-  critical: { icon: AlertTriangle, color: '#f2554e', bg: '#fff1f1', label: 'CRITICAL' },
-  warning: { icon: Shield, color: '#f28c24', bg: '#fff4e2', label: 'WARNING' },
-  info: { icon: Info, color: '#5076ff', bg: '#eef3ff', label: 'INFO' },
+  critical: { icon: AlertTriangle, color: '#f2554e', bg: 'rgba(242,85,78,0.08)', label: 'CRITICAL' },
+  warning: { icon: Shield, color: '#f28c24', bg: 'rgba(242,140,36,0.08)', label: 'WARNING' },
+  info: { icon: Info, color: '#818cf8', bg: 'rgba(129,140,248,0.08)', label: 'INFO' },
 };
 
 function AlertCard({ alert, onResolve, onNavigate }) {
@@ -18,7 +21,7 @@ function AlertCard({ alert, onResolve, onNavigate }) {
     created.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
 
   return (
-    <div className={`alert-card ${alert.resolved ? 'resolved' : ''} ${isNew ? 'unread' : ''}`}>
+    <div className={`wp-card alert-card ${alert.resolved ? 'resolved' : ''} ${isNew ? 'unread' : ''}`}>
       <div className="alert-icon" style={{ background: config.bg }}>
         <Icon size={18} style={{ color: config.color }} />
       </div>
@@ -52,7 +55,26 @@ function AlertCard({ alert, onResolve, onNavigate }) {
 export default function AlertsPage() {
   const navigate = useNavigate();
   const { alerts, unreadAlertCount, resolveAlert, resolveAllAlerts } = usePersonalization();
-  const [filter, setFilter] = useState('all'); // all | unresolved | critical | warning | info
+  const [filter, setFilter] = useState('all');
+  const [lockedToast, setLockedToast] = useState('');
+  const [prefs, setPrefs] = useState(null);
+
+  useEffect(() => {
+    api.getPreferences().then(r => setPrefs(r?.data || null)).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (!lockedToast) return;
+    const t = setTimeout(() => setLockedToast(''), 2200);
+    return () => clearTimeout(t);
+  }, [lockedToast]);
+
+  const topics = useMemo(() => {
+    const raw = prefs?.preferred_categories;
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'string') try { return JSON.parse(raw); } catch { return []; }
+    return [];
+  }, [prefs]);
 
   const filteredAlerts = useMemo(() => {
     let list = [...alerts];
@@ -73,90 +95,105 @@ export default function AlertsPage() {
   };
 
   return (
-    <div className="alerts-page fin">
-      <header className="alerts-header">
-        <div>
-          <h1>Smart Alerts</h1>
-          <p>Intelligent notifications based on your tracked topics, entities, and exposure thresholds.</p>
-        </div>
-        <div className="alerts-summary">
-          <div className={`alert-summary-badge ${criticalCount ? 'has-items' : ''}`}>
-            <AlertTriangle size={16} />
-            <b>{criticalCount}</b>
-            <span>Critical</span>
+    <div className="world-pulse-page alerts-wp-page">
+      <Sidebar
+        preferences={{ hasPreferences: Boolean(topics.length), topics, regions: [], entities: [] }}
+        activeItem="alerts"
+        onHome={() => navigate('/dashboard')}
+        onOrbit={() => navigate('/orbit')}
+        onMap={() => navigate('/map')}
+        onSimulator={() => navigate('/simulator')}
+        onLocked={setLockedToast}
+        onWatchlist={() => navigate('/watchlist')}
+        onAlerts={() => {}}
+        onSetFocus={() => navigate('/onboarding')}
+        onSettings={() => navigate('/settings')}
+      />
+      <main className="world-pulse-main alerts-main">
+        <header className="ni-screen-header">
+          <div>
+            <h1>Smart Alerts</h1>
+            <p>Intelligent notifications based on your tracked topics, entities, and exposure thresholds.</p>
           </div>
-          <div className={`alert-summary-badge ${warningCount ? 'has-items' : ''}`}>
-            <Shield size={16} />
-            <b>{warningCount}</b>
-            <span>Warning</span>
+          <div className="alerts-summary-row">
+            <div className={`alert-summary-badge ${criticalCount ? 'has-items' : ''}`}>
+              <AlertTriangle size={16} />
+              <b>{criticalCount}</b>
+              <span>Critical</span>
+            </div>
+            <div className={`alert-summary-badge ${warningCount ? 'has-items' : ''}`}>
+              <Shield size={16} />
+              <b>{warningCount}</b>
+              <span>Warning</span>
+            </div>
+            <div className={`alert-summary-badge ${infoCount ? 'has-items' : ''}`}>
+              <Info size={16} />
+              <b>{infoCount}</b>
+              <span>Info</span>
+            </div>
           </div>
-          <div className={`alert-summary-badge ${infoCount ? 'has-items' : ''}`}>
-            <Info size={16} />
-            <b>{infoCount}</b>
-            <span>Info</span>
-          </div>
-        </div>
-      </header>
+        </header>
 
-      <div className="alerts-controls">
-        <div className="alerts-filters">
-          {[
-            { key: 'all', label: `All (${alerts.length})` },
-            { key: 'unresolved', label: `Active (${unresolvedAlerts.length})` },
-            { key: 'critical', label: 'Critical' },
-            { key: 'warning', label: 'Warnings' },
-            { key: 'info', label: 'Info' },
-          ].map(f => (
-            <button key={f.key} className={filter === f.key ? 'active' : ''} onClick={() => setFilter(f.key)}>
-              {f.label}
+        <div className="alerts-controls">
+          <div className="alerts-filters">
+            {[
+              { key: 'all', label: `All (${alerts.length})` },
+              { key: 'unresolved', label: `Active (${unresolvedAlerts.length})` },
+              { key: 'critical', label: 'Critical' },
+              { key: 'warning', label: 'Warnings' },
+              { key: 'info', label: 'Info' },
+            ].map(f => (
+              <button key={f.key} className={filter === f.key ? 'active' : ''} onClick={() => setFilter(f.key)}>
+                {f.label}
+              </button>
+            ))}
+          </div>
+          {unresolvedAlerts.length > 0 && (
+            <button className="wp-icon-btn" onClick={resolveAllAlerts}>
+              <CheckCheck size={15} /> Resolve All
             </button>
-          ))}
+          )}
         </div>
-        {unresolvedAlerts.length > 0 && (
-          <button className="btn-resolve-all" onClick={resolveAllAlerts}>
-            <CheckCheck size={15} /> Resolve All
-          </button>
+
+        {filteredAlerts.length === 0 ? (
+          <div className="watchlist-empty wp-card">
+            <BellOff size={28} />
+            <h2>{filter === 'all' ? 'No alerts yet' : 'No matching alerts'}</h2>
+            <p>
+              {filter === 'all'
+                ? 'Alerts are generated when tracked entities move, exposure crosses thresholds, or critical signals appear.'
+                : 'Try a different filter to see more alerts.'
+              }
+            </p>
+            <button className="orbit-story-button" onClick={() => navigate('/dashboard')}>
+              <Zap size={15} /> Go to Dashboard
+            </button>
+          </div>
+        ) : (
+          <div className="alerts-list">
+            {filteredAlerts.map(alert => (
+              <AlertCard
+                key={alert.id}
+                alert={alert}
+                onResolve={resolveAlert}
+                onNavigate={handleNavigate}
+              />
+            ))}
+          </div>
         )}
-      </div>
 
-      {filteredAlerts.length === 0 ? (
-        <div className="alerts-empty">
-          <BellOff size={36} />
-          <h2>{filter === 'all' ? 'No alerts yet' : 'No matching alerts'}</h2>
-          <p>
-            {filter === 'all'
-              ? 'Alerts are generated when tracked entities move, exposure crosses thresholds, or critical signals appear.'
-              : 'Try a different filter to see more alerts.'
-            }
-          </p>
-          <button className="btn btn-primary" onClick={() => navigate('/dashboard')}>
-            <Zap size={15} /> Go to Dashboard
-          </button>
+        <div className="alerts-footer wp-card">
+          <Bell size={15} />
+          <div>
+            <b>How alerts work</b>
+            <p>
+              Alerts fire when: a signal hits CRITICAL tier, your exposure crosses 80, a tracked entity moves to SIGNAL/CRITICAL,
+              or a topic's pulse delta exceeds ±12. All thresholds are tuned to your profile.
+            </p>
+          </div>
         </div>
-      ) : (
-        <div className="alerts-list">
-          {filteredAlerts.map(alert => (
-            <AlertCard
-              key={alert.id}
-              alert={alert}
-              onResolve={resolveAlert}
-              onNavigate={handleNavigate}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Info footer */}
-      <div className="alerts-footer">
-        <Bell size={15} />
-        <div>
-          <b>How alerts work</b>
-          <p>
-            Alerts fire when: a signal hits CRITICAL tier, your exposure crosses 80, a tracked entity moves to SIGNAL/CRITICAL,
-            or a topic's pulse delta exceeds ±12. All thresholds are tuned to your profile.
-          </p>
-        </div>
-      </div>
+      </main>
+      <LockedNavToast message={lockedToast} />
     </div>
   );
 }

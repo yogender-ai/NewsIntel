@@ -16,9 +16,9 @@ import SimulatorPage from './pages/SimulatorPage';
 import EventDetail from './pages/EventDetail';
 import './index.css';
 
-export const AppContext = createContext({ headlines: [], setHeadlines: () => {}, mode: 'command', setMode: () => {} });
+export const AppContext = createContext({ headlines: [], setHeadlines: () => {}, mode: 'command', setMode: () => {}, worldPulseValue: 0, setWorldPulseValue: () => {} });
 
-/* ── Minimal auth loading — real pipeline boot is in HomePage ── */
+/* ── Minimal auth loading ── */
 const AuthLoading = () => (
   <div style={{
     width: '100vw', height: '100vh', background: '#050811',
@@ -70,7 +70,6 @@ const TopBar = () => {
   const { user, logout } = useAuth();
   const [time, setTime] = useState('');
 
-  // Try to get alert count from personalization context (only available inside Protected routes)
   let alertCount = 0;
   try {
     const p = usePersonalization();
@@ -119,6 +118,28 @@ const TopBar = () => {
   );
 };
 
+/* ── Global Live Cursor — works on ALL pages ─────────────────────── */
+function GlobalLiveCursor() {
+  const [pos, setPos] = useState({ x: -100, y: -100 });
+
+  useEffect(() => {
+    const move = (e) => {
+      setPos({ x: e.clientX, y: e.clientY });
+      document.documentElement.style.setProperty('--cursor-x', `${e.clientX}px`);
+      document.documentElement.style.setProperty('--cursor-y', `${e.clientY}px`);
+    };
+    window.addEventListener('pointermove', move);
+    return () => window.removeEventListener('pointermove', move);
+  }, []);
+
+  return (
+    <div className="custom-cursor" style={{ transform: `translate(${pos.x}px, ${pos.y}px)` }}>
+      <span className="cursor-core" />
+      <span className="cursor-glow" />
+    </div>
+  );
+}
+
 /* ── Toast (global) ──────────────────────────────────────────────── */
 const GlobalToast = () => {
   try {
@@ -133,25 +154,31 @@ const GlobalToast = () => {
 /* ── App Root ────────────────────────────────────────────────────────── */
 function App() {
   const [headlines, setHeadlines] = useState([]);
+  const [worldPulseValue, setWorldPulseValue] = useState(0);
   const [mode, setModeState] = useState(localStorage.getItem('ni_mode') || 'command');
-  const [themeSeed] = useState(() => {
-    const next = Number(localStorage.getItem('ni_theme_spin') || '0') + 1;
-    localStorage.setItem('ni_theme_spin', String(next));
-    return next;
-  });
 
   const setMode = (m) => {
     setModeState(m);
     localStorage.setItem('ni_mode', m);
   };
 
+  // Pulse-reactive background: set CSS custom property for nebula intensity
+  useEffect(() => {
+    const intensity = Math.max(0.15, Math.min(1, (worldPulseValue || 0) / 100));
+    document.documentElement.style.setProperty('--pulse-intensity', String(intensity));
+    // Map pulse to hue shift for reactive background
+    const hue = worldPulseValue > 75 ? '0' : worldPulseValue > 50 ? '280' : '220';
+    document.documentElement.style.setProperty('--pulse-hue', hue);
+  }, [worldPulseValue]);
+
   return (
     <AuthProvider>
-      <AppContext.Provider value={{ headlines, setHeadlines, mode, setMode }}>
+      <AppContext.Provider value={{ headlines, setHeadlines, mode, setMode, worldPulseValue, setWorldPulseValue }}>
         <Router>
-          <div className={`app-container ${['theme-tech', 'theme-cyber', 'theme-aurora'][themeSeed % 3]} ${mode === 'calm' ? 'calm-mode' : ''}`}>
+          <div className={`app-container ${mode === 'calm' ? 'calm-mode' : ''}`}>
             <div className="scanline" />
             <AppRoutes />
+            <GlobalLiveCursor />
           </div>
         </Router>
       </AppContext.Provider>
@@ -161,7 +188,7 @@ function App() {
 
 function AppRoutes() {
   const location = useLocation();
-  const isWorldPulse = ['/', '/dashboard', '/orbit', '/map', '/simulator', '/story'].includes(location.pathname) || location.pathname.startsWith('/dashboard/event/');
+  const isWorldPulse = ['/', '/dashboard', '/orbit', '/map', '/simulator', '/story', '/watchlist', '/alerts', '/settings'].includes(location.pathname) || location.pathname.startsWith('/dashboard/event/');
   return (
     <>
       {!isWorldPulse && <TopBar />}
