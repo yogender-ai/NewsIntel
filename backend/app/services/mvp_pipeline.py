@@ -546,6 +546,8 @@ class MVPNewsPipeline:
                 continue
             if self.is_retryable_openrouter_response(response):
                 continue
+            if self.is_empty_openrouter_success(response):
+                continue
             break
 
         response = last_response or {"ok": False, "status_code": None, "body": "OpenRouter model chain did not run"}
@@ -586,6 +588,10 @@ class MVPNewsPipeline:
         status = response.get("status_code")
         body = str(response.get("body") or "").lower()
         return status in (404, 408, 409, 425, 429, 500, 502, 503, 504) or "high demand" in body or "unavailable" in body
+
+    @staticmethod
+    def is_empty_openrouter_success(response: dict) -> bool:
+        return response.get("provider") == "openrouter" and response.get("status_code") == 200 and not response.get("content")
 
     @staticmethod
     def retry_token_budget(response: dict, requested_tokens: int) -> int | None:

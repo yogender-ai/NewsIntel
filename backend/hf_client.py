@@ -425,52 +425,30 @@ RULES:
     if result_text:
         _last_synthesis_provider = "openrouter"
 
-    # Priority 2: Gemini (Fallback)
+    # Priority 2: Gemini
     if not result_text:
         result_text = await _call_gemini(prompt)
         if result_text:
             _last_synthesis_provider = "gemini"
 
     if not result_text:
-        _last_synthesis_provider = "deterministic_fallback"
-        return _fallback_intelligence(article_list)
+        _last_synthesis_provider = "none"
+        raise RuntimeError("AI synthesis unavailable from OpenRouter and Gemini")
 
     try:
         parsed = json.loads(_clean_json(result_text))
         # Validate
         if not isinstance(parsed.get("clusters"), list) or len(parsed["clusters"]) == 0:
-            parsed["clusters"] = _fallback_clusters(article_list)
+            raise ValueError("AI synthesis JSON did not include clusters")
         if not isinstance(parsed.get("impact"), dict):
-            parsed["impact"] = {"headline": "Analysis pending", "why_it_matters": "", "actions": []}
+            raise ValueError("AI synthesis JSON did not include impact")
         parsed["_synthesis_provider"] = _last_synthesis_provider
         return parsed
     except Exception as e:
         logger.warning(f"Intelligence parse error: {e}")
-        _last_synthesis_provider = "deterministic_fallback"
-        return _fallback_intelligence(article_list)
+        _last_synthesis_provider = "none"
+        raise
 
-
-def _fallback_clusters(articles):
-    return [
-        {
-            "thread_title": a["title"],
-            "article_ids": [a["id"]],
-            "summary": "Fallback cluster generated from the article title because AI synthesis is unavailable.",
-            "pulse_score": 50,
-            "risk_type": "neutral",
-            "synthesis_mode": "fallback_not_ai",
-            "is_ai_synthesized": False,
-        }
-        for a in articles
-    ]
-
-def _fallback_intelligence(articles):
-    return {
-        "daily_brief": "Intelligence synthesis temporarily delayed. HuggingFace sentiment and entity analysis remain active.\nTry refreshing in 1-2 minutes when API quota resets.\nAll news sources are being ingested from Google News RSS in real-time.\nThe system will automatically recover once the AI provider responds.",
-        "clusters": _fallback_clusters(articles),
-        "impact": {"headline": "AI synthesis temporarily at capacity — data is still live", "why_it_matters": "Sentiment and entities from HuggingFace are processing normally. Only the brief and clustering require the AI provider.", "actions": ["Wait 60 seconds and refresh", "Check Cloud Command for API status"]},
-        "_synthesis_provider": "deterministic_fallback",
-    }
 
 
 # ---------------------------------------------------------------------------

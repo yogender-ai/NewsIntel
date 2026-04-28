@@ -1,7 +1,7 @@
 import { useEffect, useRef, useMemo } from 'react';
 
-/* ── HoloSpherePulse Canvas — premium 3D-like abstract sphere ── */
-function HoloSpherePulse({ size, pulseValue }) {
+/* ── Premium Particle Sphere with Aurora Waves ── */
+function AuroraSphere({ size, pulseValue }) {
   const canvasRef = useRef(null);
   const frameRef = useRef(null);
 
@@ -23,75 +23,117 @@ function HoloSpherePulse({ size, pulseValue }) {
 
     const cx = size / 2;
     const cy = size / 2;
-    const radius = size * 0.38;
-    
-    // Generate particles for a sphere
-    const numPoints = 120;
-    const points = [];
-    for (let i = 0; i < numPoints; i++) {
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos((Math.random() * 2) - 1);
-      points.push({ theta, phi, basePhi: phi, speed: 0.005 + Math.random() * 0.015 });
-    }
+    const radius = size * 0.34;
+
+    // Multiple particle layers for depth
+    const layers = [
+      { count: 80, rMul: 1.0, speed: 0.008, baseAlpha: 0.6, color: [94, 234, 212] },
+      { count: 60, rMul: 0.85, speed: 0.012, baseAlpha: 0.4, color: [139, 92, 246] },
+      { count: 40, rMul: 1.15, speed: 0.005, baseAlpha: 0.3, color: [192, 132, 252] },
+    ];
+
+    const allPoints = layers.flatMap(layer =>
+      Array.from({ length: layer.count }, () => ({
+        theta: Math.random() * Math.PI * 2,
+        phi: Math.acos(Math.random() * 2 - 1),
+        basePhi: Math.acos(Math.random() * 2 - 1),
+        speed: layer.speed + Math.random() * 0.01,
+        rMul: layer.rMul,
+        baseAlpha: layer.baseAlpha,
+        color: layer.color,
+      }))
+    );
+
+    // Aurora wave rings
+    const rings = Array.from({ length: 5 }, (_, i) => ({
+      phase: (i / 5) * Math.PI * 2,
+      speed: 0.02 + i * 0.005,
+      radius: radius * (0.9 + i * 0.12),
+      alpha: 0.15 - i * 0.02,
+    }));
 
     let time = 0;
 
     function tick() {
-      time += 0.01 * (1 + intensity * 2);
+      time += 0.008 * (1 + intensity * 1.5);
       ctx.clearRect(0, 0, size, size);
 
-      // Draw glowing background orb
-      const grad = ctx.createRadialGradient(cx, cy, radius * 0.4, cx, cy, radius * 1.2);
-      grad.addColorStop(0, `rgba(139, 92, 246, ${0.1 * intensity})`);
-      grad.addColorStop(0.5, `rgba(94, 234, 212, ${0.05 * intensity})`);
-      grad.addColorStop(1, 'transparent');
-      ctx.fillStyle = grad;
+      // Deep ambient glow
+      const amb1 = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius * 1.6);
+      amb1.addColorStop(0, `rgba(139,92,246,${0.06 * intensity})`);
+      amb1.addColorStop(0.4, `rgba(94,234,212,${0.03 * intensity})`);
+      amb1.addColorStop(1, 'transparent');
+      ctx.fillStyle = amb1;
       ctx.beginPath();
-      ctx.arc(cx, cy, radius * 1.5, 0, Math.PI * 2);
+      ctx.arc(cx, cy, radius * 1.8, 0, Math.PI * 2);
       ctx.fill();
 
-      // Render 3D points
-      points.forEach(p => {
-        // Add wave effect based on intensity
-        p.theta += p.speed * (0.5 + intensity);
-        const wave = Math.sin(p.theta * 3 + time * 5) * 0.1 * intensity;
+      // Aurora wave rings
+      rings.forEach(ring => {
+        ctx.beginPath();
+        for (let a = 0; a < Math.PI * 2; a += 0.02) {
+          const wave = Math.sin(a * 3 + time * ring.speed * 60 + ring.phase) * 6 * intensity;
+          const r = ring.radius + wave;
+          const px = cx + Math.cos(a) * r;
+          const py = cy + Math.sin(a) * r;
+          a === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+        }
+        ctx.closePath();
+        ctx.strokeStyle = `rgba(139,92,246,${ring.alpha * intensity})`;
+        ctx.lineWidth = 1;
+        ctx.shadowColor = 'rgba(139,92,246,0.3)';
+        ctx.shadowBlur = 8 * intensity;
+        ctx.stroke();
+        ctx.shadowBlur = 0;
+      });
+
+      // 3D sphere particles
+      ctx.shadowBlur = 0;
+      allPoints.forEach(p => {
+        p.theta += p.speed * (0.5 + intensity * 0.8);
+        const wave = Math.sin(p.theta * 2 + time * 4) * 0.08 * intensity;
         const currentPhi = p.basePhi + wave;
 
-        const x = radius * Math.sin(currentPhi) * Math.cos(p.theta);
-        const y = radius * Math.sin(currentPhi) * Math.sin(p.theta);
-        const z = radius * Math.cos(currentPhi);
+        const r = radius * p.rMul;
+        const x = r * Math.sin(currentPhi) * Math.cos(p.theta);
+        const y = r * Math.sin(currentPhi) * Math.sin(p.theta);
+        const z = r * Math.cos(currentPhi);
 
-        // Simple perspective
-        const perspective = 1 / (1 + z / (radius * 3));
+        const perspective = 1 / (1 + z / (r * 2.5));
         const px = cx + x * perspective;
         const py = cy + y * perspective;
-        
-        // Depth-based fading and sizing
-        const zNorm = (z + radius) / (radius * 2); // 0 to 1
-        const alpha = 0.1 + (1 - zNorm) * 0.7;
-        const ptSize = 0.5 + (1 - zNorm) * 2.5 * (1 + intensity);
+
+        const zNorm = (z + r) / (r * 2);
+        const alpha = p.baseAlpha * (0.2 + (1 - zNorm) * 0.8);
+        const ptSize = 0.8 + (1 - zNorm) * 2.5 * (0.8 + intensity * 0.4);
 
         ctx.beginPath();
         ctx.arc(px, py, ptSize, 0, Math.PI * 2);
-        
-        if (zNorm < 0.5) {
-          ctx.fillStyle = `rgba(94, 234, 212, ${alpha})`;
-          ctx.shadowColor = 'rgba(94, 234, 212, 0.8)';
-          ctx.shadowBlur = 5 * intensity;
-        } else {
-          ctx.fillStyle = `rgba(167, 139, 250, ${alpha * 0.5})`;
-          ctx.shadowBlur = 0;
+        const [cr, cg, cb] = p.color;
+        ctx.fillStyle = `rgba(${cr},${cg},${cb},${alpha})`;
+
+        if (zNorm < 0.4) {
+          ctx.shadowColor = `rgba(${cr},${cg},${cb},0.6)`;
+          ctx.shadowBlur = 4 * intensity;
         }
         ctx.fill();
+        ctx.shadowBlur = 0;
       });
 
-      // Add intense heartbeat ring
-      const beat = (Math.sin(time * 8) + 1) / 2; // 0 to 1
-      if (beat > 0.8) {
+      // Heartbeat pulse rings
+      const beat = Math.pow((Math.sin(time * 6) + 1) / 2, 3);
+      if (beat > 0.3) {
+        const expand = (beat - 0.3) * 1.4;
         ctx.beginPath();
-        ctx.arc(cx, cy, radius * (1 + (beat - 0.8) * intensity), 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(94, 234, 212, ${(beat - 0.8) * intensity})`;
-        ctx.lineWidth = 2;
+        ctx.arc(cx, cy, radius * (1 + expand * 0.15 * intensity), 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(94,234,212,${expand * 0.2 * intensity})`;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius * (1 + expand * 0.25 * intensity), 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(139,92,246,${expand * 0.1 * intensity})`;
+        ctx.lineWidth = 1;
         ctx.stroke();
       }
 
@@ -111,14 +153,14 @@ function HoloSpherePulse({ size, pulseValue }) {
   );
 }
 
-/* ── Arc Ring SVG ────────────────────────────── */
+/* ── Premium Arc Ring SVG with gradient glow ── */
 function ArcRing({ value, size }) {
   const center = size / 2;
-  const radius = size * 0.345;
+  const radius = size * 0.38;
   const circ = 2 * Math.PI * radius;
   const pct = Math.max(0, Math.min(100, Number(value) || 0));
   const offset = circ - (pct / 100) * circ;
-  const stroke = size * 0.038;
+  const stroke = size * 0.028;
 
   return (
     <svg
@@ -128,35 +170,50 @@ function ArcRing({ value, size }) {
       aria-hidden="true"
     >
       <defs>
-        <linearGradient id="wp-arc-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stopColor="#7c3aed" />
-          <stop offset="50%" stopColor="#8b5cf6" />
-          <stop offset="100%" stopColor="#c084fc" />
+        <linearGradient id="wp-arc-grad-v2" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#5eead4" />
+          <stop offset="40%" stopColor="#8b5cf6" />
+          <stop offset="70%" stopColor="#c084fc" />
+          <stop offset="100%" stopColor="#5eead4" />
         </linearGradient>
-        <filter id="wp-arc-glow" x="-30%" y="-30%" width="160%" height="160%">
-          <feGaussianBlur stdDeviation="6" result="blur" />
+        <filter id="wp-arc-glow-v2" x="-40%" y="-40%" width="180%" height="180%">
+          <feGaussianBlur stdDeviation="8" result="blur" />
           <feMerge>
             <feMergeNode in="blur" />
             <feMergeNode in="SourceGraphic" />
           </feMerge>
         </filter>
       </defs>
+      {/* Outer faint ring */}
+      <circle cx={center} cy={center} r={radius + 12} fill="none" stroke="rgba(139,92,246,0.03)" strokeWidth="0.5" />
       {/* Track */}
-      <circle cx={center} cy={center} r={radius} fill="none" stroke="rgba(139,92,246,0.06)" strokeWidth={stroke} />
+      <circle cx={center} cy={center} r={radius} fill="none" stroke="rgba(139,92,246,0.05)" strokeWidth={stroke} />
       {/* Value arc */}
       <circle
         cx={center} cy={center} r={radius} fill="none"
-        stroke="url(#wp-arc-grad)" strokeWidth={stroke} strokeLinecap="round"
+        stroke="url(#wp-arc-grad-v2)" strokeWidth={stroke} strokeLinecap="round"
         strokeDasharray={circ} strokeDashoffset={offset}
         transform={`rotate(-90 ${center} ${center})`}
-        filter="url(#wp-arc-glow)"
-        style={{ transition: 'stroke-dashoffset 1.5s cubic-bezier(0.22,1,0.36,1)' }}
+        filter="url(#wp-arc-glow-v2)"
+        style={{ transition: 'stroke-dashoffset 2s cubic-bezier(0.22,1,0.36,1)' }}
       />
+      {/* Tip glow dot */}
+      {pct > 0 && (
+        <circle
+          cx={center + radius * Math.cos((-90 + pct * 3.6) * Math.PI / 180)}
+          cy={center + radius * Math.sin((-90 + pct * 3.6) * Math.PI / 180)}
+          r="4" fill="#5eead4"
+          filter="url(#wp-arc-glow-v2)"
+        >
+          <animate attributeName="r" values="3;5;3" dur="2s" repeatCount="indefinite" />
+          <animate attributeName="opacity" values="0.8;1;0.8" dur="2s" repeatCount="indefinite" />
+        </circle>
+      )}
     </svg>
   );
 }
 
-/* ── Delta Arrow ─────────────────────────────── */
+/* ── Delta Arrow ── */
 function DeltaArrow({ delta }) {
   if (delta === null || delta === undefined) return null;
   const up = delta > 0;
@@ -170,17 +227,17 @@ function DeltaArrow({ delta }) {
   );
 }
 
-/* ── Main Component ──────────────────────────── */
+/* ── Main World Pulse Ring ── */
 export default function WorldPulseRing({ worldPulse }) {
   const value = worldPulse?.value;
   const hasValue = value !== null && value !== undefined && Number.isFinite(Number(value));
   const pct = hasValue ? Number(value) : 0;
-  const SIZE = 300;
+  const SIZE = 320;
 
   return (
     <section className="world-pulse-card wp-ring-card">
       <div className="wp-ring-scene" style={{ width: SIZE, height: SIZE }}>
-        <HoloSpherePulse size={SIZE} pulseValue={pct} />
+        <AuroraSphere size={SIZE} pulseValue={pct} />
         <ArcRing value={pct} size={SIZE} />
         <div className="wp-ring-center">
           <span className="wp-ring-eyebrow">WORLD PULSE</span>
