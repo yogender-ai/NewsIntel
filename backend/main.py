@@ -1316,8 +1316,17 @@ async def ingest_now(request: Request, payload: IngestNowRequest | None = None):
                 "max_articles": max_articles,
             },
         )
-    if result.get("status") in {"ai_deferred", "failed"}:
+    if result.get("status") == "failed":
         raise HTTPException(status_code=502, detail=result)
+    if result.get("status") == "ai_deferred":
+        return {
+            "status": "deferred",
+            "message": "Ingestion reached the AI circuit breaker; scheduler should retry on the next interval.",
+            "topics": topics,
+            "regions": regions,
+            "max_articles": max_articles,
+            "result": result,
+        }
     return {
         "status": "success",
         "message": "Ingestion completed",
@@ -1340,7 +1349,11 @@ async def enrich_batch(request: Request):
     async with EventStoreSessionLocal() as session:
         result = await MVPNewsPipeline(session, settings=mvp_settings).enrich_batch()
         if result.get("status") == "deferred":
-            raise HTTPException(status_code=502, detail=result)
+            return {
+                "status": "deferred",
+                "message": "AI circuit breaker is cooling down; enrichment will retry on the next interval.",
+                "result": result,
+            }
         return result
 
 
