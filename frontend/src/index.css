@@ -2569,3 +2569,388 @@ svg {
     grid-template-columns: 1fr;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   PREMIUM FLUID DASHBOARD STYLES
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── What Changed Today — fluid interactive list ────────── */
+.wca-container {
+  padding: 24px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 16px !important;
+}
+
+.wca-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  padding-bottom: 14px;
+}
+
+.wca-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.wca-header-icon {
+  color: #a5b4fc;
+  filter: drop-shadow(0 0 6px rgba(165,180,252,0.3));
+}
+
+.wca-title {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: #e2e8f0;
+}
+
+.wca-subtitle {
+  font-size: 11px;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.wca-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.wca-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.015);
+  border: 1px solid rgba(255,255,255,0.03);
+  position: relative;
+  cursor: pointer;
+  transition: all 0.4s cubic-bezier(0.22,1,0.36,1);
+  gap: 12px;
+  overflow: hidden;
+  animation: rowReveal 0.45s cubic-bezier(0.16,1,0.3,1) both;
+}
+
+.wca-row:hover {
+  background: rgba(139,92,246,0.04) !important;
+  border-color: rgba(139,92,246,0.12) !important;
+  transform: translateX(4px) scale(1.005);
+  box-shadow: 0 4px 20px -4px rgba(139,92,246,0.08);
+}
+
+.wca-row-selected {
+  background: rgba(139,92,246,0.06) !important;
+  border-color: rgba(139,92,246,0.18) !important;
+  box-shadow: inset 3px 0 0 rgba(139,92,246,0.5);
+}
+
+.wca-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 140px;
+}
+
+.wca-icon-circle {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: rgba(141,162,255,0.06);
+  color: #a5b4fc;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.35s ease;
+}
+
+.wca-row:hover .wca-icon-circle {
+  background: rgba(139,92,246,0.1);
+  transform: scale(1.08) rotate(5deg);
+}
+
+.wca-topic {
+  font-size: 14px;
+  font-weight: 800;
+  color: #f1f5f9;
+  text-transform: capitalize;
+}
+
+.wca-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.wca-reason {
+  font-size: 11px;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  text-align: right;
+  transition: color 0.3s;
+}
+
+.wca-row:hover .wca-reason {
+  color: #94a3b8;
+}
+
+.wca-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  background: rgba(15,23,42,0.7);
+  border: 1px solid color-mix(in srgb, var(--wca-color, #a5b4fc) 15%, transparent);
+  font-size: 11px;
+  font-weight: 800;
+  flex-shrink: 0;
+  transition: all 0.3s ease;
+}
+
+.wca-pill span {
+  color: var(--wca-color, #a5b4fc);
+}
+
+.wca-row:hover .wca-pill {
+  background: rgba(15,23,42,0.9);
+  transform: scale(1.02);
+}
+
+.wca-sparkline-track {
+  position: absolute;
+  bottom: 0;
+  left: 20px;
+  width: 60px;
+  height: 2px;
+  background: rgba(255,255,255,0.03);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.wca-sparkline-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.8s cubic-bezier(0.22,1,0.36,1);
+}
+
+/* ── Dashboard layout — breathing spacing ───────────────── */
+.simple-dashboard {
+  animation: fadeUp 0.7s cubic-bezier(0.16,1,0.3,1) both;
+}
+
+.simple-left-rail {
+  border-radius: 16px !important;
+  animation: fadeUp 0.6s cubic-bezier(0.16,1,0.3,1) 0.1s both;
+}
+
+.simple-context {
+  border-radius: 16px !important;
+  animation: fadeUp 0.6s cubic-bezier(0.16,1,0.3,1) 0.2s both;
+}
+
+.simple-feed-header h1 {
+  background: linear-gradient(135deg, #f1f5f9 0%, #c4b5fd 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ── Signal sparkline — premium glow ────────────────────── */
+.signal-spark {
+  filter: drop-shadow(0 0 4px rgba(139,92,246,0.15));
+}
+
+.signal-spark polyline {
+  stroke: url(#spark-grad);
+  filter: drop-shadow(0 0 3px rgba(139,92,246,0.2));
+}
+
+/* ── Story flow nodes — premium connected graph ─────────── */
+.story-flow-animated {
+  overflow-x: auto;
+  padding: 12px 0;
+}
+
+.flow-node-v2 {
+  animation: nodeAppear 0.5s cubic-bezier(0.16,1,0.3,1) both;
+  transition: transform 0.3s ease;
+}
+
+.flow-node-v2:hover {
+  transform: translateY(-3px) scale(1.03);
+}
+
+.flow-connector {
+  animation: connectorAppear 0.3s cubic-bezier(0.16,1,0.3,1) both;
+}
+
+@keyframes nodeAppear {
+  from { opacity: 0; transform: translateY(10px) scale(0.9); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes connectorAppear {
+  from { opacity: 0; transform: scaleX(0); }
+  to { opacity: 1; transform: scaleX(1); }
+}
+
+/* ── Relevance meter — fluid fill ───────────────────────── */
+.relevance-meter {
+  background: rgba(255,255,255,0.04);
+  border-radius: 999px;
+  overflow: hidden;
+  height: 6px;
+}
+
+.relevance-meter span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #818cf8, #c084fc);
+  border-radius: 999px;
+  transition: width 1.2s cubic-bezier(0.22,1,0.36,1);
+  box-shadow: 0 0 10px rgba(139,92,246,0.3);
+}
+
+/* ── Context tabs — fluid selection ─────────────────────── */
+.context-tabs button {
+  border-radius: 10px !important;
+  transition: all 0.35s cubic-bezier(0.22,1,0.36,1) !important;
+  position: relative;
+}
+
+.context-tabs button.active {
+  background: rgba(139,92,246,0.08) !important;
+  border-color: rgba(139,92,246,0.18) !important;
+  color: #c4b5fd !important;
+  box-shadow: 0 2px 12px -2px rgba(139,92,246,0.12);
+}
+
+/* ── Tier badges — premium glow ─────────────────────────── */
+.tier-badge {
+  border-radius: 8px !important;
+  font-size: 10px !important;
+  font-weight: 900 !important;
+  letter-spacing: 0.06em;
+  transition: all 0.3s ease;
+}
+
+.tier-critical {
+  text-shadow: 0 0 8px rgba(251,113,133,0.4);
+}
+
+.tier-signal {
+  text-shadow: 0 0 8px rgba(251,191,36,0.3);
+}
+
+/* ── Score buttons — interactive reveal ──────────────────── */
+.score-button {
+  border-radius: 10px !important;
+  transition: all 0.35s cubic-bezier(0.22,1,0.36,1) !important;
+}
+
+.score-button:hover {
+  background: rgba(139,92,246,0.06) !important;
+  border-color: rgba(139,92,246,0.15) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px -2px rgba(139,92,246,0.1);
+}
+
+/* ── Why strip — ambient glow ───────────────────────────── */
+.why-strip {
+  border-radius: 16px !important;
+  position: relative;
+  overflow: hidden;
+}
+
+.why-strip::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(139,92,246,0.03), rgba(94,234,212,0.02));
+  pointer-events: none;
+}
+
+/* ── Walkthrough strip — breathing gradient ──────────────── */
+.walkthrough-strip {
+  border-radius: 14px !important;
+  background: linear-gradient(135deg, rgba(139,92,246,0.04), rgba(94,234,212,0.03)) !important;
+  border-color: rgba(139,92,246,0.08) !important;
+  animation: walkBreath 5s ease-in-out infinite;
+}
+
+@keyframes walkBreath {
+  0%, 100% { border-color: rgba(139,92,246,0.08); }
+  50% { border-color: rgba(94,234,212,0.12); }
+}
+
+/* ── Metric drawer — cinematic slide ────────────────────── */
+.metric-drawer {
+  border-radius: 16px !important;
+  animation: metricSlide 0.4s cubic-bezier(0.16,1,0.3,1) both;
+  border-color: rgba(139,92,246,0.1) !important;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.5) !important;
+}
+
+@keyframes metricSlide {
+  from { opacity: 0; transform: translateY(-12px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── Updated pill — live breathing ──────────────────────── */
+.updated-pill {
+  border-radius: 999px !important;
+  animation: pillBreath 4s ease-in-out infinite;
+}
+
+@keyframes pillBreath {
+  0%, 100% { border-color: rgba(94,234,212,0.1); }
+  50% { border-color: rgba(94,234,212,0.25); box-shadow: 0 0 12px rgba(94,234,212,0.06); }
+}
+
+/* ── Active action buttons — confirmed state ────────────── */
+.active-action {
+  background: rgba(94,234,212,0.08) !important;
+  border-color: rgba(94,234,212,0.2) !important;
+  color: #5eead4 !important;
+}
+
+/* ── Empty state — premium feel ─────────────────────────── */
+.empty-state,
+.wp-empty {
+  animation: fadeUp 0.6s cubic-bezier(0.16,1,0.3,1) both;
+}
+
+.phase5-loader {
+  animation: fadeUp 0.5s ease both;
+}
+
+.phase5-loader .pulse-glow {
+  animation: loaderPulse 1.8s cubic-bezier(0.4,0,0.6,1) infinite;
+}
+
+@keyframes loaderPulse {
+  0%, 100% { transform: scale(1); opacity: 0.5; box-shadow: 0 0 20px rgba(139,92,246,0.2); }
+  50% { transform: scale(1.4); opacity: 1; box-shadow: 0 0 40px rgba(139,92,246,0.4); }
+}
+
+/* ── Top bar — frosted depth ────────────────────────────── */
+.top-bar {
+  backdrop-filter: blur(24px) saturate(1.4) !important;
+  background: rgba(5,8,18,0.7) !important;
+  border-bottom-color: rgba(255,255,255,0.03) !important;
+}
