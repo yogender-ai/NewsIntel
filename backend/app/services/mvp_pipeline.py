@@ -215,14 +215,15 @@ class MVPNewsPipeline:
             await self.session.commit()
             return {"status": "ai_deferred", "cycle_id": str(cycle.id), "error": str(exc)[:240]}
         except Exception as exc:
-            cycle.status = "FAILED"
-            cycle.error_message = str(exc)[:1000]
-            cycle.finished_at = utcnow()
-            await self.session.commit()
             logger.exception("MVP ingestion failed")
+            await self.session.rollback()
             raise
         finally:
-            await self.release_lock("mvp_ingestion")
+            try:
+                await self.release_lock("mvp_ingestion")
+            except Exception:
+                await self.session.rollback()
+                logger.warning("Failed to release MVP ingestion lock", exc_info=True)
 
     def normalize_candidates(self, raw_items: list[dict]) -> list[CandidateArticle]:
         candidates: list[CandidateArticle] = []
@@ -599,6 +600,8 @@ class MVPNewsPipeline:
         return lock.locked_until > utcnow()
 
     async def open_ai_circuit(self, response: dict) -> None:
+        if self.session is None:
+            return
         until = utcnow() + timedelta(minutes=self.settings.ai_circuit_breaker_cooldown_minutes)
         existing = await self.session.scalar(select(IngestionLock).where(IngestionLock.lock_name == "ai_circuit_breaker"))
         lock_owner = f"quota:{response.get('provider')}:{self.ai_circuit_signature}"
@@ -610,6 +613,8 @@ class MVPNewsPipeline:
         await self.session.flush()
 
     async def acquire_lock(self, name: str, minutes: int) -> bool:
+        if self.session is None:
+            return True
         now = utcnow()
         lock = await self.session.scalar(select(IngestionLock).where(IngestionLock.lock_name == name))
         if lock and lock.locked_until > now:
@@ -624,6 +629,8 @@ class MVPNewsPipeline:
         return True
 
     async def release_lock(self, name: str) -> None:
+        if self.session is None:
+            return
         lock = await self.session.scalar(select(IngestionLock).where(IngestionLock.lock_name == name))
         if lock and lock.locked_by == self.lock_owner:
             lock.locked_until = utcnow() - timedelta(seconds=1)
