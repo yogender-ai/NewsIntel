@@ -3219,3 +3219,178 @@ svg {
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   GLOBAL PULSE MATRIX — replaces World Pulse circle
+   ═══════════════════════════════════════════════════════════ */
+.gpm-card {
+  padding: 20px 24px !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 18px !important;
+}
+
+.gpm-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.gpm-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.gpm-eyebrow {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: #94a3b8;
+}
+
+.gpm-subtitle {
+  font-size: 11px;
+  color: #475569;
+}
+
+.gpm-score-block {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
+.gpm-score {
+  font-size: 36px;
+  font-weight: 950;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  transition: color 0.5s ease;
+}
+
+.gpm-score.gpm-critical { color: #fb7185; text-shadow: 0 0 20px rgba(251,113,133,0.3); }
+.gpm-score.gpm-elevated { color: #fbbf24; text-shadow: 0 0 20px rgba(251,191,36,0.3); }
+.gpm-score.gpm-moderate { color: #818cf8; text-shadow: 0 0 20px rgba(129,140,248,0.3); }
+.gpm-score.gpm-low { color: #34d399; text-shadow: 0 0 20px rgba(52,211,153,0.3); }
+
+.gpm-level-badge {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid;
+}
+
+.gpm-level-badge.gpm-critical { color: #fb7185; border-color: rgba(251,113,133,0.25); background: rgba(251,113,133,0.06); }
+.gpm-level-badge.gpm-elevated { color: #fbbf24; border-color: rgba(251,191,36,0.25); background: rgba(251,191,36,0.06); }
+.gpm-level-badge.gpm-moderate { color: #818cf8; border-color: rgba(129,140,248,0.25); background: rgba(129,140,248,0.06); }
+.gpm-level-badge.gpm-low { color: #34d399; border-color: rgba(52,211,153,0.25); background: rgba(52,211,153,0.06); }
+
+/* ── Dimension Rows ── */
+.gpm-dimensions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.gpm-dim-row {
+  display: grid;
+  grid-template-columns: 130px 1fr 120px;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.012);
+  border: 1px solid rgba(255,255,255,0.02);
+  transition: all 0.35s cubic-bezier(0.22,1,0.36,1);
+  animation: gpmRowIn 0.5s cubic-bezier(0.16,1,0.3,1) both;
+}
+
+@keyframes gpmRowIn {
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+.gpm-dim-row:hover {
+  background: rgba(255,255,255,0.025);
+  border-color: rgba(255,255,255,0.06);
+  transform: translateX(3px);
+}
+
+.gpm-dim-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.gpm-dim-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.gpm-dim-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #94a3b8;
+}
+
+.gpm-dim-bar-track {
+  height: 6px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+}
+
+.gpm-dim-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 1.5s cubic-bezier(0.22,1,0.36,1);
+  position: relative;
+}
+
+.gpm-dim-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
+.gpm-dim-score {
+  font-size: 16px;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  min-width: 28px;
+  text-align: right;
+}
+
+/* ── Footer ── */
+.gpm-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.03);
+}
+
+.gpm-delta {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+}
+
+.gpm-delta.up { color: #fb7185; }
+.gpm-delta.down { color: #34d399; }
+
+.gpm-copy {
+  font-size: 11px;
+  color: #475569;
+}
