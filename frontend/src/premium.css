@@ -7,50 +7,39 @@
   cursor: none !important;
 }
 
-/* ── Custom cursor — GLOBAL, hacker/hyprland reticle ─────────── */
-.custom-cursor {
-  position: fixed;
-  left: 0; top: 0;
-  z-index: 9999;
-  pointer-events: none;
+/* ── Premium Fluid Cursor System ─────────────────────────── */
+.cursor-dot-v2, .cursor-ring-v2, .cursor-trail {
+  position: fixed; left: 0; top: 0; z-index: 99999;
+  pointer-events: none; will-change: transform;
+}
+.cursor-dot-v2 {
+  width: 6px; height: 6px; margin: -3px 0 0 -3px;
+  background: #fff; border-radius: 50%;
+  box-shadow: 0 0 12px rgba(139,92,246,0.6), 0 0 30px rgba(94,234,212,0.3);
+  transition: width 0.15s, height 0.15s, margin 0.15s, background 0.15s;
   mix-blend-mode: difference;
 }
-
-.cursor-core {
-  position: absolute;
-  width: 4px; height: 4px;
-  background: #fff;
-  transform: translate(-50%, -50%);
-  border-radius: 0;
-  transition: width 0.15s, height 0.15s;
+.cursor-dot-v2.pressed {
+  width: 10px; height: 10px; margin: -5px 0 0 -5px;
+  background: #5eead4;
+  box-shadow: 0 0 20px rgba(94,234,212,0.8), 0 0 40px rgba(139,92,246,0.4);
 }
-
-.cursor-core::before, .cursor-core::after {
-  content: "";
-  position: absolute;
-  background: #fff;
+.cursor-ring-v2 {
+  width: 36px; height: 36px; margin: -18px 0 0 -18px;
+  border: 1.5px solid rgba(139,92,246,0.5); border-radius: 50%;
+  transition: width 0.2s, height 0.2s, margin 0.2s, border-color 0.2s;
 }
-.cursor-core::before { width: 14px; height: 1px; top: 1.5px; left: -5px; }
-.cursor-core::after { width: 1px; height: 14px; left: 1.5px; top: -5px; }
-
-.cursor-glow {
-  position: absolute;
-  width: 40px; height: 40px;
-  border: 1px solid rgba(255,255,255,0.4);
-  transform: translate(-50%, -50%);
+.cursor-ring-v2.pressed {
+  width: 28px; height: 28px; margin: -14px 0 0 -14px;
+  border-color: rgba(94,234,212,0.7); border-width: 2px;
+}
+.cursor-trail {
+  width: 60px; height: 60px; margin: -30px 0 0 -30px;
   border-radius: 50%;
-  animation: cursorSpin 4s linear infinite;
+  background: radial-gradient(circle, rgba(139,92,246,0.08), transparent 70%);
+  opacity: 0;
 }
-.cursor-glow::before {
-  content: "";
-  position: absolute; inset: -4px;
-  border: 1px dashed rgba(255,255,255,0.2);
-  border-radius: 50%;
-  animation: cursorSpinRev 6s linear infinite;
-}
-
-@keyframes cursorSpin { to { transform: translate(-50%, -50%) rotate(360deg); } }
-@keyframes cursorSpinRev { to { transform: rotate(-360deg); } }
+.custom-cursor, .live-cursor-advanced { display: none !important; }
 
 /* ── Pulse-reactive deep space background ────────────────── */
 body {

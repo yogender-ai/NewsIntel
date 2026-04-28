@@ -2954,3 +2954,268 @@ svg {
   background: rgba(5,8,18,0.7) !important;
   border-bottom-color: rgba(255,255,255,0.03) !important;
 }
+
+/* ═══════════════════════════════════════════════════════════
+   PIPELINE OVERLAY V2 — Neural Canvas + Progress Ring
+   ═══════════════════════════════════════════════════════════ */
+.pipeline-overlay-v2 {
+  position: relative;
+  min-height: calc(100vh - 120px);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.pipeline-neural-canvas {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+.pipeline-center {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 32px;
+  animation: fadeUp 0.7s cubic-bezier(0.16,1,0.3,1) both;
+}
+
+.pipeline-ring-wrap {
+  position: relative;
+  width: 140px;
+  height: 140px;
+}
+
+.pipeline-ring-svg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 0 12px rgba(139,92,246,0.3));
+}
+
+.pipeline-ring-center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+.pipeline-pct {
+  font-size: 28px;
+  font-weight: 950;
+  color: #c4b5fd;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 20px rgba(139,92,246,0.4);
+}
+
+.pipeline-steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 280px;
+}
+
+.pipeline-step-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.015);
+  border: 1px solid rgba(255,255,255,0.03);
+  opacity: 0.25;
+  transition: all 0.6s cubic-bezier(0.22,1,0.36,1);
+  position: relative;
+}
+
+.pipeline-step-item.active {
+  opacity: 1;
+  background: rgba(139,92,246,0.06);
+  border-color: rgba(139,92,246,0.15);
+  box-shadow: 0 0 20px -4px rgba(139,92,246,0.15);
+}
+
+.pipeline-step-item.done {
+  opacity: 0.35;
+}
+
+.pipeline-step-icon {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: rgba(139,92,246,0.08);
+  color: #94a3b8;
+  flex-shrink: 0;
+  transition: all 0.4s ease;
+}
+
+.pipeline-step-item.active .pipeline-step-icon {
+  color: #c4b5fd;
+  background: rgba(139,92,246,0.15);
+  box-shadow: 0 0 12px rgba(139,92,246,0.2);
+}
+
+.pipeline-step-item.done .pipeline-step-icon {
+  color: #34d399;
+  background: rgba(52,211,153,0.08);
+}
+
+.pipeline-step-label {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #64748b;
+  transition: color 0.4s ease;
+}
+
+.pipeline-step-item.active .pipeline-step-label {
+  color: #e2e8f0;
+}
+
+.pipeline-step-pulse {
+  position: absolute;
+  right: 14px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #8b5cf6;
+  animation: stepPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes stepPulse {
+  0%, 100% { transform: scale(1); opacity: 0.5; box-shadow: 0 0 0 0 rgba(139,92,246,0.3); }
+  50% { transform: scale(1.3); opacity: 1; box-shadow: 0 0 0 6px rgba(139,92,246,0); }
+}
+
+.pipeline-particle {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  animation: particleFade 2s ease-out forwards;
+}
+
+@keyframes particleFade {
+  0% { opacity: 0; transform: scale(0); }
+  15% { opacity: 0.6; transform: scale(1.2); }
+  100% { opacity: 0; transform: scale(0.3); }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ORBIT PAGE — Vibrant Interactive Nodes
+   ═══════════════════════════════════════════════════════════ */
+.orbit-event-node {
+  transition: all 0.4s cubic-bezier(0.22,1,0.36,1) !important;
+}
+
+.orbit-event-node:hover {
+  transform: translate(-50%, -50%) scale(1.15) !important;
+  box-shadow: 0 0 30px var(--node-color, rgba(139,92,246,0.3)),
+              0 0 60px color-mix(in srgb, var(--node-color, #8b5cf6) 30%, transparent) !important;
+  border-color: var(--node-color) !important;
+  z-index: 10;
+}
+
+.orbit-event-node i {
+  transition: all 0.3s ease;
+}
+
+.orbit-event-node:hover i {
+  transform: scale(1.15) rotate(10deg);
+  filter: drop-shadow(0 0 8px var(--node-color, #8b5cf6));
+}
+
+.orbit-center-node {
+  transition: all 0.5s cubic-bezier(0.22,1,0.36,1) !important;
+  animation: centerPulse 4s ease-in-out infinite !important;
+}
+
+@keyframes centerPulse {
+  0%, 100% { box-shadow: 0 0 30px rgba(139,92,246,0.4); }
+  50% { box-shadow: 0 0 50px rgba(139,92,246,0.6), 0 0 80px rgba(94,234,212,0.15); }
+}
+
+.signal-orbit-graph {
+  background:
+    radial-gradient(circle at 50% 50%, rgba(139,92,246,0.06), transparent 40%),
+    radial-gradient(circle at 30% 30%, rgba(94,234,212,0.03), transparent 30%),
+    radial-gradient(circle at 70% 70%, rgba(251,113,133,0.02), transparent 30%),
+    rgba(3,7,17,0.6) !important;
+}
+
+.orbit-ring {
+  animation: ringRotate 120s linear infinite;
+  transform-origin: center;
+}
+
+@keyframes ringRotate {
+  to { transform: rotate(360deg); }
+}
+
+.orbit-edge {
+  animation: edgePulse 3s ease-in-out infinite alternate;
+}
+
+@keyframes edgePulse {
+  0% { opacity: 0.3; }
+  100% { opacity: 0.7; }
+}
+
+/* ── Orbit focus panel — premium feel ───────────────── */
+.orbit-focus-panel {
+  animation: fadeUp 0.5s cubic-bezier(0.16,1,0.3,1) both !important;
+}
+
+.orbit-focus-panel .drawer-grid div {
+  transition: all 0.3s ease;
+  border-radius: 12px !important;
+}
+
+.orbit-focus-panel .drawer-grid div:hover {
+  background: rgba(139,92,246,0.04) !important;
+  border-color: rgba(139,92,246,0.1) !important;
+  transform: translateY(-1px);
+}
+
+.orbit-mini-list button {
+  transition: all 0.35s cubic-bezier(0.22,1,0.36,1) !important;
+  border-radius: 12px !important;
+}
+
+.orbit-mini-list button:hover {
+  background: rgba(139,92,246,0.05) !important;
+  border-color: rgba(139,92,246,0.12) !important;
+  transform: translateX(4px) !important;
+  box-shadow: 0 4px 16px -4px rgba(139,92,246,0.08);
+}
+
+/* ── Orbit controls bar ─────────────────────────────── */
+.orbit-controls {
+  border-radius: 14px !important;
+  animation: fadeUp 0.4s cubic-bezier(0.16,1,0.3,1) both;
+}
+
+.orbit-controls select {
+  border-radius: 8px !important;
+  transition: all 0.3s ease;
+  background: rgba(5,8,18,0.6) !important;
+}
+
+.orbit-controls select:hover {
+  border-color: rgba(139,92,246,0.2) !important;
+}
+
+.orbit-header {
+  animation: fadeUp 0.5s cubic-bezier(0.16,1,0.3,1) both;
+}
+
+.orbit-header h1 {
+  background: linear-gradient(135deg, #f1f5f9, #c4b5fd);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}

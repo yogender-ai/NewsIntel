@@ -8,13 +8,20 @@ import LockedNavToast from '../components/worldpulse/LockedNavToast';
 import { compactLabel } from '../lib/dashboardAdapter';
 
 const categoryColors = {
-  ai: '#9aa8ff',
-  tech: '#7ee7c4',
-  markets: '#ffd38a',
-  politics: '#ff9ba9',
-  defense: '#fb7185',
-  crypto: '#c084fc',
+  ai: '#818cf8',
+  tech: '#22d3ee',
+  markets: '#fbbf24',
+  politics: '#f472b6',
+  defense: '#fb923c',
+  crypto: '#a78bfa',
   climate: '#34d399',
+  healthcare: '#2dd4bf',
+  energy: '#f97316',
+  trade: '#38bdf8',
+  auto: '#e879f9',
+  education: '#4ade80',
+  media: '#c084fc',
+  legal: '#facc15',
 };
 
 const categoryIcons = {
