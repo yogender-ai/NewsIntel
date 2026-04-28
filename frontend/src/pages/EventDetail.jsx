@@ -15,13 +15,10 @@ export default function EventDetail() {
     async function fetchEvent() {
       try {
         // Fetch specific event from clusters or events endpoint
-        // For MVP, if we don't have a direct event endpoint, we can fetch dashboard and find it
-        const res = await api.get('/dashboard/live');
-        if (res.data?.clusters) {
-          const found = res.data.clusters.find(c => c.thread_id === id);
-          if (found) {
-            setEvent(found);
-          }
+        const res = await api.getCachedDashboard();
+        if (res?.clusters) {
+          const found = res.clusters.find(c => [c.signal_id, c.thread_id, c.id].map(String).includes(String(id)));
+          if (found) setEvent(found);
         }
       } catch (err) {
         console.error("Failed to load event detail", err);
@@ -35,7 +32,19 @@ export default function EventDetail() {
   if (loading) {
     return (
       <div className="world-pulse-page">
-        <Sidebar activePath="/dashboard" />
+        <Sidebar
+          activeItem="home"
+          onHome={() => navigate('/dashboard')}
+          onOrbit={() => navigate('/orbit')}
+          onStories={() => navigate('/stories')}
+          onMap={() => navigate('/map')}
+          onSimulator={() => navigate('/simulator')}
+          onLocked={() => {}}
+          onWatchlist={() => navigate('/watchlist')}
+          onAlerts={() => navigate('/alerts')}
+          onSetFocus={() => navigate('/onboarding')}
+          onSettings={() => navigate('/settings')}
+        />
         <main className="world-pulse-main" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <div className="pulse-glow" style={{ width: 24, height: 24, background: '#8da2ff', borderRadius: '50%' }} />
         </main>
@@ -46,7 +55,19 @@ export default function EventDetail() {
   if (!event) {
     return (
       <div className="world-pulse-page">
-        <Sidebar activePath="/dashboard" />
+        <Sidebar
+          activeItem="home"
+          onHome={() => navigate('/dashboard')}
+          onOrbit={() => navigate('/orbit')}
+          onStories={() => navigate('/stories')}
+          onMap={() => navigate('/map')}
+          onSimulator={() => navigate('/simulator')}
+          onLocked={() => {}}
+          onWatchlist={() => navigate('/watchlist')}
+          onAlerts={() => navigate('/alerts')}
+          onSetFocus={() => navigate('/onboarding')}
+          onSettings={() => navigate('/settings')}
+        />
         <main className="world-pulse-main">
           <div style={{ padding: 40 }}>
             <button onClick={() => navigate(-1)} className="wp-icon-btn" style={{ marginBottom: 24 }}><ArrowLeft size={16}/> Back</button>
@@ -60,7 +81,25 @@ export default function EventDetail() {
 
   return (
     <div className="world-pulse-page">
-      <Sidebar activePath="/dashboard" />
+      <Sidebar
+        activeItem="home"
+        preferences={{
+          hasPreferences: Boolean(event.matched_preferences?.length),
+          topics: event.matched_preferences?.map((item) => item.label || item.id).filter(Boolean) || [],
+          regions: [],
+          entities: event.entities || [],
+        }}
+        onHome={() => navigate('/dashboard')}
+        onOrbit={() => navigate('/orbit')}
+        onStories={() => navigate('/stories')}
+        onMap={() => navigate('/map')}
+        onSimulator={() => navigate('/simulator')}
+        onLocked={() => {}}
+        onWatchlist={() => navigate('/watchlist')}
+        onAlerts={() => navigate('/alerts')}
+        onSetFocus={() => navigate('/onboarding')}
+        onSettings={() => navigate('/settings')}
+      />
       
       <main className="world-pulse-main" style={{ overflowY: 'auto', paddingRight: '12px' }}>
         <div style={{ maxWidth: '800px', margin: '0 auto', width: '100%' }}>
@@ -71,23 +110,25 @@ export default function EventDetail() {
           
           <div className="event-detail-header" style={{ marginBottom: 32 }}>
             <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
-              <span className="sca-category">{event.matched_preferences?.[0]?.label || 'Global'}</span>
-              <span className="sca-impact" style={{ background: 'rgba(255,155,169,0.1)', color: '#ff9ba9', border: '1px solid rgba(255,155,169,0.2)' }}>
-                {event.signal_tier === 'CRITICAL' ? <ShieldAlert size={12}/> : <Activity size={12}/>}
-                {event.signal_tier}
-              </span>
+              {event.matched_preferences?.[0]?.label && <span className="sca-category">{event.matched_preferences[0].label}</span>}
+              {event.signal_tier && (
+                <span className="sca-impact" style={{ background: 'rgba(255,155,169,0.1)', color: '#ff9ba9', border: '1px solid rgba(255,155,169,0.2)' }}>
+                  {event.signal_tier === 'CRITICAL' ? <ShieldAlert size={12}/> : <Activity size={12}/>}
+                  {event.signal_tier}
+                </span>
+              )}
             </div>
             
             <h1 style={{ fontSize: 36, fontWeight: 900, lineHeight: 1.2, color: '#f8fafc', marginBottom: 16 }}>
-              {event.summary?.split('.')[0] || 'Intelligence Report'}
+              {event.thread_title || event.title || event.summary?.split('.')[0] || 'Intelligence Report'}
             </h1>
             
             <div style={{ display: 'flex', gap: 24, color: '#94a3b8', fontSize: 13, alignItems: 'center' }}>
               <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                <Clock size={14}/> First Detected: {formatRelativeTime(event.first_detected_at) || 'Recently'}
+                <Clock size={14}/> First Detected: {formatRelativeTime(event.first_detected_at) || '-'}
               </span>
               <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                <Activity size={14}/> Pulse Score: {Math.round(event.pulse_score)}
+                <Activity size={14}/> Pulse Score: {Number.isFinite(Number(event.pulse_score)) ? Math.round(Number(event.pulse_score)) : '-'}
               </span>
               <button className="wp-icon-btn" style={{ marginLeft: 'auto', height: 32 }}><Share2 size={14}/> Share</button>
             </div>
@@ -112,7 +153,7 @@ export default function EventDetail() {
           <div className="wp-card" style={{ padding: 32 }}>
             <h3 style={{ fontSize: 16, color: '#a5b4fc', marginBottom: 16 }}>SOURCING & CLUSTERING</h3>
             <p style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.6 }}>
-              This intelligence is corroborated by {event.articles?.length || 1} independent source nodes across the global ingestion network. Confidence interval is assessed as {(event.pulse_score > 70 ? 'HIGH' : 'ELEVATED')}.
+              Source and clustering metadata are shown when returned by the backend. {event.articles?.length ? `${event.articles.length} source nodes are attached to this signal.` : ''}
             </p>
           </div>
           

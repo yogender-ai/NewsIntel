@@ -140,6 +140,7 @@ export default function StoryView() {
         activeItem="stories"
         onHome={() => navigate('/dashboard')}
         onOrbit={() => navigate('/orbit')}
+        onStories={() => navigate('/stories')}
         onMap={() => navigate('/map')}
         onSimulator={() => navigate('/simulator')}
         onLocked={setLockedToast}

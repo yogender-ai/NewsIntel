@@ -51,13 +51,12 @@ export default function WhatChangedToday({ changes, selectedTopic, onSelect }) {
       {changes?.length ? (
         <div className="wca-list" style={{ display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', paddingRight: '4px' }}>
           {changes.map((item) => {
-            const direction = item.direction || 'Stable';
+            const direction = item.direction;
             const color = directionColor(direction);
-            /* Build a data-driven description instead of misleading labels */
             const deltaText = item.delta !== null && item.delta !== undefined
               ? `${item.delta > 0 ? '+' : ''}${Math.round(item.delta)} shift`
-              : direction;
-            const eventInfo = item.reason || 'Live movement across sources';
+              : direction || item.severityLabel || null;
+            const eventInfo = item.reason;
 
             return (
               <button key={item.id} className="wca-row" onClick={() => onSelect(selectedTopic === item.id ? null : item.id)} style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', alignItems: 'center', padding: '16px 20px', borderRadius: '12px', background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.04)', position: 'relative', cursor: 'pointer', transition: 'all 0.2s', gap: '12px', overflow: 'hidden' }}>
@@ -69,13 +68,17 @@ export default function WhatChangedToday({ changes, selectedTopic, onSelect }) {
                 </div>
                 
                 <div className="wca-right" style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, justifyContent: 'flex-end', minWidth: '0' }}>
-                  <span className="wca-reason" style={{ fontSize: '11px', color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, textAlign: 'right' }}>
-                    {eventInfo}
-                  </span>
-                  <div className="wca-pill" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '999px', background: 'rgba(15,23,42,0.8)', border: `1px solid ${color}22`, fontSize: '11px', fontWeight: 800, flexShrink: 0 }}>
-                    <DirectionIcon direction={direction} />
-                    <span style={{ color }}>{deltaText}</span>
-                  </div>
+                  {eventInfo && (
+                    <span className="wca-reason" style={{ fontSize: '11px', color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1, textAlign: 'right' }}>
+                      {eventInfo}
+                    </span>
+                  )}
+                  {deltaText && (
+                    <div className="wca-pill" style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '999px', background: 'rgba(15,23,42,0.8)', border: `1px solid ${color}22`, fontSize: '11px', fontWeight: 800, flexShrink: 0 }}>
+                      <DirectionIcon direction={direction} />
+                      <span style={{ color }}>{deltaText}</span>
+                    </div>
+                  )}
                 </div>
                 
                 <BottomSparkline current={item.current} previous={item.previous} />

@@ -57,7 +57,7 @@ export default function MapPage() {
     try {
       const mapResult = await api.getMapSignals(layer, timeWindow);
       setData({ layers: mapResult?.layers || [], regions: Array.isArray(mapResult?.regions) ? mapResult.regions : [] });
-      setPrefs({ data: { preferred_categories: mapResult?.layers || [], preferred_regions: ['global'] } });
+      setPrefs({ data: { preferred_categories: mapResult?.layers || [], preferred_regions: mapResult?.regions_used || [] } });
     } catch (err) {
       setError((err?.message || 'Unable to load map signals.').replace(/^\d+:\s*/, '').slice(0, 180));
       setData({ layers: [], regions: [] });
@@ -83,6 +83,7 @@ export default function MapPage() {
         activeItem="map"
         onHome={() => navigate('/dashboard')}
         onOrbit={() => navigate('/orbit')}
+        onStories={() => navigate('/stories')}
         onMap={load}
         onSimulator={() => navigate('/simulator')}
         onLocked={setLockedToast}
@@ -123,7 +124,7 @@ export default function MapPage() {
                     regions={data.regions.map((region) => ({
                       ...region,
                       color: colorFor(region, mode),
-                      label: `${mode === 'risk' ? region.risk : region.opportunity} / ${region.event_count} events`,
+                      label: [mode === 'risk' ? region.risk : region.opportunity, `${region.event_count} events`].filter(Boolean).join(' / '),
                     }))}
                     onRegionSelect={setSelected}
                   />

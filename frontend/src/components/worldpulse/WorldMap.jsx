@@ -9,30 +9,22 @@ export default function WorldMap({ regions = [], onRegionSelect }) {
 
   useEffect(() => {
     let cancelled = false;
-    const urls = [
-      'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json',
-      'https://unpkg.com/world-atlas@2.0.2/countries-110m.json',
-      'https://unpkg.com/world-atlas@2.0.2/world/110m.json',
-    ];
+    const mapUrl = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
 
     async function loadMap() {
-      for (const url of urls) {
-        try {
-          const res = await fetch(url);
-          if (!res.ok) continue;
-          const topology = await res.json();
-          const countries = topology.objects.countries || topology.objects.land;
-          if (!countries) continue;
-          if (!cancelled) {
-            setGeoData(feature(topology, countries));
-            setFailed(false);
-          }
-          return;
-        } catch {
-          // Try the next CDN.
+      try {
+        const res = await fetch(mapUrl);
+        if (!res.ok) throw new Error(`Map request failed: ${res.status}`);
+        const topology = await res.json();
+        const countries = topology.objects.countries || topology.objects.land;
+        if (!countries) throw new Error('Map topology missing countries.');
+        if (!cancelled) {
+          setGeoData(feature(topology, countries));
+          setFailed(false);
         }
+      } catch {
+        if (!cancelled) setFailed(true);
       }
-      if (!cancelled) setFailed(true);
     }
 
     loadMap();
@@ -125,11 +117,9 @@ export default function WorldMap({ regions = [], onRegionSelect }) {
         </g>
       )}
 
-      {/* Fallback */}
       {failed && (
-        <g className="world-map-fallback">
-          <path d="M126 218c53-57 132-91 224-89 87 1 128 37 213 39 103 3 160-43 249-5 57 24 86 67 92 112-84 77-204 126-343 132-177 8-327-56-435-189z" />
-          <path d="M306 420c52 18 102 29 161 33-6 35-27 61-60 78-47-16-80-53-101-111z" />
+        <g className="world-map-unavailable">
+          <text x="500" y="280" textAnchor="middle">Map geography unavailable</text>
         </g>
       )}
 

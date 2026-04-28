@@ -14,43 +14,7 @@ import QuickGlance from '../components/worldpulse/QuickGlance';
 import TopShiftCard from '../components/worldpulse/TopShiftCard';
 import EmptyState from '../components/worldpulse/EmptyState';
 import StartTourCard from '../components/worldpulse/StartTourCard';
-import FreshnessBadge from '../components/worldpulse/FreshnessBadge';
 import LockedNavToast from '../components/worldpulse/LockedNavToast';
-
-
-const BOOT_PHASES = [
-  { key: 'uplink',  label: 'Establishing secure uplink' },
-  { key: 'fetch',   label: 'Fetching live signals' },
-  { key: 'analyze', label: 'Analyzing global shifts' },
-  { key: 'init',    label: 'Initializing pipeline' },
-];
-
-function DashboardBoot({ bootElapsed }) {
-  const stepMs = 900;
-  const activeIndex = Math.min(
-    Math.floor((bootElapsed || 0) / stepMs),
-    BOOT_PHASES.length - 1,
-  );
-
-  return (
-    <div className="pipeline-boot">
-      <div className="pipeline-boot-list">
-        {BOOT_PHASES.map((phase, i) => {
-          const done = i < activeIndex;
-          const active = i === activeIndex;
-          return (
-            <div key={phase.key} className={`pipeline-boot-item ${done ? 'done' : ''} ${active ? 'active' : ''}`}>
-              <span className="pipeline-boot-dot" />
-              <span className="pipeline-boot-label">{phase.label}</span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-/* LiveCursor is now global in App.jsx */
 
 function readableLiveError(err) {
   const raw = err?.message || 'Unable to load live intelligence.';
@@ -59,16 +23,10 @@ function readableLiveError(err) {
     try {
       const parsed = JSON.parse(raw.slice(jsonStart));
       const detail = parsed.detail || parsed.error || raw;
-      if (String(detail).includes('invalid input for query argument')) {
-        return 'Event-store timestamp query failed during ingestion/read. Backend has been updated to normalize UTC timestamps.';
-      }
       return String(detail).slice(0, 180);
     } catch {
-      // Fall through to cleaner text below.
+      return raw.replace(/^\d+:\s*/, '').slice(0, 180);
     }
-  }
-  if (raw.includes('invalid input for query argument')) {
-    return 'Event-store timestamp query failed during ingestion/read. Backend has been updated to normalize UTC timestamps.';
   }
   return raw.replace(/^\d+:\s*/, '').slice(0, 180);
 }
@@ -79,28 +37,6 @@ const aiStatusLabel = {
   failed: 'Analysis unavailable',
   rules_only: 'Rules only',
 };
-
-const wait = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
-
-function pipelineSettled(snapshot) {
-  const status = snapshot?.pipeline_status;
-  const queue = status?.queue;
-  const running = Number(queue?.running || 0);
-  const pending = Number(queue?.pending || 0);
-  const latest = String(status?.latest_cycle?.status || '').toLowerCase();
-  const cycleActive = ['running', 'started', 'queued', 'pending'].includes(latest);
-  return !cycleActive && running === 0 && pending === 0;
-}
-
-async function readSettledSnapshot(initialSnapshot) {
-  let snapshot = initialSnapshot;
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    if (pipelineSettled(snapshot)) return snapshot;
-    await wait(1800 + attempt * 300);
-    snapshot = await api.getCachedDashboard();
-  }
-  return snapshot;
-}
 
 function EmptyLine({ children }) {
   return <p className="empty-copy">{children}</p>;
@@ -304,7 +240,6 @@ export default function HomePage() {
   const [alerts, setAlerts] = useState(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [bootElapsed, setBootElapsed] = useState(0);
   const [error, setError] = useState('');
   const [lockedToast, setLockedToast] = useState('');
   const [selectedTopic, setSelectedTopic] = useState(null);
@@ -314,15 +249,12 @@ export default function HomePage() {
 
   const load = useCallback(async ({ force = false } = {}) => {
     setError('');
-    setBootElapsed(0);
     if (force) setRefreshing(true);
     else setLoading(true);
-    const started = performance.now();
     try {
-      const firstSnapshot = force
+      const dashResult = force
         ? await api.forceDashboardRefresh()
         : await api.getCachedDashboard();
-      const dashResult = force ? await readSettledSnapshot(firstSnapshot) : firstSnapshot;
       const alertsResult = await api.getAlerts().catch(() => ({ alerts: [] }));
       setPreferences({ data: { preferred_categories: dashResult?.topics_used || [], preferred_regions: dashResult?.regions_used || [] } });
       setDashboard(dashResult);
@@ -333,12 +265,6 @@ export default function HomePage() {
       setAlerts(null);
       setError(readableLiveError(err));
     } finally {
-      // 4 pipeline steps × 900ms each + buffer
-      const minVisibleMs = force ? 600 : 4200;
-      const elapsed = performance.now() - started;
-      if (elapsed < minVisibleMs) {
-        await new Promise((resolve) => window.setTimeout(resolve, minVisibleMs - elapsed));
-      }
       setLoading(false);
       setRefreshing(false);
     }
@@ -349,15 +275,6 @@ export default function HomePage() {
     const timer = window.setTimeout(() => load(), 0);
     return () => window.clearTimeout(timer);
   }, [user, load]);
-
-  // Tick bootElapsed every 200ms while loading
-  useEffect(() => {
-    if (!loading) return undefined;
-    const interval = window.setInterval(() => {
-      setBootElapsed((prev) => prev + 200);
-    }, 200);
-    return () => window.clearInterval(interval);
-  }, [loading]);
 
   useEffect(() => {
     if (!lockedToast) return undefined;
@@ -398,6 +315,7 @@ export default function HomePage() {
         activeItem="home"
         onHome={() => { setSelectedTopic(null); setInsightView(null); }}
         onOrbit={() => navigate('/orbit')}
+        onStories={() => navigate('/stories')}
         onMap={() => navigate('/map')}
         onSimulator={() => navigate('/simulator')}
         onLocked={setLockedToast}
@@ -416,7 +334,9 @@ export default function HomePage() {
           alertCount={data.alerts?.length || 0}
         />
 
-        {loading ? null : (
+        {loading ? (
+          <div className="wp-loading dashboard-loading"><span /></div>
+        ) : (
           <>
             {error && (
               <div className="wp-error">
@@ -494,8 +414,6 @@ export default function HomePage() {
           </>
         )}
       </main>
-      {/* LiveCursor is now global in App.jsx */}
-      {loading && <DashboardBoot bootElapsed={bootElapsed} />}
       <DetailDrawer shift={selectedShift} sources={selectedSources} onClose={() => setSelectedShift(null)} />
       <InsightDrawer
         view={insightView}

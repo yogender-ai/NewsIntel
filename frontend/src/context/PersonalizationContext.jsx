@@ -37,10 +37,10 @@ function calculatePulseBreakdown(cluster, interactionBoost = 0) {
   const sourceStrength = clamp(((cluster.source_diversity || 0.45) * 70) + Math.min(cluster.source_count || 1, 5) * 6);
   const sentiment = clamp((cluster.sentiment_intensity || 0.35) * 100);
   const entityRelevance = clamp((cluster.entities?.length || 0) * 18 + (cluster.matched_preferences?.length || 0) * 16);
-  const userRelevance = clamp(cluster.relevance_score || cluster.exposure_score || 50);
-  const weighted = Math.round(velocity * 0.3 + sourceStrength * 0.25 + sentiment * 0.2 + entityRelevance * 0.15 + userRelevance * 0.1 + interactionBoost);
+  const userRelevance = clamp(cluster.relevance_score || cluster.exposure_score || 0);
+  const backendPulse = Number(cluster.pulse_score);
   return {
-    score: clamp(cluster.pulse_score || weighted),
+    score: Number.isFinite(backendPulse) ? clamp(backendPulse) : null,
     parts: [['Velocity', velocity, '30%'], ['Source strength', sourceStrength, '25%'], ['Sentiment intensity', sentiment, '20%'], ['Entity relevance', entityRelevance, '15%'], ['User relevance', userRelevance, '10%']],
   };
 }
@@ -51,17 +51,19 @@ function calculateExposureBreakdown(cluster) {
   const entity = factors.find(f => f.type === 'entity')?.points || Math.min((cluster.entities?.length || 0) * 8, 24);
   const region = factors.find(f => f.type === 'region')?.points || 0;
   const memory = factors.find(f => ['watchlist', 'saved', 'interaction'].includes(f.type))?.points || 0;
+  const backendExposure = Number(cluster.relevance_score ?? cluster.exposure_score);
   return {
-    score: clamp(cluster.relevance_score || cluster.exposure_score || topic + entity + region + memory),
+    score: Number.isFinite(backendExposure) ? clamp(backendExposure) : null,
     parts: [['Topic overlap', topic], ['Tracked entities', entity], ['Region overlap', region], ['Past interactions', memory]],
   };
 }
 
 function buildDelta(cluster, backendDelta, previousPulseMap) {
   const id = signalId(cluster);
-  const current = Math.round(cluster.pulse_score || 50);
+  const current = Number.isFinite(Number(cluster.pulse_score)) ? Math.round(Number(cluster.pulse_score)) : null;
   const previous = backendDelta?.has_baseline ? Math.round(backendDelta.previous) : previousPulseMap[id];
   if (typeof previous !== 'number') return { value: null, label: 'Tracking baseline', tone: 'neutral', current, previous: null };
+  if (current === null) return { value: null, label: 'Tracking baseline', tone: 'neutral', current, previous };
   const value = current - previous;
   const direction = value > 0 ? 'Momentum Rising' : value < 0 ? 'Cooling' : 'Stable';
   return { value, label: `${value > 0 ? '+' : ''}${value} ${direction}`, tone: value > 0 ? 'up' : value < 0 ? 'down' : 'neutral', current, previous };
@@ -74,19 +76,19 @@ function normalizeSignal(cluster, dashboard, localState) {
   const pulse = calculatePulseBreakdown(cluster, localState.engagement[id] || 0);
   const exposure = calculateExposureBreakdown(cluster);
   const delta = buildDelta({ ...cluster, pulse_score: pulse.score }, backendDelta, localState.previousPulse);
-  const riskLevel = cluster.risk_type === 'risk' ? 'High' : cluster.risk_type === 'opportunity' ? 'Low' : 'Medium';
-  const opportunityLevel = cluster.risk_type === 'opportunity' ? 'High' : exposure.score >= 70 ? 'Medium' : 'Low';
-  const confidence = Math.round(clamp((cluster.confidence || 0.65) * 100));
+  const riskLevel = cluster.risk_level || cluster.risk_type || '';
+  const opportunityLevel = cluster.opportunity_level || '';
+  const confidence = Number.isFinite(Number(cluster.confidence)) ? Math.round(clamp(Number(cluster.confidence) * 100)) : null;
   const saved = localState.saved.has(id) || dashboard?.saved_signal_ids?.includes(id);
   const tracked = localState.tracked.has(id) || dashboard?.watched_signal_ids?.includes(id);
   const dismissed = localState.dismissed.has(id) || cluster.dismissed;
-  const rank = pulse.score + exposure.score + (saved ? 18 : 0) + (tracked ? 24 : 0) + (localState.engagement[id] || 0) - (dismissed ? 999 : 0);
+  const rank = (pulse.score || 0) + (exposure.score || 0) + (saved ? 18 : 0) + (tracked ? 24 : 0) + (localState.engagement[id] || 0) - (dismissed ? 999 : 0);
 
   return {
     ...cluster, id, thread_id: id, pulse, exposure, delta, riskLevel, opportunityLevel, confidence,
     saved, tracked, dismissed, rank,
     updatedAgo: timeAgo(cluster.updated_at || dashboard?.generated_at),
-    whyLine: cluster.impact_line || cluster.why_it_matters || cluster.summary || 'Signal impact is forming.',
+    whyLine: cluster.impact_line || cluster.why_it_matters || cluster.summary || '',
   };
 }
 
@@ -210,7 +212,7 @@ export function PersonalizationProvider({ children }) {
   const topicIds = dashboardData?.topics_used || [];
   const regionIds = dashboardData?.regions_used || [];
   const trackedEntities = dashboardData?.tracked_entities || [];
-  const exposureScore = dashboardData?.exposure_score || 50;
+  const exposureScore = Number.isFinite(Number(dashboardData?.exposure_score)) ? Number(dashboardData.exposure_score) : null;
   const dailyDelta = dashboardData?.daily_delta || [];
   const sourcesCount = dashboardData?.sources_count || 0;
   const generatedAt = dashboardData?.generated_at;

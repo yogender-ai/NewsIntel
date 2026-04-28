@@ -272,9 +272,11 @@ export default function MoversPage() {
                 <div key={signal.id} className={`mover-row ${tone}`} onClick={() => handleOpen(signal)}>
                   <span className="mover-rank">#{idx + 1}</span>
                   <div className="mover-info">
-                    <span className={`tier-badge tier-${(signal.signal_tier || 'signal').toLowerCase()}`}>
-                      {signal.signal_tier}
-                    </span>
+                    {signal.signal_tier && (
+                      <span className={`tier-badge tier-${signal.signal_tier.toLowerCase()}`}>
+                        {signal.signal_tier}
+                      </span>
+                    )}
                     <b>{words(signal.thread_title, 10)}</b>
                   </div>
                   <div className="mover-delta">

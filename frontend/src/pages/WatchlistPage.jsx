@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bookmark, Eye, Search, Star, Target, Trash2, X, Zap } from 'lucide-react';
+import { Bookmark, Eye, Search, Target, Trash2, X, Zap } from 'lucide-react';
 import { usePersonalization } from '../context/PersonalizationContext';
 import Sidebar from '../components/worldpulse/Sidebar';
 import LockedNavToast from '../components/worldpulse/LockedNavToast';
@@ -9,9 +9,9 @@ import { api } from '../api';
 export default function WatchlistPage() {
   const navigate = useNavigate();
   const {
-    signals, allSignals, savedIds, trackedIds, watchedSignals, savedThreads,
-    saveSignal, unsaveSignal, trackSignal, untrackSignal, dismissSignal,
-    recordOpen, showToast, timeAgo, words,
+    allSignals, savedIds, trackedIds, watchedSignals, savedThreads,
+    unsaveSignal, untrackSignal,
+    recordOpen, words,
   } = usePersonalization();
 
   const [tab, setTab] = useState('saved');
@@ -66,6 +66,7 @@ export default function WatchlistPage() {
         activeItem="watchlist"
         onHome={() => navigate('/dashboard')}
         onOrbit={() => navigate('/orbit')}
+        onStories={() => navigate('/stories')}
         onMap={() => navigate('/map')}
         onSimulator={() => navigate('/simulator')}
         onLocked={setLockedToast}
@@ -78,7 +79,7 @@ export default function WatchlistPage() {
         <header className="ni-screen-header">
           <div>
             <h1>Your Watchlist</h1>
-            <p>Signals you've saved and topics you're tracking. They rank higher in your feed.</p>
+            <p>Saved and tracked signals from your personalized intelligence feed.</p>
           </div>
           <div className="watchlist-stats-row">
             <div className="watchlist-stat-badge">
@@ -135,27 +136,30 @@ export default function WatchlistPage() {
         ) : (
           <div className="watchlist-grid">
             {filtered.map(signal => {
-              const tone = signal.signal_tier?.toLowerCase() || 'signal';
+              const tone = signal.signal_tier ? signal.signal_tier.toLowerCase() : 'unclassified';
+              const pulseScore = Number.isFinite(Number(signal.pulse?.score)) ? Math.round(Number(signal.pulse.score)) : '-';
+              const exposureScore = Number.isFinite(Number(signal.exposure?.score)) ? Math.round(Number(signal.exposure.score)) : '-';
+              const confidence = Number.isFinite(Number(signal.confidence)) ? `${Number(signal.confidence)}%` : '-';
               return (
                 <article key={signal.id} className={`wp-card watchlist-card tone-${tone}`}>
                   <div className="wc-top">
-                    <span className={`tier-badge tier-${tone}`}>{signal.signal_tier || 'SIGNAL'}</span>
-                    <span className="wc-time">{signal.updatedAgo}</span>
+                    {signal.signal_tier && <span className={`tier-badge tier-${tone}`}>{signal.signal_tier}</span>}
+                    {signal.updatedAgo && <span className="wc-time">{signal.updatedAgo}</span>}
                   </div>
                   <h3 onClick={() => handleOpen(signal)}>{signal.thread_title || signal.id}</h3>
                   <p>{words(signal.whyLine || signal.summary, 18)}</p>
                   <div className="wc-scores">
                     <div className="wc-score">
                       <em>Pulse</em>
-                      <strong>{Math.round(signal.pulse?.score || 0)}</strong>
+                      <strong>{pulseScore}</strong>
                     </div>
                     <div className="wc-score">
                       <em>Exposure</em>
-                      <strong>{Math.round(signal.exposure?.score || 0)}</strong>
+                      <strong>{exposureScore}</strong>
                     </div>
                     <div className="wc-score">
                       <em>Confidence</em>
-                      <strong>{signal.confidence || 0}%</strong>
+                      <strong>{confidence}</strong>
                     </div>
                     {signal.delta?.value != null && (
                       <div className={`wc-delta ${signal.delta.tone}`}>

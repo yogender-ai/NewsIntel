@@ -8,7 +8,7 @@ import { normalizeDashboardData } from '../lib/dashboardAdapter';
 
 function scenarioFromShift(shift) {
   const subject = shift.headline || shift.category || 'this signal';
-  return `What if ${subject.toLowerCase()} escalates over the next 30 days?`;
+  return `What if ${subject.toLowerCase()} escalates?`;
 }
 
 function ImpactCards({ result }) {
@@ -35,16 +35,19 @@ export default function SimulatorPage() {
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
   const [contextLoading, setContextLoading] = useState(true);
+  const [contextError, setContextError] = useState('');
   const [error, setError] = useState('');
   const [lockedToast, setLockedToast] = useState('');
 
   const loadContext = useCallback(async () => {
     setContextLoading(true);
+    setContextError('');
     try {
       const response = await api.getCachedDashboard();
       setDashboard(response);
-    } catch {
+    } catch (err) {
       setDashboard(null);
+      setContextError((err?.message || 'Unable to load live scenario seeds.').replace(/^\d+:\s*/, '').slice(0, 180));
     } finally {
       setContextLoading(false);
     }
@@ -78,6 +81,7 @@ export default function SimulatorPage() {
         activeItem="simulator"
         onHome={() => navigate('/dashboard')}
         onOrbit={() => navigate('/orbit')}
+        onStories={() => navigate('/stories')}
         onMap={() => navigate('/map')}
         onSimulator={() => {}}
         onLocked={setLockedToast}
@@ -102,6 +106,7 @@ export default function SimulatorPage() {
               <textarea value={scenario} onChange={(event) => setScenario(event.target.value)} placeholder="What if..." />
               <div className="preset-row live-scenario-seeds">
                 {contextLoading && <span>Loading live scenario seeds...</span>}
+                {!contextLoading && contextError && <span>{contextError}</span>}
                 {!contextLoading && scenarioSeeds.map((shift) => (
                   <button key={shift.id} onClick={() => setScenario(scenarioFromShift(shift))}>
                     {shift.headline}
@@ -153,7 +158,7 @@ export default function SimulatorPage() {
             {error && <div className="wp-error"><b>Scenario unavailable</b><span>{error}</span><button onClick={() => setError('')}><X size={14} /></button></div>}
             {!loading && !error && !result && (
               <div className="orbit-empty">
-                <h2>Ready when you are.</h2>
+                <h2>Awaiting scenario input.</h2>
                 <p>The result panel stays empty until the backend simulator returns scenario JSON.</p>
               </div>
             )}
@@ -174,7 +179,7 @@ export default function SimulatorPage() {
                   <h3>Recommended Actions</h3>
                   {result.recommended_actions?.length ? result.recommended_actions.map((item) => (
                     <p key={item}><CheckCircle2 size={14} /> {item}</p>
-                  )) : <p className="empty-copy">No actions returned.</p>}
+                  )) : <p className="empty-copy">No recommended actions returned by the simulator.</p>}
                 </section>
               </div>
             )}

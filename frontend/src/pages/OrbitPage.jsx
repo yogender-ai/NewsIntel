@@ -95,7 +95,7 @@ function OrbitGraph({ nodes, edges, showLabels, onSelect }) {
               <span>
                 <b>{compactLabel(node.category) || 'Signal'}</b>
                 <strong>{Math.round(node.pulse || 0)}</strong>
-                <small>{compactLabel(node.status || 'stable')}</small>
+                {node.status && <small>{compactLabel(node.status)}</small>}
               </span>
             )}
           </button>
@@ -115,17 +115,17 @@ function OrbitDrawer({ node, edges, nodesById, onClose, onStory }) {
   return (
     <aside className="shift-drawer orbit-drawer">
       <button className="drawer-close" onClick={onClose}><X size={18} /></button>
-      <span>{node.ai_status || 'pending'}</span>
+      {node.ai_status && <span>{node.ai_status}</span>}
       <h2>{node.label}</h2>
       <div className="drawer-grid">
         <div><small>Pulse</small><b>{node.pulse ?? '-'}</b></div>
         <div><small>Exposure</small><b>{node.exposure ?? '-'}</b></div>
         <div><small>Distance</small><b>{Math.round((node.distance ?? 0) * 100)}</b></div>
-        <div><small>Status</small><b>{node.status || 'stable'}</b></div>
+        <div><small>Status</small><b>{node.status || '-'}</b></div>
       </div>
       <section>
         <h3>Why it matters</h3>
-        <p>{node.why_it_matters || 'Impact is still being confirmed across sources.'}</p>
+        {node.why_it_matters ? <p>{node.why_it_matters}</p> : <p className="empty-copy">No impact note returned for this signal.</p>}
       </section>
       <section>
         <h3>Connected events</h3>
@@ -133,7 +133,7 @@ function OrbitDrawer({ node, edges, nodesById, onClose, onStory }) {
           <div className="orbit-connection" key={`${edge.from}-${edge.to}-${edge.type}`}>
             <b>{other.label}</b>
             <small>{edge.type} · {Math.round(Number(edge.confidence || 0) * 100)}%</small>
-            <p>{edge.evidence || 'Relationship evidence is available from the backend graph.'}</p>
+            {edge.evidence && <p>{edge.evidence}</p>}
           </div>
         )) : <p className="empty-copy">No validated relationships for this event yet.</p>}
       </section>
@@ -227,7 +227,7 @@ export default function OrbitPage() {
         source: 'NewsIntel Orbit',
         pulse_score: node.pulse,
         exposure_score: node.exposure,
-        signal_tier: node.pulse >= 78 ? 'CRITICAL' : node.pulse >= 58 ? 'SIGNAL' : 'WATCH',
+        signal_tier: node.signal_tier || node.tier || null,
       },
     },
   });
@@ -247,6 +247,7 @@ export default function OrbitPage() {
         activeItem="orbit"
         onHome={() => navigate('/dashboard')}
         onOrbit={() => load()}
+        onStories={() => navigate('/stories')}
         onMap={() => navigate('/map')}
         onSimulator={() => navigate('/simulator')}
         onLocked={setLockedToast}
@@ -262,7 +263,7 @@ export default function OrbitPage() {
             <p>Live signals orbiting around what matters to you.</p>
           </div>
           <div className="ni-header-tools">
-            <button className="wp-icon-btn" onClick={() => setLockedToast('The orbit is built from backend relationship edges.')}><Circle size={14} /> How it works</button>
+            <button className="wp-icon-btn" onClick={() => setLockedToast('Orbit relationships come from backend graph edges.')}><Circle size={14} /> Data Source</button>
             <button className="wp-icon-btn" onClick={load} disabled={loading}><RefreshCw size={18} /> Refresh</button>
           </div>
         </header>
@@ -294,9 +295,9 @@ export default function OrbitPage() {
                         <div><small>Pulse</small><b>{activeNode.pulse ?? '-'}</b></div>
                         <div><small>Exposure</small><b>{activeNode.exposure ?? '-'}</b></div>
                         <div><small>Distance</small><b>{Math.round((activeNode.distance ?? 0) * 100)}</b></div>
-                        <div><small>Status</small><b>{compactLabel(activeNode.status || 'stable')}</b></div>
+                        <div><small>Status</small><b>{activeNode.status ? compactLabel(activeNode.status) : '-'}</b></div>
                       </div>
-                      <p className="orbit-focus-copy">{activeNode.why_it_matters || 'Relationship context is still being confirmed across sources.'}</p>
+                      {activeNode.why_it_matters && <p className="orbit-focus-copy">{activeNode.why_it_matters}</p>}
                       <button className="orbit-story-button" onClick={() => openStory(activeNode)}>Explore Signal</button>
                     </>
                   )}
@@ -314,7 +315,7 @@ export default function OrbitPage() {
           </>
         )}
       </main>
-      <OrbitDrawer node={null} edges={visibleEdges} nodesById={nodesById} onClose={() => setSelected(null)} onStory={openStory} />
+      <OrbitDrawer node={selected} edges={visibleEdges} nodesById={nodesById} onClose={() => setSelected(null)} onStory={openStory} />
       <LockedNavToast message={lockedToast} />
     </div>
   );

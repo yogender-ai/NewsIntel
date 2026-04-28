@@ -4,12 +4,14 @@ import { Bookmark, Eye, GitBranch, Info, Target, X } from 'lucide-react';
 /* Compact signal card for Watchlist & Movers pages */
 export default function SignalMiniCard({ signal, onOpen, onSave, onTrack, onDismiss, onGraph, compact }) {
   if (!signal) return null;
-  const tone = signal.signal_tier?.toLowerCase() || 'signal';
+  const tone = signal.signal_tier ? signal.signal_tier.toLowerCase() : 'unclassified';
+  const pulseScore = Number.isFinite(Number(signal.pulse?.score ?? signal.pulse_score)) ? Math.round(Number(signal.pulse?.score ?? signal.pulse_score)) : '-';
+  const exposureScore = Number.isFinite(Number(signal.exposure?.score ?? signal.exposure_score ?? signal.relevance_score)) ? Math.round(Number(signal.exposure?.score ?? signal.exposure_score ?? signal.relevance_score)) : '-';
 
   return (
     <div className={`signal-mini-card tone-${tone}`}>
       <div className="mini-card-top">
-        <span className={`tier-badge tier-${tone}`}>{signal.signal_tier || 'SIGNAL'}</span>
+        {signal.signal_tier && <span className={`tier-badge tier-${tone}`}>{signal.signal_tier}</span>}
         <span className="mini-card-time">{signal.updatedAgo || ''}</span>
       </div>
       <h3>{signal.thread_title || signal.id}</h3>
@@ -17,11 +19,11 @@ export default function SignalMiniCard({ signal, onOpen, onSave, onTrack, onDism
       <div className="mini-card-scores">
         <span className="mini-score">
           <em>Pulse</em>
-          <b>{Math.round(signal.pulse?.score || signal.pulse_score || 50)}</b>
+          <b>{pulseScore}</b>
         </span>
         <span className="mini-score">
           <em>Exposure</em>
-          <b>{Math.round(signal.exposure?.score || signal.exposure_score || signal.relevance_score || 50)}</b>
+          <b>{exposureScore}</b>
         </span>
         {signal.confidence != null && (
           <span className="mini-score">

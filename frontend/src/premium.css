@@ -52,14 +52,15 @@ body::before {
   pointer-events: none;
   background:
     radial-gradient(ellipse 130% 65% at 8% 5%,
-      hsla(var(--pulse-hue, 260), 78%, 58%, calc(0.06 * var(--pulse-intensity, 0.3))), transparent 50%),
+      hsla(260, 78%, 58%, calc(0.035 + (0.075 * var(--pulse-intensity, 0)))), transparent 50%),
     radial-gradient(ellipse 100% 50% at 92% 10%,
-      hsla(240, 65%, 67%, calc(0.05 * var(--pulse-intensity, 0.3))), transparent 45%),
+      hsla(212, 70%, 58%, calc(0.025 + (0.055 * var(--pulse-intensity, 0)))), transparent 45%),
     radial-gradient(ellipse 80% 55% at 45% 95%,
-      hsla(190, 85%, 43%, calc(0.04 * var(--pulse-intensity, 0.3))), transparent 50%),
+      hsla(176, 72%, 45%, calc(0.02 + (0.05 * var(--pulse-intensity, 0)))), transparent 50%),
     radial-gradient(ellipse 60% 35% at 70% 55%,
-      hsla(330, 80%, 60%, calc(0.025 * var(--pulse-intensity, 0.3))), transparent 40%);
-  animation: nebulaShift 30s ease-in-out infinite alternate;
+      hsla(340, 78%, 60%, calc(0.014 + (0.035 * var(--pulse-intensity, 0)))), transparent 40%);
+  opacity: calc(0.45 + (0.35 * var(--pulse-intensity, 0)));
+  animation: nebulaShift 42s ease-in-out infinite alternate;
 }
 @keyframes nebulaShift {
   0%   { opacity: .5; }
@@ -82,7 +83,8 @@ body::after {
     radial-gradient(1px 1px at 91% 32%, rgba(52,211,153,0.20), transparent),
     radial-gradient(0.8px 0.8px at 8% 48%, rgba(196,181,253,0.15), transparent),
     radial-gradient(0.8px 0.8px at 65% 90%, rgba(129,140,248,0.12), transparent);
-  animation: starTwinkle 50s linear infinite;
+  opacity: calc(0.38 + (0.42 * var(--pulse-intensity, 0)));
+  animation: starTwinkle 70s linear infinite;
 }
 @keyframes starTwinkle {
   0%, 100% { opacity: .55; }
@@ -95,7 +97,7 @@ body::after {
   background: rgba(8,12,28,0.32) !important;
   border: 1px solid rgba(255,255,255,0.025) !important;
   backdrop-filter: blur(20px) saturate(1.2) !important;
-  border-radius: 16px !important;
+  border-radius: 8px !important;
   box-shadow: 0 12px 36px -8px rgba(0,0,0,0.4) !important;
   transition: transform 0.3s cubic-bezier(0.22,1,0.36,1),
               box-shadow 0.3s ease, border-color 0.3s ease !important;

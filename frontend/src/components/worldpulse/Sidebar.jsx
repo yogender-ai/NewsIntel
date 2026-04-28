@@ -36,8 +36,8 @@ export default function Sidebar({
   return (
     <aside className="wp-sidebar">
       <div className="wp-brand">
-        <div>NEWS<span>INTEL</span><sup>®</sup></div>
-        <p>Global Intelligence, Simplified.</p>
+        <div>NEWS<span>INTEL</span><sup>R</sup></div>
+        <p>Global intelligence, simplified.</p>
       </div>
 
       <nav className="wp-nav">
@@ -63,15 +63,15 @@ export default function Sidebar({
             <>
               <div className="focus-block">
                 <span>Topics</span>
-                <div>{topics.length ? topics.map((item) => <b key={item}>{compactLabel(item)}</b>) : <em>—</em>}</div>
+                <div>{topics.length ? topics.map((item) => <b key={item}>{compactLabel(item)}</b>) : <em>-</em>}</div>
               </div>
               <div className="focus-block">
                 <span>Regions</span>
-                <div>{regions.length ? regions.map((item) => <b key={item}>{compactLabel(item)}</b>) : <em>—</em>}</div>
+                <div>{regions.length ? regions.map((item) => <b key={item}>{compactLabel(item)}</b>) : <em>-</em>}</div>
               </div>
               <div className="focus-block">
                 <span>Entities</span>
-                <div>{entities.length ? entities.map((item) => <b key={item.entity_name || item.name || item}>{compactLabel(item.entity_name || item.name || item)}</b>) : <em>—</em>}</div>
+                <div>{entities.length ? entities.map((item) => <b key={item.entity_name || item.name || item}>{compactLabel(item.entity_name || item.name || item)}</b>) : <em>-</em>}</div>
               </div>
             </>
           ) : (
@@ -89,7 +89,7 @@ export default function Sidebar({
           <span>Ask NewsIntel</span>
           <small>What do you want to know?</small>
         </div>
-        <span className="ask-ni-arrow">→</span>
+        <span className="ask-ni-arrow">-&gt;</span>
       </button>
     </aside>
   );

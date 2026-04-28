@@ -66,6 +66,7 @@ export default function Settings() {
         activeItem="settings"
         onHome={() => navigate('/dashboard')}
         onOrbit={() => navigate('/orbit')}
+        onStories={() => navigate('/stories')}
         onMap={() => navigate('/map')}
         onSimulator={() => navigate('/simulator')}
         onLocked={setLockedToast}
@@ -94,7 +95,7 @@ export default function Settings() {
                 <div>
                   <div className="settings-name">{user.displayName}</div>
                   <div className="settings-email">{user.email}</div>
-                  <div className="settings-uid">UID: {user.uid?.slice(0, 12)}...</div>
+                  {user.uid && <div className="settings-uid">Account ID: {user.uid}</div>}
                 </div>
               </div>
             </section>
@@ -129,9 +130,9 @@ export default function Settings() {
               </>
             ) : (
               <div className="settings-no-prefs">
-                <p>No preferences saved yet.</p>
+                <p>No intelligence profile is saved yet.</p>
                 <button className="orbit-story-button" onClick={() => navigate('/onboarding')}>
-                  Set Up Your Feed <ChevronRight size={14} />
+                  Configure Profile <ChevronRight size={14} />
                 </button>
               </div>
             )}
@@ -163,23 +164,22 @@ export default function Settings() {
             )}
           </section>
 
-          {/* Danger Zone */}
           <section className="wp-card settings-section settings-danger">
             <div className="settings-section-head danger">
-              <Trash2 size={16} /> <span>Danger Zone</span>
+              <Trash2 size={16} /> <span>Account Data</span>
             </div>
             <p className="settings-desc">
               This will permanently delete your saved preferences and log you out.
-              You'll need to set up your intelligence profile again on next login.
+              You will need to configure your intelligence profile again on the next login.
             </p>
             {!confirmDelete ? (
               <button className="wp-icon-btn danger" onClick={() => setConfirmDelete(true)}>
-                <Trash2 size={14} /> Delete My Account Data
+                <Trash2 size={14} /> Delete Account Data
               </button>
             ) : (
               <div className="settings-confirm-row">
                 <button className="wp-icon-btn danger-fill" onClick={handleDelete} disabled={deleting}>
-                  {deleting ? 'Deleting...' : 'Yes, Delete Everything'}
+                  {deleting ? 'Deleting...' : 'Confirm Deletion'}
                 </button>
                 <button className="wp-icon-btn" onClick={() => setConfirmDelete(false)}>Cancel</button>
               </div>

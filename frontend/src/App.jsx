@@ -14,9 +14,17 @@ import OrbitPage from './pages/OrbitPage';
 import MapPage from './pages/MapPage';
 import SimulatorPage from './pages/SimulatorPage';
 import EventDetail from './pages/EventDetail';
+import StoriesPage from './pages/StoriesPage';
 import './index.css';
 
-export const AppContext = createContext({ headlines: [], setHeadlines: () => {}, mode: 'command', setMode: () => {}, worldPulseValue: 0, setWorldPulseValue: () => {} });
+export const AppContext = createContext({
+  headlines: [],
+  setHeadlines: () => {},
+  mode: 'command',
+  setMode: () => {},
+  worldPulseValue: 0,
+  setWorldPulseValue: () => {},
+});
 
 /* ── Minimal auth loading ── */
 const AuthLoading = () => (
@@ -51,7 +59,7 @@ const Login = () => {
           </p>
         </div>
         <button onClick={login} className="btn-premium" style={{ width: '100%' }}>
-          ▸ Authorize with Google
+          Authorize with Google
         </button>
       </div>
     </div>
@@ -162,13 +170,10 @@ function App() {
     localStorage.setItem('ni_mode', m);
   };
 
-  // Pulse-reactive background: set CSS custom property for nebula intensity
   useEffect(() => {
-    const intensity = Math.max(0.15, Math.min(1, (worldPulseValue || 0) / 100));
-    document.documentElement.style.setProperty('--pulse-intensity', String(intensity));
-    // Map pulse to hue shift for reactive background
-    const hue = worldPulseValue > 75 ? '0' : worldPulseValue > 50 ? '280' : '220';
-    document.documentElement.style.setProperty('--pulse-hue', hue);
+    const pulse = Math.max(0, Math.min(100, Number(worldPulseValue) || 0));
+    document.documentElement.style.setProperty('--pulse-intensity', (pulse / 100).toFixed(3));
+    document.documentElement.style.setProperty('--pulse-level', String(Math.round(pulse)));
   }, [worldPulseValue]);
 
   return (
@@ -188,7 +193,7 @@ function App() {
 
 function AppRoutes() {
   const location = useLocation();
-  const isWorldPulse = ['/', '/dashboard', '/orbit', '/map', '/simulator', '/story', '/watchlist', '/alerts', '/settings'].includes(location.pathname) || location.pathname.startsWith('/dashboard/event/');
+  const isWorldPulse = ['/', '/dashboard', '/orbit', '/map', '/simulator', '/story', '/stories', '/watchlist', '/alerts', '/settings'].includes(location.pathname) || location.pathname.startsWith('/dashboard/event/');
   return (
     <>
       {!isWorldPulse && <TopBar />}
@@ -201,6 +206,7 @@ function AppRoutes() {
           <Route path="/orbit" element={<Protected><OrbitPage /></Protected>} />
           <Route path="/map" element={<Protected><MapPage /></Protected>} />
           <Route path="/simulator" element={<Protected><SimulatorPage /></Protected>} />
+          <Route path="/stories" element={<Protected><StoriesPage /></Protected>} />
           <Route path="/onboarding" element={<Protected><Onboarding /></Protected>} />
           <Route path="/settings" element={<Protected><Settings /></Protected>} />
           <Route path="/story" element={<Protected><StoryView /></Protected>} />

@@ -12,13 +12,22 @@ const SEVERITY_CONFIG = {
   info: { icon: Info, color: '#818cf8', bg: 'rgba(129,140,248,0.08)', label: 'INFO' },
 };
 
+function severityConfig(severity) {
+  const key = String(severity || '').toLowerCase();
+  return SEVERITY_CONFIG[key] || {
+    icon: Bell,
+    color: '#aebbd3',
+    bg: 'rgba(174,187,211,0.08)',
+    label: severity ? String(severity).replace(/_/g, ' ').toUpperCase() : 'UNCLASSIFIED',
+  };
+}
+
 function AlertCard({ alert, onResolve, onNavigate }) {
-  const config = SEVERITY_CONFIG[alert.severity] || SEVERITY_CONFIG.info;
+  const config = severityConfig(alert.severity);
   const Icon = config.icon;
   const isNew = alert.unread && !alert.resolved;
   const created = alert.created_at ? new Date(alert.created_at) : new Date();
-  const timeStr = created.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' · ' +
-    created.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
+  const timeStr = alert.created_at ? `${created.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} / ${created.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}` : null;
 
   return (
     <div className={`wp-card alert-card ${alert.resolved ? 'resolved' : ''} ${isNew ? 'unread' : ''}`}>
@@ -31,7 +40,7 @@ function AlertCard({ alert, onResolve, onNavigate }) {
             {config.label}
           </span>
           {isNew && <span className="alert-new-badge">NEW</span>}
-          <span className="alert-time">{timeStr}</span>
+          {timeStr && <span className="alert-time">{timeStr}</span>}
         </div>
         <p className="alert-message">{alert.message}</p>
         {alert.signal_id && (
@@ -54,7 +63,7 @@ function AlertCard({ alert, onResolve, onNavigate }) {
 
 export default function AlertsPage() {
   const navigate = useNavigate();
-  const { alerts, unreadAlertCount, resolveAlert, resolveAllAlerts } = usePersonalization();
+  const { alerts, resolveAlert, resolveAllAlerts } = usePersonalization();
   const [filter, setFilter] = useState('all');
   const [lockedToast, setLockedToast] = useState('');
   const [prefs, setPrefs] = useState(null);
@@ -101,6 +110,7 @@ export default function AlertsPage() {
         activeItem="alerts"
         onHome={() => navigate('/dashboard')}
         onOrbit={() => navigate('/orbit')}
+        onStories={() => navigate('/stories')}
         onMap={() => navigate('/map')}
         onSimulator={() => navigate('/simulator')}
         onLocked={setLockedToast}
@@ -185,11 +195,8 @@ export default function AlertsPage() {
         <div className="alerts-footer wp-card">
           <Bell size={15} />
           <div>
-            <b>How alerts work</b>
-            <p>
-              Alerts fire when: a signal hits CRITICAL tier, your exposure crosses 80, a tracked entity moves to SIGNAL/CRITICAL,
-              or a topic's pulse delta exceeds ±12. All thresholds are tuned to your profile.
-            </p>
+            <b>Alert data</b>
+            <p>Alert severity, signal references, and resolution state are read directly from the backend alert payload.</p>
           </div>
         </div>
       </main>
