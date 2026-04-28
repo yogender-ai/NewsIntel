@@ -7,39 +7,29 @@
   cursor: none !important;
 }
 
-/* ── Premium Fluid Cursor System ─────────────────────────── */
-.cursor-dot-v2, .cursor-ring-v2, .cursor-trail {
+/* ── Hyprland-Style Cursor ────────────────────────────────── */
+.hypr-dot {
   position: fixed; left: 0; top: 0; z-index: 99999;
-  pointer-events: none; will-change: transform;
-}
-.cursor-dot-v2 {
-  width: 6px; height: 6px; margin: -3px 0 0 -3px;
-  background: #fff; border-radius: 50%;
-  box-shadow: 0 0 12px rgba(139,92,246,0.6), 0 0 30px rgba(94,234,212,0.3);
-  transition: width 0.15s, height 0.15s, margin 0.15s, background 0.15s;
+  width: 8px; height: 8px;
+  background: #fff;
+  border-radius: 50%;
+  pointer-events: none;
+  will-change: transform;
   mix-blend-mode: difference;
 }
-.cursor-dot-v2.pressed {
-  width: 10px; height: 10px; margin: -5px 0 0 -5px;
-  background: #5eead4;
-  box-shadow: 0 0 20px rgba(94,234,212,0.8), 0 0 40px rgba(139,92,246,0.4);
-}
-.cursor-ring-v2 {
-  width: 36px; height: 36px; margin: -18px 0 0 -18px;
-  border: 1.5px solid rgba(139,92,246,0.5); border-radius: 50%;
-  transition: width 0.2s, height 0.2s, margin 0.2s, border-color 0.2s;
-}
-.cursor-ring-v2.pressed {
-  width: 28px; height: 28px; margin: -14px 0 0 -14px;
-  border-color: rgba(94,234,212,0.7); border-width: 2px;
-}
-.cursor-trail {
-  width: 60px; height: 60px; margin: -30px 0 0 -30px;
+
+.hypr-blob {
+  position: fixed; left: 0; top: 0; z-index: 99998;
+  width: 320px; height: 320px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(139,92,246,0.08), transparent 70%);
-  opacity: 0;
+  pointer-events: none;
+  will-change: transform;
+  background: radial-gradient(circle, rgba(94,234,212,0.06) 0%, rgba(139,92,246,0.04) 30%, transparent 65%);
+  filter: blur(1px);
 }
-.custom-cursor, .live-cursor-advanced { display: none !important; }
+
+.custom-cursor, .live-cursor-advanced,
+.cursor-dot-v2, .cursor-ring-v2, .cursor-trail { display: none !important; }
 
 /* ── Pulse-reactive deep space background ────────────────── */
 body {

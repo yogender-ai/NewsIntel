@@ -126,16 +126,12 @@ const TopBar = () => {
   );
 };
 
-/* ── Global Live Cursor — premium fluid reticle ─────────────────── */
+/* ── Global Live Cursor — hypr.land style ────────────────────────── */
 function GlobalLiveCursor() {
   const dotRef = useRef(null);
-  const ringRef = useRef(null);
-  const trailRef = useRef(null);
+  const blobRef = useRef(null);
   const mouse = useRef({ x: -100, y: -100 });
-  const ring = useRef({ x: -100, y: -100 });
-  const trail = useRef({ x: -100, y: -100 });
-  const vel = useRef({ x: 0, y: 0 });
-  const [pressed, setPressed] = useState(false);
+  const blob = useRef({ x: -100, y: -100 });
 
   useEffect(() => {
     const move = (e) => {
@@ -143,34 +139,17 @@ function GlobalLiveCursor() {
       document.documentElement.style.setProperty('--cursor-x', `${e.clientX}px`);
       document.documentElement.style.setProperty('--cursor-y', `${e.clientY}px`);
     };
-    const down = () => setPressed(true);
-    const up = () => setPressed(false);
     window.addEventListener('pointermove', move);
-    window.addEventListener('pointerdown', down);
-    window.addEventListener('pointerup', up);
 
     let raf;
     const tick = () => {
-      const dx = mouse.current.x - ring.current.x;
-      const dy = mouse.current.y - ring.current.y;
-      ring.current.x += dx * 0.15;
-      ring.current.y += dy * 0.15;
-      trail.current.x += (mouse.current.x - trail.current.x) * 0.08;
-      trail.current.y += (mouse.current.y - trail.current.y) * 0.08;
-      vel.current = { x: dx, y: dy };
-      const speed = Math.sqrt(dx * dx + dy * dy);
-      const scale = Math.min(1.6, 1 + speed * 0.008);
-      const angle = Math.atan2(dy, dx) * 180 / Math.PI;
-
+      blob.current.x += (mouse.current.x - blob.current.x) * 0.12;
+      blob.current.y += (mouse.current.y - blob.current.y) * 0.12;
       if (dotRef.current) {
-        dotRef.current.style.transform = `translate(${mouse.current.x}px, ${mouse.current.y}px)`;
+        dotRef.current.style.transform = `translate(${mouse.current.x - 4}px, ${mouse.current.y - 4}px)`;
       }
-      if (ringRef.current) {
-        ringRef.current.style.transform = `translate(${ring.current.x}px, ${ring.current.y}px) rotate(${angle}deg) scale(${scale}, ${2 - scale * 0.5})`;
-      }
-      if (trailRef.current) {
-        trailRef.current.style.transform = `translate(${trail.current.x}px, ${trail.current.y}px)`;
-        trailRef.current.style.opacity = Math.min(0.4, speed * 0.006);
+      if (blobRef.current) {
+        blobRef.current.style.transform = `translate(${blob.current.x - 160}px, ${blob.current.y - 160}px)`;
       }
       raf = requestAnimationFrame(tick);
     };
@@ -179,16 +158,13 @@ function GlobalLiveCursor() {
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerdown', down);
-      window.removeEventListener('pointerup', up);
     };
   }, []);
 
   return (
     <>
-      <div ref={trailRef} className="cursor-trail" />
-      <div ref={ringRef} className={`cursor-ring-v2 ${pressed ? 'pressed' : ''}`} />
-      <div ref={dotRef} className={`cursor-dot-v2 ${pressed ? 'pressed' : ''}`} />
+      <div ref={blobRef} className="hypr-blob" />
+      <div ref={dotRef} className="hypr-dot" />
     </>
   );
 }
