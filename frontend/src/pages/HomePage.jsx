@@ -259,6 +259,14 @@ export default function HomePage() {
       setPreferences({ data: { preferred_categories: dashResult?.topics_used || [], preferred_regions: dashResult?.regions_used || [] } });
       setDashboard(dashResult);
       setAlerts(alertsResult);
+      if (force && dashResult?.manual_refresh) {
+        const refresh = dashResult.manual_refresh;
+        const reason = refresh.error || refresh.result?.reason || refresh.enrichment?.reason;
+        const showProviderState = refresh.status !== 'success' || ['deferred', 'skipped'].includes(refresh.enrichment?.status);
+        if (showProviderState) {
+          setLockedToast(reason ? `Refresh status: ${refresh.status} (${reason})` : `Refresh status: ${refresh.status}`);
+        }
+      }
     } catch (err) {
       setDashboard(null);
       setPreferences(null);

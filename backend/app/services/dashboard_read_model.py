@@ -84,6 +84,95 @@ def sentiment_intensity_from_ai(ai: dict) -> float:
     return 0.25
 
 
+def event_source_payloads(event: Event) -> list[dict]:
+    sources = []
+    for link in event.article_links or []:
+        article = link.article
+        if not article:
+            continue
+        sources.append(
+            {
+                "id": str(article.id),
+                "title": article.title,
+                "source": article.source,
+                "url": article.canonical_url,
+                "published_at": article.published_at.isoformat() if article.published_at else None,
+                "text_preview": article.text_preview or "",
+            }
+        )
+    return sources
+
+
+def event_to_signal_card(
+    event: Event,
+    *,
+    topics: list[str] | None = None,
+    rank: int = 0,
+) -> dict:
+    ai = ai_metadata(event)
+    pulse = pulse_from_event(event)
+    tier = tier_from_event(event)
+    base_score, default_breakdown = deterministic_base_score(event)
+    pulse_breakdown = ai.get("pulse_breakdown") if isinstance(ai.get("pulse_breakdown"), dict) else default_breakdown
+    if "deterministic_base" not in pulse_breakdown:
+        pulse_breakdown = {
+            **pulse_breakdown,
+            "deterministic_base": base_score,
+            "ai_importance": ai.get("pulse_score", 0),
+            "user_relevance": 70 if event.category in (topics or []) else 50,
+        }
+    ai_status = ai.get("status") or AI_STATUS_PENDING
+    entities = ai.get("entities") if ai_status == AI_STATUS_ENRICHED and isinstance(ai.get("entities"), list) else []
+    story_graph = ai.get("story_graph_json") if ai_status == AI_STATUS_ENRICHED and isinstance(ai.get("story_graph_json"), dict) else None
+    sources = event_source_payloads(event)
+    article_ids = [source["id"] for source in sources]
+    exposure_score = 70 if event.category in (topics or []) else 50
+    return {
+        "thread_id": str(event.id),
+        "signal_id": str(event.id),
+        "id": str(event.id),
+        "thread_title": event.title,
+        "title": event.title,
+        "summary": ai_text(event, "summary", "AI analysis pending", "AI analysis unavailable"),
+        "article_ids": article_ids,
+        "sources": sources,
+        "source_url": sources[0]["url"] if sources else None,
+        "source": sources[0]["source"] if sources else None,
+        "pulse_score": pulse,
+        "pulse_breakdown": pulse_breakdown,
+        "deterministic_base_score": base_score,
+        "impact_line": ai_text(event, "impact_line", "AI analysis pending", "AI analysis unavailable"),
+        "why_it_matters": ai_text(
+            event,
+            "why_it_matters",
+            "Impact is still being confirmed across sources.",
+            "AI analysis unavailable",
+        ),
+        "risk_type": risk_type_from_ai(ai),
+        "risk_level": ai.get("risk_level") if ai_status == AI_STATUS_ENRICHED else None,
+        "opportunity_level": ai.get("opportunity_level") if ai_status == AI_STATUS_ENRICHED else None,
+        "signal_tier": tier,
+        "source_count": event.source_count,
+        "source_diversity": min(1.0, event.source_count / max(len(article_ids), 1)),
+        "sentiment": ai.get("sentiment") if ai_status == AI_STATUS_ENRICHED else None,
+        "sentiment_intensity": sentiment_intensity_from_ai(ai),
+        "confidence": event.confidence_score,
+        "confidence_explanation": ai.get("confidence_explanation") if ai_status == AI_STATUS_ENRICHED else None,
+        "uncertainty": ai.get("uncertainty") if ai_status == AI_STATUS_ENRICHED else None,
+        "ai_status": ai_status,
+        "ai_provider_used": ai.get("provider_used"),
+        "ai_enriched_at": ai.get("enriched_at"),
+        "entities": entities,
+        "story_graph": story_graph,
+        "updated_at": event.last_seen_at.isoformat(),
+        "last_seen_at": event.last_seen_at.isoformat(),
+        "first_detected_at": event.first_seen_at.isoformat(),
+        "matched_preferences": [{"id": event.category, "label": event.category.title()}] if event.category else [],
+        "exposure_score": exposure_score,
+        "rank": rank,
+    }
+
+
 async def build_dashboard_payload(
     session: AsyncSession,
     *,
@@ -111,12 +200,10 @@ async def build_dashboard_payload(
     articles = []
     clusters = []
 
-    for event in events:
-        article_ids = []
+    for rank, event in enumerate(events, start=1):
         for link in event.article_links:
             article = link.article
             article_id = str(article.id)
-            article_ids.append(article_id)
             articles.append(
                 {
                     "id": article_id,
@@ -130,64 +217,7 @@ async def build_dashboard_payload(
                 }
             )
 
-        ai = ai_metadata(event)
-        pulse = pulse_from_event(event)
-        tier = tier_from_event(event)
-        base_score, default_breakdown = deterministic_base_score(event)
-        pulse_breakdown = ai.get("pulse_breakdown") if isinstance(ai.get("pulse_breakdown"), dict) else default_breakdown
-        if "deterministic_base" not in pulse_breakdown:
-            pulse_breakdown = {**pulse_breakdown, "deterministic_base": base_score, "ai_importance": 0, "user_relevance": 70 if event.category in (topics or []) else 50}
-        ai_status = ai.get("status") or AI_STATUS_PENDING
-        entities = ai.get("entities") if ai_status == AI_STATUS_ENRICHED and isinstance(ai.get("entities"), list) else []
-        story_graph = ai.get("story_graph_json") if ai_status == AI_STATUS_ENRICHED and isinstance(ai.get("story_graph_json"), dict) else None
-        clusters.append(
-            {
-                "thread_id": str(event.id),
-                "signal_id": str(event.id),
-                "thread_title": event.title,
-                "summary": ai_text(
-                    event,
-                    "summary",
-                    "AI analysis pending",
-                    "AI analysis unavailable",
-                ),
-                "article_ids": article_ids,
-                "pulse_score": pulse,
-                "pulse_breakdown": pulse_breakdown,
-                "deterministic_base_score": base_score,
-                "impact_line": ai_text(
-                    event,
-                    "impact_line",
-                    "AI analysis pending",
-                    "AI analysis unavailable",
-                ),
-                "why_it_matters": ai_text(
-                    event,
-                    "why_it_matters",
-                    "Impact is still being confirmed across sources.",
-                    "AI analysis unavailable",
-                ),
-                "risk_type": risk_type_from_ai(ai),
-                "risk_level": ai.get("risk_level") if ai_status == AI_STATUS_ENRICHED else None,
-                "opportunity_level": ai.get("opportunity_level") if ai_status == AI_STATUS_ENRICHED else None,
-                "signal_tier": tier,
-                "source_count": event.source_count,
-                "source_diversity": min(1.0, event.source_count / max(len(article_ids), 1)),
-                "sentiment": ai.get("sentiment") if ai_status == AI_STATUS_ENRICHED else None,
-                "sentiment_intensity": sentiment_intensity_from_ai(ai),
-                "confidence": event.confidence_score,
-                "confidence_explanation": ai.get("confidence_explanation") if ai_status == AI_STATUS_ENRICHED else None,
-                "uncertainty": ai.get("uncertainty") if ai_status == AI_STATUS_ENRICHED else None,
-                "ai_status": ai_status,
-                "ai_provider_used": ai.get("provider_used"),
-                "ai_enriched_at": ai.get("enriched_at"),
-                "entities": entities,
-                "story_graph": story_graph,
-                "updated_at": event.last_seen_at.isoformat(),
-                "matched_preferences": [{"id": event.category, "label": event.category.title()}] if event.category else [],
-                "exposure_score": 70 if event.category in (topics or []) else 50,
-            }
-        )
+        clusters.append(event_to_signal_card(event, topics=topics, rank=rank))
 
     signal_clusters = [cluster for cluster in clusters if cluster["signal_tier"] in ("CRITICAL", "SIGNAL")]
     exposure_score = (

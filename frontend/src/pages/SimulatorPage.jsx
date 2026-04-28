@@ -17,8 +17,10 @@ function ImpactCards({ result }) {
     <section className="sim-impact-grid">
       {areas.map((item) => (
         <div className="wp-card sim-impact-card" key={item.area}>
-          <span>{item.area}</span>
-          <b>{item.score}</b>
+          <div className="sim-impact-head">
+            <span>{item.area}</span>
+            <b>{item.score}</b>
+          </div>
           <small>{item.direction}</small>
           <p>{item.explanation}</p>
         </div>
@@ -164,7 +166,10 @@ export default function SimulatorPage() {
             )}
             {result && (
               <div className="scenario-result">
-                <div className="scenario-score"><b>{result.impact_score}</b><span>overall impact</span><b>{result.confidence}</b><span>confidence</span></div>
+                <div className="scenario-score">
+                  <div><b>{result.impact_score}</b><span>Overall Impact</span></div>
+                  <div><b>{result.confidence}</b><span>Confidence</span></div>
+                </div>
                 <p>{result.summary}</p>
                 <p className="scenario-disclaimer">{result.disclaimer}</p>
                 <section>

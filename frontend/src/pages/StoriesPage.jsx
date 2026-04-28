@@ -9,6 +9,8 @@ import { compactLabel, formatRelativeTime } from '../lib/dashboardAdapter';
 
 function normalizeStory(cluster) {
   const id = cluster.signal_id || cluster.thread_id || cluster.id;
+  const sources = Array.isArray(cluster.sources) ? cluster.sources : [];
+  const primarySource = sources.find((source) => source?.url) || sources[0] || {};
   return {
     id,
     title: cluster.thread_title || cluster.title || '',
@@ -17,7 +19,9 @@ function normalizeStory(cluster) {
     tier: cluster.signal_tier || '',
     pulse: Number.isFinite(Number(cluster.pulse_score)) ? Math.round(Number(cluster.pulse_score)) : null,
     updatedAt: cluster.updated_at || cluster.last_seen_at || cluster.ai_enriched_at || null,
-    source: cluster.ai_provider_used || '',
+    source: primarySource.source || cluster.source || cluster.ai_provider_used || '',
+    url: primarySource.url || cluster.source_url || cluster.url || '',
+    sourceCount: sources.length || cluster.source_count || 0,
     raw: cluster,
   };
 }
@@ -84,7 +88,12 @@ export default function StoriesPage() {
           text_preview: story.summary,
           text: story.summary,
           source: story.source,
+          url: story.url,
+          sources: story.raw.sources || [],
           pulse_score: story.pulse,
+          exposure_score: story.raw.exposure_score,
+          sentiment: story.raw.sentiment,
+          entities: story.raw.entities || [],
           signal_tier: story.tier || null,
         },
       },
@@ -143,6 +152,7 @@ export default function StoriesPage() {
                     {story.summary && <p>{story.summary}</p>}
                     <div className="story-tile-meta">
                       {story.pulse != null && <span>Pulse {story.pulse}</span>}
+                      {story.sourceCount ? <span>{story.sourceCount} sources</span> : null}
                       {story.updatedAt && <span>{formatRelativeTime(story.updatedAt)}</span>}
                     </div>
                   </button>

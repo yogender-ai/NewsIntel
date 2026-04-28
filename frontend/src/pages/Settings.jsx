@@ -83,6 +83,21 @@ export default function Settings() {
           </div>
         </header>
 
+        <section className="settings-status-strip">
+          <div className="wp-card settings-status-card">
+            <span>Topics Tracked</span>
+            <b>{cats.length}</b>
+          </div>
+          <div className="wp-card settings-status-card">
+            <span>Regions Tracked</span>
+            <b>{regs.length}</b>
+          </div>
+          <div className="wp-card settings-status-card">
+            <span>Profile State</span>
+            <b>{cats.length || regs.length ? 'Active' : 'Not Set'}</b>
+          </div>
+        </section>
+
         <div className="settings-grid">
           {/* User Info */}
           {user && (

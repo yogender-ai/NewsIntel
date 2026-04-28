@@ -14,7 +14,11 @@ export default function EventDetail() {
   useEffect(() => {
     async function fetchEvent() {
       try {
-        // Fetch specific event from clusters or events endpoint
+        const storyRes = await api.getStory(id).catch(() => null);
+        if (storyRes?.story) {
+          setEvent(storyRes.story);
+          return;
+        }
         const res = await api.getCachedDashboard();
         if (res?.clusters) {
           const found = res.clusters.find(c => [c.signal_id, c.thread_id, c.id].map(String).includes(String(id)));
@@ -79,6 +83,10 @@ export default function EventDetail() {
     );
   }
 
+  const sources = (event.sources || (event.source_url ? [{ url: event.source_url, source: event.source, title: event.thread_title || event.title }] : []))
+    .filter((source) => source?.url);
+  const sentimentLabel = typeof event.sentiment === 'string' ? event.sentiment : event.sentiment?.label;
+
   return (
     <div className="world-pulse-page">
       <Sidebar
@@ -139,7 +147,7 @@ export default function EventDetail() {
               <Radio size={16}/> EXECUTIVE BRIEFING
             </h3>
             <p style={{ fontSize: 16, lineHeight: 1.7, color: '#e2e8f0', marginBottom: 24 }}>
-              {event.summary}
+              {event.summary || event.why_it_matters}
             </p>
             
             {event.impact_line && (
@@ -150,11 +158,28 @@ export default function EventDetail() {
             )}
           </div>
           
-          <div className="wp-card" style={{ padding: 32 }}>
-            <h3 style={{ fontSize: 16, color: '#a5b4fc', marginBottom: 16 }}>SOURCING & CLUSTERING</h3>
-            <p style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.6 }}>
-              Source and clustering metadata are shown when returned by the backend. {event.articles?.length ? `${event.articles.length} source nodes are attached to this signal.` : ''}
-            </p>
+          <div className="story-evidence-grid" style={{ marginBottom: 24 }}>
+            <div className="wp-card" style={{ padding: 24 }}>
+              <h3 style={{ fontSize: 16, color: '#a5b4fc', marginBottom: 16 }}>SOURCES</h3>
+              <div className="source-list">
+                {sources.map((source, index) => (
+                  <a key={source.url || index} href={source.url} target="_blank" rel="noreferrer">
+                    <b>{source.source || 'Source'}</b>
+                    <span>{source.title || event.thread_title || event.title}</span>
+                  </a>
+                ))}
+                {!sources.length && <p className="empty-copy">No source link was returned for this signal.</p>}
+              </div>
+            </div>
+            <div className="wp-card" style={{ padding: 24 }}>
+              <h3 style={{ fontSize: 16, color: '#a5b4fc', marginBottom: 16 }}>SIGNAL QUALITY</h3>
+              <div className="drawer-grid">
+                <div><small>Sources</small><b>{event.source_count || sources.length || '-'}</b></div>
+                <div><small>Sentiment</small><b>{sentimentLabel || '-'}</b></div>
+                <div><small>Confidence</small><b>{Number.isFinite(Number(event.confidence)) ? Math.round(Number(event.confidence) * 100) : '-'}</b></div>
+                <div><small>AI Status</small><b>{event.ai_status || '-'}</b></div>
+              </div>
+            </div>
           </div>
           
         </div>

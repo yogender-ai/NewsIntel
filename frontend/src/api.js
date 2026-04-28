@@ -18,6 +18,7 @@ const RETRY_DELAYS = [0, 1200, 3000]; // ms — first try is instant, then 1.2s,
 async function request(path, options = {}, retries = 2) {
   const url = `${API_BASE}${path}`;
   let lastError;
+  const { timeoutMs = 25000, ...fetchOptions } = options;
 
   for (let attempt = 0; attempt <= retries; attempt++) {
     if (attempt > 0) {
@@ -25,12 +26,12 @@ async function request(path, options = {}, retries = 2) {
     }
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 25000); // 25s timeout
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
       const res = await fetch(url, {
         headers: getHeaders(),
         signal: controller.signal,
-        ...options,
+        ...fetchOptions,
       });
       clearTimeout(timeout);
 
@@ -66,6 +67,7 @@ export const api = {
   forceDashboardRefresh: (topics = [], regions = []) =>
     request('/api/dashboard', {
       method: 'POST',
+      timeoutMs: 90000,
       body: JSON.stringify({ topics, regions }),
     }),
 
@@ -78,6 +80,8 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ title, text, source }),
     }),
+
+  getStory: (storyId) => request(`/api/story/${encodeURIComponent(storyId)}`),
 
   savePreferences: (prefs) =>
     request('/api/user/preferences', {

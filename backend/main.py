@@ -32,10 +32,11 @@ from app.core.cors import ALLOWED_ORIGIN_REGEX, allowed_origins
 from app.core.database import AsyncSessionLocal as EventStoreSessionLocal
 from sqlalchemy import func, select
 from sqlalchemy import delete
+from sqlalchemy.orm import selectinload
 from app.core.config import get_settings
-from app.models.news import Alert, AlertRule, DailyDigest, EventMetric, HomeSnapshot, IngestionLock, Story, User
+from app.models.news import Alert, AlertRule, DailyDigest, Event, EventArticle, EventMetric, HomeSnapshot, IngestionLock, Story, User
 from app.services.alert_engine import ensure_user, evaluate_all_users, evaluate_user_alerts
-from app.services.dashboard_read_model import build_dashboard_payload
+from app.services.dashboard_read_model import build_dashboard_payload, event_to_signal_card
 from app.services.digest_engine import generate_all_digests, generate_digest
 from app.services.event_relationships import load_orbit_payload
 from app.services.geo_signals import build_map_signals
@@ -1224,8 +1225,52 @@ async def get_cached_dashboard(request: Request):
 
 @app.post("/api/dashboard")
 async def force_refresh_dashboard(request: Request, payload_request: DashboardRequest):
-    """Return the latest cached MVP snapshot; ingestion is scheduler/admin-only."""
-    return await home_snapshot()
+    """Run a real user-requested refresh, then return the latest MVP snapshot.
+
+    This endpoint never fabricates fallback stories. If providers are rate-limited
+    or denied, the response includes the provider/circuit status and the latest
+    persisted snapshot so the frontend can explain why fresh news did not land.
+    """
+    topics = _normalize_profile_values(payload_request.topics)
+    regions = _normalize_profile_values(payload_request.regions)
+    refresh_result: dict | None = None
+    enrich_result: dict | None = None
+    refresh_error: str | None = None
+
+    try:
+        if not mvp_settings.enable_heavy_ingestion:
+            async with EventStoreSessionLocal() as session:
+                pipeline = MVPNewsPipeline(session, settings=mvp_settings)
+                refresh_result = await pipeline.run_ingestion()
+                if refresh_result.get("status") == "success":
+                    enrich_result = await pipeline.enrich_batch()
+                payload = await pipeline.latest_snapshot()
+                await session.commit()
+        else:
+            refresh_result = await _run_admin_ingestion(
+                topics or ["ai", "tech", "markets"],
+                regions or ["global"],
+                max_articles=40,
+            )
+            payload = await home_snapshot()
+    except Exception as exc:
+        logger.error("Manual dashboard refresh failed: %s", exc, exc_info=True)
+        refresh_error = str(exc)[:500]
+        payload = await home_snapshot()
+
+    payload["manual_refresh"] = {
+        "requested_at": datetime.now(timezone.utc).isoformat(),
+        "status": "error" if refresh_error else (refresh_result or {}).get("status", "completed"),
+        "result": refresh_result,
+        "enrichment": enrich_result,
+        "error": refresh_error,
+        "message": (
+            "Refresh failed; showing latest persisted news."
+            if refresh_error
+            else "Refresh completed from live providers. Provider limits may defer enrichment."
+        ),
+    }
+    return payload
 
 
 async def _run_admin_ingestion(topics: list[str], regions: list[str], max_articles: int) -> dict:
@@ -1364,11 +1409,21 @@ async def mvp_story(story_id: str):
         except ValueError:
             raise HTTPException(status_code=404, detail="Story not found")
         story = await session.scalar(select(Story).where(Story.id == story_uuid))
-        if not story:
-            raise HTTPException(status_code=404, detail="Story not found")
-        from app.services.mvp_pipeline import story_to_card
+        if story:
+            from app.services.mvp_pipeline import story_to_card
 
-        return {"story": story_to_card(story), "source_url": story.source_url}
+            card = story_to_card(story)
+            return {"story": card, "source_url": story.source_url, "sources": card.get("sources", [])}
+
+        event = await session.scalar(
+            select(Event)
+            .options(selectinload(Event.article_links).selectinload(EventArticle.article))
+            .where(Event.id == story_uuid)
+        )
+        if not event:
+            raise HTTPException(status_code=404, detail="Story not found")
+        card = event_to_signal_card(event)
+        return {"story": card, "source_url": card.get("source_url"), "sources": card.get("sources", [])}
 
 
 @app.get("/api/categories")

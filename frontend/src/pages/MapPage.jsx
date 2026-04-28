@@ -167,9 +167,31 @@ export default function MapPage() {
             {selected.top_events?.map((event) => (
               <div className="orbit-connection" key={event.id}>
                 <b>{event.title}</b>
-                <small>pulse {event.pulse} / {compactLabel(event.category)}</small>
+                <small>pulse {event.pulse} / {compactLabel(event.category)}{event.sources?.length ? ` / ${event.sources.length} sources` : ''}</small>
                 <p>{event.why_it_matters || 'Impact is still being confirmed.'}</p>
-                <button className="orbit-story-button" onClick={() => navigate('/story', { state: { article: { id: event.id, title: event.title, text_preview: event.why_it_matters, source: 'NewsIntel Map', pulse_score: event.pulse } } })}>Open Story</button>
+                <button
+                  className="orbit-story-button"
+                  onClick={() => navigate('/story', {
+                    state: {
+                      article: {
+                        id: event.id,
+                        title: event.title,
+                        text_preview: event.summary || event.why_it_matters,
+                        summary: event.summary || event.why_it_matters,
+                        source: event.sources?.[0]?.source || 'NewsIntel Map',
+                        url: event.source_url || event.sources?.[0]?.url,
+                        sources: event.sources || [],
+                        category: event.category,
+                        sentiment: event.sentiment,
+                        why_it_matters: event.why_it_matters,
+                        pulse_score: event.pulse,
+                        signal_tier: event.signal_tier || null,
+                      },
+                    },
+                  })}
+                >
+                  Open Story
+                </button>
               </div>
             ))}
           </section>

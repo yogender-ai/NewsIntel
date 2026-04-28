@@ -14,7 +14,7 @@ from sqlalchemy.orm import selectinload
 
 import hf_client
 from app.models.news import Event, EventArticle, EventRelationship, EventRelationshipCheck
-from app.services.dashboard_read_model import ai_metadata, pulse_from_event
+from app.services.dashboard_read_model import ai_metadata, event_source_payloads, pulse_from_event, tier_from_event
 from app.services.event_enrichment import AI_STATUS_ENRICHED, clean_json_text
 
 logger = logging.getLogger("news-intel-event-relationships")
@@ -474,9 +474,12 @@ def orbit_node(event: Event, topics: list[str] | None = None, regions: list[str]
     if isinstance(breakdown.get("delta"), int | float):
         delta = breakdown["delta"]
     status = "rising" if delta > 0 else "cooling" if delta < 0 else "stable"
+    sources = event_source_payloads(event)
     return {
         "id": str(event.id),
         "label": event.title,
+        "title": event.title,
+        "summary": ai.get("summary") or event.summary,
         "category": event.category or "general",
         "pulse": pulse,
         "exposure": exposure,
@@ -484,6 +487,14 @@ def orbit_node(event: Event, topics: list[str] | None = None, regions: list[str]
         "size": max(10, min(34, round(10 + pulse * 0.24))),
         "status": status,
         "ai_status": ai.get("status") or "pending",
+        "signal_tier": ai.get("signal_tier") or tier_from_event(event),
+        "sentiment": ai.get("sentiment"),
+        "risk_level": ai.get("risk_level"),
+        "opportunity_level": ai.get("opportunity_level"),
+        "entities": sorted(ai_entities(event)),
+        "sources": sources,
+        "source_url": sources[0]["url"] if sources else None,
+        "source": sources[0]["source"] if sources else None,
         "why_it_matters": ai.get("why_it_matters") or "Impact is still being confirmed across sources.",
         "updated_at": event.last_seen_at.isoformat(),
     }

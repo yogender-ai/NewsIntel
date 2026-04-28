@@ -11,7 +11,7 @@ from sqlalchemy.orm.attributes import flag_modified
 
 from app.core.cache import cache
 from app.models.news import Event, EventArticle
-from app.services.dashboard_read_model import ai_metadata, pulse_from_event
+from app.services.dashboard_read_model import ai_metadata, event_source_payloads, pulse_from_event, tier_from_event
 
 
 COUNTRIES = {
@@ -152,6 +152,25 @@ async def build_map_signals(session: AsyncSession, *, layer: str | None = None, 
         avg_pulse = sum(pulses) / max(len(pulses), 1)
         high_impact = sum(1 for pulse in pulses if pulse >= 75)
         top_events = sorted(bucket["events"], key=pulse_from_event, reverse=True)[:5]
+        top_event_payloads = []
+        for event in top_events:
+            ai = ai_metadata(event)
+            sources = event_source_payloads(event)
+            top_event_payloads.append(
+                {
+                    "id": str(event.id),
+                    "title": event.title,
+                    "pulse": pulse_from_event(event),
+                    "category": event.category,
+                    "signal_tier": tier_from_event(event),
+                    "sentiment": ai.get("sentiment"),
+                    "why_it_matters": ai.get("why_it_matters"),
+                    "summary": ai.get("summary") or event.summary,
+                    "sources": sources,
+                    "source_url": sources[0]["url"] if sources else None,
+                    "updated_at": event.last_seen_at.isoformat(),
+                }
+            )
         intensity = min(100, round(avg_pulse * 0.7 + min(len(pulses) * 8, 30)))
         regions.append(
             {
@@ -168,16 +187,7 @@ async def build_map_signals(session: AsyncSession, *, layer: str | None = None, 
                 "high_impact_count": high_impact,
                 "risk_count": bucket["risk_count"],
                 "opportunity_count": bucket["opportunity_count"],
-                "top_events": [
-                    {
-                        "id": str(event.id),
-                        "title": event.title,
-                        "pulse": pulse_from_event(event),
-                        "category": event.category,
-                        "why_it_matters": ai_metadata(event).get("why_it_matters"),
-                    }
-                    for event in top_events
-                ],
+                "top_events": top_event_payloads,
             }
         )
     payload = {"updated_at": utcnow().isoformat(), "layers": LAYERS, "regions": sorted(regions, key=lambda item: item["intensity"], reverse=True)}

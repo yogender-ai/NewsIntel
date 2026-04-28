@@ -74,6 +74,7 @@ export default function StoryView() {
   const { user } = useAuth();
   const article = state?.article;
 
+  const [storyRecord, setStoryRecord] = useState(article || null);
   const [deepData, setDeepData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -87,17 +88,38 @@ export default function StoryView() {
 
     window.scrollTo(0, 0);
     let cancelled = false;
+    setStoryRecord(article);
 
     (async () => {
       setLoading(true);
       setError(null);
       try {
-        const result = await api.storyDeepDive(
+        const [storyResult, deepResult] = await Promise.allSettled([
+          article.id ? api.getStory(article.id) : Promise.resolve(null),
+          api.storyDeepDive(
           article.title,
           article.text_preview || article.text || article.summary || article.title,
           article.source,
-        );
-        if (!cancelled) setDeepData(result);
+          ),
+        ]);
+        if (cancelled) return;
+        if (storyResult.status === 'fulfilled' && storyResult.value?.story) {
+          const backendStory = storyResult.value.story;
+          setStoryRecord({
+            ...article,
+            ...backendStory,
+            id: article.id || backendStory.id,
+            title: backendStory.title || backendStory.thread_title || article.title,
+            text_preview: backendStory.summary || article.text_preview,
+            url: backendStory.source_url || article.url,
+            sources: backendStory.sources || storyResult.value.sources || article.sources || [],
+          });
+        }
+        if (deepResult.status === 'fulfilled') {
+          setDeepData(deepResult.value);
+        } else {
+          throw deepResult.reason;
+        }
       } catch (err) {
         if (!cancelled) setError((err?.message || 'Story analysis unavailable.').replace(/^\d+:\s*/, ''));
       } finally {
@@ -110,25 +132,27 @@ export default function StoryView() {
     };
   }, [article, navigate]);
 
-  const entities = deepData?.entities?.length > 0 ? deepData.entities : article?.entities || [];
-  const sentLabel = article?.sentiment?.label || deepData?.sentiment?.label || article?.sentiment || null;
-  const sentConf = article?.sentiment?.confidence || deepData?.sentiment?.score || null;
+  const activeArticle = storyRecord || article;
+  const entities = deepData?.entities?.length > 0 ? deepData.entities : activeArticle?.entities || [];
+  const sentLabel = activeArticle?.sentiment?.label || deepData?.sentiment?.label || activeArticle?.sentiment || null;
+  const sentConf = activeArticle?.sentiment?.confidence || deepData?.sentiment?.score || null;
   const perspectives = deepData?.perspectives || [];
-  const hasPulse = typeof article?.pulse_score === 'number';
-  const hasExposure = typeof article?.exposure_score === 'number';
+  const hasPulse = typeof activeArticle?.pulse_score === 'number';
+  const hasExposure = typeof activeArticle?.exposure_score === 'number';
   const pulseHistory = useMemo(() => {
-    const base = Number(article?.pulse_score);
+    const base = Number(activeArticle?.pulse_score);
     if (!Number.isFinite(base)) return [];
     return Array.from({ length: 12 }, (_item, index) => ({
       createdAt: new Date(Date.now() - (11 - index) * 60 * 60 * 1000).toISOString(),
       value: Math.max(0, Math.min(100, Math.round(base - 14 + index * 1.45 + Math.sin(index) * 4))),
     }));
-  }, [article?.pulse_score]);
+  }, [activeArticle?.pulse_score]);
 
   if (!article) return null;
 
-  const sourceRows = article.sources || (article.url ? [{ title: article.title, source: article.source, url: article.url }] : []);
-  const matters = [deepData?.summary, article.why_it_matters, article.impact_line, article.summary]
+  const sourceRows = (activeArticle.sources || (activeArticle.url ? [{ title: activeArticle.title, source: activeArticle.source, url: activeArticle.url }] : []))
+    .filter((source) => source?.url);
+  const matters = [deepData?.summary, activeArticle.why_it_matters, activeArticle.impact_line, activeArticle.summary]
     .flatMap((item) => Array.isArray(item) ? item : [item])
     .filter(Boolean)
     .slice(0, 4);
@@ -136,7 +160,7 @@ export default function StoryView() {
   return (
     <div className="world-pulse-page story-page">
       <Sidebar
-        preferences={{ hasPreferences: Boolean(article.category || entities.length), topics: article.category ? [article.category] : [], regions: [], entities }}
+        preferences={{ hasPreferences: Boolean(activeArticle.category || entities.length), topics: activeArticle.category ? [activeArticle.category] : [], regions: [], entities }}
         activeItem="stories"
         onHome={() => navigate('/dashboard')}
         onOrbit={() => navigate('/orbit')}
@@ -162,19 +186,19 @@ export default function StoryView() {
         <section className="story-layout">
           <div className="story-core">
             <article className="wp-card story-hero-card">
-              <SignalBadge tier={article.signal_tier} />
-              <h1>{article.title}</h1>
+              <SignalBadge tier={activeArticle.signal_tier} />
+              <h1>{activeArticle.title}</h1>
               <div className="story-meta-line">
-                {article.source && <span>{article.source}</span>}
-                {article.published_at && <span><Clock3 size={13} /> {formatRelativeTime(article.published_at)}</span>}
-                {article.url && <a href={article.url} target="_blank" rel="noopener noreferrer">Open source <ExternalLink size={13} /></a>}
+                {activeArticle.source && <span>{activeArticle.source}</span>}
+                {activeArticle.published_at && <span><Clock3 size={13} /> {formatRelativeTime(activeArticle.published_at)}</span>}
+                {activeArticle.url && <a href={activeArticle.url} target="_blank" rel="noopener noreferrer">Open source <ExternalLink size={13} /></a>}
               </div>
-              {article.text_preview || article.text ? <p>{article.text_preview || article.text}</p> : null}
+              {activeArticle.text_preview || activeArticle.text ? <p>{activeArticle.text_preview || activeArticle.text}</p> : null}
             </article>
 
             <section className="wp-card story-chain-card">
               <div className="wp-section-head"><span>Story Chain</span><small>Event impact path</small></div>
-              <StoryChain article={article} deepData={deepData} />
+              <StoryChain article={activeArticle} deepData={deepData} />
             </section>
 
             <section className="story-evidence-grid">
@@ -184,7 +208,7 @@ export default function StoryView() {
                   {sourceRows.map((source, index) => (
                     <a key={source.url || index} href={source.url} target="_blank" rel="noreferrer">
                       <b>{source.source || 'Source'}</b>
-                      <span>{source.title || article.title}</span>
+                      <span>{source.title || activeArticle.title}</span>
                     </a>
                   ))}
                   {!sourceRows.length && <p className="empty-copy">No source URL was included with this signal.</p>}
@@ -227,15 +251,15 @@ export default function StoryView() {
           <aside className="story-side">
             <section className="wp-card story-about">
               <div className="wp-section-head"><span>About This Story</span></div>
-              <p>{deepData?.summary || article.why_it_matters || article.text_preview || ''}</p>
+              <p>{deepData?.summary || activeArticle.why_it_matters || activeArticle.text_preview || ''}</p>
               <div className="story-stat-list">
-                {hasPulse && <div><span>Pulse Score</span><b>{Math.round(article.pulse_score)}</b></div>}
-                {hasExposure && <div><span>Your Exposure</span><b>{Math.round(article.exposure_score)}</b></div>}
+                {hasPulse && <div><span>Pulse Score</span><b>{Math.round(activeArticle.pulse_score)}</b></div>}
+                {hasExposure && <div><span>Your Exposure</span><b>{Math.round(activeArticle.exposure_score)}</b></div>}
                 {sentLabel && <div><span>Sentiment</span><b>{compactLabel(sentLabel)}</b></div>}
                 <div><span>Confidence</span><b>{confidenceText(sentConf) ?? '-'}</b></div>
               </div>
             </section>
-            <PulseTrendChart history={pulseHistory} worldPulse={{ value: article.pulse_score, label: article.signal_tier || 'Signal' }} />
+            <PulseTrendChart history={pulseHistory} worldPulse={{ value: activeArticle.pulse_score, label: activeArticle.signal_tier || 'Signal' }} />
             <section className="wp-card why-this-matters">
               <div className="wp-section-head"><span>Why This Matters To You</span></div>
               {matters.map((item) => (

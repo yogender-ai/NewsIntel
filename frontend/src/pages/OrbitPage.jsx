@@ -208,7 +208,7 @@ export default function OrbitPage() {
       if (sortBy === 'newest') return new Date(b.updated_at || 0) - new Date(a.updated_at || 0);
       return (b.exposure || 0) - (a.exposure || 0);
     });
-    return sorted.slice(0, 20);
+    return sorted.slice(0, 14);
   }, [orbit.nodes, topic, relationship, connectedIds, sortBy]);
   const visibleIds = useMemo(() => new Set(visibleNodes.map((node) => node.id)), [visibleNodes]);
   const visibleEdges = useMemo(
@@ -222,9 +222,16 @@ export default function OrbitPage() {
     state: {
       article: {
         id: node.id,
-        title: node.label,
-        text_preview: node.why_it_matters,
-        source: 'NewsIntel Orbit',
+        title: node.title || node.label,
+        text_preview: node.summary || node.why_it_matters,
+        summary: node.summary || node.why_it_matters,
+        source: node.source || node.sources?.[0]?.source || 'NewsIntel Orbit',
+        url: node.source_url || node.sources?.[0]?.url,
+        sources: node.sources || [],
+        entities: node.entities || [],
+        sentiment: node.sentiment,
+        category: node.category,
+        why_it_matters: node.why_it_matters,
         pulse_score: node.pulse,
         exposure_score: node.exposure,
         signal_tier: node.signal_tier || node.tier || null,
