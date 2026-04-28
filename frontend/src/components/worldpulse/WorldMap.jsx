@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { geoNaturalEarth1, geoPath } from 'd3-geo';
 import { feature } from 'topojson-client';
 
@@ -6,6 +6,9 @@ export default function WorldMap({ regions = [], onRegionSelect }) {
   const [geoData, setGeoData] = useState(null);
   const [failed, setFailed] = useState(false);
   const [hovered, setHovered] = useState(null);
+  const [transform, setTransform] = useState({ x: 0, y: 0, k: 1 });
+  const isDragging = useRef(false);
+  const lastMouse = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     let cancelled = false;
@@ -48,8 +51,33 @@ export default function WorldMap({ regions = [], onRegionSelect }) {
       })
   ), [regions, projection]);
 
+  const handleWheel = (e) => {
+    e.preventDefault();
+    const scaleAdj = e.deltaY * -0.001;
+    setTransform((prev) => ({ ...prev, k: Math.min(Math.max(1, prev.k + scaleAdj), 8) }));
+  };
+
+  const handleMouseDown = (e) => {
+    isDragging.current = true;
+    lastMouse.current = { x: e.clientX, y: e.clientY };
+  };
+
+  const handleMouseMove = (e) => {
+    if (!isDragging.current) return;
+    const dx = e.clientX - lastMouse.current.x;
+    const dy = e.clientY - lastMouse.current.y;
+    setTransform((prev) => ({ ...prev, x: prev.x + dx, y: prev.y + dy }));
+    lastMouse.current = { x: e.clientX, y: e.clientY };
+  };
+
+  const handleMouseUp = () => { isDragging.current = false; };
+
   return (
-    <svg className="world-map-svg" viewBox="0 0 1000 560" role="img" aria-label="World map of live signal intensity">
+    <svg 
+      className="world-map-svg" viewBox="0 0 1000 560" role="img" aria-label="World map of live signal intensity"
+      onWheel={handleWheel} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}
+      style={{ cursor: isDragging.current ? 'grabbing' : 'grab' }}
+    >
       <defs>
         {/* Ocean gradient */}
         <radialGradient id="map-ocean-glow" cx="50%" cy="44%" r="70%">
@@ -92,7 +120,8 @@ export default function WorldMap({ regions = [], onRegionSelect }) {
 
       {/* Background */}
       <rect className="world-map-ocean" x="0" y="0" width="1000" height="560" rx="14" />
-      <ellipse className="world-map-atmosphere" cx="500" cy="278" rx="460" ry="235" fill="url(#map-ocean-glow)" />
+      <g transform={`translate(${transform.x}, ${transform.y}) scale(${transform.k})`}>
+        <ellipse className="world-map-atmosphere" cx="500" cy="278" rx="460" ry="235" fill="url(#map-ocean-glow)" />
 
       {/* Subtle latitude/longitude grid */}
       <g opacity="0.04" stroke="rgba(94,234,212,0.5)" strokeWidth="0.3">
@@ -202,6 +231,7 @@ export default function WorldMap({ regions = [], onRegionSelect }) {
           </g>
         );
       })}
+      </g>
 
       {/* Vignette */}
       <rect x="0" y="0" width="1000" height="560" fill="url(#map-vignette)" rx="14" pointerEvents="none" />

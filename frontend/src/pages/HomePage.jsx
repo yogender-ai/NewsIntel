@@ -15,6 +15,7 @@ import TopShiftCard from '../components/worldpulse/TopShiftCard';
 import EmptyState from '../components/worldpulse/EmptyState';
 import StartTourCard from '../components/worldpulse/StartTourCard';
 import LockedNavToast from '../components/worldpulse/LockedNavToast';
+import TransparentPipeline from '../components/worldpulse/TransparentPipeline';
 
 function readableLiveError(err) {
   const raw = err?.message || 'Unable to load live intelligence.';
@@ -343,7 +344,7 @@ export default function HomePage() {
         />
 
         {loading ? (
-          <div className="wp-loading dashboard-loading"><span /></div>
+          <TransparentPipeline />
         ) : (
           <>
             {error && (

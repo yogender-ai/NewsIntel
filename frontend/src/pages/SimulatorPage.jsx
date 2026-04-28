@@ -122,20 +122,37 @@ export default function SimulatorPage() {
 
             {result && <ImpactCards result={result} />}
 
-            <div className="wp-card sim-chain-panel">
-              <div className="wp-section-head"><span>How The Impact Might Unfold</span></div>
+            <div className="wp-card sim-chain-panel" style={{ minHeight: '300px', position: 'relative' }}>
+              <div className="wp-section-head"><span>Interactive Impact Chain</span></div>
               {result?.chain_reaction?.length ? (
-                <div className="sim-chain">
-                  {result.chain_reaction.map((item) => (
-                    <div className="sim-chain-step" key={item.step}>
-                      <i>{item.step}</i>
-                      <b>{item.title}</b>
-                      <span>{item.description}</span>
+                <div className="sim-chain-interactive" style={{ display: 'flex', gap: '20px', overflowX: 'auto', padding: '20px' }}>
+                  {result.chain_reaction.map((item, i) => (
+                    <div 
+                      className="sim-chain-node" 
+                      key={item.step}
+                      style={{ 
+                        flexShrink: 0, width: '220px', padding: '16px', 
+                        background: `rgba(139, 92, 246, ${0.05 + (i * 0.05)})`,
+                        border: '1px solid rgba(139, 92, 246, 0.2)',
+                        borderRadius: '12px', cursor: 'grab',
+                        transition: 'transform 0.2s',
+                        transform: `translateY(${i % 2 === 0 ? '0' : '20px'})`
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.transform = `translateY(${i % 2 === 0 ? '-5px' : '15px'}) scale(1.05)`}
+                      onMouseLeave={(e) => e.currentTarget.style.transform = `translateY(${i % 2 === 0 ? '0' : '20px'}) scale(1)`}
+                    >
+                      <i style={{ 
+                        display: 'inline-flex', width: 24, height: 24, 
+                        background: '#8b5cf6', color: '#fff', borderRadius: '50%',
+                        alignItems: 'center', justifyContent: 'center', marginBottom: 12 
+                      }}>{item.step}</i>
+                      <b style={{ display: 'block', marginBottom: 8, color: '#c4b5fd' }}>{item.title}</b>
+                      <span style={{ fontSize: 12, color: '#94a3b8' }}>{item.description}</span>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="empty-copy">Run a scenario to generate a backend chain reaction.</p>
+                <p className="empty-copy">Run a scenario to generate an interactive chain reaction.</p>
               )}
             </div>
 
@@ -188,10 +205,40 @@ export default function SimulatorPage() {
                 </section>
               </div>
             )}
-            <section className="orbit-controls sim-controls">
-              <label>Time<select value={assumptions.time_horizon} onChange={(event) => setAssumptions({ ...assumptions, time_horizon: event.target.value })}><option value="7d">7d</option><option value="30d">30d</option><option value="90d">90d</option></select></label>
-              <label>Severity<select value={assumptions.severity} onChange={(event) => setAssumptions({ ...assumptions, severity: event.target.value })}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
-              <label>Markets<select value={assumptions.market_reaction} onChange={(event) => setAssumptions({ ...assumptions, market_reaction: event.target.value })}><option value="low">Low</option><option value="medium">Medium</option><option value="high">High</option></select></label>
+            <section className="orbit-controls sim-controls" style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '16px' }}>
+              <div className="interactive-slider-group">
+                <label style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span>Time Horizon</span> <b>{assumptions.time_horizon}</b>
+                </label>
+                <input 
+                  type="range" min="0" max="2" step="1" 
+                  value={assumptions.time_horizon === '7d' ? 0 : assumptions.time_horizon === '30d' ? 1 : 2}
+                  onChange={(e) => setAssumptions({...assumptions, time_horizon: ['7d', '30d', '90d'][e.target.value]})}
+                  style={{ width: '100%', cursor: 'ew-resize' }}
+                />
+              </div>
+              <div className="interactive-slider-group">
+                <label style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span>Severity</span> <b>{assumptions.severity}</b>
+                </label>
+                <input 
+                  type="range" min="0" max="2" step="1" 
+                  value={assumptions.severity === 'low' ? 0 : assumptions.severity === 'medium' ? 1 : 2}
+                  onChange={(e) => setAssumptions({...assumptions, severity: ['low', 'medium', 'high'][e.target.value]})}
+                  style={{ width: '100%', cursor: 'ew-resize' }}
+                />
+              </div>
+              <div className="interactive-slider-group">
+                <label style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                  <span>Market Reaction</span> <b>{assumptions.market_reaction}</b>
+                </label>
+                <input 
+                  type="range" min="0" max="2" step="1" 
+                  value={assumptions.market_reaction === 'low' ? 0 : assumptions.market_reaction === 'medium' ? 1 : 2}
+                  onChange={(e) => setAssumptions({...assumptions, market_reaction: ['low', 'medium', 'high'][e.target.value]})}
+                  style={{ width: '100%', cursor: 'ew-resize' }}
+                />
+              </div>
             </section>
           </aside>
         </section>

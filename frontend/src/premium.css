@@ -7,38 +7,50 @@
   cursor: none !important;
 }
 
-/* ── Custom cursor — GLOBAL, works on every page ─────────── */
+/* ── Custom cursor — GLOBAL, hacker/hyprland reticle ─────────── */
 .custom-cursor {
   position: fixed;
   left: 0; top: 0;
   z-index: 9999;
   pointer-events: none;
-  will-change: transform;
+  mix-blend-mode: difference;
 }
 
 .cursor-core {
   position: absolute;
-  width: 6px; height: 6px;
-  border-radius: 50%;
-  background: #c4b5fd;
+  width: 4px; height: 4px;
+  background: #fff;
   transform: translate(-50%, -50%);
-  box-shadow: 0 0 6px rgba(196,181,253,0.6);
-  transition: width 0.15s, height 0.15s, background 0.15s;
+  border-radius: 0;
+  transition: width 0.15s, height 0.15s;
 }
+
+.cursor-core::before, .cursor-core::after {
+  content: "";
+  position: absolute;
+  background: #fff;
+}
+.cursor-core::before { width: 14px; height: 1px; top: 1.5px; left: -5px; }
+.cursor-core::after { width: 1px; height: 14px; left: 1.5px; top: -5px; }
 
 .cursor-glow {
   position: absolute;
-  width: 36px; height: 36px;
-  border-radius: 50%;
+  width: 40px; height: 40px;
+  border: 1px solid rgba(255,255,255,0.4);
   transform: translate(-50%, -50%);
-  background: radial-gradient(circle, rgba(139,92,246,0.12), transparent 70%);
-  animation: cursorBreath 3s ease-in-out infinite;
+  border-radius: 50%;
+  animation: cursorSpin 4s linear infinite;
+}
+.cursor-glow::before {
+  content: "";
+  position: absolute; inset: -4px;
+  border: 1px dashed rgba(255,255,255,0.2);
+  border-radius: 50%;
+  animation: cursorSpinRev 6s linear infinite;
 }
 
-@keyframes cursorBreath {
-  0%, 100% { opacity: .5; transform: translate(-50%,-50%) scale(1); }
-  50%      { opacity: .8; transform: translate(-50%,-50%) scale(1.2); }
-}
+@keyframes cursorSpin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+@keyframes cursorSpinRev { to { transform: rotate(-360deg); } }
 
 /* ── Pulse-reactive deep space background ────────────────── */
 body {
@@ -91,22 +103,32 @@ body::after {
   50%      { opacity: .85; }
 }
 
-/* ── Cards — refined glass morphism ─────────────────────── */
+/* ── Cards — Immersive Borderless Look (Hyprland style) ────── */
 .glass-card, .wp-card, .panel, .world-pulse-card,
 .abstract-world-map, .shift-drawer, .insight-drawer {
-  background: rgba(8,12,28,0.32) !important;
-  border: 1px solid rgba(255,255,255,0.025) !important;
-  backdrop-filter: blur(20px) saturate(1.2) !important;
-  border-radius: 8px !important;
-  box-shadow: 0 12px 36px -8px rgba(0,0,0,0.4) !important;
-  transition: transform 0.3s cubic-bezier(0.22,1,0.36,1),
-              box-shadow 0.3s ease, border-color 0.3s ease !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  position: relative;
+  transition: transform 0.3s cubic-bezier(0.22,1,0.36,1), opacity 0.3s ease !important;
 }
-.glass-card:hover, .wp-card:hover, .panel:hover, .world-pulse-card:hover {
-  transform: translateY(-2px) !important;
-  border-color: rgba(255,255,255,0.04) !important;
-  box-shadow: 0 18px 48px -12px rgba(0,0,0,0.5) !important;
+
+/* Subtle underlying blur layer instead of a full background */
+.glass-card::before, .wp-card::before, .panel::before, .world-pulse-card::before {
+  content: "";
+  position: absolute; inset: 0; z-index: -1;
+  background: linear-gradient(135deg, rgba(255,255,255,0.015), rgba(255,255,255,0));
+  backdrop-filter: blur(12px) saturate(1.2);
+  border-radius: 4px;
+  border-left: 1px solid rgba(255,255,255,0.08);
+  border-top: 1px solid rgba(255,255,255,0.04);
 }
+
+.glass-card:hover::before, .wp-card:hover::before, .panel:hover::before, .world-pulse-card:hover::before {
+  background: linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0));
+  border-left: 1px solid rgba(94, 234, 212, 0.4);
+}
+
 .abstract-world-map:hover, .shift-drawer:hover, .insight-drawer:hover {
   transform: none !important;
 }
@@ -602,4 +624,110 @@ p, span, li { color: inherit; }
 @media (pointer: coarse) {
   .custom-cursor { display: none !important; }
   *, *::before, *::after { cursor: auto !important; }
+}
+
+/* -- Transparent Pipeline Loading Overlay -------------------- */
+.transparent-pipeline-overlay {
+  position: fixed; inset: 0;
+  background: rgba(5,8,17,0.4);
+  backdrop-filter: blur(48px);
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.pipeline-grid {
+  position: absolute; inset: 0;
+  background-image:
+    linear-gradient(rgba(94, 234, 212, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(94, 234, 212, 0.05) 1px, transparent 1px);
+  background-size: 40px 40px;
+  transform: perspective(500px) rotateX(60deg) translateY(-100px) translateZ(-200px);
+  animation: gridMove 10s linear infinite;
+  opacity: 0.6;
+}
+@keyframes gridMove {
+  from { background-position: 0 0; }
+  to { background-position: 0 40px; }
+}
+.pipeline-content {
+  position: relative;
+  z-index: 10;
+  text-align: center;
+  color: #fff;
+}
+.pipeline-spinner {
+  margin: 0 auto 24px;
+  width: 80px; height: 80px;
+  border-radius: 50%;
+  border: 2px solid rgba(94, 234, 212, 0.1);
+  border-top-color: #5eead4;
+  border-right-color: #a78bfa;
+  animation: pipelineSpin 1s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+  display: grid; place-items: center;
+  box-shadow: 0 0 30px rgba(94, 234, 212, 0.2);
+}
+@keyframes pipelineSpin { to { transform: rotate(360deg); } }
+.spin-icon {
+  animation: pipelineSpinRev 1s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+  color: #5eead4;
+}
+@keyframes pipelineSpinRev { to { transform: rotate(-360deg); } }
+.pipeline-content h2 {
+  font-family: var(--mono);
+  font-size: 14px; letter-spacing: 0.2em;
+  color: #a78bfa; margin-bottom: 8px;
+  text-shadow: 0 0 10px rgba(167, 139, 250, 0.5);
+}
+.pipeline-content p {
+  font-size: 12px; color: #94a3b8;
+}
+.pipeline-status-bar {
+  margin-top: 24px;
+  width: 200px; height: 2px;
+  background: rgba(255,255,255,0.1);
+  overflow: hidden; margin-left: auto; margin-right: auto;
+}
+.pipeline-progress {
+  width: 50%; height: 100%;
+  background: linear-gradient(90deg, transparent, #5eead4, transparent);
+  animation: pipelineProgress 1.5s ease-in-out infinite;
+}
+@keyframes pipelineProgress {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+.pipeline-node {
+  position: absolute;
+  width: 4px; height: 4px;
+  background: #a78bfa;
+  border-radius: 50%;
+  box-shadow: 0 0 10px #a78bfa, 0 0 20px #5eead4;
+  animation: nodeFade 0.8s ease-out forwards;
+}
+@keyframes nodeFade {
+  0% { opacity: 0; transform: scale(0); }
+  20% { opacity: 1; transform: scale(1.5); }
+  100% { opacity: 0; transform: scale(0); }
+}
+
+
+/* ── Immersive styles for Watchlist, Alerts, and Settings ── */
+.watchlist-card, .alert-card, .settings-section {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  position: relative;
+  z-index: 1;
+}
+.watchlist-card::before, .alert-card::before, .settings-section::before {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  background: linear-gradient(135deg, rgba(255,255,255,0.015), rgba(255,255,255,0));
+  backdrop-filter: blur(12px) saturate(1.2); border-radius: 6px;
+  border-left: 1px solid rgba(255,255,255,0.08); border-top: 1px solid rgba(255,255,255,0.04);
+  transition: all 0.3s ease;
+}
+.watchlist-card:hover::before, .alert-card:hover::before, .settings-section:hover::before {
+  background: linear-gradient(135deg, rgba(255,255,255,0.03), rgba(255,255,255,0));
+  border-left: 1px solid rgba(139, 92, 246, 0.4);
 }

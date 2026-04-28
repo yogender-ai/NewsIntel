@@ -1,20 +1,14 @@
 import { useEffect, useRef, useMemo } from 'react';
 
-/* ── Heartbeat Pulse Canvas — beats then ripples radiate outward ── */
-function HeartbeatPulse({ size, pulseValue }) {
+/* ── HoloSpherePulse Canvas — premium 3D-like abstract sphere ── */
+function HoloSpherePulse({ size, pulseValue }) {
   const canvasRef = useRef(null);
   const frameRef = useRef(null);
-  const ripplesRef = useRef([]);
 
   const intensity = useMemo(() => {
-    if (!pulseValue || pulseValue <= 0) return 0.3;
-    return Math.max(0.3, Math.min(1, pulseValue / 100));
+    if (!pulseValue || pulseValue <= 0) return 0.2;
+    return Math.max(0.2, Math.min(1, pulseValue / 100));
   }, [pulseValue]);
-
-  /* Beat interval: higher pulse = faster heartbeat */
-  const beatMs = useMemo(() => {
-    return 2800 - intensity * 1200; // 2800ms (calm) → 1600ms (intense)
-  }, [intensity]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -29,114 +23,89 @@ function HeartbeatPulse({ size, pulseValue }) {
 
     const cx = size / 2;
     const cy = size / 2;
-    const baseR = size * 0.34;
-    let lastBeat = 0;
+    const radius = size * 0.38;
+    
+    // Generate particles for a sphere
+    const numPoints = 120;
+    const points = [];
+    for (let i = 0; i < numPoints; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos((Math.random() * 2) - 1);
+      points.push({ theta, phi, basePhi: phi, speed: 0.005 + Math.random() * 0.015 });
+    }
 
-    function tick(now) {
+    let time = 0;
+
+    function tick() {
+      time += 0.01 * (1 + intensity * 2);
       ctx.clearRect(0, 0, size, size);
 
-      /* === HEARTBEAT: spawn a ripple on each beat === */
-      if (now - lastBeat > beatMs) {
-        lastBeat = now;
-        ripplesRef.current.push({ born: now });
-      }
+      // Draw glowing background orb
+      const grad = ctx.createRadialGradient(cx, cy, radius * 0.4, cx, cy, radius * 1.2);
+      grad.addColorStop(0, `rgba(139, 92, 246, ${0.1 * intensity})`);
+      grad.addColorStop(0.5, `rgba(94, 234, 212, ${0.05 * intensity})`);
+      grad.addColorStop(1, 'transparent');
+      ctx.fillStyle = grad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius * 1.5, 0, Math.PI * 2);
+      ctx.fill();
 
-      /* === Draw dotted orbit rings (static, subtle) === */
-      const orbits = [
-        { r: baseR * 1.15, dots: 64, dotR: 1.0, alpha: 0.08 },
-        { r: baseR * 1.32, dots: 80, dotR: 0.8, alpha: 0.05 },
-        { r: baseR * 1.48, dots: 100, dotR: 0.6, alpha: 0.035 },
-      ];
+      // Render 3D points
+      points.forEach(p => {
+        // Add wave effect based on intensity
+        p.theta += p.speed * (0.5 + intensity);
+        const wave = Math.sin(p.theta * 3 + time * 5) * 0.1 * intensity;
+        const currentPhi = p.basePhi + wave;
 
-      orbits.forEach((orbit) => {
-        for (let i = 0; i < orbit.dots; i++) {
-          const angle = (i / orbit.dots) * Math.PI * 2;
-          const dx = cx + Math.cos(angle) * orbit.r;
-          const dy = cy + Math.sin(angle) * orbit.r;
-          ctx.beginPath();
-          ctx.arc(dx, dy, orbit.dotR, 0, Math.PI * 2);
-          ctx.fillStyle = `rgba(139, 92, 246, ${orbit.alpha})`;
-          ctx.fill();
-        }
-      });
+        const x = radius * Math.sin(currentPhi) * Math.cos(p.theta);
+        const y = radius * Math.sin(currentPhi) * Math.sin(p.theta);
+        const z = radius * Math.cos(currentPhi);
 
-      /* === Process ripples === */
-      const RIPPLE_LIFE = 2200;
-      ripplesRef.current = ripplesRef.current.filter((ripple) => {
-        const age = now - ripple.born;
-        if (age > RIPPLE_LIFE) return false;
-        const t = age / RIPPLE_LIFE; // 0→1
+        // Simple perspective
+        const perspective = 1 / (1 + z / (radius * 3));
+        const px = cx + x * perspective;
+        const py = cy + y * perspective;
+        
+        // Depth-based fading and sizing
+        const zNorm = (z + radius) / (radius * 2); // 0 to 1
+        const alpha = 0.1 + (1 - zNorm) * 0.7;
+        const ptSize = 0.5 + (1 - zNorm) * 2.5 * (1 + intensity);
 
-        /* Ripple ring expands outward from the arc */
-        const rippleR = baseR + t * (size * 0.22);
-        const fadeAlpha = (1 - t) * 0.35 * intensity;
-        const lineWidth = (1 - t) * 2.5;
-
-        /* Main ripple ring */
         ctx.beginPath();
-        ctx.arc(cx, cy, rippleR, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(167, 139, 250, ${fadeAlpha})`;
-        ctx.lineWidth = lineWidth;
-        ctx.stroke();
-
-        /* Second fainter ripple slightly behind */
-        if (t > 0.1) {
-          const r2 = baseR + (t - 0.1) * (size * 0.22);
-          const a2 = (1 - t) * 0.15 * intensity;
-          ctx.beginPath();
-          ctx.arc(cx, cy, r2, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(94, 234, 212, ${a2})`;
-          ctx.lineWidth = lineWidth * 0.5;
-          ctx.stroke();
+        ctx.arc(px, py, ptSize, 0, Math.PI * 2);
+        
+        if (zNorm < 0.5) {
+          ctx.fillStyle = `rgba(94, 234, 212, ${alpha})`;
+          ctx.shadowColor = 'rgba(94, 234, 212, 0.8)';
+          ctx.shadowBlur = 5 * intensity;
+        } else {
+          ctx.fillStyle = `rgba(167, 139, 250, ${alpha * 0.5})`;
+          ctx.shadowBlur = 0;
         }
-
-        /* Light up dots near the ripple wave */
-        orbits.forEach((orbit) => {
-          const distToRipple = Math.abs(orbit.r - rippleR);
-          if (distToRipple < 12) {
-            const glowStrength = (1 - distToRipple / 12) * fadeAlpha * 2;
-            for (let i = 0; i < orbit.dots; i++) {
-              const angle = (i / orbit.dots) * Math.PI * 2;
-              const dx = cx + Math.cos(angle) * orbit.r;
-              const dy = cy + Math.sin(angle) * orbit.r;
-              ctx.beginPath();
-              ctx.arc(dx, dy, orbit.dotR + glowStrength * 3, 0, Math.PI * 2);
-              ctx.fillStyle = `rgba(196, 181, 253, ${glowStrength})`;
-              ctx.fill();
-            }
-          }
-        });
-
-        return true;
-      });
-
-      /* === Subtle inner glow on beat (flash) === */
-      const timeSinceBeat = now - lastBeat;
-      if (timeSinceBeat < 300) {
-        const flash = (1 - timeSinceBeat / 300) * 0.08 * intensity;
-        const grad = ctx.createRadialGradient(cx, cy, baseR * 0.6, cx, cy, baseR);
-        grad.addColorStop(0, `rgba(167, 139, 250, ${flash})`);
-        grad.addColorStop(1, `rgba(139, 92, 246, 0)`);
-        ctx.beginPath();
-        ctx.arc(cx, cy, baseR, 0, Math.PI * 2);
-        ctx.fillStyle = grad;
         ctx.fill();
+      });
+
+      // Add intense heartbeat ring
+      const beat = (Math.sin(time * 8) + 1) / 2; // 0 to 1
+      if (beat > 0.8) {
+        ctx.beginPath();
+        ctx.arc(cx, cy, radius * (1 + (beat - 0.8) * intensity), 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(94, 234, 212, ${(beat - 0.8) * intensity})`;
+        ctx.lineWidth = 2;
+        ctx.stroke();
       }
 
       frameRef.current = requestAnimationFrame(tick);
     }
 
     frameRef.current = requestAnimationFrame(tick);
-    return () => {
-      cancelAnimationFrame(frameRef.current);
-      ripplesRef.current = [];
-    };
-  }, [size, intensity, beatMs]);
+    return () => cancelAnimationFrame(frameRef.current);
+  }, [size, intensity]);
 
   return (
     <canvas
       ref={canvasRef}
-      style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}
+      style={{ position: 'absolute', inset: 0, pointerEvents: 'none', mixBlendMode: 'screen' }}
       aria-hidden="true"
     />
   );
@@ -211,7 +180,7 @@ export default function WorldPulseRing({ worldPulse }) {
   return (
     <section className="world-pulse-card wp-ring-card">
       <div className="wp-ring-scene" style={{ width: SIZE, height: SIZE }}>
-        <HeartbeatPulse size={SIZE} pulseValue={pct} />
+        <HoloSpherePulse size={SIZE} pulseValue={pct} />
         <ArcRing value={pct} size={SIZE} />
         <div className="wp-ring-center">
           <span className="wp-ring-eyebrow">WORLD PULSE</span>

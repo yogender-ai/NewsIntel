@@ -45,11 +45,11 @@ function OrbitGraph({ nodes, edges, showLabels, onSelect }) {
   }, [nodes]);
 
   return (
-    <div className="signal-orbit-graph">
-      <svg viewBox="0 0 100 100" aria-label="Signal relationship orbit">
-        <circle cx="50" cy="50" r="17" className="orbit-ring" />
-        <circle cx="50" cy="50" r="33" className="orbit-ring" />
-        <circle cx="50" cy="50" r="48" className="orbit-ring" />
+    <div className="signal-orbit-graph" style={{ position: 'relative', overflow: 'hidden', perspective: '800px' }}>
+      <svg viewBox="0 0 100 100" aria-label="Signal relationship orbit" style={{ animation: 'orbitSpinSlow 60s linear infinite', transformStyle: 'preserve-3d' }}>
+        <circle cx="50" cy="50" r="17" className="orbit-ring" style={{ stroke: 'rgba(94, 234, 212, 0.1)', strokeWidth: '0.2' }} />
+        <circle cx="50" cy="50" r="33" className="orbit-ring" style={{ stroke: 'rgba(139, 92, 246, 0.1)', strokeWidth: '0.3', strokeDasharray: '1 4' }} />
+        <circle cx="50" cy="50" r="48" className="orbit-ring" style={{ stroke: 'rgba(167, 139, 250, 0.05)', strokeWidth: '0.1' }} />
         {edges.map((edge) => {
           const from = points.get(edge.from);
           const to = points.get(edge.to);
@@ -57,24 +57,34 @@ function OrbitGraph({ nodes, edges, showLabels, onSelect }) {
           return (
             <line
               key={`${edge.from}-${edge.to}-${edge.type}`}
-              x1={from.x}
-              y1={from.y}
-              x2={to.x}
-              y2={to.y}
+              x1={from.x} y1={from.y} x2={to.x} y2={to.y}
               className={`orbit-edge edge-${edge.type}`}
-              style={{ '--edge-alpha': Math.max(0.22, Number(edge.confidence || 0.4)) }}
+              style={{ 
+                '--edge-alpha': Math.max(0.22, Number(edge.confidence || 0.4)),
+                stroke: 'url(#edge-grad)', strokeWidth: 0.5, opacity: 0.6
+              }}
             />
           );
         })}
+        <defs>
+          <linearGradient id="edge-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#5eead4" stopOpacity="0.8" />
+            <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0.2" />
+          </linearGradient>
+        </defs>
       </svg>
-      <button className="orbit-center-node" type="button">
-        <Circle size={18} />
-        <span>You</span>
+      <button className="orbit-center-node" type="button" style={{ 
+        boxShadow: '0 0 30px rgba(139, 92, 246, 0.4)', background: 'rgba(10,15,30,0.8)',
+        backdropFilter: 'blur(8px)', border: '1px solid #8b5cf6' 
+      }}>
+        <Circle size={18} color="#c4b5fd" />
+        <span style={{ color: '#fff' }}>You</span>
       </button>
       {nodes.map((node, index) => {
         const point = points.get(node.id) || { x: 50, y: 50 };
         const color = categoryColors[node.category] || '#8da2ff';
         const Icon = categoryIcons[node.category] || Circle;
+        const animDelay = `${index * 0.2}s`;
         return (
           <button
             key={node.id}
@@ -82,25 +92,34 @@ function OrbitGraph({ nodes, edges, showLabels, onSelect }) {
             type="button"
             onClick={() => onSelect(node)}
             style={{
-              left: `${point.x}%`,
-              top: `${point.y}%`,
-              width: `${Math.max(76, node.size || 76)}px`,
-              height: `${Math.max(76, node.size || 76)}px`,
+              left: `${point.x}%`, top: `${point.y}%`,
+              width: `${Math.max(76, node.size || 76)}px`, height: `${Math.max(76, node.size || 76)}px`,
               '--node-color': color,
+              animation: `nodeFloat 4s ease-in-out infinite alternate`,
+              animationDelay: animDelay,
+              boxShadow: `0 0 20px ${color}33`,
+              background: 'rgba(5,8,17,0.6)', backdropFilter: 'blur(4px)', border: `1px solid ${color}66`
             }}
             title={node.label}
           >
-            <i><Icon size={20} /></i>
+            <i style={{ background: `${color}22`, color: color }}><Icon size={20} /></i>
             {showLabels && (
-              <span>
-                <b>{compactLabel(node.category) || 'Signal'}</b>
-                <strong>{Math.round(node.pulse || 0)}</strong>
+              <span style={{ textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
+                <b style={{ color: '#fff' }}>{compactLabel(node.category) || 'Signal'}</b>
+                <strong style={{ color }}>{Math.round(node.pulse || 0)}</strong>
                 {node.status && <small>{compactLabel(node.status)}</small>}
               </span>
             )}
           </button>
         );
       })}
+      <style>{`
+        @keyframes orbitSpinSlow { to { transform: rotate(360deg); } }
+        @keyframes nodeFloat { 
+          from { transform: translate(-50%, -50%) translateY(0px) scale(1); } 
+          to { transform: translate(-50%, -50%) translateY(-6px) scale(1.05); } 
+        }
+      `}</style>
     </div>
   );
 }
