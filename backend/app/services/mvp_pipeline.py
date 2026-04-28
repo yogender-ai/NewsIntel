@@ -607,19 +607,29 @@ class MVPNewsPipeline:
             await self.session.delete(lock)
             await self.session.flush()
             return False
-        return lock.locked_until > utcnow()
+        now = utcnow()
+        if not lock.locked_until or lock.locked_until <= now:
+            return False
+        max_cooldown = timedelta(minutes=self.ai_circuit_cooldown_minutes())
+        if lock.locked_until - now > max_cooldown + timedelta(seconds=30):
+            lock.locked_until = now - timedelta(seconds=1)
+            await self.session.flush()
+            return False
+        return True
 
-    async def open_ai_circuit(self, response: dict) -> None:
-        if self.session is None:
-            return
-        cooldown_minutes = max(
+    def ai_circuit_cooldown_minutes(self) -> int:
+        return max(
             1,
             min(
                 int(self.settings.ai_circuit_breaker_cooldown_minutes or 10),
                 max(1, int(self.settings.newsintel_ingest_interval_minutes or 10)),
             ),
         )
-        until = utcnow() + timedelta(minutes=cooldown_minutes)
+
+    async def open_ai_circuit(self, response: dict) -> None:
+        if self.session is None:
+            return
+        until = utcnow() + timedelta(minutes=self.ai_circuit_cooldown_minutes())
         existing = await self.session.scalar(select(IngestionLock).where(IngestionLock.lock_name == "ai_circuit_breaker"))
         lock_owner = f"quota:{response.get('provider')}:{self.ai_circuit_signature}"
         if existing:
