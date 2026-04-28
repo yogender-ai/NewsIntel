@@ -379,9 +379,14 @@ class MVPNewsPipeline:
                     selected_for_enrichment=True,
                 )
             )
+            existing_story = await self.session.scalar(select(Story).where(Story.article_id == article.id))
+            if existing_story:
+                existing_story.cycle_id = cycle_id
+                continue
             existing_queue = await self.session.scalar(
                 select(EnrichmentQueue).where(
                     EnrichmentQueue.article_id == article.id,
+                    EnrichmentQueue.cycle_id == cycle_id,
                     EnrichmentQueue.status.in_(["PENDING", "RUNNING", "DONE"]),
                 )
             )
@@ -638,14 +643,21 @@ class MVPNewsPipeline:
 
     async def rebuild_home_snapshot(self) -> dict:
         await self.session.execute(update(HomeSnapshot).where(HomeSnapshot.active.is_(True)).values(active=False))
-        stories = (
-            await self.session.scalars(
-                select(Story)
-                .where(Story.created_at >= utcnow() - timedelta(days=self.settings.newsintel_retention_days))
-                .order_by(Story.pulse_score.desc(), Story.created_at.desc())
-                .limit(60)
-            )
-        ).all()
+        latest_cycle = await self.session.scalar(select(NewsCycle).order_by(NewsCycle.started_at.desc()).limit(1))
+        story_rows = []
+        if latest_cycle:
+            story_rows = (
+                await self.session.execute(
+                    select(Story, RankedStory.rank_position)
+                    .join(RankedStory, RankedStory.article_id == Story.article_id)
+                    .where(RankedStory.cycle_id == latest_cycle.id)
+                    .order_by(RankedStory.rank_position.asc())
+                    .limit(60)
+                )
+            ).all()
+        stories = [row[0] for row in story_rows]
+        rank_by_story_id = {row[0].id: row[1] for row in story_rows}
+        cards = [story_to_card(story, rank_by_story_id.get(story.id, index + 1)) for index, story in enumerate(stories)]
         metrics = (
             await self.session.execute(
                 select(EventMetric.category, EventMetric.pulse_score, EventMetric.exposure_score, EventMetric.created_at)
@@ -653,7 +665,6 @@ class MVPNewsPipeline:
                 .order_by(EventMetric.created_at.asc())
             )
         ).all()
-        cards = [story_to_card(story, index + 1) for index, story in enumerate(stories)]
         categories = {category: [] for category in self.settings.mvp_categories}
         for card in cards:
             categories.setdefault(card["category"], []).append(card)
@@ -705,11 +716,10 @@ class MVPNewsPipeline:
             world_pulse_label = "Calm"
         active_regions = len({region for region in ["global"] if region})
         critical_count = len([card for card in cards if card.get("signal_tier") == "CRITICAL"])
-        latest_cycle_id = stories[0].cycle_id if stories else None
         pipeline_health = await self.status()
         payload = {
             "lastUpdated": now.isoformat(),
-            "cycleId": str(latest_cycle_id) if latest_cycle_id else "",
+            "cycleId": str(latest_cycle.id) if latest_cycle else "",
             "topStories": cards[:3],
             "feed": cards,
             "categories": categories,
@@ -782,7 +792,7 @@ class MVPNewsPipeline:
         }
         self.session.add(
             HomeSnapshot(
-                cycle_id=latest_cycle_id,
+                cycle_id=latest_cycle.id if latest_cycle else None,
                 payload_json=payload,
                 active=True,
                 created_at=now,
