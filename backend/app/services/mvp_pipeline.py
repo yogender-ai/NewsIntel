@@ -827,10 +827,13 @@ class MVPNewsPipeline:
         return output
 
     async def latest_snapshot(self) -> dict:
+        latest_cycle_id = await self.session.scalar(select(NewsCycle.id).order_by(NewsCycle.started_at.desc()).limit(1))
         snapshot = await self.session.scalar(
             select(HomeSnapshot).where(HomeSnapshot.active.is_(True)).order_by(HomeSnapshot.created_at.desc()).limit(1)
         )
         if snapshot and isinstance(snapshot.payload_json, dict):
+            if latest_cycle_id and snapshot.cycle_id != latest_cycle_id:
+                return await self.rebuild_home_snapshot()
             pipeline_status = snapshot.payload_json.get("pipeline_status")
             if not isinstance(pipeline_status, dict) or "queue" not in pipeline_status:
                 return await self.rebuild_home_snapshot()
