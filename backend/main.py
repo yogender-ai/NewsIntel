@@ -1074,7 +1074,7 @@ async def _build_intelligence(
                 "Dashboard GET serves memory cache.",
                 "Fast refresh reuses previous LLM synthesis.",
                 "Article NER and sentiment are cached for 30 minutes.",
-                "OpenRouter is tried before Gemini; deterministic fallback avoids retry loops.",
+                "OpenRouter is tried before Gemini; provider failures open the AI circuit instead of generating substitute stories.",
             ],
         },
         "next_refresh_at": (now + timedelta(seconds=FAST_INTERVAL)).isoformat(),
@@ -1809,16 +1809,6 @@ async def get_orbit(request: Request):
         logger.warning("Orbit profile lookup failed for %s: %s", user_id, exc)
 
     async with EventStoreSessionLocal() as session:
-        if not mvp_settings.enable_heavy_ingestion:
-            payload = await MVPNewsPipeline(session, settings=mvp_settings).orbit_payload(
-                user_id=user_id,
-                display_name=display_name,
-                topics=user_topics,
-                regions=user_regions,
-                limit=20,
-            )
-            await session.commit()
-            return payload
         return await load_orbit_payload(
             session,
             user_id=user_id,
@@ -1835,10 +1825,6 @@ async def get_map_signals(
     time_window: str = Query(default="7d", pattern="^(24h|7d|30d)$"),
 ):
     async with EventStoreSessionLocal() as session:
-        if not mvp_settings.enable_heavy_ingestion:
-            payload = await MVPNewsPipeline(session, settings=mvp_settings).map_signals(layer=layer, time_window=time_window)
-            await session.commit()
-            return payload
         return await build_map_signals(session, layer=layer, time_window=time_window)
 
 
@@ -1867,7 +1853,7 @@ async def phase6_status():
         "status": "active",
         "clustering": {
             "rule_prefilter": True,
-            "embedding_similarity": "sentence-transformers/all-MiniLM-L6-v2 via HF first, Gemini fallback, local hash final fallback",
+            "embedding_similarity": "sentence-transformers/all-MiniLM-L6-v2 with provider health reporting",
             "llm_validation": "ambiguous_pairs_only",
             "observability": observability_snapshot(),
         },
@@ -1904,6 +1890,8 @@ def _build_exposure_network(user_id: str, payload: dict, user_topics: list, phas
         nodes.append({"id": topic_id, "label": topic.replace("-", " ").title(), "type": "topic"})
         edges.append({"from": user_id, "to": topic_id, "relationship": "tracks"})
     for ent in phase5.get("tracked_entities", []):
+        if not isinstance(ent, dict) or not ent.get("entity_name"):
+            continue
         ent_id = f"entity:{ent['entity_name']}"
         nodes.append({"id": ent_id, "label": ent["entity_name"], "type": "entity", "weight": ent.get("follow_weight", 1)})
         edges.append({"from": user_id, "to": ent_id, "relationship": "follows"})
@@ -1914,7 +1902,10 @@ def _build_exposure_network(user_id: str, payload: dict, user_topics: list, phas
             topic_id = f"topic:{match.get('id')}"
             edges.append({"from": topic_id, "to": sig_id, "relationship": "matches"})
         for ent in cluster.get("entities", [])[:3]:
-            ent_id = f"entity:{ent['name']}"
+            entity_name = ent.get("name") if isinstance(ent, dict) else str(ent or "").strip()
+            if not entity_name:
+                continue
+            ent_id = f"entity:{entity_name}"
             if any(n["id"] == ent_id for n in nodes):
                 edges.append({"from": ent_id, "to": sig_id, "relationship": "mentioned"})
     return {"nodes": nodes, "edges": edges}

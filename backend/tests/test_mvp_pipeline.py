@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.services.mvp_pipeline import MVPNewsPipeline, clean_ai_json, deterministic_story_payload, similar_title
+from app.services.mvp_pipeline import MVPNewsPipeline, clean_ai_json, similar_title
 
 
 def settings(**overrides):
@@ -87,7 +87,7 @@ def test_ai_ranking_selects_top_15(monkeypatch):
     asyncio.run(run())
 
 
-def test_ai_ranking_falls_back_when_circuit_is_open():
+def test_ai_ranking_defers_when_circuit_is_open():
     async def run():
         pipeline = MVPNewsPipeline(None, settings=settings())
         articles = [
@@ -106,38 +106,10 @@ def test_ai_ranking_falls_back_when_circuit_is_open():
             return True
 
         pipeline.is_ai_circuit_open = circuit_open
-        ranked = await pipeline.rank_articles(articles)
-        assert len(ranked) == 15
-        assert ranked[0]["ai_reason"] == "deterministic freshness ranking"
-        assert {item["article"].category for item in ranked} >= {"tech", "education"}
+        with pytest.raises(Exception, match="AI circuit breaker"):
+            await pipeline.rank_articles(articles)
 
     asyncio.run(run())
-
-
-def test_deterministic_story_payload_uses_article_metadata_only():
-    article = SimpleNamespace(
-        title="Indian Startup Launches AI Inference Platform",
-        description="An Indian startup announces a full-stack compute platform.",
-        text_preview="",
-        source="digitimes",
-        category="tech",
-        published_at=datetime.now(timezone.utc),
-    )
-    payload = deterministic_story_payload(article)
-    assert payload["display_title"] == article.title
-    assert payload["sentiment"] == "positive"
-    assert payload["risk_level"] in {"LOW", "MEDIUM", "HIGH"}
-    assert any("Indian Startup" in entity for entity in payload["entities"])
-
-
-def test_mvp_story_geo_extracts_real_countries():
-    pipeline = MVPNewsPipeline(None, settings=settings())
-    card = {
-        "thread_title": "Macron comment fuels Algeria dispute",
-        "summary": "France and Algeria tensions rise.",
-        "entities": ["Emmanuel Macron", "Algeria", "France"],
-    }
-    assert set(pipeline.countries_for_card(card)) >= {"FR", "DZ"}
 
 
 def test_enrichment_batch_size_setting_is_three():

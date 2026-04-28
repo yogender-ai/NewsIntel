@@ -5,7 +5,7 @@ import socket
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from difflib import SequenceMatcher
-from typing import Any, Awaitable, Callable
+from typing import Awaitable, Callable
 
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -32,61 +32,6 @@ from app.services.url_normalizer import normalize_url, sha256_text
 logger = logging.getLogger("news-intel-mvp-pipeline")
 
 QueueStatus = ("PENDING", "RUNNING", "DONE", "FAILED", "SKIPPED")
-
-MVP_LAYER_BY_CATEGORY = {
-    "tech": "technology",
-    "education": "education",
-    "entertainment": "culture",
-    "politics": "geopolitics",
-}
-
-MVP_MAP_LAYERS = ["geopolitics", "technology", "education", "culture"]
-
-COUNTRY_ALIASES = {
-    "IN": {"name": "India", "lat": 20.59, "lng": 78.96, "aliases": ["india", "indian", "delhi", "mumbai", "bengaluru"]},
-    "US": {"name": "United States", "lat": 39.83, "lng": -98.58, "aliases": ["united states", "u.s.", " us ", "america", "washington", "new york", "los angeles", "mit"]},
-    "CN": {"name": "China", "lat": 35.86, "lng": 104.19, "aliases": ["china", "chinese", "beijing", "shanghai", "taiwan"]},
-    "TW": {"name": "Taiwan", "lat": 23.7, "lng": 121.0, "aliases": ["taiwan", "taipei"]},
-    "JP": {"name": "Japan", "lat": 36.2, "lng": 138.25, "aliases": ["japan", "japanese", "tokyo"]},
-    "KR": {"name": "South Korea", "lat": 35.91, "lng": 127.77, "aliases": ["south korea", "korea", "korean", "seoul", "samsung"]},
-    "GB": {"name": "United Kingdom", "lat": 55.38, "lng": -3.44, "aliases": ["united kingdom", " uk ", "britain", "london"]},
-    "DE": {"name": "Germany", "lat": 51.17, "lng": 10.45, "aliases": ["germany", "german", "berlin"]},
-    "FR": {"name": "France", "lat": 46.23, "lng": 2.21, "aliases": ["france", "french", "paris", "macron"]},
-    "DZ": {"name": "Algeria", "lat": 28.03, "lng": 1.66, "aliases": ["algeria", "algerian", "algiers"]},
-    "RU": {"name": "Russia", "lat": 61.52, "lng": 105.32, "aliases": ["russia", "russian", "moscow", "kremlin"]},
-    "UA": {"name": "Ukraine", "lat": 48.38, "lng": 31.17, "aliases": ["ukraine", "ukrainian", "kyiv"]},
-    "IR": {"name": "Iran", "lat": 32.43, "lng": 53.69, "aliases": ["iran", "iranian", "tehran"]},
-    "MM": {"name": "Myanmar", "lat": 21.92, "lng": 95.96, "aliases": ["myanmar", "burma", "yangon"]},
-    "IL": {"name": "Israel", "lat": 31.05, "lng": 34.85, "aliases": ["israel", "israeli", "tel aviv", "gaza"]},
-    "SA": {"name": "Saudi Arabia", "lat": 23.89, "lng": 45.08, "aliases": ["saudi", "riyadh"]},
-    "BR": {"name": "Brazil", "lat": -14.24, "lng": -51.93, "aliases": ["brazil", "brazilian", "brasilia"]},
-}
-
-RISK_KEYWORDS = {
-    "war",
-    "conflict",
-    "crisis",
-    "dispute",
-    "risk",
-    "cyber",
-    "attack",
-    "security",
-    "election",
-    "lawsuit",
-    "ban",
-}
-
-OPPORTUNITY_KEYWORDS = {
-    "launch",
-    "growth",
-    "investment",
-    "record",
-    "partnership",
-    "deal",
-    "platform",
-    "funding",
-    "expands",
-}
 
 
 @dataclass(slots=True)
@@ -144,102 +89,6 @@ def importance_tier(pulse_score: float) -> str:
     if pulse_score >= 35:
         return "WATCH"
     return "NOISE"
-
-
-def article_text(article: Any) -> str:
-    return " ".join(
-        str(part or "")
-        for part in [
-            getattr(article, "title", ""),
-            getattr(article, "description", ""),
-            getattr(article, "text_preview", ""),
-            getattr(article, "source", ""),
-            getattr(article, "category", ""),
-        ]
-    ).strip()
-
-
-def parse_iso_datetime(value: str | None) -> datetime | None:
-    if not value:
-        return None
-    try:
-        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
-    except Exception:
-        return None
-
-
-def article_freshness_score(article: Any) -> float:
-    published = getattr(article, "published_at", None) or getattr(article, "last_seen_at", None) or getattr(article, "created_at", None)
-    if not published:
-        return 40.0
-    if published.tzinfo is None:
-        published = published.replace(tzinfo=timezone.utc)
-    age_hours = max(0.0, (utcnow() - published.astimezone(timezone.utc)).total_seconds() / 3600)
-    return max(8.0, 45.0 - age_hours * 1.5)
-
-
-def deterministic_article_score(article: Any) -> float:
-    text = article_text(article).lower()
-    score = article_freshness_score(article) + 18.0
-    score += 8.0 if getattr(article, "source", None) else 0.0
-    score += min(len(getattr(article, "description", "") or "") / 80.0, 8.0)
-    score += 12.0 if any(keyword in text for keyword in RISK_KEYWORDS) else 0.0
-    score += 10.0 if any(keyword in text for keyword in OPPORTUNITY_KEYWORDS) else 0.0
-    if getattr(article, "category", "") == "politics":
-        score += 4.0
-    return max(1.0, min(100.0, score))
-
-
-def extract_entities_from_text(text: str, limit: int = 6) -> list[str]:
-    entities: list[str] = []
-    seen: set[str] = set()
-    for match in re.finditer(r"\b(?:[A-Z][A-Za-z0-9'&.-]{1,}|AI|US|UK|EU|MIT)(?:\s+(?:[A-Z][A-Za-z0-9'&.-]{1,}|AI|US|UK|EU))*", text or ""):
-        value = match.group(0).strip(" -")
-        if len(value) < 2 or value.lower() in {"the", "a", "an"}:
-            continue
-        key = value.lower()
-        if key not in seen:
-            seen.add(key)
-            entities.append(value[:80])
-        if len(entities) >= limit:
-            break
-    return entities
-
-
-def trim_sentence(value: str | None, fallback: str, limit: int) -> str:
-    cleaned = re.sub(r"\s+", " ", (value or "").strip())
-    if not cleaned:
-        cleaned = fallback
-    if len(cleaned) <= limit:
-        return cleaned
-    return cleaned[: max(0, limit - 1)].rstrip(" ,.;:") + "."
-
-
-def deterministic_story_payload(article: Article) -> dict:
-    text = article_text(article)
-    lower = text.lower()
-    score = deterministic_article_score(article)
-    has_risk = any(keyword in lower for keyword in RISK_KEYWORDS)
-    has_opportunity = any(keyword in lower for keyword in OPPORTUNITY_KEYWORDS)
-    sentiment = "negative" if has_risk and not has_opportunity else "positive" if has_opportunity and not has_risk else "neutral"
-    risk_level = "HIGH" if score >= 78 and has_risk else "MEDIUM" if has_risk or score >= 65 else "LOW"
-    exposure = min(100.0, max(35.0, score - 8.0 + (6.0 if has_opportunity else 0.0)))
-    return {
-        "display_title": trim_sentence(article.title, "Live news signal", 90),
-        "summary": trim_sentence(article.description or article.text_preview or article.title, article.title, 240),
-        "why_it_matters": trim_sentence(
-            f"This {article.category or 'news'} signal is moving through {article.source or 'a monitored source'} and may affect the live dashboard.",
-            "This signal is moving through monitored sources.",
-            220,
-        ),
-        "entities": extract_entities_from_text(text),
-        "sentiment": sentiment,
-        "pulse_score": round(score, 2),
-        "exposure_score": round(exposure, 2),
-        "importance_level": "HIGH" if score >= 72 else "MEDIUM" if score >= 45 else "LOW",
-        "risk_level": risk_level,
-        "_provider": "deterministic_fallback",
-    }
 
 
 def story_to_card(story: Story, rank: int = 0) -> dict:
@@ -468,8 +317,7 @@ class MVPNewsPipeline:
         if not articles:
             return []
         if await self.is_ai_circuit_open():
-            logger.warning("AI circuit open; using deterministic MVP ranking fallback.")
-            return self.rank_articles_deterministically(articles)
+            raise AICircuitOpen("AI circuit breaker is cooling down; ranking deferred.")
 
         listing = [
             {
@@ -493,16 +341,11 @@ class MVPNewsPipeline:
             f"Articles use keys i=article_index,t=title,d=description,s=source,c=category,p=date:\n"
             f"{json.dumps(listing, ensure_ascii=False, separators=(',', ':'))}"
         )
-        try:
-            response = await self.call_ai(prompt, max_tokens=max(350, min(700, self.settings.newsintel_ai_rank_max_tokens)))
-            parsed = clean_ai_json(response)
-        except Exception as exc:
-            logger.warning("AI ranking unavailable; using deterministic MVP ranking fallback: %s", exc)
-            return self.rank_articles_deterministically(articles)
+        response = await self.call_ai(prompt, max_tokens=max(350, min(700, self.settings.newsintel_ai_rank_max_tokens)))
+        parsed = clean_ai_json(response)
         ranked = parsed.get("ranked")
         if not isinstance(ranked, list):
-            logger.warning("AI ranking JSON missing ranked array; using deterministic fallback.")
-            return self.rank_articles_deterministically(articles)
+            raise ValueError("AI ranking JSON did not include ranked array")
 
         used: set[int] = set()
         output = []
@@ -518,34 +361,6 @@ class MVPNewsPipeline:
                     "ai_score": max(0, min(100, float(item.get("score") or 0))),
                     "ai_reason": str(item.get("reason") or "")[:1000],
                     "importance_level": str(item.get("importance") or "MEDIUM").upper()[:20],
-                }
-            )
-        return output or self.rank_articles_deterministically(articles)
-
-    def rank_articles_deterministically(self, articles: list[Article]) -> list[dict]:
-        target = max(1, min(int(self.settings.newsintel_rank_top_n), len(articles)))
-        by_category: dict[str, list[Article]] = {}
-        for article in sorted(articles, key=deterministic_article_score, reverse=True):
-            by_category.setdefault(article.category or "tech", []).append(article)
-
-        selected: list[Article] = []
-        categories = [category for category in self.settings.mvp_categories if by_category.get(category)]
-        while len(selected) < target and any(by_category.values()):
-            for category in categories or list(by_category):
-                bucket = by_category.get(category) or []
-                if bucket and len(selected) < target:
-                    selected.append(bucket.pop(0))
-
-        output = []
-        for rank, article in enumerate(selected, start=1):
-            score = deterministic_article_score(article)
-            output.append(
-                {
-                    "article": article,
-                    "rank_position": rank,
-                    "ai_score": score,
-                    "ai_reason": "deterministic freshness ranking",
-                    "importance_level": "HIGH" if score >= 72 else "MEDIUM" if score >= 45 else "LOW",
                 }
             )
         return output
@@ -592,9 +407,8 @@ class MVPNewsPipeline:
         if not acquired:
             return {"status": "skipped", "reason": "enrichment_already_running"}
         try:
-            deterministic_mode = await self.is_ai_circuit_open()
-            if deterministic_mode:
-                logger.warning("AI circuit open; enrichment batch will use deterministic fallback.")
+            if await self.is_ai_circuit_open():
+                return {"status": "deferred", "reason": "ai_circuit_open", "processed": 0}
             batch_size = max(1, int(self.settings.newsintel_enrich_batch_size))
             now = utcnow()
             queue_rows = (
@@ -627,15 +441,11 @@ class MVPNewsPipeline:
                     await self.enrich_one(queue_row, article)
                     processed += 1
                 except AICircuitOpen as exc:
-                    try:
-                        await self.enrich_one_deterministically(queue_row, article, reason=str(exc))
-                        processed += 1
-                    except Exception:
-                        queue_row.status = "PENDING"
-                        queue_row.error_message = str(exc)[:1000]
-                        queue_row.next_attempt_at = utcnow() + timedelta(minutes=self.settings.ai_circuit_breaker_cooldown_minutes)
-                        deferred += 1
-                        break
+                    queue_row.status = "PENDING"
+                    queue_row.error_message = str(exc)[:1000]
+                    queue_row.next_attempt_at = utcnow() + timedelta(minutes=self.settings.ai_circuit_breaker_cooldown_minutes)
+                    deferred += 1
+                    break
                 except Exception as exc:
                     failed += 1
                     queue_row.error_message = str(exc)[:1000]
@@ -648,13 +458,13 @@ class MVPNewsPipeline:
             await self.session.flush()
             await self.rebuild_home_snapshot()
             await self.session.commit()
-            return {"status": "success", "processed": processed, "failed": failed, "deferred": deferred, "deterministic_fallback": deterministic_mode}
+            return {"status": "success", "processed": processed, "failed": failed, "deferred": deferred}
         finally:
             await self.release_lock("mvp_enrichment")
 
     async def enrich_one(self, queue_row: EnrichmentQueue, article: Article) -> Story:
         if await self.is_ai_circuit_open():
-            return await self.enrich_one_deterministically(queue_row, article, reason="AI circuit breaker is cooling down")
+            raise AICircuitOpen("AI circuit breaker is cooling down; enrichment deferred.")
         prompt = (
             "Enrich one real RSS article for News-Intel using only the metadata below. "
             "Do not invent facts. Return ONLY minified strict JSON, no markdown. "
@@ -664,16 +474,7 @@ class MVPNewsPipeline:
             '"pulse_score":0,"exposure_score":0,"importance_level":"HIGH/MEDIUM/LOW","risk_level":"LOW/MEDIUM/HIGH"}\n\n'
             f"ARTICLE:{json.dumps({'title': (article.title or '')[:180], 'description': (article.description or article.text_preview or '')[:260], 'source': article.source, 'category': article.category, 'published_at': article.published_at.isoformat() if article.published_at else None, 'url': article.canonical_url}, ensure_ascii=False, separators=(',', ':'))}"
         )
-        try:
-            parsed = clean_ai_json(await self.call_ai(prompt, max_tokens=max(320, min(650, self.settings.newsintel_ai_enrich_max_tokens))))
-        except Exception as exc:
-            logger.warning("AI enrichment unavailable; using deterministic fallback for article=%s: %s", article.id, exc)
-            return await self.enrich_one_deterministically(queue_row, article, reason=str(exc))
-        return await self.upsert_story_from_payload(queue_row, article, parsed)
-
-    async def enrich_one_deterministically(self, queue_row: EnrichmentQueue, article: Article, reason: str = "") -> Story:
-        parsed = deterministic_story_payload(article)
-        parsed["_fallback_reason"] = reason[:240]
+        parsed = clean_ai_json(await self.call_ai(prompt, max_tokens=max(320, min(650, self.settings.newsintel_ai_enrich_max_tokens))))
         return await self.upsert_story_from_payload(queue_row, article, parsed)
 
     async def upsert_story_from_payload(self, queue_row: EnrichmentQueue, article: Article, parsed: dict) -> Story:
@@ -1052,198 +853,6 @@ class MVPNewsPipeline:
                 }
             )
         return output
-
-    def card_updated_at(self, card: dict) -> datetime | None:
-        for key in ("updated_at", "last_seen_at", "published_at", "ai_enriched_at"):
-            parsed = parse_iso_datetime(card.get(key))
-            if parsed:
-                return parsed.astimezone(timezone.utc)
-        return None
-
-    def card_text(self, card: dict) -> str:
-        parts = [
-            card.get("thread_title") or card.get("title") or "",
-            card.get("summary") or "",
-            card.get("why_it_matters") or card.get("impact_line") or "",
-            card.get("category") or "",
-        ]
-        for entity in card.get("entities") or []:
-            parts.append(entity.get("name") if isinstance(entity, dict) else str(entity))
-        for source in card.get("sources") or []:
-            if isinstance(source, dict):
-                parts.extend([source.get("title") or "", source.get("source") or ""])
-        return " ".join(str(part or "") for part in parts)
-
-    def countries_for_card(self, card: dict) -> list[str]:
-        text = f" {self.card_text(card).lower()} "
-        matches = []
-        for code, info in COUNTRY_ALIASES.items():
-            for alias in info["aliases"]:
-                needle = alias if alias.startswith(" ") or alias.endswith(" ") else f" {alias.lower()} "
-                if needle in text:
-                    matches.append(code)
-                    break
-        return list(dict.fromkeys(matches))
-
-    def delta_for_category(self, snapshot: dict, category: str) -> float:
-        for row in snapshot.get("daily_delta") or []:
-            if str(row.get("topic") or "").lower() == category or str(row.get("label") or "").lower() == category:
-                try:
-                    return float(row.get("delta") or 0)
-                except Exception:
-                    return 0.0
-        return 0.0
-
-    async def map_signals(self, *, layer: str | None = None, time_window: str = "7d") -> dict:
-        snapshot = await self.latest_snapshot()
-        if layer == "all":
-            layer = None
-        if layer and layer not in MVP_MAP_LAYERS and layer not in self.settings.mvp_categories:
-            layer = None
-        hours = {"24h": 24, "7d": 24 * 7, "30d": 24 * 30}.get(time_window, 24 * 7)
-        cutoff = utcnow() - timedelta(hours=hours)
-        buckets: dict[str, dict[str, Any]] = {}
-        for card in snapshot.get("feed") or snapshot.get("clusters") or []:
-            category = str(card.get("category") or "tech").lower()
-            card_layer = MVP_LAYER_BY_CATEGORY.get(category, category)
-            if layer and layer not in {category, card_layer}:
-                continue
-            updated = self.card_updated_at(card)
-            if updated and updated < cutoff:
-                continue
-            for code in self.countries_for_card(card):
-                bucket = buckets.setdefault(code, {"cards": [], "pulses": [], "risk_count": 0, "opportunity_count": 0, "categories": set()})
-                pulse = float(card.get("pulse_score") or 50)
-                bucket["cards"].append(card)
-                bucket["pulses"].append(pulse)
-                bucket["categories"].add(category)
-                bucket["risk_count"] += 1 if str(card.get("risk_level") or "").upper() in {"MEDIUM", "HIGH"} else 0
-                bucket["opportunity_count"] += 1 if str(card.get("opportunity_level") or "").lower() in {"medium", "high"} else 0
-
-        regions = []
-        for code, bucket in buckets.items():
-            info = COUNTRY_ALIASES[code]
-            pulses = bucket["pulses"]
-            avg_pulse = sum(pulses) / max(len(pulses), 1)
-            top_cards = sorted(bucket["cards"], key=lambda item: float(item.get("pulse_score") or 0), reverse=True)[:5]
-            primary_category = sorted(bucket["categories"])[0] if bucket["categories"] else "global"
-            intensity = min(100, round(avg_pulse * 0.72 + min(len(pulses) * 7, 28)))
-            max_pulse = max(pulses) if pulses else 0
-            risk = "high" if max_pulse >= 75 or bucket["risk_count"] >= 2 else "medium" if max_pulse >= 55 or bucket["risk_count"] else "low"
-            opportunity = "high" if bucket["opportunity_count"] >= 2 and avg_pulse >= 60 else "medium" if bucket["opportunity_count"] else "low"
-            regions.append(
-                {
-                    "id": code,
-                    "name": info["name"],
-                    "lat": info["lat"],
-                    "lng": info["lng"],
-                    "intensity": intensity,
-                    "event_count": len(pulses),
-                    "avg_pulse": round(avg_pulse, 1),
-                    "risk": risk,
-                    "opportunity": opportunity,
-                    "delta": self.delta_for_category(snapshot, primary_category),
-                    "top_events": [
-                        {
-                            "id": card.get("id") or card.get("signal_id"),
-                            "title": card.get("thread_title") or card.get("title"),
-                            "pulse": card.get("pulse_score"),
-                            "category": card.get("category"),
-                            "why_it_matters": card.get("why_it_matters") or card.get("impact_line"),
-                        }
-                        for card in top_cards
-                    ],
-                }
-            )
-        return {
-            "mode": "story_geo",
-            "layers": MVP_MAP_LAYERS,
-            "regions": sorted(regions, key=lambda item: item["intensity"], reverse=True),
-            "regions_used": snapshot.get("regions_used") or ["global"],
-            "updated_at": utcnow().isoformat(),
-            "source_cycle_id": snapshot.get("cycleId"),
-        }
-
-    def shared_entities(self, left: dict, right: dict) -> set[str]:
-        def names(card: dict) -> set[str]:
-            values = set()
-            for entity in card.get("entities") or []:
-                value = entity.get("name") if isinstance(entity, dict) else entity
-                if value:
-                    values.add(str(value).strip().lower())
-            return {value for value in values if len(value) >= 3}
-
-        return names(left) & names(right)
-
-    async def orbit_payload(
-        self,
-        *,
-        user_id: str,
-        display_name: str | None = None,
-        topics: list[str] | None = None,
-        regions: list[str] | None = None,
-        limit: int = 20,
-    ) -> dict:
-        snapshot = await self.latest_snapshot()
-        cards = list(snapshot.get("feed") or snapshot.get("clusters") or [])
-        if topics:
-            topic_set = set(topics)
-            cards = [card for card in cards if card.get("category") in topic_set] or cards
-        ranked = sorted(cards, key=lambda card: (float(card.get("exposure_score") or 0), float(card.get("pulse_score") or 0)), reverse=True)[:limit]
-        nodes = []
-        for card in ranked:
-            pulse = float(card.get("pulse_score") or 50)
-            exposure = float(card.get("exposure_score") or card.get("relevance_score") or 50)
-            delta = self.delta_for_category(snapshot, str(card.get("category") or "").lower())
-            nodes.append(
-                {
-                    "id": str(card.get("id") or card.get("signal_id")),
-                    "label": card.get("thread_title") or card.get("title") or "Live signal",
-                    "category": card.get("category") or "general",
-                    "pulse": round(pulse, 1),
-                    "exposure": round(exposure, 1),
-                    "distance": round(1 - min(100, exposure) / 100, 3),
-                    "size": max(10, min(34, round(10 + pulse * 0.24))),
-                    "status": "rising" if delta > 0 else "cooling" if delta < 0 else "stable",
-                    "ai_status": card.get("ai_status") or "rules_only",
-                    "why_it_matters": card.get("why_it_matters") or card.get("impact_line") or "Impact is still being confirmed across sources.",
-                    "updated_at": card.get("updated_at") or card.get("last_seen_at") or snapshot.get("generated_at"),
-                    "signal_tier": card.get("signal_tier"),
-                }
-            )
-
-        edges = []
-        by_id = {str(card.get("id") or card.get("signal_id")): card for card in ranked}
-        for index, left in enumerate(ranked):
-            for right in ranked[index + 1 :]:
-                shared = self.shared_entities(left, right)
-                same_category = left.get("category") and left.get("category") == right.get("category")
-                if not shared and not same_category:
-                    continue
-                confidence = min(0.82, 0.38 + len(shared) * 0.12 + (0.12 if same_category else 0))
-                if confidence < 0.45:
-                    continue
-                left_id = str(left.get("id") or left.get("signal_id"))
-                right_id = str(right.get("id") or right.get("signal_id"))
-                evidence = "Shared entities: " + ", ".join(sorted(shared)[:4]) if shared else f"Both are active {left.get('category')} signals."
-                edges.append({"from": left_id, "to": right_id, "type": "same_theme" if same_category else "correlates", "confidence": round(confidence, 3), "evidence": evidence})
-                if len(edges) >= 24:
-                    break
-            if len(edges) >= 24:
-                break
-
-        return {
-            "center": {
-                "id": user_id,
-                "label": display_name or "You",
-                "topics": topics or snapshot.get("topics_used") or [],
-                "regions": regions or snapshot.get("regions_used") or [],
-            },
-            "nodes": nodes,
-            "edges": [edge for edge in edges if edge["from"] in by_id and edge["to"] in by_id],
-            "generated_at": utcnow().isoformat(),
-            "source_cycle_id": snapshot.get("cycleId"),
-        }
 
     async def latest_snapshot(self) -> dict:
         content_cycle = await self.latest_content_cycle()
