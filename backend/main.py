@@ -1809,6 +1809,16 @@ async def get_orbit(request: Request):
         logger.warning("Orbit profile lookup failed for %s: %s", user_id, exc)
 
     async with EventStoreSessionLocal() as session:
+        if not mvp_settings.enable_heavy_ingestion:
+            payload = await MVPNewsPipeline(session, settings=mvp_settings).orbit_payload(
+                user_id=user_id,
+                display_name=display_name,
+                topics=user_topics,
+                regions=user_regions,
+                limit=20,
+            )
+            await session.commit()
+            return payload
         return await load_orbit_payload(
             session,
             user_id=user_id,
@@ -1824,40 +1834,12 @@ async def get_map_signals(
     layer: Optional[str] = Query(default=None),
     time_window: str = Query(default="7d", pattern="^(24h|7d|30d)$"),
 ):
-    snapshot = await home_snapshot()
-    regions = []
-    for item in snapshot.get("map", []):
-        if layer and layer != "all" and item.get("category") != layer:
-            continue
-        regions.append(
-            {
-                "id": item.get("id"),
-                "name": item.get("name"),
-                "lat": 20,
-                "lng": 0,
-                "intensity": item.get("intensity", 0),
-                "event_count": item.get("event_count", 0),
-                "risk": "medium" if item.get("intensity", 0) >= 55 else "low",
-                "opportunity": "medium",
-                "delta": 0,
-                "top_events": [
-                    {
-                        "id": story.get("id"),
-                        "title": story.get("thread_title"),
-                        "pulse": story.get("pulse_score"),
-                        "category": story.get("category"),
-                        "why_it_matters": story.get("why_it_matters"),
-                    }
-                    for story in snapshot.get("categories", {}).get(item.get("category"), [])[:3]
-                ],
-            }
-        )
-    return {
-        "mode": "global_category",
-        "layers": mvp_settings.mvp_categories,
-        "regions": regions,
-        "note": "Global-only MVP: category intensity is shown without fake country-level signals.",
-    }
+    async with EventStoreSessionLocal() as session:
+        if not mvp_settings.enable_heavy_ingestion:
+            payload = await MVPNewsPipeline(session, settings=mvp_settings).map_signals(layer=layer, time_window=time_window)
+            await session.commit()
+            return payload
+        return await build_map_signals(session, layer=layer, time_window=time_window)
 
 
 @app.post("/api/simulate")
