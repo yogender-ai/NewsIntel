@@ -1327,9 +1327,18 @@ async def ingest_now(request: Request, payload: IngestNowRequest | None = None):
             "max_articles": max_articles,
             "result": result,
         }
+    if result.get("status") == "skipped":
+        return {
+            "status": "skipped",
+            "message": result.get("reason") or "Ingestion was skipped by the backend lock.",
+            "topics": topics,
+            "regions": regions,
+            "max_articles": max_articles,
+            "result": result,
+        }
     return {
-        "status": "success",
-        "message": "Ingestion completed",
+        "status": result.get("status") or "success",
+        "message": "Ingestion completed" if result.get("status") in {"ranked", "success"} else "Ingestion finished without new ranked work.",
         "topics": topics,
         "regions": regions,
         "max_articles": max_articles,

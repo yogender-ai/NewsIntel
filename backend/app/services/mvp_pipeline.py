@@ -612,7 +612,14 @@ class MVPNewsPipeline:
     async def open_ai_circuit(self, response: dict) -> None:
         if self.session is None:
             return
-        until = utcnow() + timedelta(minutes=self.settings.ai_circuit_breaker_cooldown_minutes)
+        cooldown_minutes = max(
+            1,
+            min(
+                int(self.settings.ai_circuit_breaker_cooldown_minutes or 10),
+                max(1, int(self.settings.newsintel_ingest_interval_minutes or 10)),
+            ),
+        )
+        until = utcnow() + timedelta(minutes=cooldown_minutes)
         existing = await self.session.scalar(select(IngestionLock).where(IngestionLock.lock_name == "ai_circuit_breaker"))
         lock_owner = f"quota:{response.get('provider')}:{self.ai_circuit_signature}"
         if existing:
@@ -621,6 +628,24 @@ class MVPNewsPipeline:
         else:
             self.session.add(IngestionLock(lock_name="ai_circuit_breaker", locked_until=until, locked_by=lock_owner))
         await self.session.flush()
+
+    async def lock_status(self) -> dict:
+        rows = (
+            await self.session.scalars(
+                select(IngestionLock).where(
+                    IngestionLock.lock_name.in_(["mvp_ingestion", "mvp_enrichment", "ai_circuit_breaker"])
+                )
+            )
+        ).all()
+        now = utcnow()
+        return {
+            lock.lock_name: {
+                "open": bool(lock.locked_until and lock.locked_until > now),
+                "locked_until": lock.locked_until.isoformat() if lock.locked_until else None,
+                "locked_by": lock.locked_by,
+            }
+            for lock in rows
+        }
 
     async def acquire_lock(self, name: str, minutes: int) -> bool:
         if self.session is None:
@@ -779,6 +804,7 @@ class MVPNewsPipeline:
                 else None,
                 "queue": pipeline_health.get("queue"),
                 "ai_circuit_open": pipeline_health.get("ai_circuit_open"),
+                "locks": pipeline_health.get("locks"),
             },
             "daily_delta": self.category_deltas(metrics),
             "pulse_history": {"history": pulse},
@@ -926,6 +952,7 @@ class MVPNewsPipeline:
             else None,
             "queue": {"pending": int(pending or 0), "running": int(running or 0), "done": int(done or 0)},
             "ai_circuit_open": ai_open,
+            "locks": await self.lock_status(),
             "categories": self.settings.mvp_categories,
             "articles_per_category": self.settings.newsintel_articles_per_category,
             "rank_top_n": self.settings.newsintel_rank_top_n,

@@ -41,7 +41,7 @@ class Settings(BaseSettings):
         ),
         alias="NEWSINTEL_OPENROUTER_MODELS",
     )
-    ai_circuit_breaker_cooldown_minutes: int = Field(default=360, alias="AI_CIRCUIT_BREAKER_COOLDOWN_MINUTES")
+    ai_circuit_breaker_cooldown_minutes: int = Field(default=10, alias="AI_CIRCUIT_BREAKER_COOLDOWN_MINUTES")
     enable_heavy_ingestion: bool = Field(default=False, alias="ENABLE_HEAVY_INGESTION")
     enable_personalization: bool = Field(default=False, alias="ENABLE_PERSONALIZATION")
     enable_watchlist: bool = Field(default=False, alias="ENABLE_WATCHLIST")
