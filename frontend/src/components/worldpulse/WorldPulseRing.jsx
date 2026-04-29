@@ -93,12 +93,13 @@ function DottedGlobe() {
     
     const animId = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(animId);
-  }, []);
+  }, [worldData]);
 
   return <canvas ref={canvasRef} style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none' }} />;
 }
 
 function SegmentedRing({ score }) {
+  const [isHovered, setIsHovered] = useState(false);
   const size = 320;
   const radius = 140;
   const cx = size / 2;
@@ -168,7 +169,12 @@ function SegmentedRing({ score }) {
   }
 
   return (
-    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
+    <svg 
+      width={size} height={size} viewBox={`0 0 ${size} ${size}`} 
+      style={{ position: 'absolute', top: '50%', left: '50%', transform: isHovered ? 'translate(-50%, -50%) scale(1.05)' : 'translate(-50%, -50%) scale(1)', transition: 'all 0.3s ease-out', cursor: 'crosshair', filter: isHovered ? 'brightness(1.5) drop-shadow(0 0 15px rgba(167, 139, 250, 0.4))' : 'none' }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       {arcs}
     </svg>
   );

@@ -126,8 +126,8 @@ const TopBar = () => {
   );
 };
 
-/* ── Global Live Cursor — hypr.land style ────────────────────────── */
 function GlobalLiveCursor() {
+  const ringRef = useRef(null);
   const dotRef = useRef(null);
   const blobRef = useRef(null);
   const mouse = useRef({ x: -100, y: -100 });
@@ -139,14 +139,38 @@ function GlobalLiveCursor() {
       document.documentElement.style.setProperty('--cursor-x', `${e.clientX}px`);
       document.documentElement.style.setProperty('--cursor-y', `${e.clientY}px`);
     };
+    
+    // Add interactive hover states for the cursor
+    const handleMouseOver = (e) => {
+      const target = e.target;
+      if (target.tagName.toLowerCase() === 'button' || target.tagName.toLowerCase() === 'a' || target.closest('button') || target.closest('a') || window.getComputedStyle(target).cursor === 'pointer') {
+        if (ringRef.current) ringRef.current.style.transform = `translate(${mouse.current.x - 16}px, ${mouse.current.y - 16}px) scale(1.5)`;
+        if (ringRef.current) ringRef.current.style.borderColor = 'rgba(167, 139, 250, 0.8)';
+        if (dotRef.current) dotRef.current.style.background = '#a78bfa';
+      } else {
+        if (ringRef.current) ringRef.current.style.transform = `translate(${mouse.current.x - 16}px, ${mouse.current.y - 16}px) scale(1)`;
+        if (ringRef.current) ringRef.current.style.borderColor = 'rgba(94, 234, 212, 0.5)';
+        if (dotRef.current) dotRef.current.style.background = '#5eead4';
+      }
+    };
+
     window.addEventListener('pointermove', move);
+    window.addEventListener('mouseover', handleMouseOver);
 
     let raf;
     const tick = () => {
       blob.current.x += (mouse.current.x - blob.current.x) * 0.12;
       blob.current.y += (mouse.current.y - blob.current.y) * 0.12;
+      
       if (dotRef.current) {
         dotRef.current.style.transform = `translate(${mouse.current.x - 4}px, ${mouse.current.y - 4}px)`;
+      }
+      if (ringRef.current) {
+        // We only translate here, the scale is handled by CSS transition + style override
+        const currentTransform = ringRef.current.style.transform;
+        const scaleMatch = currentTransform.match(/scale\(([^)]+)\)/);
+        const scale = scaleMatch ? scaleMatch[0] : 'scale(1)';
+        ringRef.current.style.transform = `translate(${mouse.current.x - 16}px, ${mouse.current.y - 16}px) ${scale}`;
       }
       if (blobRef.current) {
         blobRef.current.style.transform = `translate(${blob.current.x - 160}px, ${blob.current.y - 160}px)`;
@@ -158,13 +182,24 @@ function GlobalLiveCursor() {
     return () => {
       cancelAnimationFrame(raf);
       window.removeEventListener('pointermove', move);
+      window.removeEventListener('mouseover', handleMouseOver);
     };
   }, []);
 
   return (
     <>
       <div ref={blobRef} className="hypr-blob" />
-      <div ref={dotRef} className="hypr-dot" />
+      <div ref={ringRef} style={{
+        position: 'fixed', left: 0, top: 0, zIndex: 99998, pointerEvents: 'none',
+        width: '32px', height: '32px', border: '1px solid rgba(94, 234, 212, 0.5)', borderRadius: '50%',
+        willChange: 'transform', transition: 'transform 0.15s ease-out, border-color 0.2s',
+        boxShadow: '0 0 10px rgba(94, 234, 212, 0.2)'
+      }} />
+      <div ref={dotRef} style={{
+        position: 'fixed', left: 0, top: 0, zIndex: 99999, pointerEvents: 'none',
+        width: '8px', height: '8px', background: '#5eead4', borderRadius: '50%',
+        willChange: 'transform', boxShadow: '0 0 8px #5eead4', transition: 'background 0.2s'
+      }} />
     </>
   );
 }
