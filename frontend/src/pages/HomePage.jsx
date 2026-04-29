@@ -240,6 +240,7 @@ export default function HomePage() {
   const [preferences, setPreferences] = useState(null);
   const [alerts, setAlerts] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [pipelineDone, setPipelineDone] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [lockedToast, setLockedToast] = useState('');
@@ -251,7 +252,7 @@ export default function HomePage() {
   const load = useCallback(async ({ force = false } = {}) => {
     setError('');
     if (force) setRefreshing(true);
-    else setLoading(true);
+    else { setLoading(true); setPipelineDone(false); }
     try {
       const dashResult = force
         ? await api.forceDashboardRefresh()
@@ -317,6 +318,9 @@ export default function HomePage() {
     ? selectedShift.articles.map((id) => articleIndex.get(String(id))).filter(Boolean)
     : [];
 
+  // Show pipeline until BOTH data loaded AND pipeline animation completes
+  const showPipeline = loading || !pipelineDone;
+
   return (
     <div className="world-pulse-page premium-dashboard-shell">
       <Sidebar
@@ -343,8 +347,8 @@ export default function HomePage() {
           alertCount={data.alerts?.length || 0}
         />
 
-        {loading ? (
-          <TransparentPipeline />
+        {showPipeline ? (
+          <TransparentPipeline onComplete={() => setPipelineDone(true)} />
         ) : (
           <>
             {error && (

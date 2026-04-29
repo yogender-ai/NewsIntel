@@ -3,6 +3,7 @@ import EmptyState from './EmptyState';
 
 export default function PulseTrendChart({ history, worldPulse }) {
   const [drawn, setDrawn] = useState(false);
+  const [hoverIdx, setHoverIdx] = useState(null);
   const svgRef = useRef(null);
 
   useEffect(() => {
@@ -16,7 +17,7 @@ export default function PulseTrendChart({ history, worldPulse }) {
     return (
       <section className="wp-card pulse-chart-card">
         <div className="wp-section-head">
-          <span>Live World Pulse</span>
+          <span>Live Pulse Trend</span>
           <em className="pulse-chart-badge">24H</em>
         </div>
         <EmptyState title="Pulse history building." body="No backend history available yet." />
@@ -49,7 +50,7 @@ export default function PulseTrendChart({ history, worldPulse }) {
   const coords = history.map((point, index) => {
     const x = padL + (index / Math.max(history.length - 1, 1)) * chartW;
     const y = padT + (1 - (point.value - min) / range) * chartH;
-    return { x, y, value: point.value };
+    return { x, y, value: point.value, time: point.time || point.timestamp };
   });
 
   /* Smooth curve using cardinal spline */
@@ -83,11 +84,27 @@ export default function PulseTrendChart({ history, worldPulse }) {
   }));
 
   const totalLen = 1200;
+  const hoveredPt = hoverIdx !== null ? coords[hoverIdx] : null;
+
+  const handleMouseMove = (e) => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const rect = svg.getBoundingClientRect();
+    const mx = ((e.clientX - rect.left) / rect.width) * W;
+    // Find nearest point
+    let nearest = 0;
+    let nearestDist = Infinity;
+    coords.forEach((c, i) => {
+      const d = Math.abs(c.x - mx);
+      if (d < nearestDist) { nearestDist = d; nearest = i; }
+    });
+    setHoverIdx(nearest);
+  };
 
   return (
     <section className="wp-card pulse-chart-card">
       <div className="wp-section-head">
-        <span>Live World Pulse</span>
+        <span>Live Pulse Trend</span>
         <em className="pulse-chart-badge">24H</em>
       </div>
       <div className="pulse-chart-hero">
@@ -98,10 +115,12 @@ export default function PulseTrendChart({ history, worldPulse }) {
       </div>
       <svg
         ref={svgRef}
-        className="pulse-trend"
+        className="pulse-trend pulse-trend-interactive"
         viewBox={`0 0 ${W} ${H}`}
         role="img"
         aria-label="24 hour pulse trend"
+        onMouseMove={handleMouseMove}
+        onMouseLeave={() => setHoverIdx(null)}
       >
         <defs>
           <linearGradient id="ptLineGrad" x1="0" y1="0" x2="1" y2="0">
@@ -162,17 +181,33 @@ export default function PulseTrendChart({ history, worldPulse }) {
           style={{ transition: 'stroke-dashoffset 1.8s cubic-bezier(0.4,0,0.2,1)' }}
         />
 
+        {/* Hover crosshair + tooltip */}
+        {hoveredPt && drawn && (
+          <>
+            <line x1={hoveredPt.x} y1={padT} x2={hoveredPt.x} y2={padT + chartH} stroke="rgba(139,92,246,0.3)" strokeWidth="0.5" strokeDasharray="2,2" />
+            <circle cx={hoveredPt.x} cy={hoveredPt.y} r="4" fill="#a78bfa" filter="url(#ptDotGlow)" />
+            <rect x={hoveredPt.x - 18} y={hoveredPt.y - 20} width="36" height="14" rx="4" fill="rgba(15,23,42,0.9)" stroke="rgba(139,92,246,0.3)" strokeWidth="0.5" />
+            <text x={hoveredPt.x} y={hoveredPt.y - 10} fill="#c4b5fd" fontSize="8" fontFamily="var(--mono)" fontWeight="700" textAnchor="middle">
+              {Math.round(history[hoverIdx]?.value || 0)}
+            </text>
+          </>
+        )}
+
         {/* Peak indicator */}
-        <circle
-          cx={maxPt.x} cy={maxPt.y} r="3.5"
-          fill="#a78bfa" filter="url(#ptDotGlow)"
-          opacity={drawn ? 1 : 0}
-          style={{ transition: 'opacity 0.4s ease 1.6s' }}
-        />
-        {drawn && (
-          <text x={maxPt.x} y={maxPt.y - 7} fill="#c4b5fd" fontSize="7" fontFamily="var(--mono)" fontWeight="700" textAnchor="middle">
-            {history[maxIdx].value}
-          </text>
+        {!hoveredPt && (
+          <>
+            <circle
+              cx={maxPt.x} cy={maxPt.y} r="3.5"
+              fill="#a78bfa" filter="url(#ptDotGlow)"
+              opacity={drawn ? 1 : 0}
+              style={{ transition: 'opacity 0.4s ease 1.6s' }}
+            />
+            {drawn && (
+              <text x={maxPt.x} y={maxPt.y - 7} fill="#c4b5fd" fontSize="7" fontFamily="var(--mono)" fontWeight="700" textAnchor="middle">
+                {history[maxIdx].value}
+              </text>
+            )}
+          </>
         )}
 
         {/* Live dot — pulsing at the end of the line */}
@@ -185,6 +220,19 @@ export default function PulseTrendChart({ history, worldPulse }) {
             <circle cx={lastPt.x} cy={lastPt.y} r="3" fill="#c084fc" filter="url(#ptDotGlow)" />
           </>
         )}
+
+        {/* Invisible hit areas for each data point */}
+        {coords.map((c, i) => (
+          <rect
+            key={i}
+            x={c.x - (chartW / coords.length) / 2}
+            y={padT}
+            width={chartW / coords.length}
+            height={chartH}
+            fill="transparent"
+            style={{ cursor: 'crosshair' }}
+          />
+        ))}
       </svg>
     </section>
   );

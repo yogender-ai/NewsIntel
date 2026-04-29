@@ -1,165 +1,197 @@
-import { useEffect, useRef, useMemo, useState } from 'react';
+import { useEffect, useRef, useMemo } from 'react';
 
-/* ── Animated numeric counter ── */
-function AnimNum({ value, duration = 900 }) {
-  const [display, setDisplay] = useState(0);
-  useEffect(() => {
-    const num = Number(value);
-    if (!Number.isFinite(num)) { setDisplay(value); return; }
-    let start = null;
-    const from = 0;
-    function step(ts) {
-      if (!start) start = ts;
-      const p = Math.min((ts - start) / duration, 1);
-      const eased = 1 - Math.pow(1 - p, 3);
-      setDisplay(Math.round(from + (num - from) * eased));
-      if (p < 1) requestAnimationFrame(step);
-    }
-    requestAnimationFrame(step);
-  }, [value, duration]);
-  return display;
-}
-
-/* ── Micro sparkline canvas ── */
-function MicroSpark({ data, color, width = 80, height = 28 }) {
+/* ── Live Threat Radar — sweeping beam with activity dots ── */
+function ThreatRadar({ size, pulseValue, dimensions }) {
   const canvasRef = useRef(null);
+  const frameRef = useRef(null);
+
+  const intensity = useMemo(() => {
+    if (!pulseValue || pulseValue <= 0) return 0.2;
+    return Math.max(0.2, Math.min(1, pulseValue / 100));
+  }, [pulseValue]);
+
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || !data?.length) return;
+    if (!canvas) return;
     const ctx = canvas.getContext('2d');
     const dpr = window.devicePixelRatio || 1;
-    canvas.width = width * dpr;
-    canvas.height = height * dpr;
+    canvas.width = size * dpr;
+    canvas.height = size * dpr;
+    canvas.style.width = `${size}px`;
+    canvas.style.height = `${size}px`;
     ctx.scale(dpr, dpr);
-    ctx.clearRect(0, 0, width, height);
 
-    const max = Math.max(...data, 1);
-    const min = Math.min(...data, 0);
-    const range = max - min || 1;
+    const cx = size / 2;
+    const cy = size / 2;
+    const maxR = size * 0.42;
 
-    ctx.beginPath();
-    data.forEach((v, i) => {
-      const x = (i / (data.length - 1)) * width;
-      const y = height - ((v - min) / range) * (height - 4) - 2;
-      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    // Generate blips from dimension data
+    const blips = dimensions.map((d, i) => {
+      const angle = (i / dimensions.length) * Math.PI * 2 - Math.PI / 2;
+      const dist = (d.score / 100) * maxR * 0.85;
+      return {
+        x: cx + Math.cos(angle) * dist,
+        y: cy + Math.sin(angle) * dist,
+        color: d.color,
+        score: d.score,
+        pulse: 0,
+      };
     });
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1.5;
-    ctx.lineJoin = 'round';
-    ctx.shadowColor = color;
-    ctx.shadowBlur = 4;
-    ctx.stroke();
 
-    // Area fill
-    ctx.lineTo(width, height);
-    ctx.lineTo(0, height);
-    ctx.closePath();
-    const grad = ctx.createLinearGradient(0, 0, 0, height);
-    grad.addColorStop(0, color.replace(')', ',0.15)').replace('rgb', 'rgba'));
-    grad.addColorStop(1, 'transparent');
-    ctx.fillStyle = grad;
-    ctx.shadowBlur = 0;
-    ctx.fill();
-  }, [data, color, width, height]);
+    let sweepAngle = 0;
 
-  return <canvas ref={canvasRef} style={{ width, height }} />;
+    function draw() {
+      sweepAngle += 0.012 * (0.8 + intensity * 0.6);
+      ctx.clearRect(0, 0, size, size);
+
+      // Concentric rings
+      [0.25, 0.5, 0.75, 1.0].forEach((r, i) => {
+        ctx.beginPath();
+        ctx.arc(cx, cy, maxR * r, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(139,92,246,${0.04 + i * 0.01})`;
+        ctx.lineWidth = 0.5;
+        ctx.stroke();
+      });
+
+      // Cross lines
+      ctx.strokeStyle = 'rgba(139,92,246,0.04)';
+      ctx.lineWidth = 0.5;
+      [0, Math.PI / 2, Math.PI, Math.PI * 1.5].forEach(a => {
+        ctx.beginPath();
+        ctx.moveTo(cx, cy);
+        ctx.lineTo(cx + Math.cos(a) * maxR, cy + Math.sin(a) * maxR);
+        ctx.stroke();
+      });
+
+      // Sweep beam
+      const sweepGrad = ctx.createConicGradient(sweepAngle, cx, cy);
+      sweepGrad.addColorStop(0, `rgba(94,234,212,${0.12 * intensity})`);
+      sweepGrad.addColorStop(0.08, `rgba(94,234,212,${0.06 * intensity})`);
+      sweepGrad.addColorStop(0.15, 'transparent');
+      sweepGrad.addColorStop(1, 'transparent');
+      ctx.fillStyle = sweepGrad;
+      ctx.beginPath();
+      ctx.arc(cx, cy, maxR, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Sweep line
+      const sx = cx + Math.cos(sweepAngle) * maxR;
+      const sy = cy + Math.sin(sweepAngle) * maxR;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(sx, sy);
+      ctx.strokeStyle = `rgba(94,234,212,${0.3 * intensity})`;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+
+      // Blips
+      blips.forEach(blip => {
+        // Check if sweep just passed this blip
+        const blipAngle = Math.atan2(blip.y - cy, blip.x - cx);
+        const diff = ((sweepAngle - blipAngle + Math.PI * 3) % (Math.PI * 2));
+        if (diff < 0.15) blip.pulse = 1;
+        blip.pulse *= 0.97;
+
+        const sz = 2 + blip.pulse * 4;
+        ctx.beginPath();
+        ctx.arc(blip.x, blip.y, sz, 0, Math.PI * 2);
+        ctx.fillStyle = blip.color;
+        ctx.shadowColor = blip.color;
+        ctx.shadowBlur = 6 + blip.pulse * 10;
+        ctx.globalAlpha = 0.5 + blip.pulse * 0.5;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+      });
+
+      // Center dot
+      ctx.beginPath();
+      ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(94,234,212,0.6)';
+      ctx.shadowColor = 'rgba(94,234,212,0.5)';
+      ctx.shadowBlur = 8;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+
+      frameRef.current = requestAnimationFrame(draw);
+    }
+
+    frameRef.current = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(frameRef.current);
+  }, [size, intensity, dimensions]);
+
+  return <canvas ref={canvasRef} className="threat-radar-canvas" />;
 }
 
-/* ── Dimension colors & labels ── */
+/* ── Dimension data ── */
 const DIMENSIONS = [
-  { key: 'geopolitical', label: 'GEOPOLITICAL', color: '#f472b6', icon: '🛡' },
-  { key: 'economic', label: 'ECONOMIC', color: '#fbbf24', icon: '📊' },
-  { key: 'tech', label: 'TECHNOLOGY', color: '#818cf8', icon: '⚡' },
-  { key: 'security', label: 'SECURITY', color: '#fb923c', icon: '🔒' },
-  { key: 'climate', label: 'CLIMATE', color: '#34d399', icon: '🌍' },
+  { key: 'geopolitical', label: 'GEO', fullLabel: 'Geopolitical', color: '#f472b6' },
+  { key: 'economic', label: 'ECON', fullLabel: 'Economic', color: '#fbbf24' },
+  { key: 'tech', label: 'TECH', fullLabel: 'Technology', color: '#818cf8' },
+  { key: 'security', label: 'SEC', fullLabel: 'Security', color: '#fb923c' },
+  { key: 'climate', label: 'ENV', fullLabel: 'Climate', color: '#34d399' },
 ];
 
-function intensityLabel(v) {
-  if (v >= 76) return { text: 'CRITICAL', cls: 'gpm-critical' };
-  if (v >= 56) return { text: 'ELEVATED', cls: 'gpm-elevated' };
-  if (v >= 31) return { text: 'MODERATE', cls: 'gpm-moderate' };
-  return { text: 'LOW', cls: 'gpm-low' };
+function intensityMeta(v) {
+  if (v >= 76) return { text: 'CRITICAL', color: '#fb7185' };
+  if (v >= 56) return { text: 'ELEVATED', color: '#fbbf24' };
+  if (v >= 31) return { text: 'MODERATE', color: '#818cf8' };
+  return { text: 'LOW', color: '#34d399' };
 }
 
-/* ── Main Component: Global Pulse Matrix ── */
 export default function WorldPulseRing({ worldPulse }) {
   const value = worldPulse?.value;
   const hasValue = value !== null && value !== undefined && Number.isFinite(Number(value));
   const pct = hasValue ? Number(value) : 0;
-  const { text: levelText, cls: levelCls } = intensityLabel(pct);
+  const meta = intensityMeta(pct);
 
-  // Generate synthetic dimension scores from pulse value
   const dimensions = useMemo(() => {
-    if (!hasValue) return DIMENSIONS.map(d => ({ ...d, score: 0, history: [] }));
-    const seed = pct;
+    if (!hasValue) return DIMENSIONS.map(d => ({ ...d, score: 0 }));
     return DIMENSIONS.map((d, i) => {
       const offset = ((i * 17 + 7) % 30) - 15;
-      const score = Math.max(5, Math.min(100, Math.round(pct + offset)));
-      // Generate fake 12-point history
-      const history = Array.from({ length: 12 }, (_, j) => {
-        const drift = Math.sin((j + i * 3) * 0.8) * 12;
-        return Math.max(0, Math.min(100, Math.round(score + drift)));
-      });
-      return { ...d, score, history };
+      return { ...d, score: Math.max(5, Math.min(100, Math.round(pct + offset))) };
     });
   }, [pct, hasValue]);
 
-  return (
-    <section className="world-pulse-card gpm-card">
-      {/* Header */}
-      <div className="gpm-header">
-        <div className="gpm-header-left">
-          <span className="gpm-eyebrow">GLOBAL PULSE MATRIX</span>
-          <span className="gpm-subtitle">Real-time threat & activity index</span>
-        </div>
-        <div className="gpm-score-block">
-          <span className={`gpm-score ${levelCls}`}>
-            <AnimNum value={pct} />
-          </span>
-          <span className={`gpm-level-badge ${levelCls}`}>{levelText}</span>
-        </div>
-      </div>
+  const SIZE = 200;
 
-      {/* Dimension Bars */}
-      <div className="gpm-dimensions">
-        {dimensions.map((dim, i) => (
-          <div key={dim.key} className="gpm-dim-row" style={{ animationDelay: `${i * 0.08}s` }}>
-            <div className="gpm-dim-meta">
-              <span className="gpm-dim-icon">{dim.icon}</span>
-              <span className="gpm-dim-label">{dim.label}</span>
-            </div>
-            <div className="gpm-dim-bar-track">
-              <div
-                className="gpm-dim-bar-fill"
-                style={{
-                  width: hasValue ? `${dim.score}%` : '0%',
-                  background: `linear-gradient(90deg, ${dim.color}22, ${dim.color})`,
-                  boxShadow: `0 0 12px ${dim.color}40`,
-                }}
-              />
-            </div>
-            <div className="gpm-dim-right">
-              <MicroSpark data={dim.history} color={dim.color} width={64} height={22} />
-              <span className="gpm-dim-score" style={{ color: dim.color }}>
-                {hasValue ? dim.score : '—'}
-              </span>
+  return (
+    <section className="world-pulse-card radar-card">
+      <div className="radar-layout">
+        {/* Radar Canvas */}
+        <div className="radar-visual" style={{ width: SIZE, height: SIZE }}>
+          <ThreatRadar size={SIZE} pulseValue={pct} dimensions={dimensions} />
+        </div>
+
+        {/* Data Panel */}
+        <div className="radar-data">
+          <div className="radar-header">
+            <span className="radar-eyebrow">GLOBAL THREAT RADAR</span>
+            <div className="radar-score-row">
+              <span className="radar-score" style={{ color: meta.color }}>{hasValue ? Math.round(pct) : '—'}</span>
+              <span className="radar-badge" style={{ color: meta.color, borderColor: `${meta.color}33`, background: `${meta.color}0d` }}>{meta.text}</span>
             </div>
           </div>
-        ))}
-      </div>
 
-      {/* Footer */}
-      <div className="gpm-footer">
-        {worldPulse?.delta !== null && worldPulse?.delta !== undefined && (
-          <span className={`gpm-delta ${worldPulse.delta > 0 ? 'up' : worldPulse.delta < 0 ? 'down' : ''}`}>
-            {worldPulse.delta > 0 ? '↑' : worldPulse.delta < 0 ? '↓' : '—'} {Math.abs(worldPulse.delta)} from yesterday
-          </span>
-        )}
-        <span className="gpm-copy">
-          {hasValue
-            ? `Composite index across ${DIMENSIONS.length} global dimensions.`
-            : 'Waiting for backend pulse data.'}
-        </span>
+          <div className="radar-dims">
+            {dimensions.map(dim => (
+              <div key={dim.key} className="radar-dim">
+                <div className="radar-dim-dot" style={{ background: dim.color }} />
+                <span className="radar-dim-label">{dim.fullLabel}</span>
+                <div className="radar-dim-bar">
+                  <div style={{ width: `${dim.score}%`, background: dim.color, boxShadow: `0 0 8px ${dim.color}40` }} />
+                </div>
+                <span className="radar-dim-val" style={{ color: dim.color }}>{dim.score}</span>
+              </div>
+            ))}
+          </div>
+
+          {worldPulse?.delta != null && (
+            <span className={`radar-delta ${worldPulse.delta > 0 ? 'up' : 'down'}`}>
+              {worldPulse.delta > 0 ? '↑' : '↓'} {Math.abs(worldPulse.delta)} from yesterday
+            </span>
+          )}
+        </div>
       </div>
     </section>
   );

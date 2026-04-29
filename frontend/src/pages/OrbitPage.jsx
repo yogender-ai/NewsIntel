@@ -36,11 +36,23 @@ const categoryIcons = {
 /* LiveCursor is now global in App.jsx */
 
 function nodePoint(node, index, total) {
-  const angle = (Math.PI * 2 * index) / Math.max(total, 1) - Math.PI / 2;
-  const radius = 18 + Math.max(0, Math.min(1, Number(node.distance ?? 0.5))) * 34;
+  // Distribute nodes into 3 orbital rings based on distance
+  const dist = Number(node.distance ?? 0.5);
+  let ringRadius;
+  if (dist < 0.33) {
+    ringRadius = 18 + dist * 30; // inner ring: 18-28%
+  } else if (dist < 0.66) {
+    ringRadius = 30 + (dist - 0.33) * 30; // mid ring: 30-40%
+  } else {
+    ringRadius = 38 + (dist - 0.66) * 28; // outer ring: 38-47%
+  }
+  // Spread nodes with slight random offset to avoid straight line
+  const baseAngle = (Math.PI * 2 * index) / Math.max(total, 1) - Math.PI / 2;
+  const jitter = ((index * 137.508) % 360) * (Math.PI / 180) * 0.15; // golden angle jitter
+  const angle = baseAngle + jitter;
   return {
-    x: 50 + Math.cos(angle) * radius,
-    y: 50 + Math.sin(angle) * radius,
+    x: 50 + Math.cos(angle) * ringRadius,
+    y: 50 + Math.sin(angle) * ringRadius,
   };
 }
 
@@ -53,10 +65,13 @@ function OrbitGraph({ nodes, edges, showLabels, onSelect }) {
 
   return (
     <div className="signal-orbit-graph" style={{ position: 'relative', overflow: 'hidden', perspective: '800px' }}>
-      <svg viewBox="0 0 100 100" aria-label="Signal relationship orbit" style={{ animation: 'orbitSpinSlow 60s linear infinite', transformStyle: 'preserve-3d' }}>
-        <circle cx="50" cy="50" r="17" className="orbit-ring" style={{ stroke: 'rgba(94, 234, 212, 0.1)', strokeWidth: '0.2' }} />
-        <circle cx="50" cy="50" r="33" className="orbit-ring" style={{ stroke: 'rgba(139, 92, 246, 0.1)', strokeWidth: '0.3', strokeDasharray: '1 4' }} />
-        <circle cx="50" cy="50" r="48" className="orbit-ring" style={{ stroke: 'rgba(167, 139, 250, 0.05)', strokeWidth: '0.1' }} />
+      <svg viewBox="0 0 100 100" aria-label="Signal relationship orbit" style={{ transformStyle: 'preserve-3d' }}>
+        {/* Multiple orbital rings */}
+        <circle cx="50" cy="50" r="12" className="orbit-ring" style={{ stroke: 'rgba(94, 234, 212, 0.06)', strokeWidth: '0.15' }} />
+        <circle cx="50" cy="50" r="22" className="orbit-ring orbit-ring-inner" style={{ stroke: 'rgba(94, 234, 212, 0.1)', strokeWidth: '0.2' }} />
+        <circle cx="50" cy="50" r="33" className="orbit-ring orbit-ring-mid" style={{ stroke: 'rgba(139, 92, 246, 0.1)', strokeWidth: '0.25', strokeDasharray: '2 3' }} />
+        <circle cx="50" cy="50" r="42" className="orbit-ring orbit-ring-outer" style={{ stroke: 'rgba(167, 139, 250, 0.08)', strokeWidth: '0.2', strokeDasharray: '1 5' }} />
+        <circle cx="50" cy="50" r="48" className="orbit-ring" style={{ stroke: 'rgba(251,113,133, 0.04)', strokeWidth: '0.1' }} />
         {edges.map((edge) => {
           const from = points.get(edge.from);
           const to = points.get(edge.to);

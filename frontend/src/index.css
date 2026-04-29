@@ -1112,27 +1112,36 @@ svg {
 
 .wp-loading {
   min-height: calc(100vh - 92px);
-  display: grid;
-  place-items: center;
-  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 48px;
+  animation: fadeUp 0.5s ease both;
 }
 
 .wp-loading>span {
-  width: min(720px, 100%);
-  min-height: 360px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background:
-    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.07), transparent),
-    var(--panel);
-  background-size: 240% 100%, auto;
-  animation: shimmer 1.4s linear infinite;
+  width: 200px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(139,92,246,0.1);
+  position: relative;
+  overflow: hidden;
 }
 
-@keyframes shimmer {
-  to {
-    background-position: -240% 0, 0 0;
-  }
+.wp-loading>span::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, transparent, rgba(139,92,246,0.5), rgba(94,234,212,0.3), transparent);
+  animation: scanLine 1.5s ease-in-out infinite;
+}
+
+@keyframes scanLine {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
 }
 
 /* Pipeline boot styling is in premium.css */
@@ -3393,4 +3402,173 @@ svg {
 .gpm-copy {
   font-size: 11px;
   color: #475569;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   THREAT RADAR — replaces World Pulse circle
+   ═══════════════════════════════════════════════════════════ */
+.radar-card {
+  padding: 20px !important;
+}
+
+.radar-layout {
+  display: flex;
+  gap: 20px;
+  align-items: stretch;
+}
+
+.radar-visual {
+  flex-shrink: 0;
+  position: relative;
+}
+
+.threat-radar-canvas {
+  border-radius: 50%;
+}
+
+.radar-data {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.radar-header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.radar-eyebrow {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  color: #64748b;
+}
+
+.radar-score-row {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.radar-score {
+  font-size: 42px;
+  font-weight: 950;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.radar-badge {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.12em;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid;
+}
+
+.radar-dims {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.radar-dim {
+  display: grid;
+  grid-template-columns: 8px 80px 1fr 32px;
+  align-items: center;
+  gap: 8px;
+  height: 22px;
+}
+
+.radar-dim-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.radar-dim-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.radar-dim-bar {
+  height: 4px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.radar-dim-bar > div {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 1.5s cubic-bezier(0.22,1,0.36,1);
+}
+
+.radar-dim-val {
+  font-size: 13px;
+  font-weight: 900;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.radar-delta {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  margin-top: auto;
+}
+
+.radar-delta.up { color: #fb7185; }
+.radar-delta.down { color: #34d399; }
+
+/* ── Orbit ring individual animations ──────────────── */
+.orbit-ring-inner {
+  animation: ringRotate 80s linear infinite;
+  transform-origin: 50% 50%;
+}
+
+.orbit-ring-mid {
+  animation: ringRotate 120s linear infinite reverse;
+  transform-origin: 50% 50%;
+}
+
+.orbit-ring-outer {
+  animation: ringRotate 160s linear infinite;
+  transform-origin: 50% 50%;
+}
+
+/* ── Pipeline done fade ────────────────────────────── */
+.pipeline-done {
+  animation: pipelineFadeOut 0.6s ease forwards;
+}
+
+@keyframes pipelineFadeOut {
+  to { opacity: 0; filter: blur(8px); transform: scale(1.02); }
+}
+
+@media (max-width: 700px) {
+  .radar-layout {
+    flex-direction: column;
+    align-items: center;
+  }
+  .radar-dim {
+    grid-template-columns: 8px 60px 1fr 28px;
+  }
+}
+
+/* ── Interactive Pulse Chart ───────────────────────── */
+.pulse-trend-interactive {
+  cursor: crosshair;
+}
+
+.pulse-trend-interactive:hover {
+  filter: brightness(1.05);
 }
