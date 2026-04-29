@@ -16,6 +16,7 @@ import EmptyState from '../components/worldpulse/EmptyState';
 import StartTourCard from '../components/worldpulse/StartTourCard';
 import LockedNavToast from '../components/worldpulse/LockedNavToast';
 import TransparentPipeline from '../components/worldpulse/TransparentPipeline';
+import PulseByDimension from '../components/worldpulse/PulseByDimension';
 
 function readableLiveError(err) {
   const raw = err?.message || 'Unable to load live intelligence.';
@@ -363,6 +364,7 @@ export default function HomePage() {
               <div className="wp-primary">
                 <WorldPulseRing worldPulse={data.worldPulse} />
                 <WhatChangedToday changes={data.changesToday} selectedTopic={selectedTopic} onSelect={setSelectedTopic} />
+                <PulseByDimension />
                 <section className="wp-card top-shifts-section">
                   <div className="wp-section-head"><span>Top 3 Shifts You Must Know</span></div>
                   {topShifts.length ? (

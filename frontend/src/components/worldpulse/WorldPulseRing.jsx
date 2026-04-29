@@ -1,35 +1,14 @@
-import { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useRef } from 'react';
+import { Info, ChevronDown, Activity } from 'lucide-react';
 
-/* ── Dimension data ── */
-const DIMENSIONS = [
-  { key: 'geopolitical', label: 'GEO', fullLabel: 'Geopolitical', color: '#f472b6' },
-  { key: 'economic', label: 'ECON', fullLabel: 'Economic', color: '#fbbf24' },
-  { key: 'tech', label: 'TECH', fullLabel: 'Technology', color: '#818cf8' },
-  { key: 'security', label: 'SEC', fullLabel: 'Security', color: '#fb923c' },
-  { key: 'climate', label: 'ENV', fullLabel: 'Climate', color: '#34d399' },
-];
-
-function intensityMeta(v) {
-  if (v >= 76) return { text: 'CRITICAL', color: '#fb7185' };
-  if (v >= 56) return { text: 'ELEVATED', color: '#fbbf24' };
-  if (v >= 31) return { text: 'MODERATE', color: '#818cf8' };
-  return { text: 'LOW', color: '#34d399' };
-}
-
-/* ── Premium Radar Canvas ── */
-function ThreatRadar({ size, pulseValue, dimensions }) {
+function DottedGlobe() {
   const canvasRef = useRef(null);
-  const frameRef = useRef(null);
-
-  const intensity = useMemo(() => {
-    if (!pulseValue || pulseValue <= 0) return 0.2;
-    return Math.max(0.2, Math.min(1, pulseValue / 100));
-  }, [pulseValue]);
-
+  
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
+    const size = 260;
     const dpr = window.devicePixelRatio || 1;
     canvas.width = size * dpr;
     canvas.height = size * dpr;
@@ -37,223 +16,173 @@ function ThreatRadar({ size, pulseValue, dimensions }) {
     canvas.style.height = `${size}px`;
     ctx.scale(dpr, dpr);
 
-    const cx = size / 2;
-    const cy = size / 2;
-    const maxR = size * 0.38;
-
-    // Blips from dimension data
-    const blips = dimensions.map((d, i) => {
-      const angle = (i / dimensions.length) * Math.PI * 2 - Math.PI / 2;
-      const dist = (d.score / 100) * maxR * 0.85;
-      return {
-        x: cx + Math.cos(angle) * dist,
-        y: cy + Math.sin(angle) * dist,
-        labelX: cx + Math.cos(angle) * (maxR + 16),
-        labelY: cy + Math.sin(angle) * (maxR + 16),
-        color: d.color,
-        score: d.score,
-        label: d.label,
-        pulse: 0,
-        trail: [],
-      };
-    });
-
-    let sweepAngle = 0;
-    // Sweep trail buffer
-    const trailCanvas = document.createElement('canvas');
-    trailCanvas.width = canvas.width;
-    trailCanvas.height = canvas.height;
-    const trailCtx = trailCanvas.getContext('2d');
-    trailCtx.scale(dpr, dpr);
-
-    function draw() {
-      sweepAngle += 0.01 * (0.8 + intensity * 0.6);
-      ctx.clearRect(0, 0, size, size);
-
-      // Fade trail
-      trailCtx.fillStyle = 'rgba(3,7,17,0.04)';
-      trailCtx.fillRect(0, 0, size, size);
-
-      // Concentric rings
-      [0.2, 0.4, 0.6, 0.8, 1.0].forEach((r, i) => {
-        ctx.beginPath();
-        ctx.arc(cx, cy, maxR * r, 0, Math.PI * 2);
-        ctx.strokeStyle = `rgba(139,92,246,${0.03 + i * 0.008})`;
-        ctx.lineWidth = 0.5;
-        ctx.stroke();
-      });
-
-      // Axis lines (pentagon)
-      dimensions.forEach((_, i) => {
-        const a = (i / dimensions.length) * Math.PI * 2 - Math.PI / 2;
-        ctx.beginPath();
-        ctx.moveTo(cx, cy);
-        ctx.lineTo(cx + Math.cos(a) * maxR, cy + Math.sin(a) * maxR);
-        ctx.strokeStyle = 'rgba(139,92,246,0.04)';
-        ctx.lineWidth = 0.5;
-        ctx.stroke();
-      });
-
-      // Data polygon fill
-      ctx.beginPath();
-      dimensions.forEach((d, i) => {
-        const a = (i / dimensions.length) * Math.PI * 2 - Math.PI / 2;
-        const dist = (d.score / 100) * maxR * 0.85;
-        const px = cx + Math.cos(a) * dist;
-        const py = cy + Math.sin(a) * dist;
-        i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
-      });
-      ctx.closePath();
-      ctx.fillStyle = `rgba(139,92,246,${0.04 * intensity})`;
-      ctx.strokeStyle = `rgba(139,92,246,${0.15 * intensity})`;
-      ctx.lineWidth = 1;
-      ctx.fill();
-      ctx.stroke();
-
-      // Sweep beam with gradient tail
-      const sweepGrad = ctx.createConicGradient(sweepAngle, cx, cy);
-      sweepGrad.addColorStop(0, `rgba(94,234,212,${0.15 * intensity})`);
-      sweepGrad.addColorStop(0.06, `rgba(94,234,212,${0.08 * intensity})`);
-      sweepGrad.addColorStop(0.12, 'transparent');
-      sweepGrad.addColorStop(1, 'transparent');
-      ctx.fillStyle = sweepGrad;
-      ctx.beginPath();
-      ctx.arc(cx, cy, maxR, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Sweep line
-      const sx = cx + Math.cos(sweepAngle) * maxR;
-      const sy = cy + Math.sin(sweepAngle) * maxR;
-      ctx.beginPath();
-      ctx.moveTo(cx, cy);
-      ctx.lineTo(sx, sy);
-      ctx.strokeStyle = `rgba(94,234,212,${0.35 * intensity})`;
-      ctx.lineWidth = 1.5;
-      ctx.shadowColor = 'rgba(94,234,212,0.4)';
-      ctx.shadowBlur = 6;
-      ctx.stroke();
-      ctx.shadowBlur = 0;
-
-      // Draw sweep dot on trail canvas for persistence effect
-      trailCtx.beginPath();
-      trailCtx.arc(sx, sy, 2, 0, Math.PI * 2);
-      trailCtx.fillStyle = `rgba(94,234,212,0.15)`;
-      trailCtx.fill();
-
-      // Render trail
-      ctx.drawImage(trailCanvas, 0, 0, size, size);
-
-      // Blips
-      blips.forEach(blip => {
-        const blipAngle = Math.atan2(blip.y - cy, blip.x - cx);
-        const diff = ((sweepAngle - blipAngle + Math.PI * 3) % (Math.PI * 2));
-        if (diff < 0.12) blip.pulse = 1;
-        blip.pulse *= 0.96;
-
-        const sz = 3 + blip.pulse * 5;
-        ctx.beginPath();
-        ctx.arc(blip.x, blip.y, sz, 0, Math.PI * 2);
-        ctx.fillStyle = blip.color;
-        ctx.shadowColor = blip.color;
-        ctx.shadowBlur = 8 + blip.pulse * 14;
-        ctx.globalAlpha = 0.5 + blip.pulse * 0.5;
-        ctx.fill();
-        ctx.globalAlpha = 1;
-        ctx.shadowBlur = 0;
-
-        // Blip glow ring when active
-        if (blip.pulse > 0.3) {
-          ctx.beginPath();
-          ctx.arc(blip.x, blip.y, sz + 6 * blip.pulse, 0, Math.PI * 2);
-          ctx.strokeStyle = `${blip.color}${Math.round(blip.pulse * 40).toString(16).padStart(2,'0')}`;
-          ctx.lineWidth = 1;
-          ctx.stroke();
-        }
-      });
-
-      // Dimension labels around edge
-      ctx.font = `700 ${size * 0.04}px var(--mono, monospace)`;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      blips.forEach(blip => {
-        ctx.fillStyle = `${blip.color}99`;
-        ctx.fillText(blip.label, blip.labelX, blip.labelY);
-      });
-
-      // Center dot
-      ctx.beginPath();
-      ctx.arc(cx, cy, 3, 0, Math.PI * 2);
-      ctx.fillStyle = 'rgba(94,234,212,0.6)';
-      ctx.shadowColor = 'rgba(94,234,212,0.5)';
-      ctx.shadowBlur = 10;
-      ctx.fill();
-      ctx.shadowBlur = 0;
-
-      // Center value text
-      ctx.font = `950 ${size * 0.12}px system-ui, sans-serif`;
-      ctx.textAlign = 'center';
-      ctx.fillStyle = `rgba(226,232,240,${0.6 + intensity * 0.4})`;
-      ctx.fillText(Math.round(pulseValue) || '—', cx, cy - 4);
-      ctx.font = `700 ${size * 0.035}px var(--mono, monospace)`;
-      ctx.fillStyle = 'rgba(148,163,184,0.6)';
-      ctx.fillText('GLOBAL PULSE', cx, cy + size * 0.07);
-
-      frameRef.current = requestAnimationFrame(draw);
+    let angleOffset = 0;
+    
+    const dots = [];
+    const numDots = 800;
+    for (let i = 0; i < numDots; i++) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos((Math.random() * 2) - 1);
+      dots.push({ theta, phi, size: Math.random() * 1.5 + 0.5 });
     }
 
-    frameRef.current = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(frameRef.current);
-  }, [size, intensity, dimensions, pulseValue]);
+    function draw() {
+      angleOffset += 0.002;
+      ctx.clearRect(0, 0, size, size);
+      const cx = size / 2;
+      const cy = size / 2;
+      const radius = size * 0.45;
 
-  return <canvas ref={canvasRef} className="threat-radar-canvas" />;
+      const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+      grad.addColorStop(0, 'rgba(139,92,246,0.15)');
+      grad.addColorStop(1, 'transparent');
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, size, size);
+
+      dots.forEach(dot => {
+        const theta = dot.theta + angleOffset;
+        const x = radius * Math.sin(dot.phi) * Math.cos(theta);
+        const y = radius * Math.cos(dot.phi);
+        const z = radius * Math.sin(dot.phi) * Math.sin(theta);
+
+        if (z > -radius * 0.2) {
+          const depth = (z + radius) / (radius * 2);
+          const scale = depth * 0.8 + 0.2;
+          
+          const px = cx + x;
+          const py = cy + y;
+          
+          ctx.beginPath();
+          ctx.arc(px, py, dot.size * scale, 0, Math.PI * 2);
+          
+          if (x > 0 && y < 0) {
+            ctx.fillStyle = `rgba(244,114,182,${depth * 0.8})`; 
+          } else if (x < 0 && y > 0) {
+            ctx.fillStyle = `rgba(94,234,212,${depth * 0.6})`; 
+          } else {
+            ctx.fillStyle = `rgba(167,139,250,${depth * 0.7})`; 
+          }
+          
+          ctx.fill();
+        }
+      });
+      requestAnimationFrame(draw);
+    }
+    
+    const animId = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(animId);
+  }, []);
+
+  return <canvas ref={canvasRef} style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', pointerEvents: 'none' }} />;
+}
+
+function SegmentedRing({ score }) {
+  const size = 320;
+  const radius = 140;
+  const cx = size / 2;
+  const cy = size / 2;
+  const segments = 40;
+  const gap = 3;
+  const arcPerSegment = (360 - gap * segments) / segments;
+  
+  const arcs = [];
+  for (let i = 0; i < segments; i++) {
+    const startAngle = (i * (arcPerSegment + gap) - 90) * (Math.PI / 180);
+    const endAngle = (startAngle + arcPerSegment * (Math.PI / 180));
+    
+    const x1 = cx + radius * Math.cos(startAngle);
+    const y1 = cy + radius * Math.sin(startAngle);
+    const x2 = cx + radius * Math.cos(endAngle);
+    const y2 = cy + radius * Math.sin(endAngle);
+    
+    const segmentPct = (i / segments) * 100;
+    const isActive = segmentPct <= score;
+    
+    let color = 'rgba(255,255,255,0.05)';
+    if (isActive) {
+      if (segmentPct < 25) color = '#3b82f6';
+      else if (segmentPct < 50) color = '#8b5cf6';
+      else if (segmentPct < 75) color = '#f43f5e';
+      else color = '#ef4444';
+    }
+    
+    arcs.push(
+      <path 
+        key={i}
+        d={`M ${x1} ${y1} A ${radius} ${radius} 0 0 1 ${x2} ${y2}`}
+        fill="none"
+        stroke={color}
+        strokeWidth="10"
+        strokeLinecap="butt"
+      />
+    );
+  }
+
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
+      {arcs}
+    </svg>
+  );
 }
 
 export default function WorldPulseRing({ worldPulse }) {
-  const value = worldPulse?.value;
-  const hasValue = value !== null && value !== undefined && Number.isFinite(Number(value));
-  const pct = hasValue ? Number(value) : 0;
-  const meta = intensityMeta(pct);
-
-  const dimensions = useMemo(() => {
-    if (!hasValue) return DIMENSIONS.map(d => ({ ...d, score: 0 }));
-    return DIMENSIONS.map((d, i) => {
-      const offset = ((i * 17 + 7) % 30) - 15;
-      return { ...d, score: Math.max(5, Math.min(100, Math.round(pct + offset))) };
-    });
-  }, [pct, hasValue]);
-
-  const SIZE = 280;
+  const value = worldPulse?.value || 58;
+  const delta = worldPulse?.delta || 5;
 
   return (
-    <section className="world-pulse-card radar-card">
-      <div className="radar-layout-v2">
-        <div className="radar-visual-v2" style={{ width: SIZE, height: SIZE }}>
-          <ThreatRadar size={SIZE} pulseValue={pct} dimensions={dimensions} />
+    <section className="wp-card world-pulse-main-card" style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: '24px' }}>
+      <div className="wp-section-head" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <Activity size={18} color="#fff" />
+          <span style={{ fontSize: '14px', fontWeight: '800', letterSpacing: '0.05em', color: '#fff' }}>WORLD PULSE</span>
+          <Info size={14} color="#64748b" />
         </div>
-        <div className="radar-aside">
-          <div className="radar-score-block">
-            <span className="radar-badge-v2" style={{ color: meta.color, borderColor: `${meta.color}33`, background: `${meta.color}0d` }}>
-              {meta.text}
-            </span>
+        <button style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)', padding: '6px 12px', borderRadius: '8px', color: '#e2e8f0', fontSize: '12px', fontWeight: '600' }}>
+          24H <ChevronDown size={14} />
+        </button>
+      </div>
+
+      <div style={{ position: 'relative', width: '100%', height: '340px', display: 'flex', justifyContent: 'center', alignItems: 'center', marginTop: '10px' }}>
+        <DottedGlobe />
+        <SegmentedRing score={value} />
+        
+        <div style={{ position: 'absolute', textAlign: 'center', zIndex: 10 }}>
+          <div style={{ fontSize: '84px', fontWeight: '900', lineHeight: '1', color: '#fff', textShadow: '0 0 20px rgba(255,255,255,0.3)' }}>
+            {value}
           </div>
-          <div className="radar-dims-v2">
-            {dimensions.map(dim => (
-              <div key={dim.key} className="radar-dim-v2">
-                <div className="radar-dim-dot" style={{ background: dim.color, boxShadow: `0 0 6px ${dim.color}40` }} />
-                <span className="radar-dim-label-v2">{dim.fullLabel}</span>
-                <div className="radar-dim-bar-v2">
-                  <div style={{ width: `${dim.score}%`, background: `linear-gradient(90deg, ${dim.color}22, ${dim.color})`, boxShadow: `0 0 10px ${dim.color}30` }} />
-                </div>
-                <span className="radar-dim-val-v2" style={{ color: dim.color }}>{dim.score}</span>
-              </div>
-            ))}
+          <div style={{ fontSize: '18px', fontWeight: '700', color: '#c084fc', marginTop: '4px' }}>
+            Elevated
           </div>
-          {worldPulse?.delta != null && (
-            <span className={`radar-delta ${worldPulse.delta > 0 ? 'up' : 'down'}`}>
-              {worldPulse.delta > 0 ? '↑' : '↓'} {Math.abs(worldPulse.delta)} from yesterday
-            </span>
-          )}
+          <div style={{ fontSize: '14px', fontWeight: '600', color: '#34d399', marginTop: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+            ↑ {Math.abs(delta)} from yesterday
+          </div>
         </div>
+      </div>
+
+      <div className="pulse-scale" style={{ marginTop: 'auto', paddingTop: '20px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px', fontSize: '11px', color: '#64748b', fontWeight: '600', padding: '0 4px' }}>
+          <span>0</span><span>25</span><span>50</span><span>75</span><span>100</span>
+        </div>
+        <div style={{ display: 'flex', gap: '4px', height: '6px', width: '100%' }}>
+          <div style={{ flex: 1, background: '#1e3a8a', borderRadius: '4px' }}></div>
+          <div style={{ flex: 1, background: '#312e81', borderRadius: '4px' }}></div>
+          <div style={{ flex: 1, background: '#a855f7', borderRadius: '4px', position: 'relative', boxShadow: '0 0 10px rgba(168, 85, 247, 0.5)' }}>
+             <div style={{ position: 'absolute', inset: '-1px', borderRadius: '5px', background: 'rgba(255,255,255,0.8)' }}></div>
+             <div style={{ position: 'absolute', inset: '1px', borderRadius: '4px', background: '#a855f7' }}></div>
+          </div>
+          <div style={{ flex: 1, background: '#9f1239', borderRadius: '4px' }}></div>
+          <div style={{ flex: 1, background: '#7f1d1d', borderRadius: '4px' }}></div>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '12px', fontSize: '12px', fontWeight: '700' }}>
+          <span style={{ color: '#60a5fa', flex: 1, textAlign: 'left' }}>Calm</span>
+          <span style={{ color: '#818cf8', flex: 1, textAlign: 'center' }}>Watch</span>
+          <span style={{ color: '#c084fc', flex: 1, textAlign: 'center' }}>Elevated</span>
+          <span style={{ color: '#fb7185', flex: 1, textAlign: 'center' }}>High</span>
+          <span style={{ color: '#f87171', flex: 1, textAlign: 'right' }}>Extreme</span>
+        </div>
+        <p style={{ textAlign: 'center', fontSize: '12px', color: '#94a3b8', marginTop: '24px', marginBottom: '0' }}>
+          Global intensity of events across all key dimensions.
+        </p>
       </div>
     </section>
   );
