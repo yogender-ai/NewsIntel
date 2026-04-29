@@ -15,6 +15,7 @@ import MapPage from './pages/MapPage';
 import SimulatorPage from './pages/SimulatorPage';
 import EventDetail from './pages/EventDetail';
 import StoriesPage from './pages/StoriesPage';
+import ThreeBackground from './components/ThreeBackground';
 import './index.css';
 
 export const AppContext = createContext({
@@ -310,6 +311,7 @@ function App() {
       <AppContext.Provider value={{ headlines, setHeadlines, mode, setMode, worldPulseValue, setWorldPulseValue }}>
         <Router>
           <div className={`app-container ${mode === 'calm' ? 'calm-mode' : ''}`}>
+            <ThreeBackground />
             <div className="scanline" />
             <AppRoutes />
             <GlobalLiveCursor />

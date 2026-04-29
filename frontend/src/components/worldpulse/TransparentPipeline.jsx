@@ -17,6 +17,11 @@ export default function TransparentPipeline({ onComplete }) {
   const [done, setDone] = useState(false);
   const canvasRef = useRef(null);
   const startRef = useRef(Date.now());
+  const onCompleteRef = useRef(onComplete);
+
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
 
   // Advance steps & track progress
   useEffect(() => {
@@ -42,7 +47,7 @@ export default function TransparentPipeline({ onComplete }) {
         setDone(true);
         // Give a brief pause at 100% so user sees it
         setTimeout(() => {
-          if (onComplete) onComplete();
+          if (onCompleteRef.current) onCompleteRef.current();
         }, 600);
       }
     }, 30);
@@ -51,7 +56,7 @@ export default function TransparentPipeline({ onComplete }) {
       timers.forEach(clearTimeout);
       clearInterval(iv);
     };
-  }, [onComplete]);
+  }, []);
 
   // Neural canvas
   useEffect(() => {
