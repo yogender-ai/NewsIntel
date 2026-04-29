@@ -2,8 +2,6 @@ import React, { useRef, useMemo } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Points, PointMaterial } from '@react-three/drei';
 import * as THREE from 'three';
-import { useAppContext } from '../../context/AppContext'; // Wait, it's exported from App.jsx as AppContext. Let's just pass pulse value via props if needed, but context is better.
-// Actually, I'll keep it simple and just use useFrame for internal animation.
 
 // Simple noise function for shaders
 const noiseShader = `
