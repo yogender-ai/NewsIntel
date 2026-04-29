@@ -1,12 +1,24 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Info, ChevronDown, Activity } from 'lucide-react';
+import * as d3 from 'd3-geo';
+import * as topojson from 'topojson-client';
 
 function DottedGlobe() {
   const canvasRef = useRef(null);
-  
+  const [worldData, setWorldData] = useState(null);
+
+  useEffect(() => {
+    fetch('https://unpkg.com/world-atlas@2.0.2/countries-110m.json')
+      .then(res => res.json())
+      .then(data => {
+        const feature = topojson.feature(data, data.objects.countries);
+        setWorldData(feature);
+      });
+  }, []);
+
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas || !worldData) return;
     const ctx = canvas.getContext('2d');
     const size = 260;
     const dpr = window.devicePixelRatio || 1;
@@ -18,12 +30,22 @@ function DottedGlobe() {
 
     let angleOffset = 0;
     
+    // Generate points that fall on landmass
     const dots = [];
-    const numDots = 800;
+    const numDots = 2500; // More dots to outline countries
+    
     for (let i = 0; i < numDots; i++) {
-      const theta = Math.random() * Math.PI * 2;
-      const phi = Math.acos((Math.random() * 2) - 1);
-      dots.push({ theta, phi, size: Math.random() * 1.5 + 0.5 });
+      // Random lat/lon
+      const lon = Math.random() * 360 - 180;
+      const lat = Math.asin(Math.random() * 2 - 1) * (180 / Math.PI);
+      
+      // Check if land
+      if (d3.geoContains(worldData, [lon, lat])) {
+        // Convert to spherical coords
+        const phi = (90 - lat) * (Math.PI / 180);
+        const theta = (lon + 180) * (Math.PI / 180);
+        dots.push({ theta, phi, size: Math.random() * 1.5 + 0.5 });
+      }
     }
 
     function draw() {
@@ -81,19 +103,38 @@ function SegmentedRing({ score }) {
   const radius = 140;
   const cx = size / 2;
   const cy = size / 2;
-  const segments = 40;
-  const gap = 3;
-  const arcPerSegment = (360 - gap * segments) / segments;
+  
+  // Create an arch: from 140 degrees to 40 degrees (260 degree arc)
+  // Let's do from 150 deg to 30 deg (240 deg arc)
+  const startArch = 140;
+  const endArch = 40;
+  const archRange = 360 - startArch + endArch; // 260 degrees
+  
+  const segments = 24;
+  const gap = 2; // degrees gap
   
   const arcs = [];
+  
+  let currentAngle = startArch;
+  
   for (let i = 0; i < segments; i++) {
-    const startAngle = (i * (arcPerSegment + gap) - 90) * (Math.PI / 180);
-    const endAngle = (startAngle + arcPerSegment * (Math.PI / 180));
+    // Make segments at the top (near 270 degrees) longer, and sides shorter.
+    // Calculate how close this segment is to the top (270)
+    let distFromTop = Math.abs(currentAngle - 270);
+    if (distFromTop > 180) distFromTop = 360 - distFromTop;
     
-    const x1 = cx + radius * Math.cos(startAngle);
-    const y1 = cy + radius * Math.sin(startAngle);
-    const x2 = cx + radius * Math.cos(endAngle);
-    const y2 = cy + radius * Math.sin(endAngle);
+    // Closer to 0 distFromTop = longer arc. 
+    // Max length at top ~ 18 deg, min length at sides ~ 5 deg
+    const factor = 1 - (distFromTop / 130); 
+    const arcLength = 4 + (factor * 12);
+    
+    const startA = (currentAngle) * (Math.PI / 180);
+    const endA = (currentAngle + arcLength) * (Math.PI / 180);
+    
+    const x1 = cx + radius * Math.cos(startA);
+    const y1 = cy + radius * Math.sin(startA);
+    const x2 = cx + radius * Math.cos(endA);
+    const y2 = cy + radius * Math.sin(endA);
     
     const segmentPct = (i / segments) * 100;
     const isActive = segmentPct <= score;
@@ -113,9 +154,17 @@ function SegmentedRing({ score }) {
         fill="none"
         stroke={color}
         strokeWidth="10"
-        strokeLinecap="butt"
+        strokeLinecap="round"
+        style={{ filter: isActive ? `drop-shadow(0 0 4px ${color})` : 'none' }}
       />
     );
+    
+    currentAngle = (currentAngle + arcLength + gap) % 360;
+    
+    // Break if we exceeded the arch
+    if (currentAngle > endArch && currentAngle < startArch) {
+      break;
+    }
   }
 
   return (

@@ -184,12 +184,23 @@ export default function PulseTrendChart({ history, worldPulse }) {
         {/* Hover crosshair + tooltip */}
         {hoveredPt && drawn && (
           <>
-            <line x1={hoveredPt.x} y1={padT} x2={hoveredPt.x} y2={padT + chartH} stroke="rgba(139,92,246,0.3)" strokeWidth="0.5" strokeDasharray="2,2" />
-            <circle cx={hoveredPt.x} cy={hoveredPt.y} r="4" fill="#a78bfa" filter="url(#ptDotGlow)" />
-            <rect x={hoveredPt.x - 18} y={hoveredPt.y - 20} width="36" height="14" rx="4" fill="rgba(15,23,42,0.9)" stroke="rgba(139,92,246,0.3)" strokeWidth="0.5" />
-            <text x={hoveredPt.x} y={hoveredPt.y - 10} fill="#c4b5fd" fontSize="8" fontFamily="var(--mono)" fontWeight="700" textAnchor="middle">
-              {Math.round(history[hoverIdx]?.value || 0)}
-            </text>
+            <line 
+              x1={hoveredPt.x} y1={padT} 
+              x2={hoveredPt.x} y2={padT + chartH} 
+              stroke="rgba(167, 139, 250, 0.6)" 
+              strokeWidth="1.5" 
+              strokeDasharray="4,4" 
+              filter="url(#ptGlow)"
+            />
+            <circle cx={hoveredPt.x} cy={hoveredPt.y} r="5" fill="#fff" filter="url(#ptDotGlow)" stroke="#c084fc" strokeWidth="2" />
+            <circle cx={hoveredPt.x} cy={hoveredPt.y} r="12" fill="rgba(167, 139, 250, 0.2)" />
+            
+            <g transform={`translate(${Math.min(Math.max(hoveredPt.x - 24, padL), W - padR - 48)}, ${hoveredPt.y - 28})`}>
+              <rect x="0" y="0" width="48" height="20" rx="6" fill="rgba(15,23,42,0.95)" stroke="rgba(167, 139, 250, 0.5)" strokeWidth="1" filter="url(#ptGlow)" />
+              <text x="24" y="14" fill="#fff" fontSize="11" fontFamily="var(--mono)" fontWeight="800" textAnchor="middle">
+                {Math.round(history[hoverIdx]?.value || 0)}
+              </text>
+            </g>
           </>
         )}
 

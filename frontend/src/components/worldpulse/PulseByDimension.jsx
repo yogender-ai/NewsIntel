@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 const DIMENSIONS = [
   { key: 'tech', label: 'Tech', score: 72, status: 'High', color: '#fb7185' },
@@ -9,7 +9,8 @@ const DIMENSIONS = [
   { key: 'security', label: 'Security', score: 74, status: 'High', color: '#fb7185' }
 ];
 
-function Gauge({ score, color }) {
+function Gauge({ score, color, label }) {
+  const [isHovered, setIsHovered] = useState(false);
   const radius = 36;
   const circumference = radius * Math.PI;
   const strokeDashoffset = circumference - (score / 100) * circumference;
@@ -21,7 +22,17 @@ function Gauge({ score, color }) {
   const dotY = 40 - Math.sin(angle) * radius;
 
   return (
-    <div className="dim-gauge-container" style={{ position: 'relative', width: '80px', height: '45px', margin: '0 auto 12px' }}>
+    <div 
+      className="dim-gauge-container" 
+      style={{ 
+        position: 'relative', width: '80px', height: '45px', margin: '0 auto 12px',
+        transform: isHovered ? 'scale(1.15)' : 'scale(1)',
+        transition: 'transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+        cursor: 'pointer'
+      }}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
       <svg width="80" height="45" viewBox="0 0 80 45">
         <path
           d="M 4 40 A 36 36 0 0 1 76 40"
@@ -47,22 +58,27 @@ function Gauge({ score, color }) {
           </linearGradient>
         </defs>
       </svg>
-      {/* Glowing dot */}
       <div 
         style={{
           position: 'absolute',
           left: `${dotX}px`,
           top: `${dotY}px`,
-          width: '6px',
-          height: '6px',
+          width: isHovered ? '8px' : '6px',
+          height: isHovered ? '8px' : '6px',
           borderRadius: '50%',
           backgroundColor: '#fff',
-          boxShadow: `0 0 10px 2px ${color}`,
+          boxShadow: `0 0 ${isHovered ? '20px 4px' : '10px 2px'} ${color}`,
           transform: 'translate(-50%, -50%)',
-          transition: 'all 1s ease-out'
+          transition: 'all 0.3s ease-out'
         }}
       />
-      <div className="dim-score-val" style={{ position: 'absolute', bottom: '0', left: '0', right: '0', textAlign: 'center', fontSize: '24px', fontWeight: '800', lineHeight: '1', color: '#fff' }}>
+      <div className="dim-score-val" style={{ 
+        position: 'absolute', bottom: '0', left: '0', right: '0', textAlign: 'center', 
+        fontSize: '24px', fontWeight: '800', lineHeight: '1', 
+        color: isHovered ? '#fff' : 'rgba(255,255,255,0.9)',
+        textShadow: isHovered ? `0 0 12px ${color}` : 'none',
+        transition: 'all 0.3s ease'
+      }}>
         {score}
       </div>
     </div>
@@ -81,7 +97,7 @@ export default function PulseByDimension() {
           <React.Fragment key={d.key}>
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1 }}>
               <span style={{ color: '#cbd5e1', fontSize: '13px', fontWeight: '600', marginBottom: '16px' }}>{d.label}</span>
-              <Gauge score={d.score} color={d.color} />
+              <Gauge score={d.score} color={d.color} label={d.label} />
               <span style={{ color: d.color, fontSize: '12px', fontWeight: '700' }}>{d.status}</span>
             </div>
             {i < DIMENSIONS.length - 1 && (
