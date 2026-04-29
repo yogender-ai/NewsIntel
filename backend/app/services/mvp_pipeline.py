@@ -540,6 +540,8 @@ class MVPNewsPipeline:
             if response.get("ok") and response.get("content"):
                 return response["content"]
             last_response = response
+            if self.is_account_quota_response(response):
+                break
             if self.is_openrouter_size_response(response):
                 continue
             if self.is_quota_response(response):
@@ -562,8 +564,11 @@ class MVPNewsPipeline:
             response = gemini_response
 
         if self.is_quota_response(response):
-            await self.open_ai_circuit(response)
+            await self.open_ai_circuit(response, reason="quota")
             raise AICircuitOpen(f"AI provider quota/payment error: {response.get('status_code')}")
+        if self.is_provider_throttle_response(response):
+            await self.open_ai_circuit(response, reason="throttle")
+            raise AICircuitOpen(f"AI provider temporarily unavailable/rate-limited: {response.get('status_code')}")
         if not response.get("ok") or not response.get("content"):
             raise ValueError(f"AI provider failed: {response.get('status_code')} {response.get('body', '')[:160]}")
         return response["content"]
@@ -576,7 +581,31 @@ class MVPNewsPipeline:
             return False
         if status == 403 and ("permission_denied" in body or "denied access" in body):
             return True
-        return status in (402, 429) or "quota" in body or "credit" in body or "payment" in body
+        quota_markers = (
+            "quota",
+            "credit",
+            "payment",
+            "billing",
+            "free-models-per-day",
+            "resource_exhausted",
+            "generate_content_free_tier_requests",
+        )
+        if status == 429:
+            return any(marker in body for marker in quota_markers)
+        return status == 402 or any(marker in body for marker in quota_markers)
+
+    @staticmethod
+    def is_account_quota_response(response: dict) -> bool:
+        body = str(response.get("body") or "").lower()
+        account_markers = (
+            "free-models-per-day",
+            "add 10 credits",
+            "x-ratelimit-remaining",
+            "exceeded your current quota",
+            "generate_content_free_tier_requests",
+            "billing details",
+        )
+        return MVPNewsPipeline.is_quota_response(response) and any(marker in body for marker in account_markers)
 
     @staticmethod
     def is_openrouter_size_response(response: dict) -> bool:
@@ -588,6 +617,21 @@ class MVPNewsPipeline:
         status = response.get("status_code")
         body = str(response.get("body") or "").lower()
         return status in (404, 408, 409, 425, 429, 500, 502, 503, 504) or "high demand" in body or "unavailable" in body
+
+    @staticmethod
+    def is_provider_throttle_response(response: dict) -> bool:
+        status = response.get("status_code")
+        body = str(response.get("body") or "").lower()
+        throttle_markers = (
+            "rate-limited",
+            "rate limit",
+            "retry",
+            "high demand",
+            "unavailable",
+            "temporarily",
+            "resource_exhausted",
+        )
+        return status in (408, 409, 425, 429, 500, 502, 503, 504) and any(marker in body for marker in throttle_markers)
 
     @staticmethod
     def is_empty_openrouter_success(response: dict) -> bool:
@@ -632,12 +676,12 @@ class MVPNewsPipeline:
             ),
         )
 
-    async def open_ai_circuit(self, response: dict) -> None:
+    async def open_ai_circuit(self, response: dict, reason: str = "quota") -> None:
         if self.session is None:
             return
         until = utcnow() + timedelta(minutes=self.ai_circuit_cooldown_minutes())
         existing = await self.session.scalar(select(IngestionLock).where(IngestionLock.lock_name == "ai_circuit_breaker"))
-        lock_owner = f"quota:{response.get('provider')}:{self.ai_circuit_signature}"
+        lock_owner = f"{reason}:{response.get('provider')}:{self.ai_circuit_signature}"
         if existing:
             existing.locked_until = until
             existing.locked_by = lock_owner

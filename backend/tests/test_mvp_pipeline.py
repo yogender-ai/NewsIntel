@@ -153,15 +153,25 @@ def test_cleanup_retention_window_setting_is_seven_days():
 @pytest.mark.parametrize(
     "response",
     [
-        {"status_code": 429, "body": ""},
         {"status_code": 402, "body": ""},
         {"status_code": 500, "body": "quota exceeded"},
         {"status_code": 500, "body": "payment required"},
+        {"status_code": 429, "body": "Rate limit exceeded: free-models-per-day. Add 10 credits."},
+        {"status_code": 429, "body": "Quota exceeded for metric: generate_content_free_tier_requests"},
         {"status_code": 403, "body": '{"status":"PERMISSION_DENIED","message":"Your project has been denied access."}'},
     ],
 )
 def test_ai_quota_circuit_breaker_detection(response):
     assert MVPNewsPipeline.is_quota_response(response)
+
+
+def test_temporary_provider_rate_limit_is_not_account_quota():
+    response = {
+        "status_code": 429,
+        "body": "minimax/minimax-m2.5:free is temporarily rate-limited upstream. Please retry shortly.",
+    }
+    assert not MVPNewsPipeline.is_quota_response(response)
+    assert MVPNewsPipeline.is_provider_throttle_response(response)
 
 
 def test_clean_ai_json_strips_markdown_fences():

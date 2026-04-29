@@ -15,6 +15,21 @@ function getHeaders() {
 
 const RETRY_DELAYS = [0, 1200, 3000]; // ms — first try is instant, then 1.2s, then 3s
 
+async function buildApiError(res) {
+  const text = await res.text().catch(() => '');
+  let payload = null;
+  try {
+    payload = text ? JSON.parse(text) : null;
+  } catch {
+    payload = null;
+  }
+  const message = payload?.message || payload?.detail || text || `Request failed with status ${res.status}`;
+  const error = new Error(message);
+  error.status = res.status;
+  error.payload = payload;
+  return error;
+}
+
 async function request(path, options = {}, retries = 2) {
   const url = `${API_BASE}${path}`;
   let lastError;
@@ -36,8 +51,7 @@ async function request(path, options = {}, retries = 2) {
       clearTimeout(timeout);
 
       if (!res.ok) {
-        const err = await res.text().catch(() => '');
-        lastError = new Error(`${res.status}: ${err.slice(0, 100)}`);
+        lastError = await buildApiError(res);
         // Don't retry on 4xx client errors (except 429 rate limit)
         if (res.status >= 400 && res.status < 500 && res.status !== 429) throw lastError;
         continue; // retry on 5xx

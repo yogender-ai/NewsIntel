@@ -125,6 +125,24 @@ _cors_origin_re = _re.compile(ALLOWED_ORIGIN_REGEX)
 _cors_origins_set = set(allowed_origins())
 
 
+def _public_error_response(exc: Exception) -> tuple[int, dict]:
+    raw = str(exc)
+    lowered = raw.lower()
+    if "data transfer quota" in lowered:
+        return 503, {
+            "detail": "Live data temporarily unavailable",
+            "message": "The database provider has reached its data transfer quota. Fresh dashboard reads will resume after the quota resets or the plan is upgraded.",
+            "error_code": "DATA_TRANSFER_QUOTA",
+        }
+    if "quota" in lowered or "rate limit" in lowered or "rate-limited" in lowered:
+        return 503, {
+            "detail": "Live data temporarily unavailable",
+            "message": "An upstream provider is currently rate-limited or out of quota. News-Intel is not generating substitute stories.",
+            "error_code": "UPSTREAM_QUOTA",
+        }
+    return 500, {"detail": "Internal server error", "error": raw[:200]}
+
+
 @app.exception_handler(Exception)
 async def _cors_safe_exception_handler(request: Request, exc: Exception):
     origin = request.headers.get("origin", "")
@@ -133,9 +151,10 @@ async def _cors_safe_exception_handler(request: Request, exc: Exception):
         headers["access-control-allow-origin"] = origin
         headers["access-control-allow-credentials"] = "true"
     logger.error("Unhandled exception (CORS-safe): %s", exc, exc_info=True)
+    status_code, content = _public_error_response(exc)
     return JSONResponse(
-        status_code=500,
-        content={"detail": "Internal server error", "error": str(exc)[:200]},
+        status_code=status_code,
+        content=content,
         headers=headers,
     )
 

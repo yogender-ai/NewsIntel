@@ -202,7 +202,8 @@ function GlobalLiveCursor() {
         .cyber-cursor {
           position: fixed; top: 0; left: 0; z-index: 99999;
           pointer-events: none; mix-blend-mode: screen;
-          will-change: transform; transition: all 0.2s ease-out;
+          will-change: transform;
+          /* No transform transition to avoid fighting requestAnimationFrame */
         }
         
         .cyber-dot {
@@ -210,7 +211,8 @@ function GlobalLiveCursor() {
           width: 5px; height: 5px; border-radius: 50%;
           background: #c4b5fd; /* Soft purple */
           box-shadow: 0 0 10px 2px rgba(167, 139, 250, 0.6);
-          transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+          /* Dot scale transition is fine since JS doesn't move it directly */
+          transition: background 0.3s ease, box-shadow 0.3s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
         }
         
         .cyber-ring {
@@ -219,7 +221,8 @@ function GlobalLiveCursor() {
           border: 1px solid rgba(167, 139, 250, 0.3);
           border-left-color: rgba(167, 139, 250, 0.8);
           border-right-color: transparent;
-          transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+          /* Strictly exclude transform from transition because JS handles rotation */
+          transition: width 0.3s ease, height 0.3s ease, border-color 0.3s ease, border-style 0.3s ease;
         }
         
         .cyber-trail {
