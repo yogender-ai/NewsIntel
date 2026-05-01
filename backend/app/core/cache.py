@@ -4,6 +4,7 @@ import json
 import secrets
 import time
 import logging
+from copy import deepcopy
 from contextlib import asynccontextmanager
 from collections.abc import AsyncIterator
 from typing import Any
@@ -72,11 +73,11 @@ class LocalCache:
         if expires_at and expires_at < time.time():
             self._store.pop(key, None)
             return None
-        return value
+        return deepcopy(value)
 
     async def set_json(self, key: str, value: Any, ttl_seconds: int) -> None:
         expires_at = time.time() + ttl_seconds if ttl_seconds else 0
-        self._store[key] = (expires_at, value)
+        self._store[key] = (expires_at, deepcopy(value))
 
     async def delete_pattern(self, pattern: str) -> int:
         if pattern.endswith("*"):

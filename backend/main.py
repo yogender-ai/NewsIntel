@@ -28,6 +28,7 @@ from pydantic import BaseModel, ValidationError
 import db
 import hf_client
 import news_fetcher
+from app.core.cache import cache
 from app.core.cors import ALLOWED_ORIGIN_REGEX, allowed_origins
 from app.core.database import AsyncSessionLocal as EventStoreSessionLocal
 from sqlalchemy import func, select
@@ -76,6 +77,27 @@ STALE_THRESHOLD = 360  # 6 min — after this, trigger bg refresh on user reques
 # Database Lifecycle + Background Scheduler
 # ---------------------------------------------------------------------------
 ARTICLE_ANALYSIS_TTL = 1800
+MVP_READ_CACHE_PREFIX = "mvp:read:"
+
+
+def _mvp_read_cache_ttl() -> int:
+    return max(60, int(mvp_settings.dashboard_cache_ttl_seconds or 600))
+
+
+async def _get_mvp_read_cache(key: str) -> dict | list | None:
+    return await cache.get_json(f"{MVP_READ_CACHE_PREFIX}{key}")
+
+
+async def _set_mvp_read_cache(key: str, payload: dict | list) -> None:
+    await cache.set_json(f"{MVP_READ_CACHE_PREFIX}{key}", payload, ttl_seconds=_mvp_read_cache_ttl())
+
+
+async def _clear_mvp_read_cache() -> int:
+    deleted = await cache.delete_pattern(f"{MVP_READ_CACHE_PREFIX}*")
+    if deleted:
+        logger.info("Cleared %s MVP read-cache entries after data refresh.", deleted)
+    return deleted
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -99,6 +121,7 @@ async def lifespan(app: FastAPI):
         except asyncio.CancelledError:
             pass
     await db.database.disconnect()
+    await cache.close()
 
 
 app = FastAPI(title="News-Intel v12", version="12.0.0", lifespan=lifespan)
@@ -1271,7 +1294,10 @@ async def force_refresh_dashboard(request: Request, payload_request: DashboardRe
                 regions or ["global"],
                 max_articles=40,
             )
+            await _clear_mvp_read_cache()
             payload = await home_snapshot()
+        await _clear_mvp_read_cache()
+        await _set_mvp_read_cache("home-snapshot", payload)
     except Exception as exc:
         logger.error("Manual dashboard refresh failed: %s", exc, exc_info=True)
         refresh_error = str(exc)[:500]
@@ -1337,6 +1363,7 @@ async def ingest_now(request: Request, payload: IngestNowRequest | None = None):
         )
     if result.get("status") == "failed":
         raise HTTPException(status_code=502, detail=result)
+    await _clear_mvp_read_cache()
     if result.get("status") == "ai_deferred":
         return {
             "status": "deferred",
@@ -1376,6 +1403,8 @@ async def enrich_batch(request: Request):
         raise HTTPException(status_code=401, detail="Invalid ingestion secret")
     async with EventStoreSessionLocal() as session:
         result = await MVPNewsPipeline(session, settings=mvp_settings).enrich_batch()
+        await session.commit()
+        await _clear_mvp_read_cache()
         if result.get("status") == "deferred":
             return {
                 "status": "deferred",
@@ -1397,6 +1426,7 @@ async def reset_ai_circuit(request: Request):
     async with EventStoreSessionLocal() as session:
         result = await session.execute(delete(IngestionLock).where(IngestionLock.lock_name == "ai_circuit_breaker"))
         await session.commit()
+        await _clear_mvp_read_cache()
         return {"status": "success", "cleared": int(result.rowcount or 0)}
 
 
@@ -1423,27 +1453,47 @@ async def cleanup_mvp_data(request: Request):
     if expected_secret and supplied_secret != expected_secret:
         raise HTTPException(status_code=401, detail="Invalid ingestion secret")
     async with EventStoreSessionLocal() as session:
-        return await MVPNewsPipeline(session, settings=mvp_settings).cleanup()
+        result = await MVPNewsPipeline(session, settings=mvp_settings).cleanup()
+        await _clear_mvp_read_cache()
+        return result
 
 
 @app.get("/api/home-snapshot")
 async def home_snapshot():
+    cached = await _get_mvp_read_cache("home-snapshot")
+    if isinstance(cached, dict):
+        return cached
+
     async with EventStoreSessionLocal() as session:
         payload = await MVPNewsPipeline(session, settings=mvp_settings).latest_snapshot()
         await session.commit()
+        await _set_mvp_read_cache("home-snapshot", payload)
         return payload
 
 
 @app.get("/api/feed")
 async def mvp_feed(cursor: int = Query(default=0, ge=0), limit: int = Query(default=3, ge=1, le=20)):
-    async with EventStoreSessionLocal() as session:
-        payload = await MVPNewsPipeline(session, settings=mvp_settings).feed(cursor=cursor, limit=limit)
-        await session.commit()
-        return payload
+    cache_key = f"feed:{cursor}:{limit}"
+    cached = await _get_mvp_read_cache(cache_key)
+    if isinstance(cached, dict):
+        return cached
+
+    payload = await home_snapshot()
+    feed = payload.get("feed") if isinstance(payload.get("feed"), list) else []
+    start = max(0, cursor)
+    end = start + max(1, min(limit, 20))
+    response = {"items": feed[start:end], "cursor": start, "next_cursor": end if end < len(feed) else None}
+    await _set_mvp_read_cache(cache_key, response)
+    return response
 
 
 @app.get("/api/story/{story_id}")
 async def mvp_story(story_id: str):
+    cache_key = f"story:{story_id}"
+    cached = await _get_mvp_read_cache(cache_key)
+    if isinstance(cached, dict):
+        return cached
+
     async with EventStoreSessionLocal() as session:
         try:
             story_uuid = UUID(story_id)
@@ -1454,7 +1504,9 @@ async def mvp_story(story_id: str):
             from app.services.mvp_pipeline import story_to_card
 
             card = story_to_card(story)
-            return {"story": card, "source_url": story.source_url, "sources": card.get("sources", [])}
+            response = {"story": card, "source_url": story.source_url, "sources": card.get("sources", [])}
+            await _set_mvp_read_cache(cache_key, response)
+            return response
 
         event = await session.scalar(
             select(Event)
@@ -1464,7 +1516,9 @@ async def mvp_story(story_id: str):
         if not event:
             raise HTTPException(status_code=404, detail="Story not found")
         card = event_to_signal_card(event)
-        return {"story": card, "source_url": card.get("source_url"), "sources": card.get("sources", [])}
+        response = {"story": card, "source_url": card.get("source_url"), "sources": card.get("sources", [])}
+        await _set_mvp_read_cache(cache_key, response)
+        return response
 
 
 @app.get("/api/categories")
@@ -1858,6 +1912,11 @@ async def get_pulse_history(
     story_id: Optional[str] = Query(default=None),
     days: int = Query(7, ge=1, le=7),
 ):
+    cache_key = f"pulse-history:{story_id or 'all'}:{days}"
+    cached = await _get_mvp_read_cache(cache_key)
+    if isinstance(cached, dict):
+        return cached
+
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     async with EventStoreSessionLocal() as session:
         stmt = (
@@ -1880,7 +1939,9 @@ async def get_pulse_history(
                 "created_at": row.created_at.isoformat(),
             }
         )
-    return {"topics": list(history.keys()) or mvp_settings.mvp_categories, "history": history}
+    response = {"topics": list(history.keys()) or mvp_settings.mvp_categories, "history": history}
+    await _set_mvp_read_cache(cache_key, response)
+    return response
 
 
 @app.get("/api/exposure-network")
@@ -1896,6 +1957,11 @@ async def get_exposure_network(request: Request):
 async def get_orbit(request: Request):
     user_topics, user_regions, uid, _ = await _get_user_prefs_from_header(request)
     user_id = uid or _user_id_from_request(request)
+    cache_key = f"orbit:{user_id}:{_profile_cache_key(user_topics, user_regions)}"
+    cached = await _get_mvp_read_cache(cache_key)
+    if isinstance(cached, dict):
+        return cached
+
     display_name = "You"
     try:
         prefs = await db.get_user_prefs(user_id)
@@ -1905,7 +1971,7 @@ async def get_orbit(request: Request):
         logger.warning("Orbit profile lookup failed for %s: %s", user_id, exc)
 
     async with EventStoreSessionLocal() as session:
-        return await load_orbit_payload(
+        response = await load_orbit_payload(
             session,
             user_id=user_id,
             display_name=display_name,
@@ -1913,6 +1979,8 @@ async def get_orbit(request: Request):
             regions=user_regions,
             limit=20,
         )
+        await _set_mvp_read_cache(cache_key, response)
+        return response
 
 
 @app.get("/api/map-signals")

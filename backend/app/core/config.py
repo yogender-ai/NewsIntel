@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     )
     redis_url: str = Field(default="", alias="REDIS_URL")
     ingestion_batch_size: int = Field(default=80, alias="INGESTION_BATCH_SIZE")
-    dashboard_cache_ttl_seconds: int = Field(default=300, alias="DASHBOARD_CACHE_TTL_SECONDS")
+    dashboard_cache_ttl_seconds: int = Field(default=600, alias="DASHBOARD_CACHE_TTL_SECONDS")
     article_duplicate_window_hours: int = Field(default=36, alias="ARTICLE_DUPLICATE_WINDOW_HOURS")
     title_similarity_threshold: float = Field(default=0.86, alias="TITLE_SIMILARITY_THRESHOLD")
     ai_enrichment_max_events_per_run: int = Field(default=10, alias="AI_ENRICHMENT_MAX_EVENTS_PER_RUN")
