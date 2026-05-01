@@ -4810,3 +4810,14 @@ svg {
   background: rgba(251,113,133,0.18) !important;
   box-shadow: 0 0 14px rgba(251,113,133,0.1);
 }
+
+/* Final background handoff: ThreeBackground now owns the page atmosphere. */
+body::before,
+body::after,
+.app-container::before {
+  display: none !important;
+}
+
+.scanline {
+  opacity: 0.035 !important;
+}
