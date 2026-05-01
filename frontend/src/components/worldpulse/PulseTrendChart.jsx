@@ -28,11 +28,11 @@ export default function PulseTrendChart({ history, worldPulse }) {
   const latestValue = worldPulse?.value ?? history[history.length - 1]?.value;
   const latestLabel = worldPulse?.label ?? 'Establishing baseline';
   const hasLatest = latestValue !== null && latestValue !== undefined && Number.isFinite(Number(latestValue));
-  const latestColor = !hasLatest ? '#94a3b8'
-    : latestValue >= 76 ? '#fb7185'
-    : latestValue >= 56 ? '#fbbf24'
-    : latestValue >= 31 ? '#818cf8'
-    : '#34d399';
+  const latestColor = !hasLatest ? '#52525B'
+    : latestValue >= 76 ? '#DC2626'
+    : latestValue >= 56 ? '#F59E0B'
+    : latestValue >= 31 ? '#8B5CF6'
+    : '#00E5A0';
 
   const max = Math.max(...history.map((p) => p.value), 100);
   const min = Math.min(...history.map((p) => p.value), 0);
@@ -124,9 +124,9 @@ export default function PulseTrendChart({ history, worldPulse }) {
       >
         <defs>
           <linearGradient id="ptLineGrad" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stopColor="#818cf8" />
-            <stop offset="50%" stopColor="#a78bfa" />
-            <stop offset="100%" stopColor="#c084fc" />
+            <stop offset="0%" stopColor="#00E5A0" />
+            <stop offset="50%" stopColor="#8B5CF6" />
+            <stop offset="100%" stopColor="#06B6D4" />
           </linearGradient>
           <linearGradient id="ptAreaGrad" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="rgba(139,92,246,0.20)" />

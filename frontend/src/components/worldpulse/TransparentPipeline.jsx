@@ -1,58 +1,80 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Activity, Database, BrainCircuit, Shield, Zap, CheckCircle2 } from 'lucide-react';
 
 const PIPELINE_STEPS = [
-  { id: 'connect', label: 'CONNECTING SOURCES', icon: Activity, duration: 2000 },
-  { id: 'ingest', label: 'INGESTING FEEDS', icon: Database, duration: 2400 },
-  { id: 'analyze', label: 'AI ANALYSIS', icon: BrainCircuit, duration: 2800 },
-  { id: 'score', label: 'SCORING SIGNALS', icon: Zap, duration: 1800 },
-  { id: 'secure', label: 'SECURING PIPELINE', icon: Shield, duration: 1200 },
+  { id: 'connect', label: 'CONNECTING SOURCES', icon: Activity, duration: 600 },
+  { id: 'ingest', label: 'INGESTING FEEDS', icon: Database, duration: 700 },
+  { id: 'analyze', label: 'AI ANALYSIS', icon: BrainCircuit, duration: 800 },
+  { id: 'score', label: 'SCORING SIGNALS', icon: Zap, duration: 500 },
+  { id: 'secure', label: 'SECURING PIPELINE', icon: Shield, duration: 400 },
 ];
 
-const TOTAL_DURATION = PIPELINE_STEPS.reduce((s, step) => s + step.duration, 0);
+const TOTAL_DURATION = PIPELINE_STEPS.reduce((s, step) => s + step.duration, 0); // ~3s total
 
-export default function TransparentPipeline({ onComplete }) {
+export default function TransparentPipeline({ onComplete, dataReady }) {
   const [activeStep, setActiveStep] = useState(0);
   const [progress, setProgress] = useState(0);
   const [done, setDone] = useState(false);
   const canvasRef = useRef(null);
-  const startRef = useRef(Date.now());
   const onCompleteRef = useRef(onComplete);
+  const dataReadyRef = useRef(dataReady);
+  const startRef = useRef(Date.now());
 
-  useEffect(() => {
-    onCompleteRef.current = onComplete;
-  }, [onComplete]);
+  useEffect(() => { onCompleteRef.current = onComplete; }, [onComplete]);
+  useEffect(() => { dataReadyRef.current = dataReady; }, [dataReady]);
 
-  // Advance steps & track progress
+  // Advance steps & track progress — fast-forward when data is ready
   useEffect(() => {
     const start = Date.now();
     startRef.current = start;
-    let stepIdx = 0;
-    let elapsed = 0;
+    let killed = false;
 
-    const timers = PIPELINE_STEPS.map((step, i) => {
-      elapsed += (i > 0 ? PIPELINE_STEPS[i - 1].duration : 0);
-      return setTimeout(() => {
-        setActiveStep(i);
-      }, elapsed);
+    // Compute step offsets
+    const offsets = [];
+    let acc = 0;
+    PIPELINE_STEPS.forEach((step, i) => {
+      offsets.push(acc);
+      acc += step.duration;
     });
+
+    const timers = PIPELINE_STEPS.map((_, i) =>
+      setTimeout(() => { if (!killed) setActiveStep(i); }, offsets[i])
+    );
 
     // Smooth progress ticker
     const iv = setInterval(() => {
-      const e = Date.now() - start;
-      const pct = Math.min(100, (e / TOTAL_DURATION) * 100);
+      if (killed) return;
+      const elapsed = Date.now() - start;
+      
+      // If data is ready and we've shown at least 1.2s of animation, fast-forward
+      const minShowTime = 1200;
+      if (dataReadyRef.current && elapsed > minShowTime) {
+        // Jump to 100% quickly
+        setProgress(100);
+        setDone(true);
+        clearInterval(iv);
+        timers.forEach(clearTimeout);
+        setActiveStep(PIPELINE_STEPS.length - 1);
+        setTimeout(() => {
+          if (onCompleteRef.current) onCompleteRef.current();
+        }, 350);
+        killed = true;
+        return;
+      }
+
+      const pct = Math.min(100, (elapsed / TOTAL_DURATION) * 100);
       setProgress(pct);
       if (pct >= 100) {
         clearInterval(iv);
         setDone(true);
-        // Give a brief pause at 100% so user sees it
         setTimeout(() => {
           if (onCompleteRef.current) onCompleteRef.current();
-        }, 600);
+        }, 350);
       }
     }, 30);
 
     return () => {
+      killed = true;
       timers.forEach(clearTimeout);
       clearInterval(iv);
     };
@@ -73,9 +95,9 @@ export default function TransparentPipeline({ onComplete }) {
     canvas.style.height = '100%';
     ctx.scale(dpr, dpr);
 
-    const nodes = Array.from({ length: 35 }, () => ({
+    const nodes = Array.from({ length: 30 }, () => ({
       x: Math.random() * w, y: Math.random() * h,
-      vx: (Math.random() - 0.5) * 0.3, vy: (Math.random() - 0.5) * 0.3,
+      vx: (Math.random() - 0.5) * 0.4, vy: (Math.random() - 0.5) * 0.4,
     }));
 
     const draw = () => {
@@ -91,7 +113,7 @@ export default function TransparentPipeline({ onComplete }) {
           const dy = nodes[i].y - nodes[j].y;
           const dist = Math.sqrt(dx * dx + dy * dy);
           if (dist < 160) {
-            ctx.strokeStyle = `rgba(139,92,246,${(1 - dist / 160) * 0.06})`;
+            ctx.strokeStyle = `rgba(0,229,160,${(1 - dist / 160) * 0.06})`;
             ctx.lineWidth = 0.5;
             ctx.beginPath();
             ctx.moveTo(nodes[i].x, nodes[i].y);
@@ -103,7 +125,7 @@ export default function TransparentPipeline({ onComplete }) {
       nodes.forEach(n => {
         ctx.beginPath();
         ctx.arc(n.x, n.y, 1.2, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(139,92,246,0.12)';
+        ctx.fillStyle = 'rgba(0,229,160,0.12)';
         ctx.fill();
       });
       raf = requestAnimationFrame(draw);
@@ -119,7 +141,7 @@ export default function TransparentPipeline({ onComplete }) {
         {/* Progress ring */}
         <div className="pipeline-ring-wrap">
           <svg viewBox="0 0 120 120" className="pipeline-ring-svg">
-            <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(139,92,246,0.06)" strokeWidth="2" />
+            <circle cx="60" cy="60" r="54" fill="none" stroke="rgba(0,229,160,0.06)" strokeWidth="2" />
             <circle
               cx="60" cy="60" r="54" fill="none"
               stroke="url(#pipeGrad)" strokeWidth="2.5" strokeLinecap="round"
@@ -129,9 +151,9 @@ export default function TransparentPipeline({ onComplete }) {
             />
             <defs>
               <linearGradient id="pipeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#8b5cf6" />
-                <stop offset="50%" stopColor="#5eead4" />
-                <stop offset="100%" stopColor="#c084fc" />
+                <stop offset="0%" stopColor="#00E5A0" />
+                <stop offset="50%" stopColor="#8B5CF6" />
+                <stop offset="100%" stopColor="#06B6D4" />
               </linearGradient>
             </defs>
           </svg>

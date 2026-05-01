@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { Globe, Radio, AlertTriangle, Wifi } from 'lucide-react';
 
 const icons = { countries: Globe, signals: Radio, alerts: AlertTriangle, sources: Wifi };
-const colors = { countries: '#818cf8', signals: '#34d399', alerts: '#fb7185', sources: '#fbbf24' };
-const bgColors = { countries: 'rgba(129,140,248,0.10)', signals: 'rgba(52,211,153,0.10)', alerts: 'rgba(251,113,133,0.10)', sources: 'rgba(251,191,36,0.10)' };
+const colors = { countries: '#8B5CF6', signals: '#00E5A0', alerts: '#EF4444', sources: '#06B6D4' };
+const bgColors = { countries: 'rgba(139,92,246,0.10)', signals: 'rgba(0,229,160,0.10)', alerts: 'rgba(239,68,68,0.10)', sources: 'rgba(6,182,212,0.10)' };
 
 /* Animated counter hook */
 function useAnimatedValue(target, duration = 800) {

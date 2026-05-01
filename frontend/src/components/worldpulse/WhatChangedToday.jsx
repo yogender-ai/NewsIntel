@@ -18,9 +18,9 @@ const TopicIcon = ({ topic }) => {
 };
 
 function directionColor(direction) {
-  if (direction === 'Rising') return '#f43f5e';
-  if (direction === 'Cooling') return '#34d399';
-  return '#a5b4fc';
+  if (direction === 'Rising') return '#EF4444';
+  if (direction === 'Cooling') return '#00E5A0';
+  return '#8B5CF6';
 }
 
 function BottomSparkline({ current, previous }) {
@@ -28,7 +28,7 @@ function BottomSparkline({ current, previous }) {
   const prev = previous ?? current;
   const max = Math.max(current, prev, 1);
   const w = Math.max(10, Math.min(100, Math.round((current / max) * 100)));
-  const color = current > prev ? '#ff9ba9' : current < prev ? '#7ee7c4' : '#8da2ff';
+  const color = current > prev ? '#EF4444' : current < prev ? '#00E5A0' : '#8B5CF6';
 
   return (
     <div className="wca-sparkline-track">

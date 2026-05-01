@@ -349,7 +349,7 @@ export default function HomePage() {
         />
 
         {showPipeline ? (
-          <TransparentPipeline onComplete={() => setPipelineDone(true)} />
+          <TransparentPipeline onComplete={() => setPipelineDone(true)} dataReady={!loading} />
         ) : (
           <>
             {error && (

@@ -1,8 +1,8 @@
 import { Clock, Radio } from 'lucide-react';
 import { formatRelativeTime } from '../../lib/dashboardAdapter';
 
-const impactColor = { critical: '#ff9ba9', signal: '#ffd38a', watch: '#7ee7c4', noise: '#a0a0b8' };
-const impactBg = { critical: 'rgba(255,155,169,0.1)', signal: 'rgba(255,211,138,0.1)', watch: 'rgba(126,231,196,0.1)', noise: 'rgba(160,160,184,0.1)' };
+const impactColor = { critical: '#DC2626', signal: '#F59E0B', watch: '#00E5A0', noise: '#52525B' };
+const impactBg = { critical: 'rgba(220,38,38,0.1)', signal: 'rgba(245,158,11,0.1)', watch: 'rgba(0,229,160,0.1)', noise: 'rgba(82,82,91,0.1)' };
 
 export default function TopShiftCard({ shift, onOpen, index }) {
   const impact = shift.impactLevel ? String(shift.impactLevel).toLowerCase() : null;
@@ -17,7 +17,7 @@ export default function TopShiftCard({ shift, onOpen, index }) {
           <img src={shift.imageUrl} alt="" />
         ) : (
           <div className="sca-placeholder">
-            <Radio size={32} color="#8da2ff" />
+            <Radio size={32} color="#8B5CF6" />
           </div>
         )}
       </div>
