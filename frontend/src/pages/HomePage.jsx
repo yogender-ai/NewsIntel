@@ -364,7 +364,7 @@ export default function HomePage() {
               <div className="wp-primary">
                 <WorldPulseRing worldPulse={data.worldPulse} />
                 <WhatChangedToday changes={data.changesToday} selectedTopic={selectedTopic} onSelect={setSelectedTopic} />
-                <PulseByDimension />
+                <PulseByDimension dimensions={data.dimensions} />
                 <section className="wp-card top-shifts-section">
                   <div className="wp-section-head"><span>Top 3 Shifts You Must Know</span></div>
                   {topShifts.length ? (

@@ -122,6 +122,27 @@ export function normalizeDashboardData({ dashboard, preferences, alerts, user })
   const alertRows = Array.isArray(alerts?.alerts) ? alerts.alerts : Array.isArray(dashboard?.alerts) ? dashboard.alerts : [];
   const highImpactAlerts = alertRows.filter((alert) => ['critical', 'warning', 'high'].includes(String(alert.severity || '').toLowerCase())).length;
 
+  // Derive dimensions from API data if available, otherwise from changesToday
+  const dimensionColors = ['#8B5CF6', '#06B6D4', '#00E5A0', '#F59E0B', '#EF4444', '#EC4899'];
+  const rawDimensions = Array.isArray(dashboard?.dimensions) ? dashboard.dimensions : null;
+  const dimensions = rawDimensions
+    ? rawDimensions.map((d, i) => ({
+        key: d.key || d.label,
+        label: d.label || compactLabel(d.key),
+        score: clamp(d.score || d.value || 0),
+        status: d.status || (d.score >= 76 ? 'High' : d.score >= 51 ? 'Elevated' : d.score >= 26 ? 'Watch' : 'Calm'),
+        color: d.color || dimensionColors[i % dimensionColors.length],
+      }))
+    : changesToday.length
+      ? changesToday.slice(0, 6).map((item, i) => ({
+          key: item.id,
+          label: item.topic,
+          score: clamp(item.current || Math.abs(item.delta || 0) + 30),
+          status: (item.current || 0) >= 76 ? 'High' : (item.current || 0) >= 51 ? 'Elevated' : (item.current || 0) >= 26 ? 'Watch' : 'Calm',
+          color: dimensionColors[i % dimensionColors.length],
+        }))
+      : [];
+
   return {
     user,
     preferences: {
@@ -145,6 +166,7 @@ export function normalizeDashboardData({ dashboard, preferences, alerts, user })
     },
     pulseHistory,
     changesToday,
+    dimensions,
     topShifts,
     quickGlance: Array.isArray(dashboard?.quick_glance) ? dashboard.quick_glance : [],
     alerts: alertRows,

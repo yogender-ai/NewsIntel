@@ -33,7 +33,7 @@
 
 /* ── Pulse-reactive deep space background ────────────────── */
 body {
-  background: #050811 !important;
+  background: #0A0B0F !important;
 }
 
 /* Nebula wash — intensity reacts to --pulse-intensity */
@@ -43,13 +43,13 @@ body::before {
   pointer-events: none;
   background:
     radial-gradient(ellipse 130% 65% at 8% 5%,
-      hsla(260, 78%, 58%, calc(0.035 + (0.075 * var(--pulse-intensity, 0)))), transparent 50%),
+      hsla(160, 78%, 45%, calc(0.02 + (0.05 * var(--pulse-intensity, 0)))), transparent 50%),
     radial-gradient(ellipse 100% 50% at 92% 10%,
-      hsla(212, 70%, 58%, calc(0.025 + (0.055 * var(--pulse-intensity, 0)))), transparent 45%),
+      hsla(260, 70%, 58%, calc(0.025 + (0.055 * var(--pulse-intensity, 0)))), transparent 45%),
     radial-gradient(ellipse 80% 55% at 45% 95%,
-      hsla(176, 72%, 45%, calc(0.02 + (0.05 * var(--pulse-intensity, 0)))), transparent 50%),
+      hsla(190, 72%, 45%, calc(0.015 + (0.04 * var(--pulse-intensity, 0)))), transparent 50%),
     radial-gradient(ellipse 60% 35% at 70% 55%,
-      hsla(340, 78%, 60%, calc(0.014 + (0.035 * var(--pulse-intensity, 0)))), transparent 40%);
+      hsla(260, 78%, 60%, calc(0.014 + (0.035 * var(--pulse-intensity, 0)))), transparent 40%);
   opacity: calc(0.45 + (0.35 * var(--pulse-intensity, 0)));
   animation: nebulaShift 42s ease-in-out infinite alternate;
 }
@@ -85,11 +85,11 @@ body::after {
 /* ── Cards — Cinematic Fluid Glass Panels ────────────────── */
 .glass-card, .wp-card, .panel, .world-pulse-card,
 .abstract-world-map, .shift-drawer, .insight-drawer {
-  background: rgba(8,12,28,0.45) !important;
-  border: 1px solid rgba(255,255,255,0.04) !important;
-  box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset, 0 20px 60px -15px rgba(0,0,0,0.4) !important;
+  background: var(--glass-bg) !important;
+  border: 1px solid rgba(255,255,255,0.05) !important;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.02) inset, 0 20px 60px -15px rgba(0,0,0,0.5) !important;
   position: relative;
-  border-radius: 16px !important;
+  border-radius: var(--radius) !important;
   transition: transform 0.5s cubic-bezier(0.22,1,0.36,1), border-color 0.5s ease, box-shadow 0.5s ease !important;
   overflow: hidden;
 }
@@ -105,8 +105,8 @@ body::after {
 }
 
 .glass-card:hover, .wp-card:hover, .panel:hover, .world-pulse-card:hover {
-  border-color: rgba(139,92,246,0.15) !important;
-  box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset, 0 24px 80px -15px rgba(139,92,246,0.12) !important;
+  border-color: rgba(0,229,160,0.12) !important;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.03) inset, 0 24px 80px -15px rgba(0,229,160,0.08) !important;
   transform: translateY(-2px);
 }
 
@@ -116,15 +116,15 @@ body::after {
 
 /* ── Sidebar — Frosted Depth Panel ─────────────────────── */
 .world-pulse-page .wp-sidebar {
-  background: rgba(5,8,18,0.55) !important;
+  background: rgba(10,11,15,0.75) !important;
   border: none !important;
-  border-right: 1px solid rgba(255,255,255,0.03) !important;
+  border-right: 1px solid rgba(255,255,255,0.04) !important;
   backdrop-filter: blur(28px) saturate(1.4) !important;
   position: relative;
 }
 .world-pulse-page .wp-sidebar::after {
   content: ''; position: absolute; top: 0; right: 0; bottom: 0; width: 1px;
-  background: linear-gradient(180deg, rgba(139,92,246,0.12), transparent 30%, transparent 70%, rgba(94,234,212,0.08));
+  background: linear-gradient(180deg, rgba(0,229,160,0.15), transparent 30%, transparent 70%, rgba(139,92,246,0.08));
   pointer-events: none;
 }
 
@@ -161,7 +161,7 @@ p, span, li { color: inherit; }
 .world-pulse-page {
   background:
     radial-gradient(400px circle at var(--cursor-x, 50%) var(--cursor-y, 50%),
-      rgba(139,92,246,0.035), transparent 40%) !important;
+      rgba(0,229,160,0.025), transparent 40%) !important;
 }
 
 /* hide old cursor elements from individual pages */
@@ -174,10 +174,10 @@ p, span, li { color: inherit; }
   z-index: 200;
   display: grid;
   place-items: center;
-  background: #050811;
+  background: #0A0B0F;
   background-image:
-    linear-gradient(rgba(251,113,133,0.025) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(251,113,133,0.018) 1px, transparent 1px);
+    linear-gradient(rgba(0,229,160,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,229,160,0.015) 1px, transparent 1px);
   background-size: 72px 72px;
 }
 
@@ -809,7 +809,7 @@ p, span, li { color: inherit; }
   transform: translateX(4px);
 }
 .wp-nav button.active {
-  box-shadow: inset 3px 0 0 rgba(94,234,212,0.6), 0 0 20px -4px rgba(94,234,212,0.1) !important;
+  box-shadow: inset 3px 0 0 rgba(0,229,160,0.6), 0 0 20px -4px rgba(0,229,160,0.1) !important;
 }
 
 /* ── Status metrics — fluid cards ───────────────────── */
@@ -888,8 +888,8 @@ p, span, li { color: inherit; }
   50% { border-color: rgba(94,234,212,0.12); }
 }
 .ask-ni:hover {
-  background: rgba(139,92,246,0.05) !important;
-  border-color: rgba(139,92,246,0.2) !important;
+  background: rgba(0,229,160,0.04) !important;
+  border-color: rgba(0,229,160,0.15) !important;
   transform: translateY(-1px);
-  box-shadow: 0 4px 20px rgba(139,92,246,0.1);
+  box-shadow: 0 4px 20px rgba(0,229,160,0.08);
 }

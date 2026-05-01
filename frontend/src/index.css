@@ -1,27 +1,51 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@500;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap");
 @import "./premium.css";
 
 :root {
-  --bg: #060812;
-  --bg-2: #0a1020;
-  --panel: rgba(13, 20, 36, 0.82);
-  --panel-2: rgba(17, 26, 47, 0.9);
-  --line: rgba(148, 163, 184, 0.16);
-  --line-strong: rgba(141, 162, 255, 0.3);
-  --text: #eef4ff;
-  --muted: #94a3b8;
-  --quiet: #65708a;
-  --accent: #8da2ff;
-  --cyan: #5eead4;
-  --green: #7ee7c4;
-  --amber: #ffd38a;
-  --rose: #ff9ba9;
-  --red: #fb7185;
-  --ink: #0b1020;
-  --shadow: 0 18px 60px rgba(0, 0, 0, 0.36);
-  --radius: 8px;
+  /* ── Obsidian Black Base ── */
+  --bg: #0A0B0F;
+  --bg-2: #0F1117;
+  --panel: rgba(20, 22, 30, 0.6);
+  --panel-2: rgba(24, 26, 36, 0.75);
+  --line: rgba(255, 255, 255, 0.06);
+  --line-strong: rgba(0, 229, 160, 0.22);
+
+  /* ── Text Hierarchy ── */
+  --text: #FFFFFF;
+  --text-2: #A1A1AA;
+  --muted: #A1A1AA;
+  --quiet: #52525B;
+
+  /* ── Accent System ── */
+  --accent: #00E5A0;            /* Emerald mint — brand, live, success */
+  --accent-primary: #00E5A0;
+  --accent-ai: #8B5CF6;         /* Electric violet — AI/intelligence */
+  --accent-data: #06B6D4;       /* Cyan — data viz */
+  --cyan: #06B6D4;
+  --green: #10B981;
+  --amber: #F59E0B;
+  --rose: #EF4444;
+  --red: #DC2626;
+  --ink: #0A0B0F;
+
+  /* ── Alert Tiers ── */
+  --alert-calm: #10B981;
+  --alert-watch: #F59E0B;
+  --alert-elevated: #8B5CF6;
+  --alert-high: #EF4444;
+  --alert-extreme: #DC2626;
+
+  /* ── Surfaces ── */
+  --shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+  --radius: 14px;
+  --glass-border: 1px solid rgba(255, 255, 255, 0.06);
+  --glass-bg: rgba(20, 22, 30, 0.6);
+  --glass-blur: blur(20px);
+
+  /* ── Typography ── */
   --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Consolas, monospace;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-feature-settings: "cv11", "ss01";
 }
 
 *,
@@ -39,11 +63,12 @@ body,
 
 body {
   min-width: 320px;
-  background: #050710;
+  background: var(--bg);
   color: var(--text);
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   text-rendering: geometricPrecision;
+  letter-spacing: -0.01em;
 }
 
 /* Card and button hovers are in premium.css */
@@ -76,17 +101,34 @@ svg {
   isolation: isolate;
 }
 
+/* Noise texture overlay for depth */
+.app-container::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='256' height='256' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+}
+
 .app-container::before {
   content: "";
   position: fixed;
   inset: 0;
   z-index: -2;
   pointer-events: none;
-  background-image:
-    linear-gradient(rgba(141, 162, 255, 0.055) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(141, 162, 255, 0.045) 1px, transparent 1px);
-  background-size: 64px 64px;
-  mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 80%, rgba(0, 229, 160, 0.04), transparent),
+    radial-gradient(ellipse 60% 40% at 80% 20%, rgba(139, 92, 246, 0.035), transparent),
+    radial-gradient(ellipse 50% 30% at 50% 50%, rgba(6, 182, 212, 0.02), transparent);
+  animation: ambientMesh 30s ease-in-out infinite alternate;
+}
+
+@keyframes ambientMesh {
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.7; }
 }
 
 .scanline {
@@ -94,8 +136,8 @@ svg {
   inset: 0;
   z-index: 100;
   pointer-events: none;
-  opacity: 0.22;
-  background: repeating-linear-gradient(0deg, transparent 0 4px, rgba(255, 255, 255, 0.018) 4px 5px);
+  opacity: 0.04;
+  background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(255, 255, 255, 0.012) 3px 4px);
 }
 
 .mono,
@@ -133,13 +175,13 @@ svg {
 .scenario-result,
 .scenario-input-panel,
 .orbit-focus-panel {
-  border: 1px solid var(--line);
+  border: var(--glass-border);
   border-radius: var(--radius);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.035), transparent 42%),
-    var(--panel);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04), var(--shadow);
-  backdrop-filter: blur(18px);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 40%),
+    var(--glass-bg);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), var(--shadow);
+  backdrop-filter: var(--glass-blur);
 }
 
 .btn,
@@ -148,8 +190,8 @@ svg {
 .btn-premium {
   min-height: 38px;
   border: 1px solid var(--line);
-  border-radius: 7px;
-  background: rgba(255, 255, 255, 0.04);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
   color: var(--text);
   display: inline-flex;
   align-items: center;
@@ -157,25 +199,28 @@ svg {
   gap: 8px;
   padding: 0 14px;
   cursor: pointer;
-  transition: border-color 0.2s ease, background 0.2s ease, transform 0.2s ease;
+  transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+  position: relative;
+  overflow: hidden;
 }
 
 .btn:hover,
 .wire-btn:hover,
 .primary-action:hover,
 .btn-premium:hover {
-  border-color: rgba(94, 234, 212, 0.55);
-  background: rgba(94, 234, 212, 0.1);
+  border-color: rgba(0, 229, 160, 0.35);
+  background: rgba(0, 229, 160, 0.08);
   transform: translateY(-1px);
+  box-shadow: 0 4px 20px -4px rgba(0, 229, 160, 0.15);
 }
 
 .btn-primary,
 .primary-action,
 .btn-premium {
-  border-color: rgba(94, 234, 212, 0.55);
-  background: linear-gradient(135deg, var(--cyan), var(--accent));
-  color: #07101f;
-  font-weight: 900;
+  border-color: rgba(0, 229, 160, 0.4);
+  background: linear-gradient(135deg, var(--accent-primary), var(--accent-ai));
+  color: #fff;
+  font-weight: 800;
 }
 
 .top-bar {
@@ -258,10 +303,11 @@ svg {
   min-height: 100vh;
   height: 100vh;
   display: grid;
-  grid-template-columns: 272px minmax(0, 1fr);
+  grid-template-columns: 240px minmax(0, 1fr);
   overflow: hidden;
   position: relative;
   color: var(--text);
+  background: var(--bg);
 }
 
 .world-pulse-page::before {
@@ -271,21 +317,24 @@ svg {
   z-index: -1;
   pointer-events: none;
   background:
-    linear-gradient(120deg, rgba(94, 234, 212, 0.05), transparent 30%),
-    linear-gradient(300deg, rgba(255, 155, 169, 0.055), transparent 35%);
+    radial-gradient(ellipse 50% 50% at 50% 50%, rgba(15, 17, 23, 1), transparent),
+    linear-gradient(120deg, rgba(0, 229, 160, 0.03), transparent 30%),
+    linear-gradient(300deg, rgba(139, 92, 246, 0.03), transparent 35%);
 }
 
 .wp-sidebar {
   min-height: 100vh;
-  width: 272px;
+  width: 240px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  padding: 26px 18px 18px;
-  border-right: 1px solid var(--line);
-  background: rgba(7, 11, 24, 0.76);
-  box-shadow: 18px 0 60px rgba(0, 0, 0, 0.26);
+  gap: 16px;
+  padding: 22px 16px 16px;
+  border-right: 1px solid rgba(255, 255, 255, 0.04);
+  background: rgba(10, 11, 15, 0.8);
+  backdrop-filter: blur(24px) saturate(1.3);
+  box-shadow: 18px 0 60px rgba(0, 0, 0, 0.35);
   z-index: 3;
+  position: relative;
 }
 
 .wp-brand div {
@@ -295,7 +344,7 @@ svg {
 }
 
 .wp-brand span {
-  color: var(--cyan);
+  color: var(--accent-primary);
 }
 
 .wp-brand sup {
@@ -336,12 +385,13 @@ svg {
 .wp-nav button:hover,
 .wp-nav button.active {
   color: #fff;
-  border-color: rgba(94, 234, 212, 0.32);
-  background: linear-gradient(135deg, rgba(94, 234, 212, 0.18), rgba(141, 162, 255, 0.16));
+  border-color: rgba(0, 229, 160, 0.2);
+  background: rgba(0, 229, 160, 0.06);
 }
 
 .wp-nav button.active {
-  box-shadow: inset 3px 0 0 var(--cyan);
+  box-shadow: inset 3px 0 0 var(--accent-primary), 0 0 20px -4px rgba(0, 229, 160, 0.12);
+  background: rgba(0, 229, 160, 0.08);
 }
 
 .wp-focus {
@@ -416,11 +466,17 @@ svg {
   width: 100%;
   min-height: 34px;
   border: 0;
-  border-radius: 7px;
-  background: var(--cyan);
+  border-radius: 10px;
+  background: var(--accent-primary);
   color: var(--ink);
-  font-weight: 900;
+  font-weight: 800;
   cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.focus-empty button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 20px -4px rgba(0, 229, 160, 0.3);
 }
 
 .ask-ni {
@@ -482,6 +538,75 @@ svg {
 .wp-top-header p,
 .ni-screen-header p {
   margin: 5px 0 0;
+}
+
+/* Hero greeting — gradient text */
+.hero-greeting {
+  min-width: 0;
+}
+
+.hero-title {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  color: rgba(255, 255, 255, 0.85);
+  margin: 0;
+}
+
+.hero-title span {
+  background: linear-gradient(135deg, #FFFFFF 0%, var(--accent-primary) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hero-sub {
+  color: var(--quiet);
+  font-size: 13px;
+  font-weight: 500;
+  margin: 4px 0 0;
+}
+
+/* Live timestamp ticker */
+.hero-live-ticker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(0, 229, 160, 0.06);
+  border: 1px solid rgba(0, 229, 160, 0.12);
+}
+
+.live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-primary);
+  box-shadow: 0 0 8px rgba(0, 229, 160, 0.5);
+  animation: livePulse 2s ease-in-out infinite;
+}
+
+@keyframes livePulse {
+  0%, 100% { opacity: 0.5; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.2); }
+}
+
+.live-time {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.live-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: rgba(0, 229, 160, 0.6);
 }
 
 .wp-header-actions,
@@ -591,7 +716,7 @@ svg {
   padding: 18px;
 }
 
-/* ── World Pulse Ring — premium wave edition ───────────── */
+/* ── World Pulse Ring — premium command center ───────────── */
 .world-pulse-card,
 .wp-ring-card {
   min-height: 420px;
@@ -599,6 +724,214 @@ svg {
   place-items: center;
   text-align: center;
   gap: 18px;
+}
+
+/* New WPR Card */
+.wpr-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 22px;
+}
+
+.wpr-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.wpr-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.wpr-header-icon {
+  color: #fff;
+}
+
+.wpr-title {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #fff;
+}
+
+.wpr-info-icon {
+  color: var(--quiet);
+  opacity: 0.5;
+}
+
+.wpr-period-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 5px 12px;
+  border-radius: 8px;
+  color: var(--text-2);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.wpr-period-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.wpr-center-area {
+  position: relative;
+  width: 100%;
+  height: 340px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 8px;
+}
+
+.wpr-globe-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 300px;
+  height: 300px;
+  pointer-events: none;
+}
+
+.wpr-globe-halo {
+  position: absolute;
+  inset: -20%;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.12) 0%, transparent 60%);
+  filter: blur(20px);
+}
+
+.wpr-globe-halo-secondary {
+  position: absolute;
+  top: 20%;
+  left: 10%;
+  width: 150px;
+  height: 150px;
+  background: radial-gradient(circle, rgba(0, 229, 160, 0.08) 0%, transparent 70%);
+  filter: blur(24px);
+}
+
+.wpr-globe-canvas {
+  width: 100%;
+  height: 100%;
+  position: relative;
+  z-index: 2;
+}
+
+.wpr-ring-svg {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) scale(1);
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  cursor: crosshair;
+}
+
+.wpr-ring-hovered {
+  transform: translate(-50%, -50%) scale(1.04);
+  filter: brightness(1.3) drop-shadow(0 0 12px rgba(139, 92, 246, 0.3));
+}
+
+.wpr-value-display {
+  position: absolute;
+  text-align: center;
+  z-index: 10;
+}
+
+.wpr-value {
+  font-size: 80px;
+  font-weight: 900;
+  line-height: 1;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+}
+
+.wpr-label {
+  font-size: 16px;
+  font-weight: 700;
+  margin-top: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
+.wpr-delta {
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.wpr-delta-up {
+  color: var(--alert-calm);
+}
+
+.wpr-delta-down {
+  color: var(--alert-high);
+}
+
+.wpr-scale {
+  margin-top: auto;
+  padding-top: 16px;
+}
+
+.wpr-scale-labels-top {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 10px;
+  color: var(--quiet);
+  font-weight: 600;
+  font-family: var(--mono);
+  padding: 0 4px;
+  font-variant-numeric: tabular-nums;
+}
+
+.wpr-scale-bars {
+  display: flex;
+  gap: 3px;
+  height: 5px;
+  width: 100%;
+}
+
+.wpr-scale-bar {
+  flex: 1;
+  border-radius: 3px;
+  opacity: 0.35;
+  transition: all 0.4s ease;
+}
+
+.wpr-scale-active {
+  opacity: 1;
+  box-shadow: 0 0 10px currentColor;
+  position: relative;
+}
+
+.wpr-scale-labels-bottom {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 10px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.wpr-description {
+  text-align: center;
+  font-size: 11px;
+  color: var(--quiet);
+  margin: 18px 0 0;
 }
 
 .wp-ring-card {
@@ -681,6 +1014,115 @@ svg {
   text-align: center;
 }
 
+/* ── Pulse By Dimension — neon gauges ───────────────────── */
+.pbd-card {
+  grid-column: 1 / -1;
+  padding: 22px;
+}
+
+.pbd-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.pbd-title {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: #fff;
+}
+
+.pbd-period {
+  color: var(--accent-ai);
+  font-size: 11px;
+  font-weight: 700;
+  font-family: var(--mono);
+}
+
+.pbd-grid {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.pbd-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+}
+
+.pbd-label {
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 14px;
+  text-transform: capitalize;
+}
+
+.pbd-status {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.pbd-divider {
+  width: 1px;
+  height: 60px;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.dim-gauge-wrap {
+  position: relative;
+  width: 80px;
+  height: 45px;
+  margin: 0 auto 10px;
+  transform: scale(1);
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  cursor: pointer;
+}
+
+.dim-gauge-hovered {
+  transform: scale(1.12);
+}
+
+.dim-gauge-svg {
+  display: block;
+}
+
+.dim-gauge-arc {
+  transition: stroke-dashoffset 1.2s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.dim-gauge-dot {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #fff;
+  transform: translate(-50%, -50%);
+  transition: all 0.3s ease-out;
+}
+
+.dim-gauge-value {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.9);
+  font-variant-numeric: tabular-nums;
+  transition: all 0.3s ease;
+}
+
+.dim-gauge-value-glow {
+  color: #fff;
+}
+
 /* keep orbitSpin for ArcRing inner dotted orbit */
 @keyframes orbitSpin {
   to {
@@ -705,6 +1147,73 @@ svg {
   animation: orbitSpinRev 22s linear infinite;
 }
 
+/* ── Tour Init Card ─────────────────────────────────────── */
+.tour-init-card {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px;
+  background: linear-gradient(90deg, rgba(0, 229, 160, 0.04), rgba(139, 92, 246, 0.04));
+  border: 1px solid rgba(0, 229, 160, 0.08);
+  gap: 16px;
+}
+
+.tour-init-left {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+}
+
+.tour-init-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  background: rgba(0, 229, 160, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-primary);
+  flex-shrink: 0;
+}
+
+.tour-init-text h3 {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0 0 3px;
+  letter-spacing: -0.01em;
+}
+
+.tour-init-text p {
+  font-size: 12px;
+  color: var(--quiet);
+  margin: 0;
+}
+
+.tour-init-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  background: var(--accent-primary);
+  color: var(--ink);
+  border: none;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  box-shadow: 0 4px 16px -4px rgba(0, 229, 160, 0.25);
+  white-space: nowrap;
+}
+
+.tour-init-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -4px rgba(0, 229, 160, 0.35);
+  background: #00ffb3;
+}
 .ring-label,
 .pulse-chart-badge {
   color: var(--accent);
@@ -1210,9 +1719,9 @@ svg {
 
 .premium-dashboard-shell {
   background:
-    radial-gradient(circle at var(--cursor-x, 50%) var(--cursor-y, 50%), rgba(94, 234, 212, 0.11), transparent 230px),
-    radial-gradient(circle at 82% 18%, rgba(255, 211, 138, 0.07), transparent 320px),
-    radial-gradient(circle at 22% 92%, rgba(255, 155, 169, 0.06), transparent 280px);
+    radial-gradient(circle at var(--cursor-x, 50%) var(--cursor-y, 50%), rgba(0, 229, 160, 0.06), transparent 280px),
+    radial-gradient(circle at 82% 18%, rgba(139, 92, 246, 0.04), transparent 320px),
+    radial-gradient(circle at 22% 92%, rgba(6, 182, 212, 0.03), transparent 280px);
 }
 
 .live-cursor-advanced {
@@ -2378,15 +2887,15 @@ svg {
 }
 
 .world-pulse-page {
-  grid-template-columns: 256px minmax(0, 1fr);
+  grid-template-columns: 240px minmax(0, 1fr);
 }
 
 .wp-sidebar {
-  width: 256px;
+  width: 240px;
   height: 100vh;
   min-height: 0;
-  gap: 14px;
-  padding: 20px 16px 16px;
+  gap: 12px;
+  padding: 18px 14px 14px;
   overflow: hidden;
 }
 
