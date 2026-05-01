@@ -101,10 +101,9 @@ body::after {
   content: "";
   position: absolute; inset: 0; z-index: -1;
   background: linear-gradient(165deg, rgba(255,255,255,0.03) 0%, transparent 40%);
-  backdrop-filter: blur(20px) saturate(1.3);
   border-radius: inherit;
   opacity: 1;
-  transition: opacity 0.4s ease;
+  pointer-events: none;
 }
 
 .glass-card:hover, .wp-card:hover, .panel:hover, .world-pulse-card:hover {
@@ -119,11 +118,12 @@ body::after {
 
 /* ── Sidebar — Frosted Depth Panel ─────────────────────── */
 .world-pulse-page .wp-sidebar {
-  background: rgba(10,11,15,0.75) !important;
+  background: rgba(10,11,15,0.88) !important;
   border: none !important;
   border-right: 1px solid rgba(255,255,255,0.04) !important;
-  backdrop-filter: blur(28px) saturate(1.4) !important;
+  backdrop-filter: blur(12px) !important;
   position: relative;
+  contain: content;
 }
 .world-pulse-page .wp-sidebar::after {
   content: ''; position: absolute; top: 0; right: 0; bottom: 0; width: 1px;

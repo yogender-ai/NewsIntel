@@ -25,6 +25,8 @@ export const AppContext = createContext({
   setMode: () => {},
   worldPulseValue: 0,
   setWorldPulseValue: () => {},
+  dashboardCache: null,
+  setDashboardCache: () => {},
 });
 
 /* ── Minimal auth loading ── */
@@ -204,68 +206,68 @@ function GlobalLiveCursor() {
           position: fixed; top: 0; left: 0; z-index: 99999;
           pointer-events: none; mix-blend-mode: screen;
           will-change: transform;
-          /* No transform transition to avoid fighting requestAnimationFrame */
         }
         
         .cyber-dot {
-          position: absolute; top: -2.5px; left: -2.5px;
-          width: 5px; height: 5px; border-radius: 50%;
-          background: #c4b5fd; /* Soft purple */
-          box-shadow: 0 0 10px 2px rgba(167, 139, 250, 0.6);
-          /* Dot scale transition is fine since JS doesn't move it directly */
+          position: absolute; top: -3px; left: -3px;
+          width: 6px; height: 6px; border-radius: 50%;
+          background: #00E5A0;
+          box-shadow: 0 0 12px 3px rgba(0, 229, 160, 0.6);
           transition: background 0.3s ease, box-shadow 0.3s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
         }
         
         .cyber-ring {
           position: absolute; top: 0; left: 0;
-          width: 32px; height: 32px; border-radius: 50%;
-          border: 1px solid rgba(167, 139, 250, 0.3);
-          border-left-color: rgba(167, 139, 250, 0.8);
+          width: 28px; height: 28px; border-radius: 50%;
+          border: 1.5px solid rgba(0, 229, 160, 0.25);
+          border-top-color: rgba(0, 229, 160, 0.7);
           border-right-color: transparent;
-          /* Strictly exclude transform from transition because JS handles rotation */
-          transition: width 0.3s ease, height 0.3s ease, border-color 0.3s ease, border-style 0.3s ease;
+          transition: width 0.3s ease, height 0.3s ease, border-color 0.3s ease, border-style 0.3s ease, opacity 0.3s ease;
         }
         
         .cyber-trail {
-          position: fixed; top: -80px; left: -80px; z-index: 99998;
-          width: 160px; height: 160px; border-radius: 50%;
-          background: radial-gradient(circle, rgba(167, 139, 250, 0.08) 0%, transparent 60%);
+          position: fixed; top: -100px; left: -100px; z-index: 99998;
+          width: 200px; height: 200px; border-radius: 50%;
+          background: radial-gradient(circle, rgba(0, 229, 160, 0.04) 0%, rgba(139, 92, 246, 0.02) 40%, transparent 65%);
           pointer-events: none; will-change: transform;
-          transition: background 0.3s ease;
+          transition: background 0.5s ease;
         }
 
-        /* Hover State: Cyan */
+        /* Hover: Emerald bloom */
         .cyber-cursor.state-hover .cyber-dot {
-          background: #5eead4; box-shadow: 0 0 12px 3px rgba(94, 234, 212, 0.7);
-          transform: scale(1.5);
+          background: #00E5A0;
+          box-shadow: 0 0 18px 5px rgba(0, 229, 160, 0.8);
+          transform: scale(1.6);
         }
         .cyber-cursor.state-hover .cyber-ring {
-          width: 44px; height: 44px;
-          border-color: rgba(94, 234, 212, 0.4);
-          border-left-color: rgba(94, 234, 212, 0.9);
-          border-right-color: rgba(94, 234, 212, 0.9);
+          width: 40px; height: 40px;
+          border-color: rgba(0, 229, 160, 0.3);
+          border-top-color: rgba(0, 229, 160, 0.9);
+          border-bottom-color: rgba(0, 229, 160, 0.9);
         }
         
-        /* Alert State: Pink/Red */
+        /* Alert: Red pulse */
         .cyber-cursor.state-alert .cyber-dot {
-          background: #fb7185; box-shadow: 0 0 15px 4px rgba(251, 113, 133, 0.8);
-          transform: scale(1.8);
+          background: #EF4444;
+          box-shadow: 0 0 18px 5px rgba(239, 68, 68, 0.8);
+          transform: scale(2);
         }
         .cyber-cursor.state-alert .cyber-ring {
-          width: 38px; height: 38px;
+          width: 36px; height: 36px;
           border-style: dashed;
-          border-color: rgba(251, 113, 133, 0.8);
+          border-color: rgba(239, 68, 68, 0.6);
         }
 
-        /* Satellite State: Mini Orbiting Node */
+        /* Satellite: Violet orbit with emerald accent */
         .cyber-cursor.state-satellite .cyber-dot {
-          background: #fff; box-shadow: 0 0 20px 4px #c084fc;
+          background: #fff;
+          box-shadow: 0 0 20px 4px rgba(139, 92, 246, 0.8);
         }
         .cyber-cursor.state-satellite .cyber-ring {
-          width: 60px; height: 60px;
-          border: 1px dotted rgba(192, 132, 252, 0.5);
-          border-top: 2px solid #c084fc;
-          border-bottom: 2px solid #5eead4;
+          width: 56px; height: 56px;
+          border: 1px dotted rgba(139, 92, 246, 0.4);
+          border-top: 2px solid #8B5CF6;
+          border-bottom: 2px solid #00E5A0;
         }
       `}</style>
       
@@ -276,6 +278,16 @@ function GlobalLiveCursor() {
       </div>
     </>
   );
+}
+
+function CursorWrapper() {
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(pointer: coarse)');
+    setIsMobile(mq.matches);
+  }, []);
+  if (isMobile) return null;
+  return <GlobalLiveCursor />;
 }
 
 /* ── Toast (global) ──────────────────────────────────────────────── */
@@ -293,6 +305,7 @@ const GlobalToast = () => {
 function App() {
   const [headlines, setHeadlines] = useState([]);
   const [worldPulseValue, setWorldPulseValue] = useState(0);
+  const [dashboardCache, setDashboardCache] = useState(null);
   const [mode, setModeState] = useState(localStorage.getItem('ni_mode') || 'command');
 
   const setMode = (m) => {
@@ -308,11 +321,12 @@ function App() {
 
   return (
     <AuthProvider>
-      <AppContext.Provider value={{ headlines, setHeadlines, mode, setMode, worldPulseValue, setWorldPulseValue }}>
+      <AppContext.Provider value={{ headlines, setHeadlines, mode, setMode, worldPulseValue, setWorldPulseValue, dashboardCache, setDashboardCache }}>
         <Router>
           <div className={`app-container ${mode === 'calm' ? 'calm-mode' : ''}`}>
             <ThreeBackground />
             <div className="scanline" />
+            <CursorWrapper />
             <AppRoutes />
           </div>
         </Router>

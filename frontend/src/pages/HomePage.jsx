@@ -236,12 +236,15 @@ function TourModal({ onClose }) {
 export default function HomePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { setWorldPulseValue } = useContext(AppContext);
-  const [dashboard, setDashboard] = useState(null);
-  const [preferences, setPreferences] = useState(null);
-  const [alerts, setAlerts] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [pipelineDone, setPipelineDone] = useState(false);
+  const { setWorldPulseValue, dashboardCache, setDashboardCache } = useContext(AppContext);
+
+  // If we have cached data, skip loading + pipeline entirely
+  const hasCached = Boolean(dashboardCache);
+  const [dashboard, setDashboard] = useState(dashboardCache?.dashboard || null);
+  const [preferences, setPreferences] = useState(dashboardCache?.preferences || null);
+  const [alerts, setAlerts] = useState(dashboardCache?.alerts || null);
+  const [loading, setLoading] = useState(!hasCached);
+  const [pipelineDone, setPipelineDone] = useState(hasCached);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [lockedToast, setLockedToast] = useState('');
@@ -259,9 +262,12 @@ export default function HomePage() {
         ? await api.forceDashboardRefresh()
         : await api.getCachedDashboard();
       const alertsResult = await api.getAlerts().catch(() => ({ alerts: [] }));
-      setPreferences({ data: { preferred_categories: dashResult?.topics_used || [], preferred_regions: dashResult?.regions_used || [] } });
+      const prefs = { data: { preferred_categories: dashResult?.topics_used || [], preferred_regions: dashResult?.regions_used || [] } };
+      setPreferences(prefs);
       setDashboard(dashResult);
       setAlerts(alertsResult);
+      // Persist to AppContext so returning to this page is instant
+      setDashboardCache({ dashboard: dashResult, preferences: prefs, alerts: alertsResult, ts: Date.now() });
       if (force && dashResult?.manual_refresh) {
         const refresh = dashResult.manual_refresh;
         const reason = refresh.error || refresh.result?.reason || refresh.enrichment?.reason;
@@ -279,13 +285,15 @@ export default function HomePage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [setDashboardCache]);
 
   useEffect(() => {
     if (!user) return undefined;
+    // Skip fetch if we already have cached data
+    if (hasCached) return undefined;
     const timer = window.setTimeout(() => load(), 0);
     return () => window.clearTimeout(timer);
-  }, [user, load]);
+  }, [user, load, hasCached]);
 
   useEffect(() => {
     if (!lockedToast) return undefined;
