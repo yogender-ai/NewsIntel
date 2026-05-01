@@ -4819,5 +4819,29 @@ body::after,
 }
 
 .scanline {
-  opacity: 0.035 !important;
+  display: none !important;
+}
+
+*,
+*::before,
+*::after {
+  cursor: auto !important;
+}
+
+button,
+a,
+[role="button"],
+select,
+summary,
+input[type="checkbox"],
+input[type="range"] {
+  cursor: pointer !important;
+}
+
+.world-pulse-main,
+.shift-card-advanced,
+.wca-row,
+.ask-ni,
+.wp-section-head span::after {
+  animation: none !important;
 }

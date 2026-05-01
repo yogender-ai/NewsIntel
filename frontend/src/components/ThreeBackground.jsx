@@ -82,7 +82,7 @@ export default function ThreeBackground() {
             linear-gradient(315deg, rgba(141, 162, 255, calc(0.05 + var(--pulse-intensity, 0) * 0.055)), transparent 38%),
             linear-gradient(20deg, rgba(255, 155, 169, 0.035), transparent 34%);
           opacity: 0.92;
-          animation: niFieldBreathe 26s ease-in-out infinite alternate;
+          animation: none;
         }
 
         .ni-bg__grid {
@@ -94,7 +94,7 @@ export default function ThreeBackground() {
           transform: perspective(900px) rotateX(58deg) translateY(-18%);
           transform-origin: 50% 0;
           mask-image: linear-gradient(180deg, transparent 0%, #000 26%, #000 78%, transparent 100%);
-          animation: niGridDrift 36s linear infinite;
+          animation: none;
         }
 
         .ni-bg__contours {
@@ -103,19 +103,17 @@ export default function ThreeBackground() {
             repeating-linear-gradient(112deg, transparent 0 58px, rgba(94, 234, 212, 0.035) 59px, transparent 60px),
             repeating-linear-gradient(23deg, transparent 0 92px, rgba(255, 211, 138, 0.026) 93px, transparent 94px);
           mix-blend-mode: screen;
-          animation: niContourShift 54s linear infinite;
+          animation: none;
         }
 
         .ni-bg__streams span {
           position: absolute;
-          left: -72%;
+          left: 8%;
           height: 1px;
           border-radius: 999px;
           background: linear-gradient(90deg, transparent, rgba(94, 234, 212, 0.12), rgba(141, 162, 255, 0.16), transparent);
           box-shadow: 0 0 18px rgba(94, 234, 212, 0.08);
-          animation-name: niStreamPass;
-          animation-timing-function: linear;
-          animation-iteration-count: infinite;
+          opacity: 0.42;
         }
 
         .ni-bg__nodes i {
@@ -125,7 +123,7 @@ export default function ThreeBackground() {
           border-radius: 50%;
           background: rgba(205, 245, 255, 0.76);
           box-shadow: 0 0 10px rgba(94, 234, 212, 0.42);
-          animation: niNodePulse 7.5s ease-in-out infinite;
+          animation: none;
         }
 
         .ni-bg__vignette {

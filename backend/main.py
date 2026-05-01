@@ -1319,17 +1319,11 @@ async def force_refresh_dashboard(request: Request, payload_request: DashboardRe
 
 
 async def _run_admin_ingestion(topics: list[str], regions: list[str], max_articles: int) -> dict:
-    if not mvp_settings.enable_heavy_ingestion:
-        async with EventStoreSessionLocal() as session:
-            return await MVPNewsPipeline(session, settings=mvp_settings).run_ingestion()
-
-    from app.workers.ingestion_worker import run_ingestion
-
-    return await run_ingestion(
-        _normalize_profile_values(topics) or ["ai", "tech", "markets"],
-        _normalize_profile_values(regions) or ["global"],
-        max_articles=max(1, min(int(max_articles or 40), 100)),
-    )
+    # The Cloud Command scheduler feeds the public MVP dashboard. Always use the
+    # MVP pipeline here so successful scheduler calls create news_cycles,
+    # ranked_stories, enrichment_queue rows, and the cached home snapshot.
+    async with EventStoreSessionLocal() as session:
+        return await MVPNewsPipeline(session, settings=mvp_settings).run_ingestion()
 
 
 @app.post("/api/admin/ingest-now")
@@ -1344,9 +1338,9 @@ async def ingest_now(request: Request, payload: IngestNowRequest | None = None):
         raise HTTPException(status_code=401, detail="Invalid ingestion secret")
 
     payload = payload or IngestNowRequest()
-    topics = mvp_settings.mvp_categories if not mvp_settings.enable_heavy_ingestion else (_normalize_profile_values(payload.topics) or ["ai", "tech", "markets"])
-    regions = ["global"] if not mvp_settings.enable_heavy_ingestion else (_normalize_profile_values(payload.regions) or ["global"])
-    max_articles = mvp_settings.newsintel_articles_per_category * len(mvp_settings.mvp_categories) if not mvp_settings.enable_heavy_ingestion else max(1, min(int(payload.max_articles or 40), 100))
+    topics = mvp_settings.mvp_categories
+    regions = ["global"]
+    max_articles = mvp_settings.newsintel_articles_per_category * len(mvp_settings.mvp_categories)
     try:
         result = await _run_admin_ingestion(topics, regions, max_articles)
     except Exception as exc:
@@ -1402,7 +1396,15 @@ async def enrich_batch(request: Request):
     if expected_secret and supplied_secret != expected_secret:
         raise HTTPException(status_code=401, detail="Invalid ingestion secret")
     async with EventStoreSessionLocal() as session:
-        result = await MVPNewsPipeline(session, settings=mvp_settings).enrich_batch()
+        pipeline = MVPNewsPipeline(session, settings=mvp_settings)
+        result = await pipeline.enrich_batch()
+        bootstrap_result = None
+        if result.get("status") == "idle":
+            status = await pipeline.status()
+            if not status.get("latest_cycle"):
+                bootstrap_result = await pipeline.run_ingestion()
+                if bootstrap_result.get("status") == "ranked":
+                    result = await pipeline.enrich_batch()
         await session.commit()
         await _clear_mvp_read_cache()
         if result.get("status") == "deferred":
@@ -1411,6 +1413,8 @@ async def enrich_batch(request: Request):
                 "message": "AI circuit breaker is cooling down; enrichment will retry on the next interval.",
                 "result": result,
             }
+        if bootstrap_result:
+            result = {**result, "bootstrap_ingestion": bootstrap_result}
         return result
 
 

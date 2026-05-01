@@ -314,7 +314,6 @@ function App() {
             <ThreeBackground />
             <div className="scanline" />
             <AppRoutes />
-            <GlobalLiveCursor />
           </div>
         </Router>
       </AppContext.Provider>

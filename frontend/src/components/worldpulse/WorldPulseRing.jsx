@@ -54,8 +54,13 @@ function DottedGlobe() {
 
     let angleOffset = 0;
     let time = 0;
+    let rafId = 0;
+    let lastDrawAt = 0;
 
-    function draw() {
+    function draw(timestamp = 0) {
+      rafId = requestAnimationFrame(draw);
+      if (timestamp - lastDrawAt < 66) return;
+      lastDrawAt = timestamp;
       angleOffset += 0.0015;
       time += 0.01;
       ctx.clearRect(0, 0, size, size);
@@ -154,12 +159,10 @@ function DottedGlobe() {
         ctx.fill();
         ctx.shadowBlur = 0;
       });
-
-      requestAnimationFrame(draw);
     }
     
-    const animId = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(animId);
+    rafId = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(rafId);
   }, [worldData]);
 
   return (
