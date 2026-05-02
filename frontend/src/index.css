@@ -1364,6 +1364,14 @@ svg {
   object-fit: cover;
 }
 
+.sca-visual img.sca-source-logo {
+  object-fit: contain;
+  padding: 26px;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(139, 92, 246, 0.16), transparent 58%),
+    rgba(5, 8, 17, 0.55);
+}
+
 .sca-placeholder {
   height: 100%;
   display: grid;

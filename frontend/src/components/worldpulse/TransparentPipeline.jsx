@@ -46,8 +46,8 @@ export default function TransparentPipeline({ onComplete, dataReady }) {
       if (killed) return;
       const elapsed = Date.now() - start;
       
-      // If data is ready and we've shown at least 1.2s of animation, fast-forward
-      const minShowTime = 1200;
+      // If data is ready, leave only a short visual confirmation before paint.
+      const minShowTime = 350;
       if (dataReadyRef.current && elapsed > minShowTime) {
         // Jump to 100% quickly
         setProgress(100);
@@ -95,7 +95,7 @@ export default function TransparentPipeline({ onComplete, dataReady }) {
     canvas.style.height = '100%';
     ctx.scale(dpr, dpr);
 
-    const nodes = Array.from({ length: 30 }, () => ({
+    const nodes = Array.from({ length: 16 }, () => ({
       x: Math.random() * w, y: Math.random() * h,
       vx: (Math.random() - 0.5) * 0.4, vy: (Math.random() - 0.5) * 0.4,
     }));
@@ -112,8 +112,8 @@ export default function TransparentPipeline({ onComplete, dataReady }) {
           const dx = nodes[i].x - nodes[j].x;
           const dy = nodes[i].y - nodes[j].y;
           const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 160) {
-            ctx.strokeStyle = `rgba(0,229,160,${(1 - dist / 160) * 0.06})`;
+          if (dist < 140) {
+            ctx.strokeStyle = `rgba(0,229,160,${(1 - dist / 140) * 0.045})`;
             ctx.lineWidth = 0.5;
             ctx.beginPath();
             ctx.moveTo(nodes[i].x, nodes[i].y);

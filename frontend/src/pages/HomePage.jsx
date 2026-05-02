@@ -40,6 +40,30 @@ const aiStatusLabel = {
   rules_only: 'Rules only',
 };
 
+const DASHBOARD_STORAGE_KEY = 'newsintel.dashboardCache.v1';
+
+function readStoredDashboardCache() {
+  try {
+    const raw = window.sessionStorage.getItem(DASHBOARD_STORAGE_KEY);
+    if (!raw) return null;
+    const cached = JSON.parse(raw);
+    const ts = Number(cached?.ts || 0);
+    if (!cached?.dashboard || !Number.isFinite(ts)) return null;
+    if (Date.now() - ts > 10 * 60 * 1000) return null;
+    return cached;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredDashboardCache(cache) {
+  try {
+    window.sessionStorage.setItem(DASHBOARD_STORAGE_KEY, JSON.stringify(cache));
+  } catch {
+    // Storage can be disabled in private contexts; in-memory cache still works.
+  }
+}
+
 function EmptyLine({ children }) {
   return <p className="empty-copy">{children}</p>;
 }
@@ -238,11 +262,11 @@ export default function HomePage() {
   const navigate = useNavigate();
   const { setWorldPulseValue, dashboardCache, setDashboardCache } = useContext(AppContext);
 
-  // If we have cached data, skip loading + pipeline entirely
-  const hasCached = Boolean(dashboardCache);
-  const [dashboard, setDashboard] = useState(dashboardCache?.dashboard || null);
-  const [preferences, setPreferences] = useState(dashboardCache?.preferences || null);
-  const [alerts, setAlerts] = useState(dashboardCache?.alerts || null);
+  const initialCache = useMemo(() => dashboardCache || readStoredDashboardCache(), [dashboardCache]);
+  const hasCached = Boolean(initialCache);
+  const [dashboard, setDashboard] = useState(initialCache?.dashboard || null);
+  const [preferences, setPreferences] = useState(initialCache?.preferences || null);
+  const [alerts, setAlerts] = useState(initialCache?.alerts || null);
   const [loading, setLoading] = useState(!hasCached);
   const [pipelineDone, setPipelineDone] = useState(hasCached);
   const [refreshing, setRefreshing] = useState(false);
@@ -253,21 +277,23 @@ export default function HomePage() {
   const [insightView, setInsightView] = useState(null);
   const [tourOpen, setTourOpen] = useState(false);
 
-  const load = useCallback(async ({ force = false } = {}) => {
+  const load = useCallback(async ({ force = false, background = false } = {}) => {
     setError('');
     if (force) setRefreshing(true);
-    else { setLoading(true); setPipelineDone(false); }
+    else if (!background) { setLoading(true); setPipelineDone(false); }
     try {
-      const dashResult = force
-        ? await api.forceDashboardRefresh()
-        : await api.getCachedDashboard();
-      const alertsResult = await api.getAlerts().catch(() => ({ alerts: [] }));
+      const [dashResult, alertsResult] = await Promise.all([
+        force ? api.forceDashboardRefresh() : api.getCachedDashboard(),
+        api.getAlerts().catch(() => ({ alerts: [] })),
+      ]);
       const prefs = { data: { preferred_categories: dashResult?.topics_used || [], preferred_regions: dashResult?.regions_used || [] } };
       setPreferences(prefs);
       setDashboard(dashResult);
       setAlerts(alertsResult);
       // Persist to AppContext so returning to this page is instant
-      setDashboardCache({ dashboard: dashResult, preferences: prefs, alerts: alertsResult, ts: Date.now() });
+      const nextCache = { dashboard: dashResult, preferences: prefs, alerts: alertsResult, ts: Date.now() };
+      setDashboardCache(nextCache);
+      writeStoredDashboardCache(nextCache);
       if (force && dashResult?.manual_refresh) {
         const refresh = dashResult.manual_refresh;
         const reason = refresh.error || refresh.result?.reason || refresh.enrichment?.reason;
@@ -277,9 +303,11 @@ export default function HomePage() {
         }
       }
     } catch (err) {
-      setDashboard(null);
-      setPreferences(null);
-      setAlerts(null);
+      if (!background) {
+        setDashboard(null);
+        setPreferences(null);
+        setAlerts(null);
+      }
       setError(readableLiveError(err));
     } finally {
       setLoading(false);
@@ -289,11 +317,13 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!user) return undefined;
-    // Skip fetch if we already have cached data
-    if (hasCached) return undefined;
-    const timer = window.setTimeout(() => load(), 0);
+    const timer = window.setTimeout(() => load({ background: hasCached }), 0);
     return () => window.clearTimeout(timer);
   }, [user, load, hasCached]);
+
+  useEffect(() => {
+    if (initialCache && !dashboardCache) setDashboardCache(initialCache);
+  }, [dashboardCache, initialCache, setDashboardCache]);
 
   useEffect(() => {
     if (!lockedToast) return undefined;

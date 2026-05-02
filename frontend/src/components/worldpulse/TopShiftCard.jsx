@@ -7,6 +7,13 @@ const impactBg = { critical: 'rgba(220,38,38,0.1)', signal: 'rgba(245,158,11,0.1
 export default function TopShiftCard({ shift, onOpen, index }) {
   const impact = shift.impactLevel ? String(shift.impactLevel).toLowerCase() : null;
   const relativeTime = formatRelativeTime(shift.updatedAt);
+  const handleImageError = (event) => {
+    const fallbackUrl = event.currentTarget.dataset.fallbackUrl;
+    if (fallbackUrl && event.currentTarget.src !== fallbackUrl) {
+      event.currentTarget.src = fallbackUrl;
+      event.currentTarget.classList.add('sca-source-logo');
+    }
+  };
   
   return (
     <button className={`wp-card shift-card-advanced ai-${shift.aiStatus}`} onClick={() => onOpen(shift)}>
@@ -14,7 +21,15 @@ export default function TopShiftCard({ shift, onOpen, index }) {
       
       <div className="sca-visual">
         {shift.imageUrl ? (
-          <img src={shift.imageUrl} alt="" />
+          <img
+            src={shift.imageUrl}
+            data-fallback-url={shift.imageFallbackUrl || ''}
+            alt=""
+            loading={index < 3 ? 'eager' : 'lazy'}
+            decoding="async"
+            referrerPolicy="no-referrer"
+            onError={handleImageError}
+          />
         ) : (
           <div className="sca-placeholder">
             <Radio size={32} color="#8B5CF6" />

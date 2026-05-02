@@ -138,12 +138,11 @@ function GlobalLiveCursor() {
   const mouse = useRef({ x: window.innerWidth/2, y: window.innerHeight/2 });
   const smoothMouse = useRef({ x: window.innerWidth/2, y: window.innerHeight/2 });
   const stateRef = useRef('idle'); // idle, hover, alert, satellite
+  const cssMouseRef = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
     const move = (e) => {
       mouse.current = { x: e.clientX, y: e.clientY };
-      document.documentElement.style.setProperty('--cursor-x', `${e.clientX}px`);
-      document.documentElement.style.setProperty('--cursor-y', `${e.clientY}px`);
     };
     
     const handleMouseOver = (e) => {
@@ -179,6 +178,13 @@ function GlobalLiveCursor() {
       
       if (cursorRef.current) {
         cursorRef.current.style.transform = `translate(${mouse.current.x}px, ${mouse.current.y}px)`;
+      }
+      const cssX = Math.round(mouse.current.x);
+      const cssY = Math.round(mouse.current.y);
+      if (cssMouseRef.current.x !== cssX || cssMouseRef.current.y !== cssY) {
+        document.documentElement.style.setProperty('--cursor-x', `${cssX}px`);
+        document.documentElement.style.setProperty('--cursor-y', `${cssY}px`);
+        cssMouseRef.current = { x: cssX, y: cssY };
       }
       if (ringRef.current) {
         // Rotate the ring based on state speed

@@ -39,14 +39,13 @@ from app.models.news import Alert, AlertRule, DailyDigest, Event, EventArticle, 
 from app.services.alert_engine import ensure_user, evaluate_all_users, evaluate_user_alerts
 from app.services.dashboard_read_model import build_dashboard_payload, event_to_signal_card
 from app.services.digest_engine import generate_all_digests, generate_digest
-from app.services.event_relationships import load_orbit_payload
-from app.services.geo_signals import build_map_signals
 from app.services.scenario_simulator import run_scenario
 from app.services.semantic_personalization import semantic_relevance
 from app.services.schema_migrations import run_startup_migrations
 from app.services.semantic_clustering import observability_snapshot
 from app.services.phase65_validation_audit import run_phase65_validation_audit
 from app.services.mvp_pipeline import MVPNewsPipeline
+from app.services.snapshot_read_models import build_snapshot_map_signals, build_snapshot_orbit_payload
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("news-intel-api")
@@ -1961,7 +1960,9 @@ async def get_exposure_network(request: Request):
 async def get_orbit(request: Request):
     user_topics, user_regions, uid, _ = await _get_user_prefs_from_header(request)
     user_id = uid or _user_id_from_request(request)
-    cache_key = f"orbit:{user_id}:{_profile_cache_key(user_topics, user_regions)}"
+    snapshot = await home_snapshot()
+    snapshot_version = snapshot.get("latestCycleId") or snapshot.get("cycleId") or snapshot.get("generated_at") or "latest"
+    cache_key = f"orbit:{user_id}:{_profile_cache_key(user_topics, user_regions)}:{snapshot_version}"
     cached = await _get_mvp_read_cache(cache_key)
     if isinstance(cached, dict):
         return cached
@@ -1974,17 +1975,16 @@ async def get_orbit(request: Request):
     except Exception as exc:
         logger.warning("Orbit profile lookup failed for %s: %s", user_id, exc)
 
-    async with EventStoreSessionLocal() as session:
-        response = await load_orbit_payload(
-            session,
-            user_id=user_id,
-            display_name=display_name,
-            topics=user_topics,
-            regions=user_regions,
-            limit=20,
-        )
-        await _set_mvp_read_cache(cache_key, response)
-        return response
+    response = build_snapshot_orbit_payload(
+        snapshot,
+        user_id=user_id,
+        display_name=display_name,
+        topics=user_topics,
+        regions=user_regions,
+        limit=20,
+    )
+    await _set_mvp_read_cache(cache_key, response)
+    return response
 
 
 @app.get("/api/map-signals")
@@ -1992,8 +1992,15 @@ async def get_map_signals(
     layer: Optional[str] = Query(default=None),
     time_window: str = Query(default="7d", pattern="^(24h|7d|30d)$"),
 ):
-    async with EventStoreSessionLocal() as session:
-        return await build_map_signals(session, layer=layer, time_window=time_window)
+    snapshot = await home_snapshot()
+    snapshot_version = snapshot.get("latestCycleId") or snapshot.get("cycleId") or snapshot.get("generated_at") or "latest"
+    cache_key = f"map-signals:snapshot:{layer or 'all'}:{time_window}:{snapshot_version}"
+    cached = await _get_mvp_read_cache(cache_key)
+    if isinstance(cached, dict):
+        return cached
+    response = build_snapshot_map_signals(snapshot, layer=layer, time_window=time_window)
+    await _set_mvp_read_cache(cache_key, response)
+    return response
 
 
 @app.post("/api/simulate")

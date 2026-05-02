@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.services.mvp_pipeline import MVPNewsPipeline, clean_ai_json, similar_title
+from app.services.snapshot_read_models import build_snapshot_map_signals, build_snapshot_orbit_payload
 
 
 def settings(**overrides):
@@ -144,6 +145,68 @@ def test_snapshot_payload_shape_from_cached_data():
         "simulatorContext": [],
     }
     assert set(payload) >= {"topStories", "feed", "categories", "pulse", "exposure", "graph", "map", "simulatorContext"}
+
+
+def test_snapshot_orbit_uses_live_snapshot_cards():
+    snapshot = {
+        "clusters": [
+            {
+                "id": "one",
+                "thread_title": "Google to Build AI Data Center in Vizag",
+                "summary": "Major AI infrastructure expansion in India.",
+                "category": "tech",
+                "entities": ["Google", "India", "AI"],
+                "pulse_score": 75,
+                "exposure_score": 70,
+                "signal_tier": "CRITICAL",
+                "sources": [{"source": "Dailyhunt", "url": "https://example.com/one"}],
+            },
+            {
+                "id": "two",
+                "thread_title": "Google AI Hub in Vizag",
+                "summary": "AI cloud hub expands in India.",
+                "category": "tech",
+                "entities": ["Google", "India", "AI"],
+                "pulse_score": 50,
+                "exposure_score": 55,
+                "signal_tier": "WATCH",
+                "sources": [{"source": "MSN", "url": "https://example.com/two"}],
+            },
+        ],
+        "latestCycleId": "cycle-1",
+    }
+    payload = build_snapshot_orbit_payload(snapshot, user_id="user", topics=["tech"], regions=["global"])
+    assert len(payload["nodes"]) == 2
+    assert payload["edges"]
+    assert payload["source_of_truth"] == "home_snapshots,stories,event_metrics"
+
+
+def test_snapshot_map_extracts_real_locations_from_cards():
+    snapshot = {
+        "clusters": [
+            {
+                "id": "one",
+                "thread_title": "Google to Build AI Data Center in Vizag",
+                "summary": "The expansion is in India.",
+                "category": "tech",
+                "entities": ["Google", "India"],
+                "pulse_score": 75,
+                "opportunity_level": "Medium",
+            },
+            {
+                "id": "two",
+                "thread_title": "Japan PM to meet Vietnam leaders in Hanoi",
+                "summary": "Regional diplomacy continues.",
+                "category": "politics",
+                "entities": ["Japan", "Vietnam", "Hanoi"],
+                "pulse_score": 68,
+            },
+        ]
+    }
+    payload = build_snapshot_map_signals(snapshot)
+    region_ids = {region["id"] for region in payload["regions"]}
+    assert {"IN", "JP", "VN"} <= region_ids
+    assert all("lat" in region and "lng" in region for region in payload["regions"])
 
 
 def test_cleanup_retention_window_setting_is_seven_days():

@@ -35,6 +35,20 @@ const normalizeAiStatus = (value) => {
   return 'rules_only';
 };
 
+const sourcePreviewImage = (cluster) => {
+  if (cluster.image_url || cluster.thumbnail_url) return cluster.image_url || cluster.thumbnail_url;
+  const sourceUrl = cluster.source_url || cluster.sources?.[0]?.url;
+  if (!sourceUrl) return null;
+  const encoded = encodeURIComponent(sourceUrl);
+  return `https://api.microlink.io/?url=${encoded}&screenshot=true&meta=false&embed=screenshot.url`;
+};
+
+const sourceLogoImage = (cluster) => {
+  const sourceUrl = cluster.source_url || cluster.sources?.[0]?.url;
+  if (!sourceUrl) return null;
+  return `https://www.google.com/s2/favicons?sz=128&domain_url=${encodeURIComponent(sourceUrl)}`;
+};
+
 const normalizeShift = (cluster, index) => {
   const aiStatus = normalizeAiStatus(cluster.ai_status);
   const aiAvailable = aiStatus === 'enriched';
@@ -59,7 +73,8 @@ const normalizeShift = (cluster, index) => {
     pulseBreakdown: cluster.pulse_breakdown && typeof cluster.pulse_breakdown === 'object' ? cluster.pulse_breakdown : null,
     impactLevel: cluster.signal_tier || null,
     updatedAt: cluster.updated_at || cluster.last_seen_at || null,
-    imageUrl: cluster.image_url || cluster.thumbnail_url || null,
+    imageUrl: sourcePreviewImage(cluster),
+    imageFallbackUrl: sourceLogoImage(cluster),
     sources: cluster.sources || [],
     sourceCount: cluster.source_count,
     pulse: Number.isFinite(Number(cluster.pulse_score)) ? Number(cluster.pulse_score) : null,
