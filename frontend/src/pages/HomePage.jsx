@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, X, Activity } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -367,15 +367,18 @@ export default function HomePage() {
   const articleIndex = useMemo(() => {
     const index = new Map();
     (data.raw?.articles || []).forEach((article) => index.set(String(article.id), article));
-    return index;
-  }, [data.raw]);
+      return setTimeout(() => { if (!cancelled) fn(); }, delay);
+    };
 
-  const selectedSources = selectedShift?.articles?.length
-    ? selectedShift.articles.map((id) => articleIndex.get(String(id))).filter(Boolean)
-    : [];
+    // Mount immediately at wave 1
+    requestAnimationFrame(() => {
+      if (!cancelled) setMountWave(1);
+      schedule(() => setMountWave(2), 80);
+      schedule(() => setMountWave(3), 160);
+    });
 
-  // Show pipeline until BOTH data loaded AND pipeline animation completes
-  const showPipeline = loading || !pipelineDone;
+    return () => { cancelled = true; };
+  }, [showPipeline]);
 
   return (
     <div className="world-pulse-page premium-dashboard-shell">
@@ -417,68 +420,98 @@ export default function HomePage() {
 
             <section className="wp-grid">
               <div className="wp-primary">
-                <WorldPulseRing worldPulse={data.worldPulse} />
-                <WhatChangedToday changes={data.changesToday} selectedTopic={selectedTopic} onSelect={setSelectedTopic} />
-                <PulseByDimension dimensions={data.dimensions} />
-                <section className="wp-card top-shifts-section">
-                  <div className="wp-section-head"><span>Top 3 Shifts You Must Know</span></div>
-                  {topShifts.length ? (
-                    <div className="top-shifts-list">
-                      {topShifts.slice(0, 3).map((shift) => (
-                        <TopShiftCard
-                          key={shift.id}
-                          shift={shift}
-                          onOpen={(s) => navigate(`/dashboard/event/${s.id}`)}
-                          index={topShifts.indexOf(shift)}
-                        />
-                      ))}
+                {/* Wave 1: Core pulse ring + what changed */}
+                {mountWave >= 1 && (
+                  <>
+                    <div className="wp-mount-fade">
+                      <WorldPulseRing worldPulse={data.worldPulse} />
                     </div>
-                  ) : (
-                    <EmptyState title="No live shifts available." body="Event-backed signals will appear after ingestion produces dashboard events." />
-                  )}
-                </section>
-                <StartTourCard onStart={() => setTourOpen(true)} />
+                    <div className="wp-mount-fade" style={{ animationDelay: '60ms' }}>
+                      <WhatChangedToday changes={data.changesToday} selectedTopic={selectedTopic} onSelect={setSelectedTopic} />
+                    </div>
+                  </>
+                )}
+
+                {/* Wave 3: Dimensions + shifts */}
+                {mountWave >= 3 && (
+                  <>
+                    <div className="wp-mount-fade" style={{ animationDelay: '40ms' }}>
+                      <PulseByDimension dimensions={data.dimensions} />
+                    </div>
+                    <section className="wp-card top-shifts-section wp-mount-fade" style={{ animationDelay: '80ms' }}>
+                      <div className="wp-section-head"><span>Top 3 Shifts You Must Know</span></div>
+                      {topShifts.length ? (
+                        <div className="top-shifts-list">
+                          {topShifts.slice(0, 3).map((shift) => (
+                            <TopShiftCard
+                              key={shift.id}
+                              shift={shift}
+                              onOpen={(s) => navigate(`/dashboard/event/${s.id}`)}
+                              index={topShifts.indexOf(shift)}
+                            />
+                          ))}
+                        </div>
+                      ) : (
+                        <EmptyState title="No live shifts available." body="Event-backed signals will appear after ingestion produces dashboard events." />
+                      )}
+                    </section>
+                    <StartTourCard onStart={() => setTourOpen(true)} />
+                  </>
+                )}
               </div>
 
               <aside className="wp-right">
-                <PulseTrendChart history={data.pulseHistory} worldPulse={data.worldPulse} />
-                <QuickGlance
-                  data={data.quickGlance}
-                  onCountries={() => setInsightView('countries')}
-                  onSignals={() => setSelectedTopic(null)}
-                  onAlerts={() => navigate('/alerts')}
-                  onSources={() => setInsightView('sources')}
-                />
-                <section className="wp-card system-status-card">
-                  <div className="status-header">
-                    <Activity size={14} className="status-icon" />
-                    <span>System Status</span>
-                  </div>
-                  <div className="status-metrics">
-                    <div className="status-metric">
-                      <small>Last Sync</small>
-                      <strong>{data.cache?.cachedAt ? formatRelativeTime(data.cache.cachedAt) : 'Live'}</strong>
+                {/* Wave 2: Trend chart + quick glance */}
+                {mountWave >= 2 && (
+                  <>
+                    <div className="wp-mount-fade">
+                      <PulseTrendChart history={data.pulseHistory} worldPulse={data.worldPulse} />
                     </div>
-                    <div className="status-metric">
-                      <small>Pipeline</small>
-                      <strong style={{ textTransform: 'capitalize' }}>
-                        {(data.pipelineStatus?.latest_cycle?.status || data.cache?.refreshType || 'active').replace(/_/g, ' ')}
-                      </strong>
+                    <div className="wp-mount-fade" style={{ animationDelay: '40ms' }}>
+                      <QuickGlance
+                        data={data.quickGlance}
+                        onCountries={() => setInsightView('countries')}
+                        onSignals={() => setSelectedTopic(null)}
+                        onAlerts={() => navigate('/alerts')}
+                        onSources={() => setInsightView('sources')}
+                      />
                     </div>
-                    <div className="status-metric">
-                      <small>Queue</small>
-                      <strong>
-                        {data.pipelineStatus?.queue
-                          ? `${data.pipelineStatus.queue.running || 0} running / ${data.pipelineStatus.queue.pending || 0} pending`
-                          : 'Checking'}
-                      </strong>
+                  </>
+                )}
+
+                {/* Wave 3: System status */}
+                {mountWave >= 3 && (
+                  <section className="wp-card system-status-card wp-mount-fade">
+                    <div className="status-header">
+                      <Activity size={14} className="status-icon" />
+                      <span>System Status</span>
                     </div>
-                    <div className="status-metric">
-                      <small>AI Circuit</small>
-                      <strong>{data.pipelineStatus?.ai_circuit_open ? 'Cooling down' : 'Ready'}</strong>
+                    <div className="status-metrics">
+                      <div className="status-metric">
+                        <small>Last Sync</small>
+                        <strong>{data.cache?.cachedAt ? formatRelativeTime(data.cache.cachedAt) : 'Live'}</strong>
+                      </div>
+                      <div className="status-metric">
+                        <small>Pipeline</small>
+                        <strong style={{ textTransform: 'capitalize' }}>
+                          {(data.pipelineStatus?.latest_cycle?.status || data.cache?.refreshType || 'active').replace(/_/g, ' ')}
+                        </strong>
+                      </div>
+                      <div className="status-metric">
+                        <small>Queue</small>
+                        <strong>
+                          {data.pipelineStatus?.queue
+                            ? `${data.pipelineStatus.queue.running || 0} running / ${data.pipelineStatus.queue.pending || 0} pending`
+                            : 'Checking'}
+                        </strong>
+                      </div>
+                      <div className="status-metric">
+                        <small>AI Circuit</small>
+                        <strong>{data.pipelineStatus?.ai_circuit_open ? 'Cooling down' : 'Ready'}</strong>
+                      </div>
                     </div>
-                  </div>
-                </section>
+                  </section>
+                )}
               </aside>
             </section>
           </>
