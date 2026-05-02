@@ -3,6 +3,10 @@ import { Info, ChevronDown, Activity } from 'lucide-react';
 import * as d3 from 'd3-geo';
 import * as topojson from 'topojson-client';
 
+let worldDataPromise = null;
+let cachedWorldData = null;
+let cachedLandDots = null;
+
 /* ── Animated counter hook ── */
 function useCountUp(target, duration = 1400) {
   const [value, setValue] = useState(0);
@@ -36,13 +40,38 @@ function getThreatLevel(value) {
 /* ── 3D Dotted Globe ── */
 function DottedGlobe() {
   const canvasRef = useRef(null);
+  const containerRef = useRef(null);
   const [worldData, setWorldData] = useState(null);
+  const visibleRef = useRef(true);
 
   useEffect(() => {
-    fetch('https://unpkg.com/world-atlas@2.0.2/countries-110m.json')
-      .then(r => r.json())
-      .then(data => setWorldData(topojson.feature(data, data.objects.countries)))
+    if (cachedWorldData) {
+      setWorldData(cachedWorldData);
+      return;
+    }
+    if (!worldDataPromise) {
+      worldDataPromise = fetch('https://unpkg.com/world-atlas@2.0.2/countries-110m.json')
+        .then(r => r.json())
+        .then(data => topojson.feature(data, data.objects.countries));
+    }
+    let cancelled = false;
+    worldDataPromise
+      .then((data) => {
+        cachedWorldData = data;
+        if (!cancelled) setWorldData(data);
+      })
       .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    const node = containerRef.current;
+    if (!node || !('IntersectionObserver' in window)) return undefined;
+    const observer = new IntersectionObserver(([entry]) => {
+      visibleRef.current = Boolean(entry?.isIntersecting);
+    }, { rootMargin: '160px' });
+    observer.observe(node);
+    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -50,24 +79,27 @@ function DottedGlobe() {
     if (!canvas || !worldData) return;
     const ctx = canvas.getContext('2d');
     const size = 280;
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
     canvas.width = size * dpr;
     canvas.height = size * dpr;
     canvas.style.width = `${size}px`;
     canvas.style.height = `${size}px`;
     ctx.scale(dpr, dpr);
 
-    const landDots = [];
-    for (let lat = -90; lat <= 90; lat += 3.2) {
-      for (let lon = -180; lon <= 180; lon += 3.2) {
-        if (d3.geoContains(worldData, [lon, lat])) {
-          landDots.push({
-            phi: (90 - lat) * (Math.PI / 180),
-            theta: (lon + 180) * (Math.PI / 180),
-          });
+    if (!cachedLandDots) {
+      cachedLandDots = [];
+      for (let lat = -90; lat <= 90; lat += 3.4) {
+        for (let lon = -180; lon <= 180; lon += 3.4) {
+          if (d3.geoContains(worldData, [lon, lat])) {
+            cachedLandDots.push({
+              phi: (90 - lat) * (Math.PI / 180),
+              theta: (lon + 180) * (Math.PI / 180),
+            });
+          }
         }
       }
     }
+    const landDots = cachedLandDots;
 
     // Orbiting data particles
     const particles = Array.from({ length: 25 }, () => ({
@@ -86,6 +118,7 @@ function DottedGlobe() {
 
     function draw(ts = 0) {
       raf = requestAnimationFrame(draw);
+      if (!visibleRef.current || document.visibilityState === 'hidden') return;
       if (ts - last < 50) return;
       last = ts;
       angle += 0.002;
@@ -183,7 +216,7 @@ function DottedGlobe() {
   }, [worldData]);
 
   return (
-    <div className="wpr-globe-container">
+    <div className="wpr-globe-container" ref={containerRef}>
       <div className="wpr-globe-halo" />
       <div className="wpr-globe-halo-secondary" />
       <canvas ref={canvasRef} className="wpr-globe-canvas" />

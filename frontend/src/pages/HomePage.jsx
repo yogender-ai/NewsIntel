@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, X, Activity } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -267,6 +267,7 @@ export default function HomePage() {
   const [dashboard, setDashboard] = useState(initialCache?.dashboard || null);
   const [preferences, setPreferences] = useState(initialCache?.preferences || null);
   const [alerts, setAlerts] = useState(initialCache?.alerts || null);
+  const alertsRef = useRef(initialCache?.alerts || null);
   const [loading, setLoading] = useState(!hasCached);
   const [pipelineDone, setPipelineDone] = useState(hasCached);
   const [refreshing, setRefreshing] = useState(false);
@@ -282,18 +283,30 @@ export default function HomePage() {
     if (force) setRefreshing(true);
     else if (!background) { setLoading(true); setPipelineDone(false); }
     try {
-      const [dashResult, alertsResult] = await Promise.all([
-        force ? api.forceDashboardRefresh() : api.getCachedDashboard(),
-        api.getAlerts().catch(() => ({ alerts: [] })),
-      ]);
+      const dashResult = force
+        ? await api.forceDashboardRefresh()
+        : await api.getCachedDashboard();
       const prefs = { data: { preferred_categories: dashResult?.topics_used || [], preferred_regions: dashResult?.regions_used || [] } };
+      const visibleAlerts = Array.isArray(dashResult?.alerts) ? { alerts: dashResult.alerts } : alertsRef.current;
       setPreferences(prefs);
       setDashboard(dashResult);
-      setAlerts(alertsResult);
-      // Persist to AppContext so returning to this page is instant
-      const nextCache = { dashboard: dashResult, preferences: prefs, alerts: alertsResult, ts: Date.now() };
+      if (visibleAlerts) setAlerts(visibleAlerts);
+      const nextCache = { dashboard: dashResult, preferences: prefs, alerts: visibleAlerts, ts: Date.now() };
       setDashboardCache(nextCache);
       writeStoredDashboardCache(nextCache);
+      const refreshAlerts = () => {
+        api.getAlerts().then((alertsResult) => {
+          const refreshedCache = { dashboard: dashResult, preferences: prefs, alerts: alertsResult, ts: Date.now() };
+          setAlerts(alertsResult);
+          setDashboardCache(refreshedCache);
+          writeStoredDashboardCache(refreshedCache);
+        }).catch(() => {});
+      };
+      if ('requestIdleCallback' in window) {
+        window.requestIdleCallback(refreshAlerts, { timeout: 2500 });
+      } else {
+        window.setTimeout(refreshAlerts, 300);
+      }
       if (force && dashResult?.manual_refresh) {
         const refresh = dashResult.manual_refresh;
         const reason = refresh.error || refresh.result?.reason || refresh.enrichment?.reason;
@@ -314,6 +327,10 @@ export default function HomePage() {
       setRefreshing(false);
     }
   }, [setDashboardCache]);
+
+  useEffect(() => {
+    alertsRef.current = alerts;
+  }, [alerts]);
 
   useEffect(() => {
     if (!user) return undefined;

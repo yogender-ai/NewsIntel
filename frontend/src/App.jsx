@@ -139,18 +139,74 @@ function GlobalLiveCursor() {
   const smoothMouse = useRef({ x: window.innerWidth/2, y: window.innerHeight/2 });
   const stateRef = useRef('idle'); // idle, hover, alert, satellite
   const cssMouseRef = useRef({ x: 0, y: 0 });
+  const rafRef = useRef(0);
+  const idleTimerRef = useRef(0);
+  const lastCssUpdateRef = useRef(0);
+  const scrollingRef = useRef(false);
 
   useEffect(() => {
+    let angle = 0;
+
+    const stopLoopSoon = () => {
+      window.clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = window.setTimeout(() => {
+        if (rafRef.current) {
+          cancelAnimationFrame(rafRef.current);
+          rafRef.current = 0;
+        }
+      }, 1800);
+    };
+
+    const tick = (now = 0) => {
+      smoothMouse.current.x += (mouse.current.x - smoothMouse.current.x) * 0.15;
+      smoothMouse.current.y += (mouse.current.y - smoothMouse.current.y) * 0.15;
+      angle += 1;
+
+      if (cursorRef.current) {
+        cursorRef.current.style.transform = `translate3d(${mouse.current.x}px, ${mouse.current.y}px, 0)`;
+      }
+
+      if (!scrollingRef.current && now - lastCssUpdateRef.current > 80) {
+        const cssX = Math.round(mouse.current.x);
+        const cssY = Math.round(mouse.current.y);
+        if (cssMouseRef.current.x !== cssX || cssMouseRef.current.y !== cssY) {
+          document.documentElement.style.setProperty('--cursor-x', `${cssX}px`);
+          document.documentElement.style.setProperty('--cursor-y', `${cssY}px`);
+          cssMouseRef.current = { x: cssX, y: cssY };
+        }
+        lastCssUpdateRef.current = now;
+      }
+
+      if (ringRef.current) {
+        const speedMultiplier = stateRef.current === 'satellite' ? 3 : 1;
+        ringRef.current.style.transform = `translate(-50%, -50%) rotate(${angle * speedMultiplier}deg)`;
+      }
+      if (trailRef.current) {
+        trailRef.current.style.transform = `translate3d(${smoothMouse.current.x}px, ${smoothMouse.current.y}px, 0)`;
+      }
+
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    const ensureLoop = () => {
+      if (!rafRef.current && document.visibilityState === 'visible') {
+        rafRef.current = requestAnimationFrame(tick);
+      }
+      stopLoopSoon();
+    };
+
     const move = (e) => {
       mouse.current = { x: e.clientX, y: e.clientY };
+      ensureLoop();
     };
     
     const handleMouseOver = (e) => {
       const target = e.target;
       let state = 'idle';
       
-      const isButton = target.tagName.toLowerCase() === 'button' || target.tagName.toLowerCase() === 'a' || target.closest('button') || target.closest('a') || window.getComputedStyle(target).cursor === 'pointer';
-      const isAlert = target.closest('.alert-card') || target.closest('.qg-stat') || target.textContent.includes('Extreme') || target.textContent.includes('High');
+      const tag = target.tagName?.toLowerCase();
+      const isButton = tag === 'button' || tag === 'a' || target.closest('button,a,[role="button"]');
+      const isAlert = target.closest('.alert-card,.qg-stat,.wpr-scale-active');
       const isPulseRing = target.closest('.world-pulse-main-card');
       
       if (isPulseRing) state = 'satellite';
@@ -162,46 +218,37 @@ function GlobalLiveCursor() {
       if (cursorRef.current) {
         cursorRef.current.className = `cyber-cursor state-${state}`;
       }
+      ensureLoop();
     };
 
-    window.addEventListener('pointermove', move);
-    window.addEventListener('mouseover', handleMouseOver);
-
-    let raf;
-    let angle = 0;
-    const tick = () => {
-      // Smooth interpolation for trailing effects
-      smoothMouse.current.x += (mouse.current.x - smoothMouse.current.x) * 0.15;
-      smoothMouse.current.y += (mouse.current.y - smoothMouse.current.y) * 0.15;
-      
-      angle += 1;
-      
-      if (cursorRef.current) {
-        cursorRef.current.style.transform = `translate(${mouse.current.x}px, ${mouse.current.y}px)`;
-      }
-      const cssX = Math.round(mouse.current.x);
-      const cssY = Math.round(mouse.current.y);
-      if (cssMouseRef.current.x !== cssX || cssMouseRef.current.y !== cssY) {
-        document.documentElement.style.setProperty('--cursor-x', `${cssX}px`);
-        document.documentElement.style.setProperty('--cursor-y', `${cssY}px`);
-        cssMouseRef.current = { x: cssX, y: cssY };
-      }
-      if (ringRef.current) {
-        // Rotate the ring based on state speed
-        const speedMultiplier = stateRef.current === 'satellite' ? 3 : 1;
-        ringRef.current.style.transform = `translate(-50%, -50%) rotate(${angle * speedMultiplier}deg)`;
-      }
-      if (trailRef.current) {
-        trailRef.current.style.transform = `translate(${smoothMouse.current.x}px, ${smoothMouse.current.y}px)`;
-      }
-      raf = requestAnimationFrame(tick);
+    let scrollTimer = 0;
+    const handleScroll = () => {
+      scrollingRef.current = true;
+      window.clearTimeout(scrollTimer);
+      scrollTimer = window.setTimeout(() => { scrollingRef.current = false; }, 140);
     };
-    raf = requestAnimationFrame(tick);
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'hidden' && rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = 0;
+      }
+    };
+
+    window.addEventListener('pointermove', move, { passive: true });
+    window.addEventListener('pointerover', handleMouseOver, { passive: true });
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    document.addEventListener('visibilitychange', handleVisibility);
+    ensureLoop();
 
     return () => {
-      cancelAnimationFrame(raf);
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      window.clearTimeout(idleTimerRef.current);
+      window.clearTimeout(scrollTimer);
       window.removeEventListener('pointermove', move);
-      window.removeEventListener('mouseover', handleMouseOver);
+      window.removeEventListener('pointerover', handleMouseOver);
+      window.removeEventListener('scroll', handleScroll);
+      document.removeEventListener('visibilitychange', handleVisibility);
     };
   }, []);
 
