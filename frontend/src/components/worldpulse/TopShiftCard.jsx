@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Clock, Radio } from 'lucide-react';
 import { formatRelativeTime } from '../../lib/dashboardAdapter';
 
@@ -7,13 +8,15 @@ const impactBg = { critical: 'rgba(220,38,38,0.1)', signal: 'rgba(245,158,11,0.1
 export default function TopShiftCard({ shift, onOpen, index }) {
   const impact = shift.impactLevel ? String(shift.impactLevel).toLowerCase() : null;
   const relativeTime = formatRelativeTime(shift.updatedAt);
+  const [imageUnavailable, setImageUnavailable] = useState(false);
+  const showImage = shift.imageUrl && !imageUnavailable;
   
   return (
     <button className={`wp-card shift-card-advanced ai-${shift.aiStatus}`} onClick={() => onOpen(shift)}>
       <div className="sca-rank">{shift.rank || index + 1}</div>
       
       <div className="sca-visual">
-        {shift.imageUrl ? (
+        {showImage ? (
           <img
             src={shift.imageUrl}
             alt=""
@@ -21,6 +24,7 @@ export default function TopShiftCard({ shift, onOpen, index }) {
             decoding="async"
             fetchPriority="low"
             referrerPolicy="no-referrer"
+            onError={() => setImageUnavailable(true)}
           />
         ) : (
           <div className="sca-placeholder">

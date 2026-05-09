@@ -35,9 +35,20 @@ const normalizeAiStatus = (value) => {
   return 'rules_only';
 };
 
+const isGoogleNewsUrl = (value) => {
+  try {
+    const url = new URL(value);
+    return url.hostname.replace(/^www\./, '').toLowerCase() === 'news.google.com';
+  } catch {
+    return false;
+  }
+};
+
 const sourcePreviewImage = (cluster) => {
-  if (cluster.image_url || cluster.thumbnail_url) return cluster.image_url || cluster.thumbnail_url;
-  const sourceUrl = cluster.source_url || cluster.sources?.[0]?.url;
+  const directImage = cluster.image_url || cluster.thumbnail_url;
+  if (directImage && !isGoogleNewsUrl(directImage)) return directImage;
+  const sourceUrl = [cluster.source_url, ...(cluster.sources || []).map((source) => source?.url)]
+    .find((url) => url && !isGoogleNewsUrl(url));
   if (!sourceUrl) return null;
   const encoded = encodeURIComponent(sourceUrl);
   return `https://api.microlink.io/?url=${encoded}&embed=image.url`;

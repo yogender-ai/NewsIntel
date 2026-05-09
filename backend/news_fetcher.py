@@ -16,7 +16,10 @@ from urllib.parse import quote
 
 import feedparser
 import httpx
+from googlenewsdecoder import gnewsdecoder
 from html import unescape as html_unescape
+
+from app.services.url_normalizer import looks_like_google_news_redirect, normalize_url
 
 logger = logging.getLogger("news_fetcher")
 
@@ -210,8 +213,9 @@ async def _fetch_rss(query: str) -> list:
             if desc.lower() == title.lower() or len(desc) < 20:
                 desc = title
 
-            # Get link (Google News redirects to actual source)
+            # Get link and decode Google News wrappers into publisher URLs.
             link = entry.get("link", "")
+            publisher_link = await _decode_google_news_link(link)
 
             # Get published date
             published = entry.get("published", "")
@@ -220,7 +224,8 @@ async def _fetch_rss(query: str) -> list:
                 "title": _clean(title),
                 "text": _clean(desc) if len(desc) > 30 else _clean(title),
                 "source": _clean(source),
-                "url": link,
+                "url": publisher_link,
+                "google_news_url": link if publisher_link != link else "",
                 "published": published,
             })
 
@@ -229,6 +234,18 @@ async def _fetch_rss(query: str) -> list:
     except Exception as e:
         logger.error(f"RSS fetch error for '{query}': {e}")
         return []
+
+
+async def _decode_google_news_link(link: str) -> str:
+    """Decode a Google News URL to the publisher URL when possible."""
+    if not looks_like_google_news_redirect(link):
+        return normalize_url(link)
+    try:
+        result = await asyncio.to_thread(gnewsdecoder, link)
+    except Exception:
+        return normalize_url(link)
+    decoded = result.get("decoded_url") if isinstance(result, dict) and result.get("status") else ""
+    return normalize_url(decoded or link)
 
 
 async def fetch_mvp_category(category: str, limit: int = 5) -> list:
