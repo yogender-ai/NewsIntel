@@ -46,6 +46,12 @@ from app.services.semantic_clustering import observability_snapshot
 from app.services.phase65_validation_audit import run_phase65_validation_audit
 from app.services.mvp_pipeline import MVPNewsPipeline
 from app.services.snapshot_read_models import build_snapshot_map_signals, build_snapshot_orbit_payload
+from app.services.custom_signal_rank import (
+    load_model as load_signal_rank_model,
+    save_model as save_signal_rank_model,
+    story_features as signal_rank_story_features,
+    training_target_from_score,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("news-intel-api")
@@ -1415,6 +1421,51 @@ async def enrich_batch(request: Request):
         if bootstrap_result:
             result = {**result, "bootstrap_ingestion": bootstrap_result}
         return result
+
+
+@app.post("/api/admin/train-signal-rank")
+async def train_signal_rank(request: Request):
+    expected_secret = os.getenv("INGEST_SECRET") or os.getenv("GATEWAY_SECRET")
+    supplied_secret = (
+        request.headers.get("X-Ingest-Secret", "").strip()
+        or request.headers.get("X-Gateway-Secret", "").strip()
+    )
+    if expected_secret and supplied_secret != expected_secret:
+        raise HTTPException(status_code=401, detail="Invalid ingestion secret")
+
+    async with EventStoreSessionLocal() as session:
+        rows = (
+            await session.execute(
+                select(Story)
+                .order_by(Story.created_at.desc())
+                .limit(500)
+            )
+        ).scalars().all()
+        training_rows = [
+            (
+                signal_rank_story_features(story),
+                training_target_from_score(
+                    float(story.pulse_score or 0),
+                    source_count=1,
+                    engagement_bonus=0.03 if story.exposure_score and story.exposure_score >= 70 else 0.0,
+                ),
+            )
+            for story in rows
+        ]
+        model = load_signal_rank_model()
+        before = model.trained_examples
+        model.train(training_rows)
+        save_signal_rank_model(model)
+
+    await _clear_mvp_read_cache()
+    return {
+        "status": "trained",
+        "model": "newsintel-signalrank-mlp-v1",
+        "examples_used": len(training_rows),
+        "trained_examples_before": before,
+        "trained_examples_after": model.trained_examples,
+        "features": model.to_dict()["features"],
+    }
 
 
 @app.post("/api/admin/reset-ai-circuit")

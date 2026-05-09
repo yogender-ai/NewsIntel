@@ -5,6 +5,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.services.mvp_pipeline import MVPNewsPipeline, clean_ai_json, similar_title
+from app.services.custom_signal_rank import predict_story_signal
 from app.services.snapshot_read_models import build_snapshot_map_signals, build_snapshot_orbit_payload
 
 
@@ -56,6 +57,24 @@ def test_fetch_contract_exactly_20_candidates():
 def test_title_similarity_deduplication_signal():
     assert similar_title("OpenAI launches new education tools", "OpenAI launches new education tool") >= 0.86
     assert similar_title("Election policy talks resume", "Streaming platform releases movie") < 0.86
+
+
+def test_local_signalrank_scores_urgent_story():
+    story = SimpleNamespace(
+        display_title="University restores systems after cyberattack outage",
+        summary="Canvas outage disrupted student access before services were restored.",
+        why_it_matters="Cyberattack response affects students and online course access.",
+        risk_level="HIGH",
+        sentiment="negative",
+        entities_json=["Canvas", "Students", "University"],
+        category="education",
+        enriched_at=datetime.now(timezone.utc),
+        published_at=datetime.now(timezone.utc),
+    )
+    prediction = predict_story_signal(story)
+    assert prediction.model_version == "newsintel-signalrank-mlp-v1"
+    assert prediction.score >= 35
+    assert prediction.tier in {"WATCH", "SIGNAL", "CRITICAL"}
 
 
 def test_ai_ranking_selects_top_15(monkeypatch):

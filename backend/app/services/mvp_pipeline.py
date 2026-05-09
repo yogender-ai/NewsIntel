@@ -27,6 +27,7 @@ from app.models.news import (
 )
 from app.services.text_fingerprint import content_hash, normalize_title, title_hash
 from app.services.url_normalizer import normalize_url, sha256_text
+from app.services.custom_signal_rank import predict_story_signal
 
 
 logger = logging.getLogger("news-intel-mvp-pipeline")
@@ -93,6 +94,7 @@ def importance_tier(pulse_score: float) -> str:
 
 def story_to_card(story: Story, rank: int = 0) -> dict:
     entities = story.entities_json if isinstance(story.entities_json, list) else []
+    ml_signal = predict_story_signal(story)
     return {
         "id": str(story.id),
         "signal_id": str(story.id),
@@ -112,6 +114,11 @@ def story_to_card(story: Story, rank: int = 0) -> dict:
         "opportunity_level": "Medium" if story.sentiment in ("positive", "mixed") else "Low",
         "pulse_score": round(float(story.pulse_score), 2),
         "exposure_score": round(float(story.exposure_score), 2),
+        "ml_signal_score": ml_signal.score,
+        "ml_signal_tier": ml_signal.tier,
+        "ml_signal_confidence": ml_signal.confidence,
+        "ml_signal_model": ml_signal.model_version,
+        "ml_signal_trained_examples": ml_signal.trained_examples,
         "relevance_score": round(float(story.exposure_score), 2),
         "signal_tier": importance_tier(float(story.pulse_score)),
         "source_count": 1,

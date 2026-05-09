@@ -277,6 +277,7 @@ export default function HomePage() {
   const [selectedShift, setSelectedShift] = useState(null);
   const [insightView, setInsightView] = useState(null);
   const [tourOpen, setTourOpen] = useState(false);
+  const [mountWave, setMountWave] = useState(hasCached ? 3 : 0);
 
   const load = useCallback(async ({ force = false, background = false } = {}) => {
     setError('');
@@ -367,8 +368,34 @@ export default function HomePage() {
   const articleIndex = useMemo(() => {
     const index = new Map();
     (data.raw?.articles || []).forEach((article) => index.set(String(article.id), article));
-      return setTimeout(() => { if (!cancelled) fn(); }, delay);
-    };
+    return index;
+  }, [data.raw?.articles]);
+
+  const selectedSources = useMemo(() => {
+    if (!selectedShift) return [];
+    const direct = Array.isArray(selectedShift.sources) ? selectedShift.sources : [];
+    const fromArticles = (selectedShift.articles || [])
+      .map((articleId) => articleIndex.get(String(articleId)))
+      .filter(Boolean)
+      .map((article) => ({
+        id: article.id,
+        title: article.title,
+        source: article.source,
+        url: article.url || article.source_url,
+      }));
+    return [...direct, ...fromArticles].filter((source) => source?.url);
+  }, [articleIndex, selectedShift]);
+
+  const showPipeline = loading && !pipelineDone && !dashboard;
+
+  useEffect(() => {
+    let cancelled = false;
+    const schedule = (fn, delay) => window.setTimeout(() => { if (!cancelled) fn(); }, delay);
+
+    if (showPipeline) {
+      setMountWave(0);
+      return () => { cancelled = true; };
+    }
 
     // Mount immediately at wave 1
     requestAnimationFrame(() => {
@@ -446,7 +473,7 @@ export default function HomePage() {
                             <TopShiftCard
                               key={shift.id}
                               shift={shift}
-                              onOpen={(s) => navigate(`/dashboard/event/${s.id}`)}
+                              onOpen={(s) => navigate(`/dashboard/event/${s.id}`, { state: { event: s.raw || s } })}
                               index={topShifts.indexOf(shift)}
                             />
                           ))}

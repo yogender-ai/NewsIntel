@@ -46,6 +46,7 @@ const sourcePreviewImage = (cluster) => {
 const normalizeShift = (cluster, index) => {
   const aiStatus = normalizeAiStatus(cluster.ai_status);
   const aiAvailable = aiStatus === 'enriched';
+  const mlSignalScore = Number.isFinite(Number(cluster.ml_signal_score)) ? Number(cluster.ml_signal_score) : null;
   return {
     id: cluster.signal_id || cluster.thread_id || cluster.id || `shift-${index}`,
     rank: index + 1,
@@ -65,6 +66,11 @@ const normalizeShift = (cluster, index) => {
     aiProvider: cluster.ai_provider_used || '',
     aiEnrichedAt: cluster.ai_enriched_at || '',
     pulseBreakdown: cluster.pulse_breakdown && typeof cluster.pulse_breakdown === 'object' ? cluster.pulse_breakdown : null,
+    mlSignalScore,
+    mlSignalTier: cluster.ml_signal_tier || '',
+    mlSignalConfidence: Number.isFinite(Number(cluster.ml_signal_confidence)) ? Number(cluster.ml_signal_confidence) : null,
+    mlSignalModel: cluster.ml_signal_model || '',
+    mlSignalTrainedExamples: Number.isFinite(Number(cluster.ml_signal_trained_examples)) ? Number(cluster.ml_signal_trained_examples) : 0,
     impactLevel: cluster.signal_tier || null,
     updatedAt: cluster.updated_at || cluster.last_seen_at || null,
     imageUrl: sourcePreviewImage(cluster),
@@ -83,6 +89,7 @@ export function normalizeDashboardData({ dashboard, preferences, alerts, user })
   const sortedSignals = [...activeSignals].sort((a, b) => {
     const tierWeight = { CRITICAL: 4, SIGNAL: 3, WATCH: 2, NOISE: 1 };
     return (
+      Number(b.ml_signal_score || 0) - Number(a.ml_signal_score || 0) ||
       (tierWeight[b.signal_tier] || 0) - (tierWeight[a.signal_tier] || 0) ||
       Number(b.pulse_score || 0) - Number(a.pulse_score || 0)
     );

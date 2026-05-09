@@ -11,6 +11,7 @@ from app.services.event_enrichment import (
     AI_STATUS_PENDING,
     deterministic_base_score,
 )
+from app.services.custom_signal_rank import predict_event_signal
 
 
 def as_utc(value: datetime) -> datetime:
@@ -112,6 +113,7 @@ def event_to_signal_card(
     ai = ai_metadata(event)
     pulse = pulse_from_event(event)
     tier = tier_from_event(event)
+    ml_signal = predict_event_signal(event, ai)
     base_score, default_breakdown = deterministic_base_score(event)
     pulse_breakdown = ai.get("pulse_breakdown") if isinstance(ai.get("pulse_breakdown"), dict) else default_breakdown
     if "deterministic_base" not in pulse_breakdown:
@@ -139,6 +141,11 @@ def event_to_signal_card(
         "source_url": sources[0]["url"] if sources else None,
         "source": sources[0]["source"] if sources else None,
         "pulse_score": pulse,
+        "ml_signal_score": ml_signal.score,
+        "ml_signal_tier": ml_signal.tier,
+        "ml_signal_confidence": ml_signal.confidence,
+        "ml_signal_model": ml_signal.model_version,
+        "ml_signal_trained_examples": ml_signal.trained_examples,
         "pulse_breakdown": pulse_breakdown,
         "deterministic_base_score": base_score,
         "impact_line": ai_text(event, "impact_line", "AI analysis pending", "AI analysis unavailable"),

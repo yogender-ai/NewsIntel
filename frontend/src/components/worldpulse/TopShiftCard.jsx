@@ -42,6 +42,11 @@ export default function TopShiftCard({ shift, onOpen, index }) {
             {shift.impactLevel}
           </div>
         )}
+        {shift.mlSignalScore !== null && shift.mlSignalScore !== undefined && (
+          <div className="sca-time">
+            ML {Math.round(shift.mlSignalScore)}
+          </div>
+        )}
         {relativeTime && (
           <div className="sca-time">
             <Clock size={12} />
