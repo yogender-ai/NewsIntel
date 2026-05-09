@@ -2,10 +2,87 @@ import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { geoNaturalEarth1, geoPath } from 'd3-geo';
 import { feature } from 'topojson-client';
 
-export default function WorldMap({ regions = [], onRegionSelect }) {
+const COUNTRY_META = {
+  '004': { code: 'AF', name: 'Afghanistan', capital: 'Kabul' },
+  '008': { code: 'AL', name: 'Albania', capital: 'Tirana' },
+  '012': { code: 'DZ', name: 'Algeria', capital: 'Algiers' },
+  '032': { code: 'AR', name: 'Argentina', capital: 'Buenos Aires' },
+  '036': { code: 'AU', name: 'Australia', capital: 'Canberra' },
+  '040': { code: 'AT', name: 'Austria', capital: 'Vienna' },
+  '050': { code: 'BD', name: 'Bangladesh', capital: 'Dhaka' },
+  '056': { code: 'BE', name: 'Belgium', capital: 'Brussels' },
+  '076': { code: 'BR', name: 'Brazil', capital: 'Brasilia' },
+  '124': { code: 'CA', name: 'Canada', capital: 'Ottawa' },
+  '152': { code: 'CL', name: 'Chile', capital: 'Santiago' },
+  '156': { code: 'CN', name: 'China', capital: 'Beijing' },
+  '170': { code: 'CO', name: 'Colombia', capital: 'Bogota' },
+  '203': { code: 'CZ', name: 'Czechia', capital: 'Prague' },
+  '208': { code: 'DK', name: 'Denmark', capital: 'Copenhagen' },
+  '231': { code: 'ET', name: 'Ethiopia', capital: 'Addis Ababa' },
+  '246': { code: 'FI', name: 'Finland', capital: 'Helsinki' },
+  '250': { code: 'FR', name: 'France', capital: 'Paris' },
+  '276': { code: 'DE', name: 'Germany', capital: 'Berlin' },
+  '288': { code: 'GH', name: 'Ghana', capital: 'Accra' },
+  '300': { code: 'GR', name: 'Greece', capital: 'Athens' },
+  '348': { code: 'HU', name: 'Hungary', capital: 'Budapest' },
+  '356': { code: 'IN', name: 'India', capital: 'New Delhi' },
+  '360': { code: 'ID', name: 'Indonesia', capital: 'Jakarta' },
+  '364': { code: 'IR', name: 'Iran', capital: 'Tehran' },
+  '368': { code: 'IQ', name: 'Iraq', capital: 'Baghdad' },
+  '372': { code: 'IE', name: 'Ireland', capital: 'Dublin' },
+  '376': { code: 'IL', name: 'Israel', capital: 'Jerusalem' },
+  '380': { code: 'IT', name: 'Italy', capital: 'Rome' },
+  '392': { code: 'JP', name: 'Japan', capital: 'Tokyo' },
+  '400': { code: 'JO', name: 'Jordan', capital: 'Amman' },
+  '404': { code: 'KE', name: 'Kenya', capital: 'Nairobi' },
+  '410': { code: 'KR', name: 'South Korea', capital: 'Seoul' },
+  '414': { code: 'KW', name: 'Kuwait', capital: 'Kuwait City' },
+  '458': { code: 'MY', name: 'Malaysia', capital: 'Kuala Lumpur' },
+  '484': { code: 'MX', name: 'Mexico', capital: 'Mexico City' },
+  '504': { code: 'MA', name: 'Morocco', capital: 'Rabat' },
+  '524': { code: 'NP', name: 'Nepal', capital: 'Kathmandu' },
+  '528': { code: 'NL', name: 'Netherlands', capital: 'Amsterdam' },
+  '554': { code: 'NZ', name: 'New Zealand', capital: 'Wellington' },
+  '566': { code: 'NG', name: 'Nigeria', capital: 'Abuja' },
+  '578': { code: 'NO', name: 'Norway', capital: 'Oslo' },
+  '586': { code: 'PK', name: 'Pakistan', capital: 'Islamabad' },
+  '604': { code: 'PE', name: 'Peru', capital: 'Lima' },
+  '608': { code: 'PH', name: 'Philippines', capital: 'Manila' },
+  '616': { code: 'PL', name: 'Poland', capital: 'Warsaw' },
+  '620': { code: 'PT', name: 'Portugal', capital: 'Lisbon' },
+  '634': { code: 'QA', name: 'Qatar', capital: 'Doha' },
+  '642': { code: 'RO', name: 'Romania', capital: 'Bucharest' },
+  '643': { code: 'RU', name: 'Russia', capital: 'Moscow' },
+  '682': { code: 'SA', name: 'Saudi Arabia', capital: 'Riyadh' },
+  '702': { code: 'SG', name: 'Singapore', capital: 'Singapore' },
+  '704': { code: 'VN', name: 'Vietnam', capital: 'Hanoi' },
+  '710': { code: 'ZA', name: 'South Africa', capital: 'Pretoria' },
+  '724': { code: 'ES', name: 'Spain', capital: 'Madrid' },
+  '752': { code: 'SE', name: 'Sweden', capital: 'Stockholm' },
+  '756': { code: 'CH', name: 'Switzerland', capital: 'Bern' },
+  '764': { code: 'TH', name: 'Thailand', capital: 'Bangkok' },
+  '784': { code: 'AE', name: 'United Arab Emirates', capital: 'Abu Dhabi' },
+  '792': { code: 'TR', name: 'Turkey', capital: 'Ankara' },
+  '804': { code: 'UA', name: 'Ukraine', capital: 'Kyiv' },
+  '818': { code: 'EG', name: 'Egypt', capital: 'Cairo' },
+  '826': { code: 'GB', name: 'United Kingdom', capital: 'London' },
+  '840': { code: 'US', name: 'United States', capital: 'Washington, D.C.' },
+};
+
+function metaForFeature(feat) {
+  const id = String(feat.id || '').padStart(3, '0');
+  return COUNTRY_META[id] || {
+    code: id,
+    name: feat.properties?.name || feat.properties?.NAME || `Country ${id}`,
+    capital: 'Capital unavailable',
+  };
+}
+
+export default function WorldMap({ regions = [], onRegionSelect, onCountrySelect, selectedCountry }) {
   const [geoData, setGeoData] = useState(null);
   const [failed, setFailed] = useState(false);
   const [hovered, setHovered] = useState(null);
+  const [hoveredCountry, setHoveredCountry] = useState(null);
   const [transform, setTransform] = useState({ x: 0, y: 0, k: 1 });
   const isDragging = useRef(false);
   const lastMouse = useRef({ x: 0, y: 0 });
@@ -41,6 +118,14 @@ export default function WorldMap({ regions = [], onRegionSelect }) {
   }, [geoData]);
 
   const pathGenerator = useMemo(() => geoPath().projection(projection), [projection]);
+
+  const regionsByCode = useMemo(() => {
+    const index = new Map();
+    regions.forEach((region) => {
+      if (region.id) index.set(String(region.id).toUpperCase(), region);
+    });
+    return index;
+  }, [regions]);
 
   const points = useMemo(() => (
     regions
@@ -134,9 +219,29 @@ export default function WorldMap({ regions = [], onRegionSelect }) {
       </g>
 
       {/* Countries */}
-      {geoData && geoData.features.map((feat) => (
-        <path key={feat.id} d={pathGenerator(feat)} className="world-map-geo" />
-      ))}
+      {geoData && geoData.features.map((feat) => {
+        const meta = metaForFeature(feat);
+        const centroid = pathGenerator.centroid(feat);
+        const active = regionsByCode.has(meta.code);
+        const selected = selectedCountry?.code === meta.code;
+        return (
+          <path
+            key={feat.id}
+            d={pathGenerator(feat)}
+            className={`world-map-geo ${active ? 'has-signal' : ''} ${selected ? 'selected-country' : ''}`}
+            role="button"
+            tabIndex="0"
+            onMouseEnter={() => setHoveredCountry({ ...meta, x: centroid[0], y: centroid[1], active })}
+            onMouseLeave={() => setHoveredCountry(null)}
+            onClick={() => onCountrySelect && onCountrySelect({ ...meta, activeRegion: regionsByCode.get(meta.code) || null })}
+            onKeyDown={(e) => {
+              if ((e.key === 'Enter' || e.key === ' ') && onCountrySelect) onCountrySelect({ ...meta, activeRegion: regionsByCode.get(meta.code) || null });
+            }}
+          >
+            <title>{`${meta.name} / Capital: ${meta.capital}`}</title>
+          </path>
+        );
+      })}
 
       {/* Loading state */}
       {!geoData && !failed && (
@@ -231,6 +336,24 @@ export default function WorldMap({ regions = [], onRegionSelect }) {
           </g>
         );
       })}
+      {hoveredCountry && (
+        <g filter="url(#callout-shadow)" pointerEvents="none">
+          <rect
+            x={Math.min(hoveredCountry.x + 16, 810)}
+            y={Math.max(hoveredCountry.y - 42, 16)}
+            width="176"
+            height="58"
+            rx="8"
+            className="country-hover-card"
+          />
+          <text x={Math.min(hoveredCountry.x + 28, 822)} y={Math.max(hoveredCountry.y - 19, 39)} className="country-hover-title">
+            {hoveredCountry.name}
+          </text>
+          <text x={Math.min(hoveredCountry.x + 28, 822)} y={Math.max(hoveredCountry.y - 1, 57)} className="country-hover-sub">
+            Capital: {hoveredCountry.capital}
+          </text>
+        </g>
+      )}
       </g>
 
       {/* Vignette */}

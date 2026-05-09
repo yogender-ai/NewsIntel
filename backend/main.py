@@ -45,7 +45,7 @@ from app.services.schema_migrations import run_startup_migrations
 from app.services.semantic_clustering import observability_snapshot
 from app.services.phase65_validation_audit import run_phase65_validation_audit
 from app.services.mvp_pipeline import MVPNewsPipeline
-from app.services.snapshot_read_models import build_snapshot_map_signals, build_snapshot_orbit_payload
+from app.services.snapshot_read_models import build_snapshot_map_signals, build_snapshot_orbit_payload, map_country_events
 from app.services.custom_signal_rank import (
     load_model as load_signal_rank_model,
     save_model as save_signal_rank_model,
@@ -2050,6 +2050,63 @@ async def get_map_signals(
     if isinstance(cached, dict):
         return cached
     response = build_snapshot_map_signals(snapshot, layer=layer, time_window=time_window)
+    await _set_mvp_read_cache(cache_key, response)
+    return response
+
+
+@app.get("/api/map-country-news")
+async def get_map_country_news(
+    country: str = Query(..., min_length=2, max_length=80),
+    code: Optional[str] = Query(default=None, max_length=3),
+    time_window: str = Query(default="24h", pattern="^(24h|7d|30d)$"),
+):
+    country_name = country.strip()
+    country_code = (code or "").strip().upper()
+    snapshot = await home_snapshot()
+    snapshot_version = snapshot.get("latestCycleId") or snapshot.get("cycleId") or snapshot.get("generated_at") or "latest"
+    cache_key = f"map-country-news:{country_code or country_name.lower()}:{time_window}:{snapshot_version}"
+    cached = await _get_mvp_read_cache(cache_key)
+    if isinstance(cached, dict):
+        return cached
+
+    snapshot_events = map_country_events(snapshot, country_code=country_code, country_name=country_name, limit=3)
+    source = "snapshot"
+    articles = snapshot_events
+    if len(articles) < 3:
+        fetched = await news_fetcher._fetch_rss(f"{country_name} top news latest politics economy technology")
+        source = "google_news_rss" if fetched else source
+        seen = {str(item.get("title") or "").strip().lower() for item in articles}
+        for index, item in enumerate(fetched):
+            title = str(item.get("title") or "").strip()
+            if not title or title.lower() in seen:
+                continue
+            seen.add(title.lower())
+            articles.append(
+                {
+                    "id": f"{country_code or country_name}-{index}",
+                    "title": title,
+                    "summary": item.get("text") or title,
+                    "why_it_matters": item.get("text") or title,
+                    "pulse": 50,
+                    "category": "country",
+                    "signal_tier": "WATCH",
+                    "sentiment": "neutral",
+                    "sources": [{"source": item.get("source") or "Google News", "url": item.get("url"), "title": title}],
+                    "source_url": item.get("url"),
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+            if len(articles) >= 3:
+                break
+
+    response = {
+        "country": country_name,
+        "code": country_code or None,
+        "time_window": time_window,
+        "source": source,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "items": articles[:3],
+    }
     await _set_mvp_read_cache(cache_key, response)
     return response
 

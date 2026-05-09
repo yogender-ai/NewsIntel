@@ -168,6 +168,14 @@ export const api = {
     return request(`/api/map-signals?${params.toString()}`);
   },
 
+  getMapCountryNews: (country, code, timeWindow = '24h') => {
+    const params = new URLSearchParams();
+    params.set('country', country);
+    if (code) params.set('code', code);
+    params.set('time_window', timeWindow);
+    return request(`/api/map-country-news?${params.toString()}`, { timeoutMs: 35000 });
+  },
+
   simulate: (payload) =>
     request('/api/simulate', {
       method: 'POST',

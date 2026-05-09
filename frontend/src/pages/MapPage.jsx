@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Filter, Globe2, Layers, RefreshCw, ShieldAlert, Sparkles, X } from 'lucide-react';
+import { AlertTriangle, Filter, Globe2, Layers, Loader2, MapPin, RefreshCw, ShieldAlert, Sparkles, X } from 'lucide-react';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import Sidebar from '../components/worldpulse/Sidebar';
@@ -47,6 +47,11 @@ export default function MapPage() {
   const [layer, setLayer] = useState('all');
   const [mode, setMode] = useState('risk');
   const [selected, setSelected] = useState(null);
+  const [selectedCountry, setSelectedCountry] = useState(null);
+  const [countryNews, setCountryNews] = useState(null);
+  const [countryLoading, setCountryLoading] = useState(false);
+  const [countryError, setCountryError] = useState('');
+  const [countryNewsCache, setCountryNewsCache] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [lockedToast, setLockedToast] = useState('');
@@ -75,6 +80,29 @@ export default function MapPage() {
   const topRegions = useMemo(() => [...data.regions].sort((a, b) => b.intensity - a.intensity), [data.regions]);
   const topics = prefs?.data?.preferred_categories || [];
   const selectedRegion = selected || topRegions[0] || null;
+
+  const loadCountryNews = useCallback(async (country) => {
+    if (!country?.name) return;
+    const key = `${country.code || country.name}:${timeWindow}`;
+    setSelectedCountry(country);
+    if (country.activeRegion) setSelected(country.activeRegion);
+    setCountryError('');
+    if (countryNewsCache[key]) {
+      setCountryNews(countryNewsCache[key]);
+      return;
+    }
+    setCountryLoading(true);
+    setCountryNews(null);
+    try {
+      const result = await api.getMapCountryNews(country.name, country.code, timeWindow);
+      setCountryNews(result);
+      setCountryNewsCache((current) => ({ ...current, [key]: result }));
+    } catch (err) {
+      setCountryError((err?.message || 'Country news unavailable.').replace(/^\d+:\s*/, '').slice(0, 180));
+    } finally {
+      setCountryLoading(false);
+    }
+  }, [countryNewsCache, timeWindow]);
 
   return (
     <div className="world-pulse-page signal-map-page">
@@ -127,10 +155,60 @@ export default function MapPage() {
                       label: [mode === 'risk' ? region.risk : region.opportunity, `${region.event_count} events`].filter(Boolean).join(' / '),
                     }))}
                     onRegionSelect={setSelected}
+                    onCountrySelect={loadCountryNews}
+                    selectedCountry={selectedCountry}
                   />
                   <div className="map-legend"><span>Signal intensity</span><i /><b>Very high</b></div>
                 </div>
                 <aside className="orbit-list wp-card map-side-panel">
+                  {selectedCountry && (
+                    <section className="country-news-panel">
+                      <div className="wp-section-head">
+                        <span>{selectedCountry.name}</span>
+                        <small><MapPin size={12} /> {selectedCountry.capital}</small>
+                      </div>
+                      {countryLoading && (
+                        <div className="country-news-loading">
+                          <Loader2 size={16} />
+                          <span>Fetching top country news. This can take up to 30 seconds.</span>
+                        </div>
+                      )}
+                      {countryError && <p className="empty-copy">{countryError}</p>}
+                      {!countryLoading && countryNews?.items?.length ? (
+                        <div className="country-news-list">
+                          {countryNews.items.slice(0, 3).map((event) => (
+                            <button
+                              key={event.id || event.title}
+                              onClick={() => navigate('/story', {
+                                state: {
+                                  article: {
+                                    id: event.id,
+                                    title: event.title,
+                                    text_preview: event.summary || event.why_it_matters,
+                                    summary: event.summary || event.why_it_matters,
+                                    source: event.sources?.[0]?.source || `${selectedCountry.name} News`,
+                                    url: event.source_url || event.sources?.[0]?.url,
+                                    sources: event.sources || [],
+                                    category: event.category,
+                                    sentiment: event.sentiment,
+                                    why_it_matters: event.why_it_matters,
+                                    pulse_score: event.pulse,
+                                    signal_tier: event.signal_tier || null,
+                                  },
+                                },
+                              })}
+                            >
+                              <b>{event.title}</b>
+                              <span>{event.summary || event.why_it_matters || 'Latest country update'}</span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                      {!countryLoading && countryNews && !countryNews.items?.length && (
+                        <p className="empty-copy">No fresh country-specific items found yet.</p>
+                      )}
+                    </section>
+                  )}
                   <div className="wp-section-head"><span>{selectedRegion?.name || 'Top Regions'}</span></div>
                   {selectedRegion && (
                     <div className="selected-map-signal">

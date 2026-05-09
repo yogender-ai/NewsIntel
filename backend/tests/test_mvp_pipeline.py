@@ -6,7 +6,7 @@ import pytest
 
 from app.services.mvp_pipeline import MVPNewsPipeline, clean_ai_json, similar_title
 from app.services.custom_signal_rank import predict_story_signal
-from app.services.snapshot_read_models import build_snapshot_map_signals, build_snapshot_orbit_payload
+from app.services.snapshot_read_models import build_snapshot_map_signals, build_snapshot_orbit_payload, map_country_events
 
 
 def settings(**overrides):
@@ -226,6 +226,34 @@ def test_snapshot_map_extracts_real_locations_from_cards():
     region_ids = {region["id"] for region in payload["regions"]}
     assert {"IN", "JP", "VN"} <= region_ids
     assert all("lat" in region and "lng" in region for region in payload["regions"])
+
+
+def test_map_country_events_returns_top_three_for_country():
+    snapshot = {
+        "clusters": [
+            {
+                "id": "one",
+                "thread_title": "India launches new AI education policy",
+                "summary": "India updates education technology rules.",
+                "category": "education",
+                "entities": ["India"],
+                "pulse_score": 82,
+            },
+            {
+                "id": "two",
+                "thread_title": "Mumbai startups raise new capital",
+                "summary": "Indian founders report funding momentum.",
+                "category": "tech",
+                "entities": ["Mumbai"],
+                "pulse_score": 64,
+            },
+        ]
+    }
+    events = map_country_events(snapshot, country_code="IN", country_name="India", limit=3)
+    assert [event["title"] for event in events] == [
+        "India launches new AI education policy",
+        "Mumbai startups raise new capital",
+    ]
 
 
 def test_cleanup_retention_window_setting_is_seven_days():

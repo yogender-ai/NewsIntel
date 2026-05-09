@@ -10,34 +10,37 @@ from typing import Any
 GEO_LOCATIONS = {
     "IN": {
         "name": "India",
+        "capital": "New Delhi",
         "lat": 20.59,
         "lng": 78.96,
         "aliases": ["india", "indian", "delhi", "mumbai", "bengaluru", "vizag", "visakhapatnam"],
     },
     "US": {
         "name": "United States",
+        "capital": "Washington, D.C.",
         "lat": 39.83,
         "lng": -98.58,
         "aliases": ["united states", "u.s.", "us", "america", "washington", "new york"],
     },
     "EU": {
         "name": "Europe",
+        "capital": "Brussels",
         "lat": 54.52,
         "lng": 15.26,
         "aliases": ["europe", "european", "eu"],
     },
-    "CN": {"name": "China", "lat": 35.86, "lng": 104.19, "aliases": ["china", "chinese", "beijing", "shanghai"]},
-    "TW": {"name": "Taiwan", "lat": 23.7, "lng": 121.0, "aliases": ["taiwan", "taipei"]},
-    "JP": {"name": "Japan", "lat": 36.2, "lng": 138.25, "aliases": ["japan", "japanese", "tokyo"]},
-    "VN": {"name": "Vietnam", "lat": 14.06, "lng": 108.28, "aliases": ["vietnam", "vietnamese", "hanoi"]},
-    "KR": {"name": "South Korea", "lat": 35.91, "lng": 127.77, "aliases": ["south korea", "korean", "seoul", "samsung"]},
-    "GB": {"name": "United Kingdom", "lat": 55.38, "lng": -3.44, "aliases": ["united kingdom", "uk", "britain", "london"]},
-    "DE": {"name": "Germany", "lat": 51.17, "lng": 10.45, "aliases": ["germany", "german", "berlin"]},
-    "FR": {"name": "France", "lat": 46.23, "lng": 2.21, "aliases": ["france", "french", "paris"]},
-    "RU": {"name": "Russia", "lat": 61.52, "lng": 105.32, "aliases": ["russia", "russian", "moscow", "kremlin"]},
-    "UA": {"name": "Ukraine", "lat": 48.38, "lng": 31.17, "aliases": ["ukraine", "ukrainian", "kyiv"]},
-    "IL": {"name": "Israel", "lat": 31.05, "lng": 34.85, "aliases": ["israel", "israeli", "tel aviv", "gaza"]},
-    "BR": {"name": "Brazil", "lat": -14.24, "lng": -51.93, "aliases": ["brazil", "brazilian", "brasilia"]},
+    "CN": {"name": "China", "capital": "Beijing", "lat": 35.86, "lng": 104.19, "aliases": ["china", "chinese", "beijing", "shanghai"]},
+    "TW": {"name": "Taiwan", "capital": "Taipei", "lat": 23.7, "lng": 121.0, "aliases": ["taiwan", "taipei"]},
+    "JP": {"name": "Japan", "capital": "Tokyo", "lat": 36.2, "lng": 138.25, "aliases": ["japan", "japanese", "tokyo"]},
+    "VN": {"name": "Vietnam", "capital": "Hanoi", "lat": 14.06, "lng": 108.28, "aliases": ["vietnam", "vietnamese", "hanoi"]},
+    "KR": {"name": "South Korea", "capital": "Seoul", "lat": 35.91, "lng": 127.77, "aliases": ["south korea", "korean", "seoul", "samsung"]},
+    "GB": {"name": "United Kingdom", "capital": "London", "lat": 55.38, "lng": -3.44, "aliases": ["united kingdom", "uk", "britain", "london"]},
+    "DE": {"name": "Germany", "capital": "Berlin", "lat": 51.17, "lng": 10.45, "aliases": ["germany", "german", "berlin"]},
+    "FR": {"name": "France", "capital": "Paris", "lat": 46.23, "lng": 2.21, "aliases": ["france", "french", "paris"]},
+    "RU": {"name": "Russia", "capital": "Moscow", "lat": 61.52, "lng": 105.32, "aliases": ["russia", "russian", "moscow", "kremlin"]},
+    "UA": {"name": "Ukraine", "capital": "Kyiv", "lat": 48.38, "lng": 31.17, "aliases": ["ukraine", "ukrainian", "kyiv"]},
+    "IL": {"name": "Israel", "capital": "Jerusalem", "lat": 31.05, "lng": 34.85, "aliases": ["israel", "israeli", "tel aviv", "gaza"]},
+    "BR": {"name": "Brazil", "capital": "Brasilia", "lat": -14.24, "lng": -51.93, "aliases": ["brazil", "brazilian", "brasilia"]},
 }
 
 LAYER_BY_CATEGORY = {
@@ -279,6 +282,7 @@ def build_snapshot_map_signals(snapshot: dict[str, Any], *, layer: str | None = 
             {
                 "id": code,
                 "name": info["name"],
+                "capital": info.get("capital"),
                 "lat": info["lat"],
                 "lng": info["lng"],
                 "intensity": intensity,
@@ -300,6 +304,28 @@ def build_snapshot_map_signals(snapshot: dict[str, Any], *, layer: str | None = 
         "regions": sorted(regions, key=lambda item: item["intensity"], reverse=True),
         "source_of_truth": "home_snapshots,stories,event_metrics",
     }
+
+
+def map_country_events(snapshot: dict[str, Any], country_code: str | None = None, country_name: str | None = None, limit: int = 3) -> list[dict[str, Any]]:
+    target_code = (country_code or "").upper()
+    target_name = compact_label(country_name)
+    matched_codes = []
+    if target_code in GEO_LOCATIONS:
+        matched_codes.append(target_code)
+    for code, info in GEO_LOCATIONS.items():
+        if target_name and target_name == compact_label(info["name"]):
+            matched_codes.append(code)
+    matched_codes = list(dict.fromkeys(matched_codes))
+    if not matched_codes:
+        return []
+
+    cards = [
+        card
+        for card in snapshot_cards(snapshot)
+        if set(locate_card(card)) & set(matched_codes)
+    ]
+    cards = sorted(cards, key=pulse, reverse=True)[:limit]
+    return [map_event_payload(card, index) for index, card in enumerate(cards)]
 
 
 def locate_card(card: dict[str, Any]) -> list[str]:
