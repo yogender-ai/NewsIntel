@@ -204,6 +204,10 @@ class StoryDeepDiveRequest(BaseModel):
     text: str
     source: str = ""
 
+class AskNewsIntelRequest(BaseModel):
+    question: str
+    max_sources: int = 8
+
 class UserPreferencesInput(BaseModel):
     display_name: str = ""
     email: str = ""
@@ -1282,6 +1286,7 @@ async def force_refresh_dashboard(request: Request, payload_request: DashboardRe
     regions = _normalize_profile_values(payload_request.regions)
     refresh_result: dict | None = None
     enrich_result: dict | None = None
+    cleanup_result: dict | None = None
     refresh_error: str | None = None
 
     try:
@@ -1289,9 +1294,10 @@ async def force_refresh_dashboard(request: Request, payload_request: DashboardRe
             async with EventStoreSessionLocal() as session:
                 pipeline = MVPNewsPipeline(session, settings=mvp_settings)
                 refresh_result = await pipeline.run_ingestion()
-                if refresh_result.get("status") == "success":
+                if refresh_result.get("status") in {"success", "ranked"}:
                     enrich_result = await pipeline.enrich_batch()
                 payload = await pipeline.latest_snapshot()
+                cleanup_result = await pipeline.cleanup()
                 await session.commit()
         else:
             refresh_result = await _run_admin_ingestion(
@@ -1313,6 +1319,7 @@ async def force_refresh_dashboard(request: Request, payload_request: DashboardRe
         "status": "error" if refresh_error else (refresh_result or {}).get("status", "completed"),
         "result": refresh_result,
         "enrichment": enrich_result,
+        "cleanup": cleanup_result,
         "error": refresh_error,
         "message": (
             "Refresh failed; showing latest persisted news."
@@ -1328,7 +1335,10 @@ async def _run_admin_ingestion(topics: list[str], regions: list[str], max_articl
     # MVP pipeline here so successful scheduler calls create news_cycles,
     # ranked_stories, enrichment_queue rows, and the cached home snapshot.
     async with EventStoreSessionLocal() as session:
-        return await MVPNewsPipeline(session, settings=mvp_settings).run_ingestion()
+        pipeline = MVPNewsPipeline(session, settings=mvp_settings)
+        result = await pipeline.run_ingestion()
+        cleanup_result = await pipeline.cleanup()
+        return {**result, "cleanup": cleanup_result}
 
 
 @app.post("/api/admin/ingest-now")
@@ -1410,6 +1420,7 @@ async def enrich_batch(request: Request):
                 bootstrap_result = await pipeline.run_ingestion()
                 if bootstrap_result.get("status") == "ranked":
                     result = await pipeline.enrich_batch()
+        cleanup_result = await pipeline.cleanup()
         await session.commit()
         await _clear_mvp_read_cache()
         if result.get("status") == "deferred":
@@ -1417,10 +1428,11 @@ async def enrich_batch(request: Request):
                 "status": "deferred",
                 "message": "AI circuit breaker is cooling down; enrichment will retry on the next interval.",
                 "result": result,
+                "cleanup": cleanup_result,
             }
         if bootstrap_result:
             result = {**result, "bootstrap_ingestion": bootstrap_result}
-        return result
+        return {**result, "cleanup": cleanup_result}
 
 
 @app.post("/api/admin/train-signal-rank")
@@ -1578,6 +1590,131 @@ async def mvp_story(story_id: str):
 @app.get("/api/categories")
 async def mvp_categories():
     return {"categories": mvp_settings.mvp_categories, "regions": ["global"]}
+
+
+def _ask_tokens(text: str) -> set[str]:
+    stop = {"what", "why", "how", "when", "where", "who", "the", "and", "for", "with", "about", "news", "latest", "today"}
+    return {token for token in _re.findall(r"[a-z0-9]{3,}", (text or "").lower()) if token not in stop}
+
+
+async def _stored_ask_sources(question: str, limit: int = 6) -> list[dict]:
+    q_tokens = _ask_tokens(question)
+    try:
+        async with EventStoreSessionLocal() as session:
+            stories = (
+                await session.scalars(
+                    select(Story)
+                    .order_by(Story.enriched_at.desc())
+                    .limit(60)
+                )
+            ).all()
+    except Exception as exc:
+        logger.warning("Ask NewsIntel stored-source lookup failed: %s", exc)
+        stories = []
+
+    scored = []
+    for story in stories:
+        haystack = " ".join([
+            story.display_title or "",
+            story.summary or "",
+            story.why_it_matters or "",
+            story.category or "",
+            " ".join(story.entities_json if isinstance(story.entities_json, list) else []),
+        ])
+        score = len(q_tokens & _ask_tokens(haystack))
+        if score:
+            scored.append((score, story))
+    scored.sort(key=lambda item: (item[0], item[1].enriched_at), reverse=True)
+    return [
+        {
+            "title": story.display_title,
+            "summary": story.summary,
+            "source": story.source_name,
+            "url": story.source_url,
+            "published": story.published_at.isoformat() if story.published_at else None,
+            "source_type": "newsintel_store",
+        }
+        for _, story in scored[:limit]
+    ]
+
+
+def _dedupe_sources(sources: list[dict], limit: int) -> list[dict]:
+    deduped = []
+    seen = set()
+    for source in sources:
+        url_key = (source.get("url") or "").strip().lower()
+        title_key = _re.sub(r"[^a-z0-9]", "", (source.get("title") or "").lower())[:90]
+        key = url_key or title_key
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        deduped.append(source)
+        if len(deduped) >= limit:
+            break
+    return deduped
+
+
+async def _answer_question_from_sources(question: str, sources: list[dict]) -> str:
+    source_lines = []
+    for index, source in enumerate(sources, start=1):
+        source_lines.append(
+            f"[S{index}] title={source.get('title','')} | source={source.get('source','')} | "
+            f"published={source.get('published') or 'unknown'} | summary={source.get('summary') or source.get('text') or ''} | "
+            f"url={source.get('url','')}"
+        )
+    prompt = (
+        "You are NewsIntel. Answer the user's question using ONLY the provided real news sources. "
+        "If the sources do not contain enough evidence, say exactly what is missing. "
+        "Do not invent facts, dates, numbers, or sources. Cite every factual sentence with [S#]. "
+        "Keep the answer direct and useful.\n\n"
+        f"Current date: {datetime.now(timezone.utc).date().isoformat()} UTC\n"
+        f"Question: {question}\n\n"
+        "Sources:\n" + "\n".join(source_lines)
+    )
+    return await MVPNewsPipeline(None, settings=mvp_settings).call_ai(prompt, max_tokens=800)
+
+
+@app.post("/api/ask")
+async def ask_newsintel(request: AskNewsIntelRequest):
+    question = (request.question or "").strip()
+    if len(question) < 3:
+        raise HTTPException(status_code=400, detail="Ask a complete question.")
+    max_sources = max(3, min(int(request.max_sources or 8), 12))
+
+    live_sources = await news_fetcher.search_google_news(question, limit=max_sources)
+    live_sources = [
+        {
+            "title": item.get("title", ""),
+            "summary": item.get("text", ""),
+            "source": item.get("source", ""),
+            "url": item.get("url", ""),
+            "published": item.get("published", ""),
+            "source_type": "google_news_rss",
+        }
+        for item in live_sources
+    ]
+    stored_sources = await _stored_ask_sources(question, limit=6)
+    sources = _dedupe_sources([*live_sources, *stored_sources], max_sources)
+    if not sources:
+        raise HTTPException(status_code=404, detail="No real news sources were found for that question.")
+
+    try:
+        answer = await _answer_question_from_sources(question, sources)
+    except Exception as exc:
+        logger.warning("Ask NewsIntel provider failure: %s", exc)
+        raise HTTPException(
+            status_code=503,
+            detail="AI providers did not return an answer. No fallback answer was generated.",
+        )
+
+    return {
+        "status": "success",
+        "question": question,
+        "answer": answer.strip(),
+        "sources": sources,
+        "source_count": len(sources),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 async def _silent_refresh(run_llm: bool = False):

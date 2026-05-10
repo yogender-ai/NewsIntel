@@ -1,6 +1,6 @@
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowRight, X, Activity } from 'lucide-react';
+import { ArrowRight, X, Activity, Search } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { AppContext } from '../App';
 import { api } from '../api';
@@ -257,6 +257,56 @@ function TourModal({ onClose }) {
   );
 }
 
+function AskNewsIntelModal({
+  question,
+  setQuestion,
+  result,
+  error,
+  loading,
+  onSubmit,
+  onClose,
+}) {
+  return (
+    <div className="ask-modal-backdrop" onMouseDown={onClose}>
+      <form className="ask-modal" onMouseDown={(event) => event.stopPropagation()} onSubmit={onSubmit}>
+        <div className="ask-modal-head">
+          <div>
+            <span>Ask NewsIntel</span>
+            <small>Live Google News + stored signals</small>
+          </div>
+          <button type="button" className="wp-icon-btn" onClick={onClose} aria-label="Close"><X size={16} /></button>
+        </div>
+        <label className="ask-modal-input">
+          <Search size={17} />
+          <input
+            value={question}
+            onChange={(event) => setQuestion(event.target.value)}
+            placeholder="Ask about any current story"
+            autoFocus
+          />
+          <button type="submit" disabled={loading || question.trim().length < 3}>
+            {loading ? 'Checking' : 'Ask'}
+          </button>
+        </label>
+        {error && <div className="ask-modal-error">{error}</div>}
+        {result && (
+          <div className="ask-modal-answer">
+            <p>{result.answer}</p>
+            <div className="ask-modal-sources">
+              {result.sources?.map((source, index) => (
+                <a key={`${source.url || source.title}-${index}`} href={source.url} target="_blank" rel="noreferrer">
+                  <b>[S{index + 1}] {source.source || 'Source'}</b>
+                  <span>{source.title}</span>
+                </a>
+              ))}
+            </div>
+          </div>
+        )}
+      </form>
+    </div>
+  );
+}
+
 export default function HomePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -278,6 +328,11 @@ export default function HomePage() {
   const [insightView, setInsightView] = useState(null);
   const [tourOpen, setTourOpen] = useState(false);
   const [mountWave, setMountWave] = useState(hasCached ? 3 : 0);
+  const [askOpen, setAskOpen] = useState(false);
+  const [askQuestion, setAskQuestion] = useState('');
+  const [askResult, setAskResult] = useState(null);
+  const [askError, setAskError] = useState('');
+  const [askLoading, setAskLoading] = useState(false);
 
   const load = useCallback(async ({ force = false, background = false } = {}) => {
     setError('');
@@ -328,6 +383,23 @@ export default function HomePage() {
       setRefreshing(false);
     }
   }, [setDashboardCache]);
+
+  const submitAsk = useCallback(async (event) => {
+    event.preventDefault();
+    const question = askQuestion.trim();
+    if (question.length < 3) return;
+    setAskLoading(true);
+    setAskError('');
+    setAskResult(null);
+    try {
+      const response = await api.askNewsIntel(question);
+      setAskResult(response);
+    } catch (err) {
+      setAskError(readableLiveError(err) || 'No answer returned.');
+    } finally {
+      setAskLoading(false);
+    }
+  }, [askQuestion]);
 
   useEffect(() => {
     alertsRef.current = alerts;
@@ -422,6 +494,7 @@ export default function HomePage() {
         onAlerts={() => navigate('/alerts')}
         onSetFocus={() => navigate('/onboarding')}
         onSettings={() => navigate('/settings')}
+        onAsk={() => setAskOpen(true)}
       />
       <main className="world-pulse-main">
         <TopHeader
@@ -551,6 +624,17 @@ export default function HomePage() {
         onClose={() => setInsightView(null)}
       />
       {tourOpen && <TourModal onClose={() => setTourOpen(false)} />}
+      {askOpen && (
+        <AskNewsIntelModal
+          question={askQuestion}
+          setQuestion={setAskQuestion}
+          result={askResult}
+          error={askError}
+          loading={askLoading}
+          onSubmit={submitAsk}
+          onClose={() => setAskOpen(false)}
+        />
+      )}
       <LockedNavToast message={lockedToast} />
     </div>
   );

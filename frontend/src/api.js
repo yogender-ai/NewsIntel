@@ -95,6 +95,13 @@ export const api = {
       body: JSON.stringify({ title, text, source }),
     }),
 
+  askNewsIntel: (question, maxSources = 8) =>
+    request('/api/ask', {
+      method: 'POST',
+      timeoutMs: 90000,
+      body: JSON.stringify({ question, max_sources: maxSources }),
+    }),
+
   getStory: (storyId) => request(`/api/story/${encodeURIComponent(storyId)}`),
 
   savePreferences: (prefs) =>

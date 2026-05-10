@@ -773,9 +773,11 @@ class MVPNewsPipeline:
             await self.session.execute(
                 select(EventMetric.category, EventMetric.pulse_score, EventMetric.exposure_score, EventMetric.created_at)
                 .where(EventMetric.created_at >= utcnow() - timedelta(days=self.settings.newsintel_retention_days))
-                .order_by(EventMetric.created_at.asc())
+                .order_by(EventMetric.created_at.desc())
+                .limit(240)
             )
         ).all()
+        metrics = list(reversed(metrics))
         categories = {category: [] for category in self.settings.mvp_categories}
         for card in cards:
             categories.setdefault(card["category"], []).append(card)
@@ -973,6 +975,7 @@ class MVPNewsPipeline:
         cutoff = utcnow() - timedelta(days=self.settings.newsintel_retention_days)
         deleted = {}
         for model, key in [
+            (RawArticle, "raw_articles"),
             (EventMetric, "event_metrics"),
             (Story, "stories"),
             (RankedStory, "ranked_stories"),
@@ -989,6 +992,16 @@ class MVPNewsPipeline:
             .where(Article.id.not_in(select(EventArticle.article_id)))
         )
         deleted["articles"] = int(article_result.rowcount or 0)
+        cycle_result = await self.session.execute(
+            delete(NewsCycle)
+            .where(NewsCycle.started_at < cutoff)
+            .where(NewsCycle.id.not_in(select(HomeSnapshot.cycle_id).where(HomeSnapshot.cycle_id.is_not(None))))
+            .where(NewsCycle.id.not_in(select(RankedStory.cycle_id)))
+            .where(NewsCycle.id.not_in(select(EnrichmentQueue.cycle_id)))
+            .where(NewsCycle.id.not_in(select(Story.cycle_id)))
+            .where(NewsCycle.id.not_in(select(EventMetric.cycle_id)))
+        )
+        deleted["news_cycles"] = int(cycle_result.rowcount or 0)
         await self.session.execute(
             update(HomeSnapshot)
             .where(HomeSnapshot.id.not_in(select(HomeSnapshot.id).where(HomeSnapshot.active.is_(True)).order_by(HomeSnapshot.created_at.desc()).limit(1)))

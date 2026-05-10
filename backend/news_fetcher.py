@@ -294,6 +294,37 @@ async def fetch_mvp_articles(categories: list[str], per_category: int = 5) -> li
     return articles
 
 
+async def search_google_news(query: str, limit: int = 8) -> list:
+    """Search Google News RSS for an arbitrary user question without storing rows."""
+    cleaned = _clean((query or "").strip())
+    if not cleaned:
+        return []
+    variants = [
+        cleaned,
+        f"{cleaned} latest",
+        f"{cleaned} today",
+    ]
+    unique = []
+    seen = set()
+    for variant in variants:
+        if len(unique) >= limit:
+            break
+        items = await _fetch_rss(variant[:240])
+        for item in items:
+            url_key = (item.get("url") or "").strip().lower()
+            title_key = re.sub(r"[^a-z0-9]", "", (item.get("title") or "").lower())[:90]
+            key = url_key or title_key
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            normalized = dict(item)
+            normalized["rss_query"] = cleaned
+            unique.append(normalized)
+            if len(unique) >= limit:
+                break
+    return unique
+
+
 async def extract_article_text(url: str) -> str:
     """
     Try to extract fuller article text from URL.

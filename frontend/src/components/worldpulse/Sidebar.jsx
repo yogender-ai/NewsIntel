@@ -27,6 +27,7 @@ export default function Sidebar({
   onSetFocus,
   onSettings,
   onStories,
+  onAsk,
   activeItem = 'home',
 }) {
   const topics = asArray(preferences?.topics);
@@ -83,7 +84,7 @@ export default function Sidebar({
         </section>
       </div>
 
-      <button className="ask-ni" onClick={() => onLocked('Ask NewsIntel is coming soon.')}>
+      <button className="ask-ni" onClick={onAsk || (() => onLocked('Ask NewsIntel is available on the Home screen.'))}>
         <Search size={16} />
         <div className="ask-ni-text">
           <span>Ask NewsIntel</span>

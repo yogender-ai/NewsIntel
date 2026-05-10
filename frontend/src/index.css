@@ -5493,3 +5493,176 @@ input[type="range"] {
 .wp-section-head span::after {
   animation: none !important;
 }
+
+.ask-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(3, 5, 9, 0.72);
+  backdrop-filter: blur(16px);
+}
+
+.ask-modal {
+  width: min(720px, 100%);
+  max-height: min(760px, calc(100vh - 40px));
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  border-radius: 8px;
+  background: rgba(12, 15, 22, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
+}
+
+.ask-modal-head,
+.ask-modal-input {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.ask-modal-head {
+  justify-content: space-between;
+}
+
+.ask-modal-head span {
+  display: block;
+  font-size: 16px;
+  font-weight: 900;
+  color: #f8fafc;
+}
+
+.ask-modal-head small {
+  display: block;
+  margin-top: 3px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: #7ee7c4;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.ask-modal-input {
+  min-height: 52px;
+  padding: 8px 8px 8px 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ask-modal-input:focus-within {
+  border-color: rgba(0, 229, 160, 0.28);
+  box-shadow: 0 0 0 3px rgba(0, 229, 160, 0.08);
+}
+
+.ask-modal-input svg {
+  flex: 0 0 auto;
+  color: var(--accent);
+}
+
+.ask-modal-input input {
+  min-width: 0;
+  flex: 1;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #f8fafc;
+  font-size: 14px;
+}
+
+.ask-modal-input input::placeholder {
+  color: #64748b;
+}
+
+.ask-modal-input button {
+  flex: 0 0 auto;
+  min-width: 76px;
+  min-height: 36px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: #04110d;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.ask-modal-input button:disabled {
+  opacity: 0.45;
+}
+
+.ask-modal-error {
+  padding: 12px;
+  border-radius: 8px;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.18);
+  color: #fecdd3;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.ask-modal-answer {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.ask-modal-answer p {
+  margin: 0;
+  padding: 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: #dbeafe;
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.ask-modal-sources {
+  display: grid;
+  gap: 8px;
+}
+
+.ask-modal-sources a {
+  display: grid;
+  gap: 3px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.ask-modal-sources a:hover {
+  border-color: rgba(0, 229, 160, 0.22);
+}
+
+.ask-modal-sources b {
+  color: #7ee7c4;
+  font-size: 11px;
+}
+
+.ask-modal-sources span {
+  color: #cbd5e1;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+@media (max-width: 640px) {
+  .ask-modal-input {
+    align-items: stretch;
+    flex-wrap: wrap;
+  }
+
+  .ask-modal-input input {
+    flex-basis: calc(100% - 34px);
+  }
+
+  .ask-modal-input button {
+    width: 100%;
+  }
+}
