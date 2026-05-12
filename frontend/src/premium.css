@@ -895,3 +895,435 @@ p, span, li { color: inherit; }
   transform: translateY(-1px);
   box-shadow: 0 4px 20px rgba(0,229,160,0.08);
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   GAMIFIED SHIFT CARDS — Enhanced visual effects
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Critical card glowing border */
+.shift-critical-glow {
+  border-color: rgba(220, 38, 38, 0.15) !important;
+  animation: criticalGlow 3s ease-in-out infinite !important;
+}
+
+@keyframes criticalGlow {
+  0%, 100% {
+    box-shadow: 0 0 0 rgba(220, 38, 38, 0), 0 20px 60px -15px rgba(0, 0, 0, 0.5);
+    border-color: rgba(220, 38, 38, 0.1);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(220, 38, 38, 0.08), 0 20px 60px -15px rgba(220, 38, 38, 0.15);
+    border-color: rgba(220, 38, 38, 0.25);
+  }
+}
+
+/* Animated critical border accent line */
+.sca-critical-border {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  border: 2px solid transparent;
+  background: linear-gradient(180deg, rgba(220,38,38,0.15) 0%, transparent 40%) border-box;
+  mask: linear-gradient(#fff 0 0) padding-box, linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  -webkit-mask-composite: xor;
+  animation: borderFlash 4s ease-in-out infinite;
+}
+
+@keyframes borderFlash {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.8; }
+}
+
+/* Rank badge pulse for critical */
+.sca-rank-critical {
+  background: linear-gradient(135deg, rgba(220, 38, 38, 0.2), rgba(220, 38, 38, 0.1)) !important;
+  border-color: rgba(220, 38, 38, 0.3) !important;
+  color: #DC2626 !important;
+}
+
+.sca-rank-number {
+  position: relative;
+  z-index: 1;
+}
+
+.sca-rank-pulse {
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(220, 38, 38, 0.3);
+  animation: rankPulseOut 2.5s ease-out infinite;
+}
+
+@keyframes rankPulseOut {
+  0% { transform: scale(0.8); opacity: 0.8; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+/* Placeholder animated rings */
+.sca-placeholder {
+  position: relative;
+  display: grid;
+  place-items: center;
+}
+
+.sca-placeholder-rings {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+.sca-ring-1, .sca-ring-2 {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(139, 92, 246, 0.15);
+}
+
+.sca-ring-1 {
+  width: 56px; height: 56px;
+  animation: placeholderRing 3s ease-in-out infinite;
+}
+
+.sca-ring-2 {
+  width: 72px; height: 72px;
+  animation: placeholderRing 3s ease-in-out infinite 0.5s;
+}
+
+@keyframes placeholderRing {
+  0%, 100% { transform: scale(0.9); opacity: 0.3; }
+  50% { transform: scale(1.1); opacity: 0.1; }
+}
+
+/* Hover overlay on shift card visual */
+.sca-hover-overlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(5, 8, 17, 0.7);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: inherit;
+  animation: overlayFadeIn 0.2s ease both;
+  backdrop-filter: blur(4px);
+}
+
+.sca-hover-overlay svg {
+  color: var(--accent);
+}
+
+/* ML Score badge */
+.sca-ml-badge {
+  color: var(--accent-ai) !important;
+  border: 1px solid rgba(139, 92, 246, 0.15);
+  background: rgba(139, 92, 246, 0.06);
+  border-radius: 6px;
+  padding: 2px 8px;
+}
+
+/* Intersection-triggered entrance */
+.shift-card-advanced {
+  opacity: 0;
+  transform: translateY(24px) scale(0.96);
+}
+
+.shift-card-advanced.shift-visible {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.shift-card-advanced:nth-child(1).shift-visible { transition-delay: 0.05s; }
+.shift-card-advanced:nth-child(2).shift-visible { transition-delay: 0.15s; }
+.shift-card-advanced:nth-child(3).shift-visible { transition-delay: 0.25s; }
+
+/* ═══════════════════════════════════════════════════════════════
+   ENHANCED SECTION TRANSITIONS
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Smooth mount wave animation for all wp-mount-fade elements */
+.wp-mount-fade {
+  animation: wpMountFade 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes wpMountFade {
+  from { opacity: 0; transform: translateY(16px) scale(0.98); filter: blur(3px); }
+  to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+
+/* Enhanced WhatChanged rows — staggered slide-in with glow trail */
+.wca-row {
+  position: relative;
+  overflow: hidden;
+}
+
+.wca-row::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: linear-gradient(180deg, var(--wca-color, rgba(139,92,246,0.5)), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.wca-row:hover::before { opacity: 1; }
+
+.wca-row-selected::before {
+  opacity: 1 !important;
+  width: 3px;
+  animation: selectedBarPulse 2s ease-in-out infinite;
+}
+
+@keyframes selectedBarPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   GAMIFIED QUICK GLANCE — Enhanced stat cards
+   ═══════════════════════════════════════════════════════════════ */
+
+.qg-stat {
+  position: relative;
+  overflow: hidden;
+}
+
+/* Shimmer sweep on stat hover */
+.qg-stat::after {
+  content: '';
+  position: absolute;
+  top: 0; left: -100%;
+  width: 50%; height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent);
+  transform: skewX(-20deg);
+  transition: none;
+  pointer-events: none;
+}
+
+.qg-stat:hover::after {
+  animation: statSweep 0.6s ease both;
+}
+
+@keyframes statSweep {
+  from { left: -100%; }
+  to { left: 200%; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ENHANCED PIPELINE BOOT — More dramatic loading
+   ═══════════════════════════════════════════════════════════════ */
+
+.pipeline-overlay-v2 {
+  position: relative;
+  min-height: 60vh;
+  display: grid;
+  place-items: center;
+}
+
+.pipeline-ambient-bg {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(circle at 30% 40%, rgba(0, 229, 160, 0.03), transparent 50%),
+    radial-gradient(circle at 70% 60%, rgba(139, 92, 246, 0.03), transparent 50%);
+  animation: ambientPulse 4s ease-in-out infinite alternate;
+}
+
+@keyframes ambientPulse {
+  0% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+.pipeline-center {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+}
+
+.pipeline-ring-wrap {
+  width: 120px;
+  height: 120px;
+  position: relative;
+  margin: 0 auto 24px;
+}
+
+.pipeline-ring-svg {
+  width: 120px;
+  height: 120px;
+}
+
+.pipeline-ring-progress {
+  transition: stroke-dasharray 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.pipeline-ring-center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+
+.pipeline-pct {
+  font-family: var(--mono);
+  font-size: 24px;
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 0 16px rgba(0, 229, 160, 0.3);
+}
+
+.pipeline-steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 240px;
+  margin: 0 auto;
+}
+
+.pipeline-step-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.015);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  opacity: 0.3;
+  transition: all 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.pipeline-step-item.active {
+  opacity: 1;
+  border-color: rgba(0, 229, 160, 0.15);
+  background: rgba(0, 229, 160, 0.04);
+}
+
+.pipeline-step-item.done {
+  opacity: 0.5;
+}
+
+.pipeline-step-item.done .pipeline-step-icon {
+  color: var(--accent);
+}
+
+.pipeline-step-icon {
+  color: var(--quiet);
+  transition: color 0.3s ease;
+  flex-shrink: 0;
+}
+
+.pipeline-step-item.active .pipeline-step-icon {
+  color: var(--accent);
+  filter: drop-shadow(0 0 4px rgba(0, 229, 160, 0.3));
+}
+
+.pipeline-step-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--quiet);
+  transition: color 0.3s ease;
+}
+
+.pipeline-step-item.active .pipeline-step-label {
+  color: #e2e8f0;
+}
+
+.pipeline-step-pulse {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  margin-left: auto;
+  animation: stepPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes stepPulse {
+  0%, 100% { opacity: 0.4; transform: scale(0.8); }
+  50% { opacity: 1; transform: scale(1.3); }
+}
+
+.pipeline-finishing {
+  animation: pipelineFadeOut 0.6s ease 0.4s both;
+}
+
+.pipeline-done {
+  opacity: 0;
+  pointer-events: none;
+}
+
+@keyframes pipelineFadeOut {
+  from { opacity: 1; filter: blur(0); }
+  to { opacity: 0; filter: blur(8px); transform: scale(1.02); }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   GLOBAL INTERACTION ENHANCEMENTS
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Smooth spring animation for refresh button */
+.spin {
+  animation: spinRefresh 1s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+}
+
+@keyframes spinRefresh {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Enhanced error state with pulsing border */
+.wp-error {
+  animation: errorPulse 3s ease-in-out infinite;
+}
+
+@keyframes errorPulse {
+  0%, 100% { border-color: rgba(239, 68, 68, 0.1); }
+  50% { border-color: rgba(239, 68, 68, 0.25); }
+}
+
+/* Page transitions */
+.world-pulse-page {
+  animation: pageEnter 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes pageEnter {
+  from { opacity: 0.9; }
+  to { opacity: 1; }
+}
+
+/* Enhanced tour modal */
+.tour-modal {
+  animation: tourSlideUp 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes tourSlideUp {
+  from { opacity: 0; transform: translateY(40px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Ask modal backdrop */
+.ask-modal-backdrop {
+  animation: askBackdropIn 0.3s ease both;
+}
+
+@keyframes askBackdropIn {
+  from { backdrop-filter: blur(0); background: transparent; }
+  to { backdrop-filter: blur(16px); }
+}
+
+.ask-modal {
+  animation: askModalPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes askModalPop {
+  from { opacity: 0; transform: translateY(30px) scale(0.9); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}

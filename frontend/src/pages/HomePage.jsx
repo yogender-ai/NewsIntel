@@ -1,6 +1,7 @@
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, X, Activity, Search } from 'lucide-react';
+import { useGamification } from '../components/worldpulse/GamificationEngine';
 import { useAuth } from '../context/AuthContext';
 import { AppContext } from '../App';
 import { api } from '../api';
@@ -311,6 +312,7 @@ export default function HomePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { setWorldPulseValue, dashboardCache, setDashboardCache } = useContext(AppContext);
+  const gam = useGamification();
 
   const initialCache = useMemo(() => dashboardCache || readStoredDashboardCache(), [dashboardCache]);
   const hasCached = Boolean(initialCache);
@@ -336,7 +338,10 @@ export default function HomePage() {
 
   const load = useCallback(async ({ force = false, background = false } = {}) => {
     setError('');
-    if (force) setRefreshing(true);
+    if (force) {
+      setRefreshing(true);
+      if (gam) gam.trackAction('refresh_data');
+    }
     else if (!background) { setLoading(true); setPipelineDone(false); }
     try {
       const dashResult = force
@@ -391,6 +396,7 @@ export default function HomePage() {
     setAskLoading(true);
     setAskError('');
     setAskResult(null);
+    if (gam) gam.trackAction('ask_question');
     try {
       const response = await api.askNewsIntel(question);
       setAskResult(response);
@@ -399,7 +405,7 @@ export default function HomePage() {
     } finally {
       setAskLoading(false);
     }
-  }, [askQuestion]);
+  }, [askQuestion, gam]);
 
   useEffect(() => {
     alertsRef.current = alerts;
@@ -546,7 +552,7 @@ export default function HomePage() {
                             <TopShiftCard
                               key={shift.id}
                               shift={shift}
-                              onOpen={(s) => navigate(`/dashboard/event/${s.id}`, { state: { event: s.raw || s } })}
+                              onOpen={(s) => { if (gam) gam.trackAction('open_signal'); navigate(`/dashboard/event/${s.id}`, { state: { event: s.raw || s } }); }}
                               index={topShifts.indexOf(shift)}
                             />
                           ))}

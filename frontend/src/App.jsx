@@ -16,7 +16,9 @@ import SimulatorPage from './pages/SimulatorPage';
 import EventDetail from './pages/EventDetail';
 import StoriesPage from './pages/StoriesPage';
 import ThreeBackground from './components/ThreeBackground';
+import { GamificationProvider, NotificationStack, LevelUpModal, AchievementPopup, ClickBurst } from './components/worldpulse/GamificationEngine';
 import './index.css';
+import './gamification.css';
 
 export const AppContext = createContext({
   headlines: [],
@@ -137,7 +139,7 @@ function GlobalLiveCursor() {
   
   const mouse = useRef({ x: window.innerWidth/2, y: window.innerHeight/2 });
   const smoothMouse = useRef({ x: window.innerWidth/2, y: window.innerHeight/2 });
-  const stateRef = useRef('idle'); // idle, hover, alert, satellite
+  const stateRef = useRef('idle');
   const cssMouseRef = useRef({ x: 0, y: 0 });
   const rafRef = useRef(0);
   const idleTimerRef = useRef(0);
@@ -286,7 +288,6 @@ function GlobalLiveCursor() {
           transition: background 0.5s ease;
         }
 
-        /* Hover: Emerald bloom */
         .cyber-cursor.state-hover .cyber-dot {
           background: #00E5A0;
           box-shadow: 0 0 18px 5px rgba(0, 229, 160, 0.8);
@@ -299,7 +300,6 @@ function GlobalLiveCursor() {
           border-bottom-color: rgba(0, 229, 160, 0.9);
         }
         
-        /* Alert: Red pulse */
         .cyber-cursor.state-alert .cyber-dot {
           background: #EF4444;
           box-shadow: 0 0 18px 5px rgba(239, 68, 68, 0.8);
@@ -311,7 +311,6 @@ function GlobalLiveCursor() {
           border-color: rgba(239, 68, 68, 0.6);
         }
 
-        /* Satellite: Violet orbit with emerald accent */
         .cyber-cursor.state-satellite .cyber-dot {
           background: #fff;
           box-shadow: 0 0 20px 4px rgba(139, 92, 246, 0.8);
@@ -374,16 +373,22 @@ function App() {
 
   return (
     <AuthProvider>
-      <AppContext.Provider value={{ headlines, setHeadlines, mode, setMode, worldPulseValue, setWorldPulseValue, dashboardCache, setDashboardCache }}>
-        <Router>
-          <div className={`app-container ${mode === 'calm' ? 'calm-mode' : ''}`}>
-            <ThreeBackground />
-            <div className="scanline" />
-            <CursorWrapper />
-            <AppRoutes />
-          </div>
-        </Router>
-      </AppContext.Provider>
+      <GamificationProvider>
+        <AppContext.Provider value={{ headlines, setHeadlines, mode, setMode, worldPulseValue, setWorldPulseValue, dashboardCache, setDashboardCache }}>
+          <Router>
+            <div className={`app-container ${mode === 'calm' ? 'calm-mode' : ''}`}>
+              <ThreeBackground />
+              <div className="scanline" />
+              <CursorWrapper />
+              <AppRoutes />
+              <NotificationStack />
+              <LevelUpModal />
+              <AchievementPopup />
+              <ClickBurst />
+            </div>
+          </Router>
+        </AppContext.Provider>
+      </GamificationProvider>
     </AuthProvider>
   );
 }
