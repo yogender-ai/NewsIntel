@@ -84,6 +84,7 @@ export default function WorldMap({ regions = [], onRegionSelect, onCountrySelect
   const [hovered, setHovered] = useState(null);
   const [hoveredCountry, setHoveredCountry] = useState(null);
   const [transform, setTransform] = useState({ x: 0, y: 0, k: 1 });
+  const [isAnimating, setIsAnimating] = useState(false);
   const isDragging = useRef(false);
   const lastMouse = useRef({ x: 0, y: 0 });
 
@@ -138,8 +139,17 @@ export default function WorldMap({ regions = [], onRegionSelect, onCountrySelect
 
   const handleWheel = (e) => {
     e.preventDefault();
-    const scaleAdj = e.deltaY * -0.001;
-    setTransform((prev) => ({ ...prev, k: Math.min(Math.max(1, prev.k + scaleAdj), 8) }));
+    const scaleAdj = e.deltaY * -0.002;
+    setTransform((prev) => {
+      const newK = Math.min(Math.max(1, prev.k + scaleAdj * prev.k), 8);
+      return { ...prev, k: newK };
+    });
+  };
+
+  const handleDoubleClick = () => {
+    setIsAnimating(true);
+    setTransform({ x: 0, y: 0, k: 1 });
+    setTimeout(() => setIsAnimating(false), 400);
   };
 
   const handleMouseDown = (e) => {
@@ -161,6 +171,7 @@ export default function WorldMap({ regions = [], onRegionSelect, onCountrySelect
     <svg 
       className="world-map-svg" viewBox="0 0 1000 560" role="img" aria-label="World map of live signal intensity"
       onWheel={handleWheel} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}
+      onDoubleClick={handleDoubleClick}
       style={{ cursor: isDragging.current ? 'grabbing' : 'grab' }}
     >
       <defs>
@@ -205,7 +216,9 @@ export default function WorldMap({ regions = [], onRegionSelect, onCountrySelect
 
       {/* Background */}
       <rect className="world-map-ocean" x="0" y="0" width="1000" height="560" rx="14" />
-      <g transform={`translate(${transform.x}, ${transform.y}) scale(${transform.k})`}>
+      <g transform={`translate(${transform.x}, ${transform.y}) scale(${transform.k})`}
+         style={{ transition: isAnimating ? 'transform 0.4s cubic-bezier(0.22,1,0.36,1)' : (isDragging.current ? 'none' : 'transform 0.08s ease-out') }}
+      >
         <ellipse className="world-map-atmosphere" cx="500" cy="278" rx="460" ry="235" fill="url(#map-ocean-glow)" />
 
       {/* Subtle latitude/longitude grid */}

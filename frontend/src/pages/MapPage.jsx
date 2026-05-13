@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, Filter, Globe2, Layers, Loader2, MapPin, RefreshCw, ShieldAlert, Sparkles, X } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp, Filter, Globe2, Layers, Loader2, MapPin, RefreshCw, ShieldAlert, Sparkles, X } from 'lucide-react';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import Sidebar from '../components/worldpulse/Sidebar';
@@ -34,6 +34,113 @@ function MapStats({ regions }) {
           </div>
         );
       })}
+    </section>
+  );
+}
+
+/* ── Region Info Card (shown below map) ──────────────────────────── */
+function RegionInfoBar({ selectedRegion, selectedCountry, countryNews, countryLoading, countryError, mode, topRegions, onSelectRegion, navigate }) {
+  const [expanded, setExpanded] = useState(true);
+  if (!selectedRegion && !selectedCountry) return null;
+
+  return (
+    <section className="map-info-bar wp-card">
+      <div className="map-info-bar-header" onClick={() => setExpanded(!expanded)}>
+        <div className="map-info-bar-title">
+          {selectedCountry ? (
+            <>
+              <b>{selectedCountry.name}</b>
+              <small><MapPin size={11} /> {selectedCountry.capital}</small>
+            </>
+          ) : selectedRegion ? (
+            <>
+              <b>{selectedRegion.name}</b>
+              <small>Pulse intensity: {selectedRegion.intensity}</small>
+            </>
+          ) : null}
+        </div>
+        <button className="map-info-toggle">{expanded ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</button>
+      </div>
+
+      {expanded && (
+        <div className="map-info-bar-body">
+          {/* Country news section */}
+          {selectedCountry && (
+            <div className="map-info-country">
+              {countryLoading && (
+                <div className="country-news-loading">
+                  <Loader2 size={16} />
+                  <span>Fetching top country news. This can take up to 30 seconds.</span>
+                </div>
+              )}
+              {countryError && <p className="empty-copy">{countryError}</p>}
+              {!countryLoading && countryNews?.items?.length ? (
+                <div className="map-info-news-grid">
+                  {countryNews.items.slice(0, 3).map((event) => (
+                    <button
+                      key={event.id || event.title}
+                      className="map-info-news-item"
+                      onClick={() => navigate('/story', {
+                        state: {
+                          article: {
+                            id: event.id, title: event.title,
+                            text_preview: event.summary || event.why_it_matters,
+                            summary: event.summary || event.why_it_matters,
+                            source: event.sources?.[0]?.source || `${selectedCountry.name} News`,
+                            url: event.source_url || event.sources?.[0]?.url,
+                            sources: event.sources || [],
+                            category: event.category, sentiment: event.sentiment,
+                            why_it_matters: event.why_it_matters,
+                            pulse_score: event.pulse, signal_tier: event.signal_tier || null,
+                          },
+                        },
+                      })}
+                    >
+                      <b>{event.title}</b>
+                      <span>{event.summary || event.why_it_matters || 'Latest country update'}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+              {!countryLoading && countryNews && !countryNews.items?.length && (
+                <p className="empty-copy">No fresh country-specific items found yet.</p>
+              )}
+            </div>
+          )}
+
+          {/* Region pulse stats */}
+          {selectedRegion && (
+            <div className="map-info-pulse">
+              <div className="map-info-pulse-score">
+                <b>{selectedRegion.intensity}</b>
+                <span>Pulse</span>
+              </div>
+              <div className="map-info-pulse-detail">
+                <span>{selectedRegion.event_count} live events</span>
+                <span className={`risk-badge risk-${mode === 'risk' ? selectedRegion.risk : selectedRegion.opportunity}`}>
+                  {mode === 'risk' ? selectedRegion.risk : selectedRegion.opportunity} {mode}
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Top regions horizontal list */}
+          {topRegions.length > 1 && (
+            <div className="map-info-regions">
+              {topRegions.slice(0, 5).map((region) => (
+                <button
+                  key={region.id}
+                  className={`map-info-region-chip ${selectedRegion?.id === region.id ? 'active' : ''}`}
+                  onClick={() => onSelectRegion(region)}
+                >
+                  <b>{region.name}</b>
+                  <small>{region.intensity} · {region.event_count} events</small>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </section>
   );
 }
@@ -146,85 +253,35 @@ export default function MapPage() {
             {!data.regions.length ? (
               <section className="wp-card orbit-empty"><h2>No geographic signals detected yet.</h2><p>Regions appear only when event text or AI entities contain real locations.</p></section>
             ) : (
-              <section className="map-layout">
-                <div className="abstract-world-map">
-                  <WorldMap
-                    regions={data.regions.map((region) => ({
-                      ...region,
-                      color: colorFor(region, mode),
-                      label: [mode === 'risk' ? region.risk : region.opportunity, `${region.event_count} events`].filter(Boolean).join(' / '),
-                    }))}
-                    onRegionSelect={setSelected}
-                    onCountrySelect={loadCountryNews}
-                    selectedCountry={selectedCountry}
-                  />
-                  <div className="map-legend"><span>Signal intensity</span><i /><b>Very high</b></div>
-                </div>
-                <aside className="orbit-list wp-card map-side-panel">
-                  {selectedCountry && (
-                    <section className="country-news-panel">
-                      <div className="wp-section-head">
-                        <span>{selectedCountry.name}</span>
-                        <small><MapPin size={12} /> {selectedCountry.capital}</small>
-                      </div>
-                      {countryLoading && (
-                        <div className="country-news-loading">
-                          <Loader2 size={16} />
-                          <span>Fetching top country news. This can take up to 30 seconds.</span>
-                        </div>
-                      )}
-                      {countryError && <p className="empty-copy">{countryError}</p>}
-                      {!countryLoading && countryNews?.items?.length ? (
-                        <div className="country-news-list">
-                          {countryNews.items.slice(0, 3).map((event) => (
-                            <button
-                              key={event.id || event.title}
-                              onClick={() => navigate('/story', {
-                                state: {
-                                  article: {
-                                    id: event.id,
-                                    title: event.title,
-                                    text_preview: event.summary || event.why_it_matters,
-                                    summary: event.summary || event.why_it_matters,
-                                    source: event.sources?.[0]?.source || `${selectedCountry.name} News`,
-                                    url: event.source_url || event.sources?.[0]?.url,
-                                    sources: event.sources || [],
-                                    category: event.category,
-                                    sentiment: event.sentiment,
-                                    why_it_matters: event.why_it_matters,
-                                    pulse_score: event.pulse,
-                                    signal_tier: event.signal_tier || null,
-                                  },
-                                },
-                              })}
-                            >
-                              <b>{event.title}</b>
-                              <span>{event.summary || event.why_it_matters || 'Latest country update'}</span>
-                            </button>
-                          ))}
-                        </div>
-                      ) : null}
-                      {!countryLoading && countryNews && !countryNews.items?.length && (
-                        <p className="empty-copy">No fresh country-specific items found yet.</p>
-                      )}
-                    </section>
-                  )}
-                  <div className="wp-section-head"><span>{selectedRegion?.name || 'Top Regions'}</span></div>
-                  {selectedRegion && (
-                    <div className="selected-map-signal">
-                      <b>{selectedRegion.intensity}</b>
-                      <span>Pulse intensity</span>
-                      <p>{selectedRegion.event_count} live events / {mode === 'risk' ? selectedRegion.risk : selectedRegion.opportunity} {mode}</p>
-                    </div>
-                  )}
-                  {topRegions.map((region) => (
-                    <button key={region.id} onClick={() => setSelected(region)}>
-                      <b>{region.name}</b>
-                      <span>intensity {region.intensity} / {region.event_count} events / {mode === 'risk' ? region.risk : region.opportunity}</span>
-                    </button>
-                  ))}
-                </aside>
-              </section>
+              <>
+                <section className="map-layout-full">
+                  <div className="abstract-world-map">
+                    <WorldMap
+                      regions={data.regions.map((region) => ({
+                        ...region,
+                        color: colorFor(region, mode),
+                        label: [mode === 'risk' ? region.risk : region.opportunity, `${region.event_count} events`].filter(Boolean).join(' / '),
+                      }))}
+                      onRegionSelect={setSelected}
+                      onCountrySelect={loadCountryNews}
+                      selectedCountry={selectedCountry}
+                    />
+                    <div className="map-legend"><span>Signal intensity</span><i /><b>Very high</b></div>
+                  </div>
+                </section>
+
+                <RegionInfoBar
+                  selectedRegion={selectedRegion}
+                  selectedCountry={selectedCountry}
+                  countryNews={countryNews}
+                  countryLoading={countryLoading}
+                  countryError={countryError}
+                  mode={mode}
+                  topRegions={topRegions}
+                  onSelectRegion={setSelected}
+                  navigate={navigate}
+                />
+              </>
             )}
           </>
         )}
@@ -252,18 +309,15 @@ export default function MapPage() {
                   onClick={() => navigate('/story', {
                     state: {
                       article: {
-                        id: event.id,
-                        title: event.title,
+                        id: event.id, title: event.title,
                         text_preview: event.summary || event.why_it_matters,
                         summary: event.summary || event.why_it_matters,
                         source: event.sources?.[0]?.source || 'NewsIntel Map',
                         url: event.source_url || event.sources?.[0]?.url,
                         sources: event.sources || [],
-                        category: event.category,
-                        sentiment: event.sentiment,
+                        category: event.category, sentiment: event.sentiment,
                         why_it_matters: event.why_it_matters,
-                        pulse_score: event.pulse,
-                        signal_tier: event.signal_tier || null,
+                        pulse_score: event.pulse, signal_tier: event.signal_tier || null,
                       },
                     },
                   })}

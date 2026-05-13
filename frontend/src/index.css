@@ -2696,19 +2696,19 @@ svg {
 }
 
 .signal-map-page .map-layout {
-  grid-template-columns: minmax(0, 1fr) 380px;
+  grid-template-columns: 1fr;
   align-items: stretch;
 }
 
 .signal-map-page .abstract-world-map {
-  min-height: min(74vh, 760px);
+  min-height: min(80vh, 820px);
   border: 1px solid rgba(94, 234, 212, 0.08);
   border-radius: 12px;
 }
 
 .signal-map-page .world-map-svg {
-  height: min(74vh, 760px);
-  min-height: 540px;
+  height: min(80vh, 820px);
+  min-height: 560px;
 }
 
 .country-news-panel {

@@ -271,64 +271,58 @@ function GlobalLiveCursor() {
           pointer-events: none; mix-blend-mode: screen;
           will-change: transform;
         }
-        
         .cyber-dot {
-          position: absolute; top: -3px; left: -3px;
-          width: 6px; height: 6px; border-radius: 50%;
+          position: absolute; top: -2px; left: -2px;
+          width: 4px; height: 4px; border-radius: 50%;
           background: #00E5A0;
-          box-shadow: 0 0 12px 3px rgba(0, 229, 160, 0.6);
+          box-shadow: 0 0 8px 2px rgba(0, 229, 160, 0.5);
           transition: background 0.3s ease, box-shadow 0.3s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
         }
-        
         .cyber-ring {
-          position: absolute; top: 0; left: 0;
-          width: 28px; height: 28px; border-radius: 50%;
-          border: 1.5px solid rgba(0, 229, 160, 0.25);
-          border-top-color: rgba(0, 229, 160, 0.7);
+          position: absolute; top: -8px; left: -8px;
+          width: 18px; height: 18px; border-radius: 50%;
+          border: 1px solid rgba(0, 229, 160, 0.2);
+          border-top-color: rgba(0, 229, 160, 0.6);
           border-right-color: transparent;
-          transition: width 0.3s ease, height 0.3s ease, border-color 0.3s ease, border-style 0.3s ease, opacity 0.3s ease;
+          transition: all 0.3s ease;
         }
-        
         .cyber-trail {
-          position: fixed; top: -100px; left: -100px; z-index: 99998;
-          width: 200px; height: 200px; border-radius: 50%;
-          background: radial-gradient(circle, rgba(0, 229, 160, 0.04) 0%, rgba(139, 92, 246, 0.02) 40%, transparent 65%);
+          position: fixed; top: -60px; left: -60px; z-index: 99998;
+          width: 120px; height: 120px; border-radius: 50%;
+          background: radial-gradient(circle, rgba(0, 229, 160, 0.03) 0%, rgba(139, 92, 246, 0.015) 40%, transparent 65%);
           pointer-events: none; will-change: transform;
           transition: background 0.5s ease;
         }
-
         .cyber-cursor.state-hover .cyber-dot {
           background: #00E5A0;
-          box-shadow: 0 0 18px 5px rgba(0, 229, 160, 0.8);
-          transform: scale(1.6);
+          box-shadow: 0 0 12px 3px rgba(0, 229, 160, 0.7);
+          transform: scale(1.3);
         }
         .cyber-cursor.state-hover .cyber-ring {
-          width: 40px; height: 40px;
-          border-color: rgba(0, 229, 160, 0.3);
-          border-top-color: rgba(0, 229, 160, 0.9);
-          border-bottom-color: rgba(0, 229, 160, 0.9);
+          width: 26px; height: 26px; top: -12px; left: -12px;
+          border-color: rgba(0, 229, 160, 0.25);
+          border-top-color: rgba(0, 229, 160, 0.8);
+          border-bottom-color: rgba(0, 229, 160, 0.8);
         }
-        
         .cyber-cursor.state-alert .cyber-dot {
           background: #EF4444;
-          box-shadow: 0 0 18px 5px rgba(239, 68, 68, 0.8);
-          transform: scale(2);
+          box-shadow: 0 0 12px 3px rgba(239, 68, 68, 0.7);
+          transform: scale(1.5);
         }
         .cyber-cursor.state-alert .cyber-ring {
-          width: 36px; height: 36px;
+          width: 24px; height: 24px; top: -11px; left: -11px;
           border-style: dashed;
-          border-color: rgba(239, 68, 68, 0.6);
+          border-color: rgba(239, 68, 68, 0.5);
         }
-
         .cyber-cursor.state-satellite .cyber-dot {
           background: #fff;
-          box-shadow: 0 0 20px 4px rgba(139, 92, 246, 0.8);
+          box-shadow: 0 0 14px 3px rgba(139, 92, 246, 0.7);
         }
         .cyber-cursor.state-satellite .cyber-ring {
-          width: 56px; height: 56px;
-          border: 1px dotted rgba(139, 92, 246, 0.4);
-          border-top: 2px solid #8B5CF6;
-          border-bottom: 2px solid #00E5A0;
+          width: 32px; height: 32px; top: -15px; left: -15px;
+          border: 1px dotted rgba(139, 92, 246, 0.35);
+          border-top: 1.5px solid #8B5CF6;
+          border-bottom: 1.5px solid #00E5A0;
         }
       `}</style>
       
