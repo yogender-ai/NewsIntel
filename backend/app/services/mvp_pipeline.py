@@ -475,7 +475,9 @@ class MVPNewsPipeline:
         prompt = (
             "Enrich one real RSS article for News-Intel using only the metadata below. "
             "Do not invent facts. Return ONLY minified strict JSON, no markdown. "
-            "Keep display_title <= 12 words, summary <= 22 words, why_it_matters <= 20 words, entities <= 6.\n"
+            "Keep display_title <= 12 words. Write summary as 2-3 simple sentences, 45-70 words. "
+            "Explain what happened, who is affected, and what could change next. "
+            "Write why_it_matters as 1-2 concrete sentences, 20-45 words. Keep entities <= 6.\n"
             "Required shape:\n"
             '{"display_title":"","summary":"","why_it_matters":"","entities":[],"sentiment":"positive/neutral/negative/mixed",'
             '"pulse_score":0,"exposure_score":0,"importance_level":"HIGH/MEDIUM/LOW","risk_level":"LOW/MEDIUM/HIGH"}\n\n'
@@ -923,6 +925,7 @@ class MVPNewsPipeline:
             )
         )
         await self.session.flush()
+        await self.session.execute(delete(HomeSnapshot).where(HomeSnapshot.active.is_(False)))
         return payload
 
     def category_deltas(self, metrics) -> list[dict]:
@@ -1007,6 +1010,8 @@ class MVPNewsPipeline:
             .where(HomeSnapshot.id.not_in(select(HomeSnapshot.id).where(HomeSnapshot.active.is_(True)).order_by(HomeSnapshot.created_at.desc()).limit(1)))
             .values(active=False)
         )
+        inactive_snapshot_result = await self.session.execute(delete(HomeSnapshot).where(HomeSnapshot.active.is_(False)))
+        deleted["home_snapshots_inactive"] = int(inactive_snapshot_result.rowcount or 0)
         await self.session.commit()
         return {"status": "success", "cutoff": cutoff.isoformat(), "deleted": deleted}
 

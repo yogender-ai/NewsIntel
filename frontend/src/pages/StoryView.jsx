@@ -16,6 +16,7 @@ import Sidebar from '../components/worldpulse/Sidebar';
 import LockedNavToast from '../components/worldpulse/LockedNavToast';
 import PulseTrendChart from '../components/worldpulse/PulseTrendChart';
 import { compactLabel, formatRelativeTime } from '../lib/dashboardAdapter';
+import { buildExecutiveBriefing, collectBriefingPoints } from '../lib/briefingText';
 
 const SignalBadge = ({ tier }) => {
   const t = (tier || 'NOISE').toUpperCase();
@@ -152,10 +153,18 @@ export default function StoryView() {
 
   const sourceRows = (activeArticle.sources || (activeArticle.url ? [{ title: activeArticle.title, source: activeArticle.source, url: activeArticle.url }] : []))
     .filter((source) => source?.url);
-  const matters = [deepData?.summary, activeArticle.why_it_matters, activeArticle.impact_line, activeArticle.summary]
-    .flatMap((item) => Array.isArray(item) ? item : [item])
-    .filter(Boolean)
-    .slice(0, 4);
+  const storyBriefing = buildExecutiveBriefing(
+    {
+      ...activeArticle,
+      summary: deepData?.summary || activeArticle.summary,
+      text_preview: activeArticle.text_preview || activeArticle.text,
+    },
+    sourceRows,
+  );
+  const matters = collectBriefingPoints(
+    [activeArticle.why_it_matters, activeArticle.impact_line, deepData?.summary, activeArticle.summary],
+    4,
+  );
 
   return (
     <div className="world-pulse-page story-page">
@@ -251,7 +260,7 @@ export default function StoryView() {
           <aside className="story-side">
             <section className="wp-card story-about">
               <div className="wp-section-head"><span>About This Story</span></div>
-              <p>{deepData?.summary || activeArticle.why_it_matters || activeArticle.text_preview || ''}</p>
+              <p>{storyBriefing}</p>
               <div className="story-stat-list">
                 {hasPulse && <div><span>Pulse Score</span><b>{Math.round(activeArticle.pulse_score)}</b></div>}
                 {hasExposure && <div><span>Your Exposure</span><b>{Math.round(activeArticle.exposure_score)}</b></div>}

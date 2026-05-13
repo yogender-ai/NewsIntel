@@ -3,6 +3,7 @@ import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { ArrowLeft, Clock, Activity, Radio, Share2, ShieldAlert } from 'lucide-react';
 import { api } from '../api';
 import { formatRelativeTime } from '../lib/dashboardAdapter';
+import { buildExecutiveBriefing, cleanBriefingText } from '../lib/briefingText';
 import Sidebar from '../components/worldpulse/Sidebar';
 
 export default function EventDetail() {
@@ -87,9 +88,13 @@ export default function EventDetail() {
   const sources = (event.sources || (event.source_url ? [{ url: event.source_url, source: event.source, title: event.thread_title || event.title }] : []))
     .filter((source) => source?.url);
   const sentimentLabel = typeof event.sentiment === 'string' ? event.sentiment : event.sentiment?.label;
-  const briefingSummary = event.summary || event.text_preview || event.why_it_matters || 'Summary is still being prepared for this signal.';
+  const executiveBriefing = buildExecutiveBriefing(event, sources);
   const sourceSummary = sources.find((source) => source.text_preview)?.text_preview || event.source_summary || event.text_preview || '';
   const whyMatters = event.why_it_matters || event.impact_line || '';
+  const confidenceValue = Number(event.confidence);
+  const confidenceLabel = Number.isFinite(confidenceValue)
+    ? `${Math.round(confidenceValue <= 1 ? confidenceValue * 100 : confidenceValue)}%`
+    : '-';
 
   return (
     <div className="world-pulse-page">
@@ -151,17 +156,17 @@ export default function EventDetail() {
               <Radio size={16}/> EXECUTIVE BRIEFING
             </h3>
             <p style={{ fontSize: 16, lineHeight: 1.7, color: '#e2e8f0', marginBottom: 24 }}>
-              {briefingSummary}
+              {executiveBriefing}
             </p>
 
-            {sourceSummary && sourceSummary !== briefingSummary && (
+            {sourceSummary && !executiveBriefing.includes(cleanBriefingText(sourceSummary)) && (
               <div style={{ padding: 20, background: 'rgba(255,255,255,0.025)', borderRadius: 12, marginBottom: 16 }}>
                 <span style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>SOURCE SUMMARY</span>
                 <p style={{ fontSize: 14, color: '#dbeafe', margin: 0, lineHeight: 1.6 }}>{sourceSummary}</p>
               </div>
             )}
 
-            {whyMatters && whyMatters !== event.impact_line && (
+            {whyMatters && whyMatters !== event.impact_line && !executiveBriefing.includes(cleanBriefingText(whyMatters)) && (
               <div style={{ padding: 20, background: 'rgba(255,255,255,0.025)', borderRadius: 12, marginBottom: 16 }}>
                 <span style={{ fontSize: 11, fontWeight: 800, color: '#94a3b8', letterSpacing: '0.1em', display: 'block', marginBottom: 8 }}>WHY IT MATTERS</span>
                 <p style={{ fontSize: 14, color: '#f8fafc', margin: 0, lineHeight: 1.6 }}>{whyMatters}</p>
@@ -194,7 +199,7 @@ export default function EventDetail() {
               <div className="drawer-grid">
                 <div><small>Sources</small><b>{event.source_count || sources.length || '-'}</b></div>
                 <div><small>Sentiment</small><b>{sentimentLabel || '-'}</b></div>
-                <div><small>Confidence</small><b>{Number.isFinite(Number(event.confidence)) ? Math.round(Number(event.confidence) * 100) : '-'}</b></div>
+                <div><small>Confidence</small><b>{confidenceLabel}</b></div>
                 <div><small>AI Status</small><b>{event.ai_status || '-'}</b></div>
                 <div><small>Local ML</small><b>{Number.isFinite(Number(event.ml_signal_score)) ? Math.round(Number(event.ml_signal_score)) : '-'}</b></div>
                 <div><small>ML Model</small><b>{event.ml_signal_model ? 'SignalRank' : '-'}</b></div>
