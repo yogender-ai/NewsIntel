@@ -287,47 +287,50 @@ export default function MapPage() {
         )}
       </main>
       {selected && (
-        <aside className="shift-drawer orbit-drawer">
-          <button className="drawer-close" onClick={() => setSelected(null)}><X size={18} /></button>
-          <span>{selected.id}</span>
-          <h2>{selected.name}</h2>
-          <div className="drawer-grid">
-            <div><small>Intensity</small><b>{selected.intensity}</b></div>
-            <div><small>Delta</small><b>{selected.delta >= 0 ? `+${selected.delta}` : selected.delta}</b></div>
-            <div><small>Risk</small><b>{selected.risk}</b></div>
-            <div><small>Opportunity</small><b>{selected.opportunity}</b></div>
-          </div>
-          <section>
-            <h3>Top events</h3>
-            {selected.top_events?.map((event) => (
-              <div className="orbit-connection" key={event.id}>
-                <b>{event.title}</b>
-                <small>pulse {event.pulse} / {compactLabel(event.category)}{event.sources?.length ? ` / ${event.sources.length} sources` : ''}</small>
-                <p>{event.why_it_matters || 'Impact is still being confirmed.'}</p>
-                <button
-                  className="orbit-story-button"
-                  onClick={() => navigate('/story', {
-                    state: {
-                      article: {
-                        id: event.id, title: event.title,
-                        text_preview: event.summary || event.why_it_matters,
-                        summary: event.summary || event.why_it_matters,
-                        source: event.sources?.[0]?.source || 'NewsIntel Map',
-                        url: event.source_url || event.sources?.[0]?.url,
-                        sources: event.sources || [],
-                        category: event.category, sentiment: event.sentiment,
-                        why_it_matters: event.why_it_matters,
-                        pulse_score: event.pulse, signal_tier: event.signal_tier || null,
+        <>
+          <div className="drawer-backdrop" onClick={() => setSelected(null)} />
+          <aside className="shift-drawer orbit-drawer">
+            <button className="drawer-close" onClick={() => setSelected(null)}><X size={18} /></button>
+            <span>{selected.id}</span>
+            <h2>{selected.name}</h2>
+            <div className="drawer-grid">
+              <div><small>Intensity</small><b>{selected.intensity}</b></div>
+              <div><small>Delta</small><b>{selected.delta >= 0 ? `+${selected.delta}` : selected.delta}</b></div>
+              <div><small>Risk</small><b>{selected.risk}</b></div>
+              <div><small>Opportunity</small><b>{selected.opportunity}</b></div>
+            </div>
+            <section>
+              <h3>Top events</h3>
+              {selected.top_events?.map((event) => (
+                <div className="orbit-connection" key={event.id}>
+                  <b>{event.title}</b>
+                  <small>pulse {event.pulse} / {compactLabel(event.category)}{event.sources?.length ? ` / ${event.sources.length} sources` : ''}</small>
+                  <p>{event.why_it_matters || 'Impact is still being confirmed.'}</p>
+                  <button
+                    className="orbit-story-button"
+                    onClick={() => navigate('/story', {
+                      state: {
+                        article: {
+                          id: event.id, title: event.title,
+                          text_preview: event.summary || event.why_it_matters,
+                          summary: event.summary || event.why_it_matters,
+                          source: event.sources?.[0]?.source || 'NewsIntel Map',
+                          url: event.source_url || event.sources?.[0]?.url,
+                          sources: event.sources || [],
+                          category: event.category, sentiment: event.sentiment,
+                          why_it_matters: event.why_it_matters,
+                          pulse_score: event.pulse, signal_tier: event.signal_tier || null,
+                        },
                       },
-                    },
-                  })}
-                >
-                  Open Story
-                </button>
-              </div>
-            ))}
-          </section>
-        </aside>
+                    })}
+                  >
+                    Open Story
+                  </button>
+                </div>
+              ))}
+            </section>
+          </aside>
+        </>
       )}
       <LockedNavToast message={lockedToast} />
     </div>

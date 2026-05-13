@@ -129,10 +129,10 @@ const TopBar = () => {
   );
 };
 
+/* ── Global Cursor — refined, minimal ──────────────────────────────── */
 function GlobalLiveCursor() {
   const cursorRef = useRef(null);
   const ringRef = useRef(null);
-  const dotRef = useRef(null);
   const trailRef = useRef(null);
   
   const mouse = useRef({ x: window.innerWidth/2, y: window.innerHeight/2 });
@@ -181,7 +181,7 @@ function GlobalLiveCursor() {
 
       if (ringRef.current) {
         const speedMultiplier = stateRef.current === 'satellite' ? 3 : 1;
-        ringRef.current.style.transform = `translate(-50%, -50%) rotate(${angle * speedMultiplier}deg)`;
+        ringRef.current.style.transform = `rotate(${angle * speedMultiplier}deg)`;
       }
       if (trailRef.current && now - lastTrailUpdateRef.current > 32) {
         trailRef.current.style.transform = `translate3d(${smoothMouse.current.x}px, ${smoothMouse.current.y}px, 0)`;
@@ -266,70 +266,84 @@ function GlobalLiveCursor() {
             cursor: auto !important;
           }
         }
+
+        /* ── Cursor container ── */
         .cyber-cursor {
           position: fixed; top: 0; left: 0; z-index: 99999;
-          pointer-events: none; mix-blend-mode: screen;
+          pointer-events: none;
           will-change: transform;
         }
+
+        /* ── Center dot — always at the cursor tip ── */
         .cyber-dot {
-          position: absolute; top: -2px; left: -2px;
-          width: 4px; height: 4px; border-radius: 50%;
+          position: absolute; top: -3px; left: -3px;
+          width: 6px; height: 6px; border-radius: 50%;
           background: #00E5A0;
-          box-shadow: 0 0 8px 2px rgba(0, 229, 160, 0.5);
+          box-shadow: 0 0 10px 2px rgba(0, 229, 160, 0.6);
           transition: background 0.3s ease, box-shadow 0.3s ease, transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
         }
+
+        /* ── Orbiting ring — centered around the dot ── */
         .cyber-ring {
-          position: absolute; top: -8px; left: -8px;
-          width: 18px; height: 18px; border-radius: 50%;
-          border: 1px solid rgba(0, 229, 160, 0.2);
-          border-top-color: rgba(0, 229, 160, 0.6);
+          position: absolute; top: -10px; left: -10px;
+          width: 20px; height: 20px; border-radius: 50%;
+          border: 1.2px solid rgba(0, 229, 160, 0.15);
+          border-top-color: rgba(0, 229, 160, 0.7);
           border-right-color: transparent;
-          transition: all 0.3s ease;
+          transition: width 0.3s ease, height 0.3s ease, top 0.3s ease, left 0.3s ease,
+                      border-color 0.3s ease, border-style 0.3s ease, opacity 0.3s ease;
         }
+
+        /* ── Ambient glow trail ── */
         .cyber-trail {
           position: fixed; top: -60px; left: -60px; z-index: 99998;
           width: 120px; height: 120px; border-radius: 50%;
-          background: radial-gradient(circle, rgba(0, 229, 160, 0.03) 0%, rgba(139, 92, 246, 0.015) 40%, transparent 65%);
+          background: radial-gradient(circle, rgba(0, 229, 160, 0.025) 0%, rgba(139, 92, 246, 0.012) 40%, transparent 65%);
           pointer-events: none; will-change: transform;
-          transition: background 0.5s ease;
         }
+
+        /* ── Hover state ── */
         .cyber-cursor.state-hover .cyber-dot {
-          background: #00E5A0;
-          box-shadow: 0 0 12px 3px rgba(0, 229, 160, 0.7);
-          transform: scale(1.3);
+          background: #5eead4;
+          box-shadow: 0 0 14px 4px rgba(94, 234, 212, 0.7);
+          transform: scale(1.4);
         }
         .cyber-cursor.state-hover .cyber-ring {
-          width: 26px; height: 26px; top: -12px; left: -12px;
-          border-color: rgba(0, 229, 160, 0.25);
-          border-top-color: rgba(0, 229, 160, 0.8);
-          border-bottom-color: rgba(0, 229, 160, 0.8);
+          width: 28px; height: 28px; top: -14px; left: -14px;
+          border-color: rgba(94, 234, 212, 0.2);
+          border-top-color: rgba(94, 234, 212, 0.9);
+          border-bottom-color: rgba(94, 234, 212, 0.9);
         }
+
+        /* ── Alert state ── */
         .cyber-cursor.state-alert .cyber-dot {
-          background: #EF4444;
-          box-shadow: 0 0 12px 3px rgba(239, 68, 68, 0.7);
+          background: #fb7185;
+          box-shadow: 0 0 14px 4px rgba(251, 113, 133, 0.7);
           transform: scale(1.5);
         }
         .cyber-cursor.state-alert .cyber-ring {
-          width: 24px; height: 24px; top: -11px; left: -11px;
+          width: 26px; height: 26px; top: -13px; left: -13px;
           border-style: dashed;
-          border-color: rgba(239, 68, 68, 0.5);
+          border-color: rgba(251, 113, 133, 0.5);
         }
+
+        /* ── Satellite state (pulse ring) ── */
         .cyber-cursor.state-satellite .cyber-dot {
-          background: #fff;
-          box-shadow: 0 0 14px 3px rgba(139, 92, 246, 0.7);
+          background: #c4b5fd;
+          box-shadow: 0 0 16px 4px rgba(196, 181, 253, 0.7);
         }
         .cyber-cursor.state-satellite .cyber-ring {
-          width: 32px; height: 32px; top: -15px; left: -15px;
-          border: 1px dotted rgba(139, 92, 246, 0.35);
+          width: 34px; height: 34px; top: -17px; left: -17px;
+          border: 1px dotted rgba(139, 92, 246, 0.3);
           border-top: 1.5px solid #8B5CF6;
-          border-bottom: 1.5px solid #00E5A0;
+          border-bottom: 1.5px solid #5eead4;
         }
       `}</style>
       
       <div ref={trailRef} className="cyber-trail" />
       <div ref={cursorRef} className="cyber-cursor state-idle">
         <div ref={ringRef} className="cyber-ring" />
-        <div ref={dotRef} className="cyber-dot" />
+        <div className="cyber-dot" />
       </div>
     </>
   );

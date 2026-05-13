@@ -1809,11 +1809,12 @@ svg {
   position: fixed;
   top: 0;
   right: 0;
-  z-index: 40;
+  z-index: 100;
   width: min(470px, 100vw);
   height: 100vh;
   overflow: auto;
   padding: 22px;
+  background: rgba(8, 12, 24, 0.97);
 }
 
 .shift-drawer h2,
@@ -5179,6 +5180,10 @@ svg {
 }
 
 .live-scenario-seeds button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
   font-size: 11px;
   padding: 6px 12px;
   border-radius: 999px;
@@ -5187,16 +5192,68 @@ svg {
   color: #a78bfa;
   cursor: pointer;
   transition: all 0.3s ease;
-  max-width: 200px;
+  max-width: 240px;
+  text-align: left;
+}
+
+.live-scenario-seeds button span {
+  max-width: 210px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.live-scenario-seeds button small {
+  color: #64748b;
+  font-size: 9px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .live-scenario-seeds button:hover {
   background: rgba(139,92,246,0.12);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px rgba(139,92,246,0.08);
+}
+
+.live-scenario-seeds button.active {
+  background: rgba(94,234,212,0.08);
+  border-color: rgba(94,234,212,0.2);
+  color: #7ee7c4;
+}
+
+.sim-preset-actions {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.sim-preset-actions button {
+  min-height: 36px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.025);
+  color: #cbd5e1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.sim-preset-actions button:hover {
+  background: rgba(139,92,246,0.08);
+  border-color: rgba(139,92,246,0.18);
+}
+
+@media (max-width: 640px) {
+  .sim-preset-actions {
+    grid-template-columns: 1fr;
+  }
 }
 
 .run-scenario {
@@ -5278,6 +5335,14 @@ svg {
   font-size: 10px !important;
   color: #475569 !important;
   font-style: italic;
+}
+
+.sim-result-source {
+  color: #7ee7c4 !important;
+  font-size: 10px !important;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
 }
 
 .assumption-list {

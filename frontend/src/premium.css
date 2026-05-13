@@ -302,17 +302,18 @@ p, span, li { color: inherit; }
 @keyframes mapAmb { 0% { opacity: .3; } 100% { opacity: .7; } }
 
 .world-map-geo {
-  fill: rgba(18,35,65,0.72) !important;
-  stroke: rgba(94,234,212,0.08) !important;
+  fill: rgba(15,25,55,0.85) !important;
+  stroke: rgba(94,234,212,0.1) !important;
   stroke-width: 0.4 !important;
-  transition: fill 0.3s, stroke 0.3s !important;
+  transition: fill 0.35s ease, stroke 0.35s ease !important;
 }
 .world-map-geo:hover {
-  fill: rgba(25,50,90,0.88) !important;
-  stroke: rgba(94,234,212,0.35) !important;
+  fill: rgba(30,50,100,0.95) !important;
+  stroke: rgba(94,234,212,0.45) !important;
+  stroke-width: 0.6 !important;
 }
-.world-map-ocean { fill: rgba(3,7,17,0.18) !important; }
-.world-map-heat-core { stroke: rgba(255,255,255,0.7) !important; stroke-width: 1.4 !important; }
+.world-map-ocean { fill: rgba(3,7,17,0.25) !important; }
+.world-map-heat-core { stroke: rgba(255,255,255,0.8) !important; stroke-width: 1.6 !important; }
 
 .map-side-panel { background: rgba(8,12,24,0.4) !important; backdrop-filter: blur(16px) !important; }
 .map-side-panel button { border-radius: 10px; transition: all 0.2s ease; }
@@ -837,12 +838,27 @@ p, span, li { color: inherit; }
 /* ── Drawer panels — cinematic slide-in ──────────────── */
 .shift-drawer, .insight-drawer {
   animation: drawerSlide 0.5s cubic-bezier(0.16,1,0.3,1) both;
-  border-left: 1px solid rgba(139,92,246,0.08) !important;
-  box-shadow: -20px 0 60px rgba(0,0,0,0.4) !important;
+  border-left: 1px solid rgba(139,92,246,0.12) !important;
+  box-shadow: -24px 0 80px rgba(0,0,0,0.6), -4px 0 20px rgba(139,92,246,0.06) !important;
+  background: rgba(8, 12, 24, 0.98) !important;
+  backdrop-filter: blur(24px) saturate(1.2) !important;
 }
 @keyframes drawerSlide {
   from { opacity: 0; transform: translateX(40px); }
   to { opacity: 1; transform: translateX(0); }
+}
+
+/* Drawer backdrop scrim */
+.drawer-backdrop {
+  position: fixed; inset: 0;
+  z-index: 99;
+  background: rgba(0,0,0,0.4);
+  backdrop-filter: blur(2px);
+  animation: drawerBackdropIn 0.3s ease both;
+}
+@keyframes drawerBackdropIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* ── Dashboard signal cards — cinematic entrance ───────── */

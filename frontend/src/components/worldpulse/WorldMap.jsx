@@ -79,6 +79,7 @@ function metaForFeature(feat) {
 }
 
 export default function WorldMap({ regions = [], onRegionSelect, onCountrySelect, selectedCountry }) {
+  const svgRef = useRef(null);
   const [geoData, setGeoData] = useState(null);
   const [failed, setFailed] = useState(false);
   const [hovered, setHovered] = useState(null);
@@ -137,14 +138,24 @@ export default function WorldMap({ regions = [], onRegionSelect, onCountrySelect
       })
   ), [regions, projection]);
 
-  const handleWheel = (e) => {
-    e.preventDefault();
-    const scaleAdj = e.deltaY * -0.002;
-    setTransform((prev) => {
-      const newK = Math.min(Math.max(1, prev.k + scaleAdj * prev.k), 8);
-      return { ...prev, k: newK };
-    });
-  };
+  /* Native wheel handler — must be {passive: false} to allow preventDefault */
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+
+    const onWheel = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const scaleAdj = e.deltaY * -0.0015;
+      setTransform((prev) => {
+        const newK = Math.min(Math.max(1, prev.k + scaleAdj * prev.k), 8);
+        return { ...prev, k: newK };
+      });
+    };
+
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, []);
 
   const handleDoubleClick = () => {
     setIsAnimating(true);
@@ -169,8 +180,9 @@ export default function WorldMap({ regions = [], onRegionSelect, onCountrySelect
 
   return (
     <svg 
+      ref={svgRef}
       className="world-map-svg" viewBox="0 0 1000 560" role="img" aria-label="World map of live signal intensity"
-      onWheel={handleWheel} onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}
+      onMouseDown={handleMouseDown} onMouseMove={handleMouseMove} onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}
       onDoubleClick={handleDoubleClick}
       style={{ cursor: isDragging.current ? 'grabbing' : 'grab' }}
     >
