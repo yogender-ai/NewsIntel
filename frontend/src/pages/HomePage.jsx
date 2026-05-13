@@ -1,7 +1,6 @@
 import React, { useCallback, useContext, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, X, Activity, Search } from 'lucide-react';
-import { useGamification } from '../components/worldpulse/GamificationEngine';
 import { useAuth } from '../context/AuthContext';
 import { AppContext } from '../App';
 import { api } from '../api';
@@ -312,7 +311,6 @@ export default function HomePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { setWorldPulseValue, dashboardCache, setDashboardCache } = useContext(AppContext);
-  const gam = useGamification();
 
   const initialCache = useMemo(() => dashboardCache || readStoredDashboardCache(), [dashboardCache]);
   const hasCached = Boolean(initialCache);
@@ -340,7 +338,6 @@ export default function HomePage() {
     setError('');
     if (force) {
       setRefreshing(true);
-      if (gam) gam.trackAction('refresh_data');
     }
     else if (!background) { setLoading(true); setPipelineDone(false); }
     try {
@@ -396,7 +393,6 @@ export default function HomePage() {
     setAskLoading(true);
     setAskError('');
     setAskResult(null);
-    if (gam) gam.trackAction('ask_question');
     try {
       const response = await api.askNewsIntel(question);
       setAskResult(response);
@@ -405,7 +401,7 @@ export default function HomePage() {
     } finally {
       setAskLoading(false);
     }
-  }, [askQuestion, gam]);
+  }, [askQuestion]);
 
   useEffect(() => {
     alertsRef.current = alerts;
@@ -525,46 +521,46 @@ export default function HomePage() {
             )}
 
             <section className="wp-grid">
-              <div className="wp-primary">
-                {/* Wave 1: Core pulse ring + what changed */}
-                {mountWave >= 1 && (
-                  <>
-                    <div className="wp-mount-fade">
-                      <WorldPulseRing worldPulse={data.worldPulse} />
-                    </div>
-                    <div className="wp-mount-fade" style={{ animationDelay: '60ms' }}>
-                      <WhatChangedToday changes={data.changesToday} selectedTopic={selectedTopic} onSelect={setSelectedTopic} />
-                    </div>
-                  </>
-                )}
+              {/* Wave 1: Core pulse ring + what changed */}
+              {mountWave >= 1 && (
+                <>
+                  <div className="wp-mount-fade wp-cell-pulse">
+                    <WorldPulseRing worldPulse={data.worldPulse} />
+                  </div>
+                  <div className="wp-mount-fade wp-cell-changed" style={{ animationDelay: '60ms' }}>
+                    <WhatChangedToday changes={data.changesToday} selectedTopic={selectedTopic} onSelect={setSelectedTopic} />
+                  </div>
+                </>
+              )}
 
-                {/* Wave 3: Dimensions + shifts */}
-                {mountWave >= 3 && (
-                  <>
-                    <div className="wp-mount-fade" style={{ animationDelay: '40ms' }}>
-                      <PulseByDimension dimensions={data.dimensions} />
-                    </div>
-                    <section className="wp-card top-shifts-section wp-mount-fade" style={{ animationDelay: '80ms' }}>
-                      <div className="wp-section-head"><span>Top 3 Shifts You Must Know</span></div>
-                      {topShifts.length ? (
-                        <div className="top-shifts-list">
-                          {topShifts.slice(0, 3).map((shift) => (
-                            <TopShiftCard
-                              key={shift.id}
-                              shift={shift}
-                              onOpen={(s) => { if (gam) gam.trackAction('open_signal'); navigate(`/dashboard/event/${s.id}`, { state: { event: s.raw || s } }); }}
-                              index={topShifts.indexOf(shift)}
-                            />
-                          ))}
-                        </div>
-                      ) : (
-                        <EmptyState title="No live shifts available." body="Event-backed signals will appear after ingestion produces dashboard events." />
-                      )}
-                    </section>
+              {/* Wave 3: Dimensions + shifts */}
+              {mountWave >= 3 && (
+                <>
+                  <div className="wp-mount-fade wp-span-main" style={{ animationDelay: '40ms' }}>
+                    <PulseByDimension dimensions={data.dimensions} />
+                  </div>
+                  <section className="wp-card top-shifts-section wp-mount-fade wp-span-main" style={{ animationDelay: '80ms' }}>
+                    <div className="wp-section-head"><span>Top 3 Shifts You Must Know</span></div>
+                    {topShifts.length ? (
+                      <div className="top-shifts-list">
+                        {topShifts.slice(0, 3).map((shift) => (
+                          <TopShiftCard
+                            key={shift.id}
+                            shift={shift}
+                            onOpen={(s) => navigate(`/dashboard/event/${s.id}`, { state: { event: s.raw || s } })}
+                            index={topShifts.indexOf(shift)}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <EmptyState title="No live shifts available." body="Event-backed signals will appear after ingestion produces dashboard events." />
+                    )}
+                  </section>
+                  <div className="wp-span-main">
                     <StartTourCard onStart={() => setTourOpen(true)} />
-                  </>
-                )}
-              </div>
+                  </div>
+                </>
+              )}
 
               <aside className="wp-right">
                 {/* Wave 2: Trend chart + quick glance */}

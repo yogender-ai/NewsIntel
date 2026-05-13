@@ -16,9 +16,7 @@ import SimulatorPage from './pages/SimulatorPage';
 import EventDetail from './pages/EventDetail';
 import StoriesPage from './pages/StoriesPage';
 import ThreeBackground from './components/ThreeBackground';
-import { GamificationProvider, NotificationStack, LevelUpModal, AchievementPopup, ClickBurst } from './components/worldpulse/GamificationEngine';
 import './index.css';
-import './gamification.css';
 
 export const AppContext = createContext({
   headlines: [],
@@ -144,6 +142,7 @@ function GlobalLiveCursor() {
   const rafRef = useRef(0);
   const idleTimerRef = useRef(0);
   const lastCssUpdateRef = useRef(0);
+  const lastTrailUpdateRef = useRef(0);
   const scrollingRef = useRef(false);
 
   useEffect(() => {
@@ -168,10 +167,11 @@ function GlobalLiveCursor() {
         cursorRef.current.style.transform = `translate3d(${mouse.current.x}px, ${mouse.current.y}px, 0)`;
       }
 
-      if (!scrollingRef.current && now - lastCssUpdateRef.current > 80) {
+      if (!scrollingRef.current && now - lastCssUpdateRef.current > 160) {
         const cssX = Math.round(mouse.current.x);
         const cssY = Math.round(mouse.current.y);
-        if (cssMouseRef.current.x !== cssX || cssMouseRef.current.y !== cssY) {
+        const movedEnough = Math.abs(cssMouseRef.current.x - cssX) + Math.abs(cssMouseRef.current.y - cssY) > 24;
+        if (movedEnough) {
           document.documentElement.style.setProperty('--cursor-x', `${cssX}px`);
           document.documentElement.style.setProperty('--cursor-y', `${cssY}px`);
           cssMouseRef.current = { x: cssX, y: cssY };
@@ -183,8 +183,9 @@ function GlobalLiveCursor() {
         const speedMultiplier = stateRef.current === 'satellite' ? 3 : 1;
         ringRef.current.style.transform = `translate(-50%, -50%) rotate(${angle * speedMultiplier}deg)`;
       }
-      if (trailRef.current) {
+      if (trailRef.current && now - lastTrailUpdateRef.current > 32) {
         trailRef.current.style.transform = `translate3d(${smoothMouse.current.x}px, ${smoothMouse.current.y}px, 0)`;
+        lastTrailUpdateRef.current = now;
       }
 
       rafRef.current = requestAnimationFrame(tick);
@@ -373,22 +374,16 @@ function App() {
 
   return (
     <AuthProvider>
-      <GamificationProvider>
-        <AppContext.Provider value={{ headlines, setHeadlines, mode, setMode, worldPulseValue, setWorldPulseValue, dashboardCache, setDashboardCache }}>
-          <Router>
-            <div className={`app-container ${mode === 'calm' ? 'calm-mode' : ''}`}>
-              <ThreeBackground />
-              <div className="scanline" />
-              <CursorWrapper />
-              <AppRoutes />
-              <NotificationStack />
-              <LevelUpModal />
-              <AchievementPopup />
-              <ClickBurst />
-            </div>
-          </Router>
-        </AppContext.Provider>
-      </GamificationProvider>
+      <AppContext.Provider value={{ headlines, setHeadlines, mode, setMode, worldPulseValue, setWorldPulseValue, dashboardCache, setDashboardCache }}>
+        <Router>
+          <div className={`app-container ${mode === 'calm' ? 'calm-mode' : ''}`}>
+            <ThreeBackground />
+            <div className="scanline" />
+            <CursorWrapper />
+            <AppRoutes />
+          </div>
+        </Router>
+      </AppContext.Provider>
     </AuthProvider>
   );
 }

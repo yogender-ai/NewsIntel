@@ -88,8 +88,8 @@ function DottedGlobe() {
 
     if (!cachedLandDots) {
       cachedLandDots = [];
-      for (let lat = -90; lat <= 90; lat += 3.4) {
-        for (let lon = -180; lon <= 180; lon += 3.4) {
+      for (let lat = -90; lat <= 90; lat += 4.8) {
+        for (let lon = -180; lon <= 180; lon += 4.8) {
           if (d3.geoContains(worldData, [lon, lat])) {
             cachedLandDots.push({
               phi: (90 - lat) * (Math.PI / 180),
@@ -102,7 +102,7 @@ function DottedGlobe() {
     const landDots = cachedLandDots;
 
     // Orbiting data particles
-    const particles = Array.from({ length: 25 }, () => ({
+    const particles = Array.from({ length: 18 }, () => ({
       theta: Math.random() * Math.PI * 2,
       phi: Math.acos((Math.random() * 2) - 1),
       speed: (Math.random() - 0.5) * 0.025,
@@ -119,7 +119,7 @@ function DottedGlobe() {
     function draw(ts = 0) {
       raf = requestAnimationFrame(draw);
       if (!visibleRef.current || document.visibilityState === 'hidden') return;
-      if (ts - last < 50) return;
+      if (ts - last < 66) return;
       last = ts;
       angle += 0.002;
       t += 0.015;

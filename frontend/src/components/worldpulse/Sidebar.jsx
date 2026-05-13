@@ -1,6 +1,5 @@
 import { Bell, Bookmark, Compass, Home, Map, Orbit, Pencil, Search, Settings, ShieldQuestion, Star } from 'lucide-react';
 import { compactLabel } from '../../lib/dashboardAdapter';
-import { useGamification, XPBar, DailyChallenge } from './GamificationEngine';
 
 function asArray(value) {
   if (Array.isArray(value)) return value;
@@ -34,10 +33,8 @@ export default function Sidebar({
   const topics = asArray(preferences?.topics);
   const regions = asArray(preferences?.regions);
   const entities = asArray(preferences?.entities);
-  const g = useGamification();
 
-  const handleNav = (page, callback) => {
-    if (g) g.trackAction('visit_page', { page });
+  const handleNav = (callback) => {
     callback();
   };
 
@@ -49,21 +46,15 @@ export default function Sidebar({
       </div>
 
       <nav className="wp-nav">
-        <button className={activeItem === 'home' ? 'active' : ''} onClick={() => handleNav('home', onHome)}><Home size={17} /> Home</button>
-        <button className={activeItem === 'orbit' ? 'active' : ''} onClick={() => handleNav('orbit', onOrbit)}><Orbit size={17} /> Orbit</button>
-        <button className={activeItem === 'stories' ? 'active' : ''} onClick={() => handleNav('stories', onStories || (() => onLocked('Open a story from any live signal card.')))}><Bookmark size={17} /> Stories</button>
-        <button className={activeItem === 'map' ? 'active' : ''} onClick={() => handleNav('map', onMap)}><Map size={17} /> Map</button>
-        <button className={activeItem === 'simulator' ? 'active' : ''} onClick={() => handleNav('simulator', onSimulator)}><ShieldQuestion size={17} /> Simulator</button>
-        <button className={activeItem === 'watchlist' ? 'active' : ''} onClick={() => handleNav('watchlist', onWatchlist)}><Star size={17} /> Watchlist</button>
-        <button className={activeItem === 'alerts' ? 'active' : ''} onClick={() => handleNav('alerts', onAlerts)}><Bell size={17} /> Alerts</button>
-        <button className={activeItem === 'settings' ? 'active' : ''} onClick={() => handleNav('settings', onSettings)}><Settings size={17} /> Settings</button>
+        <button className={activeItem === 'home' ? 'active' : ''} onClick={() => handleNav(onHome)}><Home size={17} /> Home</button>
+        <button className={activeItem === 'orbit' ? 'active' : ''} onClick={() => handleNav(onOrbit)}><Orbit size={17} /> Orbit</button>
+        <button className={activeItem === 'stories' ? 'active' : ''} onClick={() => handleNav(onStories || (() => onLocked('Open a story from any live signal card.')))}><Bookmark size={17} /> Stories</button>
+        <button className={activeItem === 'map' ? 'active' : ''} onClick={() => handleNav(onMap)}><Map size={17} /> Map</button>
+        <button className={activeItem === 'simulator' ? 'active' : ''} onClick={() => handleNav(onSimulator)}><ShieldQuestion size={17} /> Simulator</button>
+        <button className={activeItem === 'watchlist' ? 'active' : ''} onClick={() => handleNav(onWatchlist)}><Star size={17} /> Watchlist</button>
+        <button className={activeItem === 'alerts' ? 'active' : ''} onClick={() => handleNav(onAlerts)}><Bell size={17} /> Alerts</button>
+        <button className={activeItem === 'settings' ? 'active' : ''} onClick={() => handleNav(onSettings)}><Settings size={17} /> Settings</button>
       </nav>
-
-      {/* Gamification XP Bar */}
-      <XPBar />
-
-      {/* Daily Challenges */}
-      <DailyChallenge />
 
       <div className="wp-sidebar-scroll">
         <section className="wp-focus">
