@@ -86,19 +86,23 @@ export default function PulseTrendChart({ history, worldPulse }) {
   const totalLen = 1200;
   const hoveredPt = hoverIdx !== null ? coords[hoverIdx] : null;
 
+  const hoverRaf = useRef(0);
   const handleMouseMove = (e) => {
-    const svg = svgRef.current;
-    if (!svg) return;
-    const rect = svg.getBoundingClientRect();
-    const mx = ((e.clientX - rect.left) / rect.width) * W;
-    // Find nearest point
-    let nearest = 0;
-    let nearestDist = Infinity;
-    coords.forEach((c, i) => {
-      const d = Math.abs(c.x - mx);
-      if (d < nearestDist) { nearestDist = d; nearest = i; }
+    if (hoverRaf.current) return;
+    hoverRaf.current = requestAnimationFrame(() => {
+      hoverRaf.current = 0;
+      const svg = svgRef.current;
+      if (!svg) return;
+      const rect = svg.getBoundingClientRect();
+      const mx = ((e.clientX - rect.left) / rect.width) * W;
+      let nearest = 0;
+      let nearestDist = Infinity;
+      coords.forEach((c, i) => {
+        const d = Math.abs(c.x - mx);
+        if (d < nearestDist) { nearestDist = d; nearest = i; }
+      });
+      setHoverIdx(nearest);
     });
-    setHoverIdx(nearest);
   };
 
   return (

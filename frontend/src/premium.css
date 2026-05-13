@@ -2,10 +2,8 @@
    PREMIUM LAYER — News Intel Command Center
    ═══════════════════════════════════════════════════════════ */
 
-/* ── Hide default cursor everywhere ──────────────────────── */
-*, *::before, *::after {
-  cursor: none !important;
-}
+/* ── Cursor handling moved to JS GlobalLiveCursor — removed universal
+   cursor:none to avoid forcing compositing on every DOM element ── */
 
 /* ── Hyprland-Style Cursor ────────────────────────────────── */
 .hypr-dot {
@@ -51,13 +49,8 @@ body::before {
     radial-gradient(ellipse 60% 35% at 70% 55%,
       hsla(260, 78%, 60%, calc(0.03 + (0.05 * var(--pulse-intensity, 0)))), transparent 40%);
   opacity: calc(0.7 + (0.3 * var(--pulse-intensity, 0)));
-  animation: nebulaShift 42s ease-in-out infinite alternate;
 }
-@keyframes nebulaShift {
-  0%   { opacity: .7; }
-  50%  { opacity: 1; }
-  100% { opacity: .8; }
-}
+/* nebulaShift animation removed — static opacity is sufficient */
 
 /* Starfield — twinkle rate also responds to pulse */
 body::after {
@@ -78,12 +71,8 @@ body::after {
     radial-gradient(0.8px 0.8px at 78% 45%, rgba(255,255,255,0.15), transparent),
     radial-gradient(1px 1px at 18% 65%, rgba(6,182,212,0.2), transparent);
   opacity: calc(0.5 + (0.5 * var(--pulse-intensity, 0)));
-  animation: starTwinkle 50s linear infinite;
 }
-@keyframes starTwinkle {
-  0%, 100% { opacity: .65; }
-  50%      { opacity: 1; }
-}
+/* starTwinkle animation removed — reactive opacity via CSS var is enough */
 
 /* ── Cards — Cinematic Fluid Glass Panels ────────────────── */
 .glass-card, .wp-card, .panel, .world-pulse-card,
@@ -95,6 +84,7 @@ body::after {
   border-radius: var(--radius) !important;
   transition: transform 0.5s cubic-bezier(0.22,1,0.36,1), border-color 0.5s ease, box-shadow 0.5s ease !important;
   overflow: hidden;
+  contain: layout paint;
 }
 
 .glass-card::before, .wp-card::before, .panel::before, .world-pulse-card::before {
@@ -121,7 +111,7 @@ body::after {
   background: rgba(10,11,15,0.88) !important;
   border: none !important;
   border-right: 1px solid rgba(255,255,255,0.04) !important;
-  backdrop-filter: blur(12px) !important;
+  backdrop-filter: blur(8px) !important;
   position: relative;
   contain: content;
 }
@@ -364,12 +354,8 @@ p, span, li { color: inherit; }
     repeating-linear-gradient(90deg, transparent, transparent 60px, rgba(139,92,246,0.02) 60px, rgba(139,92,246,0.02) 61px);
   background-size: 100% 100%, 100% 100%, 100% 100%;
   mask-image: radial-gradient(ellipse 90% 90% at 50% 50%, black 20%, transparent 80%) !important;
-  animation: dataStream 20s linear infinite;
 }
-@keyframes dataStream {
-  0% { background-position: 0 0, 0 0, 0 0; }
-  100% { background-position: 0 0, 0 60px, 60px 0; }
-}
+/* dataStream animation removed — static grid lines provide the same visual depth */
 .scanline { opacity: 0.04 !important; background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(255,255,255,0.008) 3px 4px); background-size: 100% 4px; }
 
 /* ── Page entrance — cinematic stagger ───────────────────── */
@@ -388,8 +374,8 @@ p, span, li { color: inherit; }
 .shift-card-advanced:nth-child(2) { animation-delay: .18s; }
 .shift-card-advanced:nth-child(3) { animation-delay: .28s; }
 @keyframes cardReveal {
-  from { opacity: 0; transform: translateY(20px) scale(0.97); filter: blur(6px); }
-  to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+  from { opacity: 0; transform: translateY(20px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 .wca-row { animation: rowReveal 0.45s cubic-bezier(0.16,1,0.3,1) both; }
@@ -774,11 +760,7 @@ p, span, li { color: inherit; }
 .wp-section-head span::after {
   content: ''; position: absolute; bottom: -4px; left: 0; right: 0; height: 1px;
   background: linear-gradient(90deg, rgba(139,92,246,0.3), rgba(94,234,212,0.2), transparent);
-  animation: headerGlow 4s ease-in-out infinite alternate;
-}
-@keyframes headerGlow {
-  0% { opacity: 0.4; transform: scaleX(0.6); transform-origin: left; }
-  100% { opacity: 0.8; transform: scaleX(1); transform-origin: left; }
+  opacity: 0.6;
 }
 
 /* ── Focus block chips — premium pill style ─────────────── */
@@ -882,13 +864,10 @@ p, span, li { color: inherit; }
 /* ── Ask NI bar — breathing glow ────────────────────── */
 .ask-ni {
   border-radius: 14px !important;
-  transition: all 0.4s cubic-bezier(0.22,1,0.36,1) !important;
-  animation: askBreath 6s ease-in-out infinite;
+  transition: border-color 0.4s ease, background 0.4s ease, transform 0.3s ease, box-shadow 0.3s ease !important;
+  border-color: rgba(139,92,246,0.06);
 }
-@keyframes askBreath {
-  0%, 100% { border-color: rgba(139,92,246,0.06); }
-  50% { border-color: rgba(94,234,212,0.12); }
-}
+/* askBreath infinite animation removed — static border is cleaner and cheaper */
 .ask-ni:hover {
   background: rgba(0,229,160,0.04) !important;
   border-color: rgba(0,229,160,0.15) !important;
@@ -1011,7 +990,6 @@ p, span, li { color: inherit; }
   font-weight: 700;
   border-radius: inherit;
   animation: overlayFadeIn 0.2s ease both;
-  backdrop-filter: blur(4px);
 }
 
 .sca-hover-overlay svg {
@@ -1054,8 +1032,8 @@ p, span, li { color: inherit; }
 }
 
 @keyframes wpMountFade {
-  from { opacity: 0; transform: translateY(16px) scale(0.98); filter: blur(3px); }
-  to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+  from { opacity: 0; transform: translateY(16px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 /* Enhanced WhatChanged rows — staggered slide-in with glow trail */
@@ -1315,7 +1293,7 @@ p, span, li { color: inherit; }
 }
 
 @keyframes askBackdropIn {
-  from { backdrop-filter: blur(0); background: transparent; }
+  from { background: transparent; }
   to { backdrop-filter: blur(16px); }
 }
 

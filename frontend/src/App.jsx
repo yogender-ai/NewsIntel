@@ -167,10 +167,10 @@ function GlobalLiveCursor() {
         cursorRef.current.style.transform = `translate3d(${mouse.current.x}px, ${mouse.current.y}px, 0)`;
       }
 
-      if (!scrollingRef.current && now - lastCssUpdateRef.current > 160) {
+      if (!scrollingRef.current && now - lastCssUpdateRef.current > 250) {
         const cssX = Math.round(mouse.current.x);
         const cssY = Math.round(mouse.current.y);
-        const movedEnough = Math.abs(cssMouseRef.current.x - cssX) + Math.abs(cssMouseRef.current.y - cssY) > 24;
+        const movedEnough = Math.abs(cssMouseRef.current.x - cssX) + Math.abs(cssMouseRef.current.y - cssY) > 40;
         if (movedEnough) {
           document.documentElement.style.setProperty('--cursor-x', `${cssX}px`);
           document.documentElement.style.setProperty('--cursor-y', `${cssY}px`);
@@ -258,6 +258,14 @@ function GlobalLiveCursor() {
   return (
     <>
       <style>{`
+        .app-container, .app-container *, .app-container *::before, .app-container *::after {
+          cursor: none !important;
+        }
+        @media (pointer: coarse) {
+          .app-container, .app-container *, .app-container *::before, .app-container *::after {
+            cursor: auto !important;
+          }
+        }
         .cyber-cursor {
           position: fixed; top: 0; left: 0; z-index: 99999;
           pointer-events: none; mix-blend-mode: screen;

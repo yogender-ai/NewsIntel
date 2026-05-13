@@ -88,8 +88,8 @@ function DottedGlobe() {
 
     if (!cachedLandDots) {
       cachedLandDots = [];
-      for (let lat = -90; lat <= 90; lat += 4.8) {
-        for (let lon = -180; lon <= 180; lon += 4.8) {
+      for (let lat = -90; lat <= 90; lat += 5.5) {
+        for (let lon = -180; lon <= 180; lon += 5.5) {
           if (d3.geoContains(worldData, [lon, lat])) {
             cachedLandDots.push({
               phi: (90 - lat) * (Math.PI / 180),
@@ -101,8 +101,8 @@ function DottedGlobe() {
     }
     const landDots = cachedLandDots;
 
-    // Orbiting data particles
-    const particles = Array.from({ length: 18 }, () => ({
+    // Orbiting data particles — reduced count for perf
+    const particles = Array.from({ length: 8 }, () => ({
       theta: Math.random() * Math.PI * 2,
       phi: Math.acos((Math.random() * 2) - 1),
       speed: (Math.random() - 0.5) * 0.025,
@@ -119,7 +119,7 @@ function DottedGlobe() {
     function draw(ts = 0) {
       raf = requestAnimationFrame(draw);
       if (!visibleRef.current || document.visibilityState === 'hidden') return;
-      if (ts - last < 66) return;
+      if (ts - last < 50) return;
       last = ts;
       angle += 0.002;
       t += 0.015;
@@ -173,23 +173,7 @@ function DottedGlobe() {
 
       points.sort((a, b) => a.z - b.z);
 
-      // Draw connections between nearby particles
-      const pOnly = points.filter(p => p.type === 'particle');
-      ctx.lineWidth = 0.4;
-      for (let i = 0; i < pOnly.length; i++) {
-        for (let j = i + 1; j < pOnly.length; j++) {
-          const dx = pOnly[i].x - pOnly[j].x;
-          const dy = pOnly[i].y - pOnly[j].y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 55) {
-            ctx.strokeStyle = `rgba(0,229,160,${(1 - dist / 55) * 0.15})`;
-            ctx.beginPath();
-            ctx.moveTo(pOnly[i].x, pOnly[i].y);
-            ctx.lineTo(pOnly[j].x, pOnly[j].y);
-            ctx.stroke();
-          }
-        }
-      }
+      // Particle connections removed for performance (O(n²) per frame was expensive)
 
       // Draw all points
       points.forEach(p => {
@@ -269,9 +253,7 @@ function NeonRing({ score, threat }) {
         strokeWidth={isActive ? 5 : 3}
         strokeLinecap="round"
         style={{
-          filter: isActive ? `drop-shadow(0 0 4px ${color})` : 'none',
           opacity: isActive ? 1 : 0.4,
-          transition: 'all 0.5s ease',
         }}
       />
     );

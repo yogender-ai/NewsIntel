@@ -122,14 +122,9 @@ svg {
     radial-gradient(ellipse 80% 50% at 20% 80%, rgba(0, 229, 160, 0.04), transparent),
     radial-gradient(ellipse 60% 40% at 80% 20%, rgba(139, 92, 246, 0.035), transparent),
     radial-gradient(ellipse 50% 30% at 50% 50%, rgba(6, 182, 212, 0.02), transparent);
-  animation: ambientMesh 30s ease-in-out infinite alternate;
+  opacity: 0.8;
 }
-
-@keyframes ambientMesh {
-  0% { opacity: 0.6; }
-  50% { opacity: 1; }
-  100% { opacity: 0.7; }
-}
+/* ambientMesh animation removed — static ambient gradient is cheaper */
 
 .scanline {
   position: fixed;
@@ -829,7 +824,7 @@ svg {
   inset: -30%;
   background: radial-gradient(circle, rgba(139, 92, 246, 0.18) 0%, rgba(0, 229, 160, 0.06) 40%, transparent 65%);
   filter: blur(30px);
-  animation: haloBreath 4s ease-in-out infinite;
+  animation: haloBreath 8s ease-in-out infinite;
 }
 
 .wpr-globe-halo-secondary {
@@ -840,12 +835,12 @@ svg {
   height: 200px;
   background: radial-gradient(circle, rgba(0, 229, 160, 0.12) 0%, transparent 65%);
   filter: blur(30px);
-  animation: haloBreath 5s ease-in-out infinite reverse;
+  animation: haloBreath 10s ease-in-out infinite reverse;
 }
 
 @keyframes haloBreath {
-  0%, 100% { opacity: 0.6; transform: scale(0.95); }
-  50% { opacity: 1; transform: scale(1.08); }
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
 }
 
 .wpr-globe-canvas {
@@ -861,12 +856,6 @@ svg {
   left: 50%;
   transform: translate(-50%, -50%);
   filter: drop-shadow(0 0 8px rgba(139, 92, 246, 0.15));
-  animation: ringBreath 6s ease-in-out infinite;
-}
-
-@keyframes ringBreath {
-  0%, 100% { filter: drop-shadow(0 0 8px rgba(139, 92, 246, 0.15)); }
-  50% { filter: drop-shadow(0 0 16px rgba(0, 229, 160, 0.2)); }
 }
 
 .wpr-value-display {
@@ -882,12 +871,6 @@ svg {
   color: #fff;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.03em;
-  animation: valuePulse 3s ease-in-out infinite;
-}
-
-@keyframes valuePulse {
-  0%, 100% { opacity: 0.92; }
-  50% { opacity: 1; }
 }
 
 .wpr-label {
