@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { memo, useState, useEffect } from 'react';
 import EmptyState from './EmptyState';
 
-function Gauge({ score, color, label }) {
+const Gauge = memo(function Gauge({ score, color, label }) {
   const [isHovered, setIsHovered] = useState(false);
   const [animatedScore, setAnimatedScore] = useState(0);
   const radius = 36;
@@ -67,9 +67,9 @@ function Gauge({ score, color, label }) {
       </div>
     </div>
   );
-}
+});
 
-export default function PulseByDimension({ dimensions }) {
+function PulseByDimension({ dimensions }) {
   // Accept dimensions as prop; if not available, show empty state
   if (!dimensions || !dimensions.length) {
     return (
@@ -104,3 +104,5 @@ export default function PulseByDimension({ dimensions }) {
     </section>
   );
 }
+
+export default memo(PulseByDimension);

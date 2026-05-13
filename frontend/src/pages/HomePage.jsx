@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useMemo, useRef, useState, lazy, Suspense } from 'react';
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowRight, X, Activity, Search } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
@@ -433,9 +433,12 @@ export default function HomePage() {
     }
   }, [data.worldPulse?.value, setWorldPulseValue]);
 
-  const topShifts = selectedTopic
-    ? data.topShifts.filter((shift) => shift.raw?.matched_preferences?.some((item) => item.id === selectedTopic || item.label === selectedTopic))
-    : data.topShifts;
+  const topShifts = useMemo(
+    () => (selectedTopic
+      ? data.topShifts.filter((shift) => shift.raw?.matched_preferences?.some((item) => item.id === selectedTopic || item.label === selectedTopic))
+      : data.topShifts),
+    [data.topShifts, selectedTopic],
+  );
 
   const articleIndex = useMemo(() => {
     const index = new Map();
@@ -459,6 +462,27 @@ export default function HomePage() {
   }, [articleIndex, selectedShift]);
 
   const showPipeline = loading && !pipelineDone && !dashboard;
+
+  const handleHome = useCallback(() => { setSelectedTopic(null); setInsightView(null); }, []);
+  const openOrbit = useCallback(() => navigate('/orbit'), [navigate]);
+  const openStories = useCallback(() => navigate('/stories'), [navigate]);
+  const openMap = useCallback(() => navigate('/map'), [navigate]);
+  const openSimulator = useCallback(() => navigate('/simulator'), [navigate]);
+  const openWatchlist = useCallback(() => navigate('/watchlist'), [navigate]);
+  const openAlerts = useCallback(() => navigate('/alerts'), [navigate]);
+  const openOnboarding = useCallback(() => navigate('/onboarding'), [navigate]);
+  const openSettings = useCallback(() => navigate('/settings'), [navigate]);
+  const openAsk = useCallback(() => setAskOpen(true), []);
+  const refreshDashboard = useCallback(() => load({ force: true }), [load]);
+  const retryLoad = useCallback(() => load(), [load]);
+  const finishPipeline = useCallback(() => setPipelineDone(true), []);
+  const openTour = useCallback(() => setTourOpen(true), []);
+  const openCountriesInsight = useCallback(() => setInsightView('countries'), []);
+  const clearSignalFilter = useCallback(() => setSelectedTopic(null), []);
+  const openSourcesInsight = useCallback(() => setInsightView('sources'), []);
+  const openShift = useCallback((shift) => {
+    navigate(`/dashboard/event/${shift.id}`, { state: { event: shift.raw || shift } });
+  }, [navigate]);
 
   useEffect(() => {
     let cancelled = false;
@@ -484,37 +508,37 @@ export default function HomePage() {
       <Sidebar
         preferences={data.preferences}
         activeItem="home"
-        onHome={() => { setSelectedTopic(null); setInsightView(null); }}
-        onOrbit={() => navigate('/orbit')}
-        onStories={() => navigate('/stories')}
-        onMap={() => navigate('/map')}
-        onSimulator={() => navigate('/simulator')}
+        onHome={handleHome}
+        onOrbit={openOrbit}
+        onStories={openStories}
+        onMap={openMap}
+        onSimulator={openSimulator}
         onLocked={setLockedToast}
-        onWatchlist={() => navigate('/watchlist')}
-        onAlerts={() => navigate('/alerts')}
-        onSetFocus={() => navigate('/onboarding')}
-        onSettings={() => navigate('/settings')}
-        onAsk={() => setAskOpen(true)}
+        onWatchlist={openWatchlist}
+        onAlerts={openAlerts}
+        onSetFocus={openOnboarding}
+        onSettings={openSettings}
+        onAsk={openAsk}
       />
       <main className="world-pulse-main">
         <TopHeader
           user={user}
           cache={data.cache}
           refreshing={refreshing}
-          onRefresh={() => load({ force: true })}
-          onAlerts={() => navigate('/alerts')}
+          onRefresh={refreshDashboard}
+          onAlerts={openAlerts}
           alertCount={data.alerts?.length || 0}
         />
 
         {showPipeline ? (
-          <TransparentPipeline onComplete={() => setPipelineDone(true)} dataReady={!loading} />
+          <TransparentPipeline onComplete={finishPipeline} dataReady={!loading} />
         ) : (
           <>
             {error && (
               <div className="wp-error">
                 <b>Live data unavailable</b>
                 <span>{error}</span>
-                <button onClick={() => load()}>Retry</button>
+                <button onClick={retryLoad}>Retry</button>
               </div>
             )}
 
@@ -535,7 +559,7 @@ export default function HomePage() {
                 {/* Wave 3: Dimensions + shifts */}
                 {mountWave >= 3 && (
                   <>
-                    <div className="wp-mount-fade" style={{ animationDelay: '40ms' }}>
+                    <div className="wp-mount-fade wp-span-all" style={{ animationDelay: '40ms' }}>
                       <PulseByDimension dimensions={data.dimensions} />
                     </div>
                     <section className="wp-card top-shifts-section wp-mount-fade" style={{ animationDelay: '80ms' }}>
@@ -546,7 +570,7 @@ export default function HomePage() {
                             <TopShiftCard
                               key={shift.id}
                               shift={shift}
-                              onOpen={(s) => navigate(`/dashboard/event/${s.id}`, { state: { event: s.raw || s } })}
+                              onOpen={openShift}
                               index={topShifts.indexOf(shift)}
                             />
                           ))}
@@ -555,7 +579,7 @@ export default function HomePage() {
                         <EmptyState title="No live shifts available." body="Event-backed signals will appear after ingestion produces dashboard events." />
                       )}
                     </section>
-                    <StartTourCard onStart={() => setTourOpen(true)} />
+                    <StartTourCard onStart={openTour} />
                   </>
                 )}
               </div>
@@ -570,10 +594,10 @@ export default function HomePage() {
                     <div className="wp-mount-fade" style={{ animationDelay: '40ms' }}>
                       <QuickGlance
                         data={data.quickGlance}
-                        onCountries={() => setInsightView('countries')}
-                        onSignals={() => setSelectedTopic(null)}
-                        onAlerts={() => navigate('/alerts')}
-                        onSources={() => setInsightView('sources')}
+                        onCountries={openCountriesInsight}
+                        onSignals={clearSignalFilter}
+                        onAlerts={openAlerts}
+                        onSources={openSourcesInsight}
                       />
                     </div>
                   </>

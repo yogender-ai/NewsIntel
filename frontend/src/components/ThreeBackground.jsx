@@ -1,16 +1,4 @@
-import React, { useMemo } from 'react';
-
 export default function ThreeBackground() {
-  const nodes = useMemo(
-    () =>
-      Array.from({ length: 16 }, (_, index) => ({
-        left: `${8 + ((index * 17) % 84)}%`,
-        top: `${10 + ((index * 29) % 78)}%`,
-        scale: (0.75 + ((index % 5) * 0.12)).toFixed(2),
-      })),
-    [],
-  );
-
   return (
     <div className="ni-bg" aria-hidden="true">
       <div className="ni-bg__field" />

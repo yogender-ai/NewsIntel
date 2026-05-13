@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { memo, useState } from 'react';
 import { Clock, Radio } from 'lucide-react';
 import { formatRelativeTime } from '../../lib/dashboardAdapter';
 
 const impactColor = { critical: '#DC2626', signal: '#F59E0B', watch: '#00E5A0', noise: '#52525B' };
 const impactBg = { critical: 'rgba(220,38,38,0.1)', signal: 'rgba(245,158,11,0.1)', watch: 'rgba(0,229,160,0.1)', noise: 'rgba(82,82,91,0.1)' };
 
-export default function TopShiftCard({ shift, onOpen, index }) {
+function TopShiftCard({ shift, onOpen, index }) {
   const impact = shift.impactLevel ? String(shift.impactLevel).toLowerCase() : null;
   const relativeTime = formatRelativeTime(shift.updatedAt);
   const [imageUnavailable, setImageUnavailable] = useState(false);
@@ -61,3 +61,5 @@ export default function TopShiftCard({ shift, onOpen, index }) {
     </button>
   );
 }
+
+export default memo(TopShiftCard);

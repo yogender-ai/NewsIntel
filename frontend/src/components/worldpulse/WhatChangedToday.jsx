@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import { Activity, ArrowRight, TrendingUp, TrendingDown, Globe, Building, Cpu, Coins, ShieldAlert, Zap } from 'lucide-react';
 import EmptyState from './EmptyState';
 
@@ -37,7 +38,7 @@ function BottomSparkline({ current, previous }) {
   );
 }
 
-export default function WhatChangedToday({ changes, selectedTopic, onSelect }) {
+function WhatChangedToday({ changes, selectedTopic, onSelect }) {
   return (
     <section className="wp-card what-changed-advanced wca-container">
       <div className="wca-header">
@@ -95,3 +96,5 @@ export default function WhatChangedToday({ changes, selectedTopic, onSelect }) {
     </section>
   );
 }
+
+export default memo(WhatChangedToday);

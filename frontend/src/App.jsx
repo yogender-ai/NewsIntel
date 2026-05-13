@@ -142,6 +142,7 @@ function GlobalLiveCursor() {
   const rafRef = useRef(0);
   const idleTimerRef = useRef(0);
   const lastCssUpdateRef = useRef(0);
+  const lastCursorFrameRef = useRef(0);
   const scrollingRef = useRef(false);
 
   useEffect(() => {
@@ -158,6 +159,11 @@ function GlobalLiveCursor() {
     };
 
     const tick = (now = 0) => {
+      if (now - lastCursorFrameRef.current < 24) {
+        rafRef.current = requestAnimationFrame(tick);
+        return;
+      }
+      lastCursorFrameRef.current = now;
       smoothMouse.current.x += (mouse.current.x - smoothMouse.current.x) * 0.15;
       smoothMouse.current.y += (mouse.current.y - smoothMouse.current.y) * 0.15;
       angle += 1;
@@ -334,10 +340,12 @@ function GlobalLiveCursor() {
 }
 
 function CursorWrapper() {
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => window.matchMedia('(pointer: coarse)').matches);
   useEffect(() => {
     const mq = window.matchMedia('(pointer: coarse)');
-    setIsMobile(mq.matches);
+    const update = () => setIsMobile(mq.matches);
+    mq.addEventListener?.('change', update);
+    return () => mq.removeEventListener?.('change', update);
   }, []);
   if (isMobile) return null;
   return <GlobalLiveCursor />;

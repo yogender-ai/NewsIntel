@@ -1,31 +1,25 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import EmptyState from './EmptyState';
 
-export default function PulseTrendChart({ history, worldPulse }) {
+function PulseTrendChart({ history, worldPulse }) {
   const [drawn, setDrawn] = useState(false);
   const [hoverIdx, setHoverIdx] = useState(null);
   const svgRef = useRef(null);
+  const hoverIdxRef = useRef(null);
+  const hoverRafRef = useRef(0);
+  const hasHistory = Boolean(history?.length);
+  const series = hasHistory ? history : [];
 
   useEffect(() => {
-    if (history?.length) {
+    if (hasHistory) {
       const timer = setTimeout(() => setDrawn(true), 200);
       return () => clearTimeout(timer);
     }
-  }, [history]);
+    setDrawn(false);
+    return undefined;
+  }, [hasHistory]);
 
-  if (!history?.length) {
-    return (
-      <section className="wp-card pulse-chart-card">
-        <div className="wp-section-head">
-          <span>Live Pulse Trend</span>
-          <em className="pulse-chart-badge">24H</em>
-        </div>
-        <EmptyState title="Pulse history building." body="No backend history available yet." />
-      </section>
-    );
-  }
-
-  const latestValue = worldPulse?.value ?? history[history.length - 1]?.value;
+  const latestValue = worldPulse?.value ?? series[series.length - 1]?.value;
   const latestLabel = worldPulse?.label ?? 'Establishing baseline';
   const hasLatest = latestValue !== null && latestValue !== undefined && Number.isFinite(Number(latestValue));
   const latestColor = !hasLatest ? '#52525B'
@@ -33,10 +27,6 @@ export default function PulseTrendChart({ history, worldPulse }) {
     : latestValue >= 56 ? '#F59E0B'
     : latestValue >= 31 ? '#8B5CF6'
     : '#00E5A0';
-
-  const max = Math.max(...history.map((p) => p.value), 100);
-  const min = Math.min(...history.map((p) => p.value), 0);
-  const range = Math.max(max - min, 1);
 
   const W = 280;
   const H = 115;
@@ -46,12 +36,6 @@ export default function PulseTrendChart({ history, worldPulse }) {
   const padB = 10;
   const chartW = W - padL - padR;
   const chartH = H - padT - padB;
-
-  const coords = history.map((point, index) => {
-    const x = padL + (index / Math.max(history.length - 1, 1)) * chartW;
-    const y = padT + (1 - (point.value - min) / range) * chartH;
-    return { x, y, value: point.value, time: point.time || point.timestamp };
-  });
 
   /* Smooth curve using cardinal spline */
   function cardinalSpline(pts, tension = 0.3) {
@@ -71,35 +55,78 @@ export default function PulseTrendChart({ history, worldPulse }) {
     return d;
   }
 
-  const linePath = cardinalSpline(coords);
-  const areaPath = linePath + ` L${coords[coords.length - 1].x},${padT + chartH} L${coords[0].x},${padT + chartH} Z`;
+  const chart = useMemo(() => {
+    if (!series.length) {
+      return { coords: [], linePath: '', areaPath: '', maxIdx: 0, yLabels: [] };
+    }
+    const max = Math.max(...series.map((p) => p.value), 100);
+    const min = Math.min(...series.map((p) => p.value), 0);
+    const range = Math.max(max - min, 1);
+    const coords = series.map((point, index) => {
+      const x = padL + (index / Math.max(series.length - 1, 1)) * chartW;
+      const y = padT + (1 - (point.value - min) / range) * chartH;
+      return { x, y, value: point.value, time: point.time || point.timestamp };
+    });
+    const linePath = cardinalSpline(coords);
+    return {
+      coords,
+      linePath,
+      areaPath: linePath + ` L${coords[coords.length - 1].x},${padT + chartH} L${coords[0].x},${padT + chartH} Z`,
+      maxIdx: series.reduce((best, p, i) => p.value > series[best].value ? i : best, 0),
+      yLabels: [0, 25, 50, 75, 100].map(v => ({
+        value: v,
+        y: padT + (1 - (v - min) / range) * chartH,
+      })),
+    };
+  }, [chartH, chartW, series, padL, padT]);
 
-  const maxIdx = history.reduce((best, p, i) => p.value > history[best].value ? i : best, 0);
-  const maxPt = coords[maxIdx];
-  const lastPt = coords[coords.length - 1];
-
-  const yLabels = [0, 25, 50, 75, 100].map(v => ({
-    value: v,
-    y: padT + (1 - (v - min) / range) * chartH,
-  }));
+  const maxPt = chart.coords[chart.maxIdx] || null;
+  const lastPt = chart.coords[chart.coords.length - 1];
 
   const totalLen = 1200;
-  const hoveredPt = hoverIdx !== null ? coords[hoverIdx] : null;
+  const hoveredPt = hoverIdx !== null ? chart.coords[hoverIdx] : null;
 
-  const handleMouseMove = (e) => {
+  useEffect(() => () => {
+    if (hoverRafRef.current) cancelAnimationFrame(hoverRafRef.current);
+  }, []);
+
+  const handleMouseMove = useCallback((e) => {
     const svg = svgRef.current;
     if (!svg) return;
     const rect = svg.getBoundingClientRect();
     const mx = ((e.clientX - rect.left) / rect.width) * W;
-    // Find nearest point
-    let nearest = 0;
-    let nearestDist = Infinity;
-    coords.forEach((c, i) => {
-      const d = Math.abs(c.x - mx);
-      if (d < nearestDist) { nearestDist = d; nearest = i; }
+    if (hoverRafRef.current) return;
+    hoverRafRef.current = requestAnimationFrame(() => {
+      hoverRafRef.current = 0;
+      let nearest = 0;
+      let nearestDist = Infinity;
+      chart.coords.forEach((c, i) => {
+        const d = Math.abs(c.x - mx);
+        if (d < nearestDist) { nearestDist = d; nearest = i; }
+      });
+      if (nearest !== hoverIdxRef.current) {
+        hoverIdxRef.current = nearest;
+        setHoverIdx(nearest);
+      }
     });
-    setHoverIdx(nearest);
-  };
+  }, [chart.coords]);
+
+  const clearHover = useCallback(() => {
+    hoverIdxRef.current = null;
+    setHoverIdx(null);
+  }, []);
+
+  if (!hasHistory) {
+    return (
+      <section className="wp-card pulse-chart-card">
+        <div className="wp-section-head">
+          <span>Live Pulse Trend</span>
+          <em className="pulse-chart-badge">24H</em>
+        </div>
+        <EmptyState title="Pulse history building." body="No backend history available yet." />
+      </section>
+    );
+  }
 
   return (
     <section className="wp-card pulse-chart-card">
@@ -120,7 +147,7 @@ export default function PulseTrendChart({ history, worldPulse }) {
         role="img"
         aria-label="24 hour pulse trend"
         onMouseMove={handleMouseMove}
-        onMouseLeave={() => setHoverIdx(null)}
+        onMouseLeave={clearHover}
       >
         <defs>
           <linearGradient id="ptLineGrad" x1="0" y1="0" x2="1" y2="0">
@@ -150,18 +177,18 @@ export default function PulseTrendChart({ history, worldPulse }) {
         </defs>
 
         {/* Y-axis labels */}
-        {yLabels.map(({ value, y }) => (
+        {chart.yLabels.map(({ value, y }) => (
           <text key={value} x="2" y={y + 3} fill="rgba(255,255,255,0.18)" fontSize="7" fontFamily="var(--mono)">{value}</text>
         ))}
 
         {/* Grid lines */}
-        {yLabels.map(({ value, y }) => (
+        {chart.yLabels.map(({ value, y }) => (
           <line key={`g-${value}`} x1={padL} y1={y} x2={W - padR} y2={y} stroke="rgba(255,255,255,0.03)" strokeDasharray="2,4" />
         ))}
 
         {/* Area fill */}
         <path
-          d={areaPath}
+          d={chart.areaPath}
           fill="url(#ptAreaGrad)"
           opacity={drawn ? 1 : 0}
           style={{ transition: 'opacity 1s ease 0.5s' }}
@@ -169,7 +196,7 @@ export default function PulseTrendChart({ history, worldPulse }) {
 
         {/* Main line with animated draw */}
         <path
-          d={linePath}
+          d={chart.linePath}
           fill="none"
           stroke="url(#ptLineGrad)"
           strokeWidth="2.5"
@@ -198,7 +225,7 @@ export default function PulseTrendChart({ history, worldPulse }) {
             <g transform={`translate(${Math.min(Math.max(hoveredPt.x - 24, padL), W - padR - 48)}, ${hoveredPt.y - 28})`}>
               <rect x="0" y="0" width="48" height="20" rx="6" fill="rgba(15,23,42,0.95)" stroke="rgba(167, 139, 250, 0.5)" strokeWidth="1" filter="url(#ptGlow)" />
               <text x="24" y="14" fill="#fff" fontSize="11" fontFamily="var(--mono)" fontWeight="800" textAnchor="middle">
-                {Math.round(history[hoverIdx]?.value || 0)}
+                {Math.round(series[hoverIdx]?.value || 0)}
               </text>
             </g>
           </>
@@ -215,7 +242,7 @@ export default function PulseTrendChart({ history, worldPulse }) {
             />
             {drawn && (
               <text x={maxPt.x} y={maxPt.y - 7} fill="#c4b5fd" fontSize="7" fontFamily="var(--mono)" fontWeight="700" textAnchor="middle">
-                {history[maxIdx].value}
+                {series[chart.maxIdx].value}
               </text>
             )}
           </>
@@ -233,12 +260,12 @@ export default function PulseTrendChart({ history, worldPulse }) {
         )}
 
         {/* Invisible hit areas for each data point */}
-        {coords.map((c, i) => (
+        {chart.coords.map((c, i) => (
           <rect
             key={i}
-            x={c.x - (chartW / coords.length) / 2}
+            x={c.x - (chartW / chart.coords.length) / 2}
             y={padT}
-            width={chartW / coords.length}
+            width={chartW / chart.coords.length}
             height={chartH}
             fill="transparent"
             style={{ cursor: 'crosshair' }}
@@ -248,3 +275,5 @@ export default function PulseTrendChart({ history, worldPulse }) {
     </section>
   );
 }
+
+export default memo(PulseTrendChart);

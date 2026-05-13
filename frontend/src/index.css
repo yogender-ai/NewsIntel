@@ -704,6 +704,40 @@ svg {
   align-items: stretch;
 }
 
+.wp-span-all {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.wp-span-all > .wp-card {
+  height: 100%;
+}
+
+.world-pulse-main-card,
+.pulse-chart-card,
+.quick-glance,
+.what-changed-advanced,
+.pulse-by-dimension,
+.top-shifts-section,
+.system-status-card {
+  contain: layout style;
+}
+
+.qg-stat,
+.wca-row,
+.shift-card-advanced,
+.status-metric,
+.pbd-item {
+  contain: layout paint style;
+}
+
+.wpr-globe-canvas,
+.pulse-trend,
+.dim-gauge-svg {
+  backface-visibility: hidden;
+  transform: translateZ(0);
+}
+
 .wp-right {
   display: grid;
   gap: 18px;

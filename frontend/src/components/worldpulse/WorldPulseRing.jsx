@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useMemo } from 'react';
+import React, { memo, useEffect, useRef, useState, useMemo } from 'react';
 import { Info, ChevronDown, Activity } from 'lucide-react';
 import * as d3 from 'd3-geo';
 import * as topojson from 'topojson-client';
@@ -10,20 +10,24 @@ let cachedLandDots = null;
 /* ── Animated counter hook ── */
 function useCountUp(target, duration = 1400) {
   const [value, setValue] = useState(0);
-  const targetRef = useRef(target);
+  const valueRef = useRef(0);
   useEffect(() => {
-    targetRef.current = target;
     const num = Number(target);
     if (!Number.isFinite(num)) { setValue(target); return; }
+    const from = Number(valueRef.current) || 0;
     let start = null;
+    let raf = 0;
     function step(ts) {
       if (!start) start = ts;
       const progress = Math.min((ts - start) / duration, 1);
       const eased = 1 - Math.pow(1 - progress, 4);
-      setValue(Math.round(eased * num));
-      if (progress < 1) requestAnimationFrame(step);
+      const next = Math.round(from + (num - from) * eased);
+      valueRef.current = next;
+      setValue(next);
+      if (progress < 1 && document.visibilityState !== 'hidden') raf = requestAnimationFrame(step);
     }
-    requestAnimationFrame(step);
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
   }, [target, duration]);
   return value;
 }
@@ -38,13 +42,16 @@ function getThreatLevel(value) {
 }
 
 /* ── 3D Dotted Globe ── */
-function DottedGlobe() {
+const DottedGlobe = memo(function DottedGlobe() {
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
   const [worldData, setWorldData] = useState(null);
   const visibleRef = useRef(true);
+  const lowPowerRef = useRef(false);
 
   useEffect(() => {
+    lowPowerRef.current = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches
+      || (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 4);
     if (cachedWorldData) {
       setWorldData(cachedWorldData);
       return;
@@ -88,8 +95,9 @@ function DottedGlobe() {
 
     if (!cachedLandDots) {
       cachedLandDots = [];
-      for (let lat = -90; lat <= 90; lat += 3.4) {
-        for (let lon = -180; lon <= 180; lon += 3.4) {
+      const dotStep = lowPowerRef.current ? 4.8 : 4.1;
+      for (let lat = -90; lat <= 90; lat += dotStep) {
+        for (let lon = -180; lon <= 180; lon += dotStep) {
           if (d3.geoContains(worldData, [lon, lat])) {
             cachedLandDots.push({
               phi: (90 - lat) * (Math.PI / 180),
@@ -102,7 +110,7 @@ function DottedGlobe() {
     const landDots = cachedLandDots;
 
     // Orbiting data particles
-    const particles = Array.from({ length: 25 }, () => ({
+    const particles = Array.from({ length: lowPowerRef.current ? 12 : 18 }, () => ({
       theta: Math.random() * Math.PI * 2,
       phi: Math.acos((Math.random() * 2) - 1),
       speed: (Math.random() - 0.5) * 0.025,
@@ -119,7 +127,7 @@ function DottedGlobe() {
     function draw(ts = 0) {
       raf = requestAnimationFrame(draw);
       if (!visibleRef.current || document.visibilityState === 'hidden') return;
-      if (ts - last < 50) return;
+      if (ts - last < (lowPowerRef.current ? 110 : 74)) return;
       last = ts;
       angle += 0.002;
       t += 0.015;
@@ -222,10 +230,10 @@ function DottedGlobe() {
       <canvas ref={canvasRef} className="wpr-globe-canvas" />
     </div>
   );
-}
+});
 
 /* ── Neon Segmented Arc Ring ── */
-function NeonRing({ score, threat }) {
+const NeonRing = memo(function NeonRing({ score }) {
   const size = 330;
   const r = 148;
   const cx = size / 2;
@@ -271,7 +279,7 @@ function NeonRing({ score, threat }) {
         style={{
           filter: isActive ? `drop-shadow(0 0 4px ${color})` : 'none',
           opacity: isActive ? 1 : 0.4,
-          transition: 'all 0.5s ease',
+          transition: 'stroke 0.35s ease, opacity 0.35s ease',
         }}
       />
     );
@@ -285,10 +293,10 @@ function NeonRing({ score, threat }) {
       {arcs}
     </svg>
   );
-}
+});
 
 /* ── Main Component ── */
-export default function WorldPulseRing({ worldPulse }) {
+function WorldPulseRing({ worldPulse }) {
   const rawValue = worldPulse?.value;
   const value = rawValue != null ? rawValue : 0;
   const delta = worldPulse?.delta || 0;
@@ -316,7 +324,7 @@ export default function WorldPulseRing({ worldPulse }) {
 
       <div className="wpr-center-area">
         <DottedGlobe />
-        <NeonRing score={value} threat={threat} />
+        <NeonRing score={value} />
 
         <div className="wpr-value-display">
           <div className="wpr-value" style={{ textShadow: threat.glow }}>{animatedValue}</div>
@@ -351,3 +359,5 @@ export default function WorldPulseRing({ worldPulse }) {
     </section>
   );
 }
+
+export default memo(WorldPulseRing);

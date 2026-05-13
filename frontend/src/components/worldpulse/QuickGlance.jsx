@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { memo, useEffect, useMemo, useState } from 'react';
 import { Globe, Radio, AlertTriangle, Wifi } from 'lucide-react';
 
 const icons = { countries: Globe, signals: Radio, alerts: AlertTriangle, sources: Wifi };
@@ -12,20 +12,22 @@ function useAnimatedValue(target, duration = 800) {
     const num = Number(target);
     if (!Number.isFinite(num)) { setDisplay(target); return; }
     let start = null;
+    let raf = 0;
     const from = 0;
     function step(ts) {
       if (!start) start = ts;
       const progress = Math.min((ts - start) / duration, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
       setDisplay(Math.round(from + (num - from) * eased));
-      if (progress < 1) requestAnimationFrame(step);
+      if (progress < 1) raf = requestAnimationFrame(step);
     }
-    requestAnimationFrame(step);
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
   }, [target, duration]);
   return display;
 }
 
-function Stat({ id, label, value, delta, deltaColor, onClick, index }) {
+const Stat = memo(function Stat({ id, label, value, delta, deltaColor, onClick, index }) {
   const Icon = icons[id] || Radio;
   const color = colors[id] || '#818cf8';
   const bg = bgColors[id] || 'rgba(129,140,248,0.10)';
@@ -51,15 +53,15 @@ function Stat({ id, label, value, delta, deltaColor, onClick, index }) {
       <b>{value === null || value === undefined ? '—' : isNum ? animatedVal : value}</b>
     </button>
   );
-}
+});
 
-export default function QuickGlance({ data, onCountries, onSignals, onAlerts, onSources }) {
-  const handlers = {
+function QuickGlance({ data, onCountries, onSignals, onAlerts, onSources }) {
+  const handlers = useMemo(() => ({
     countries: onCountries,
     signals: onSignals,
     alerts: onAlerts,
     sources: onSources,
-  };
+  }), [onAlerts, onCountries, onSignals, onSources]);
 
   return (
     <section className="wp-card quick-glance">
@@ -84,3 +86,5 @@ export default function QuickGlance({ data, onCountries, onSignals, onAlerts, on
     </section>
   );
 }
+
+export default memo(QuickGlance);
