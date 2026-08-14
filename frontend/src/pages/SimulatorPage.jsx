@@ -29,16 +29,20 @@ function ImpactCards({ result }) {
   const areas = result?.impact_areas || [];
   return (
     <section className="sim-impact-grid">
-      {areas.map((item) => (
+      {areas.map((item) => {
+        const score = Math.max(0, Math.min(100, Number(item.score) || 0));
+        return (
         <div className="wp-card sim-impact-card" key={item.area}>
           <div className="sim-impact-head">
             <span>{item.area}</span>
-            <b>{item.score}</b>
+            <b>{score}</b>
           </div>
+          <div className="sim-impact-bar"><i style={{ width: `${score}%` }} /></div>
           <small>{item.direction}</small>
           <p>{item.explanation}</p>
         </div>
-      ))}
+        );
+      })}
     </section>
   );
 }

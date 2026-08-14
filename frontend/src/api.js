@@ -50,7 +50,7 @@ async function request(path, options = {}, retries = 2) {
       });
       clearTimeout(timeout);
 
-      if (!res.ok) {
+      if (!res.ok && res.status !== 202) {
         lastError = await buildApiError(res);
         // Don't retry on 4xx client errors (except 429 rate limit)
         if (res.status >= 400 && res.status < 500 && res.status !== 429) throw lastError;
@@ -81,9 +81,13 @@ export const api = {
   forceDashboardRefresh: (topics = [], regions = []) =>
     request('/api/dashboard', {
       method: 'POST',
-      timeoutMs: 90000,
+      timeoutMs: 25000,
       body: JSON.stringify({ topics, regions }),
     }),
+
+  getJob: (jobId) => request(`/api/jobs/${encodeURIComponent(jobId)}`),
+
+  getPipelineMonitor: () => request('/api/pipeline/monitor'),
 
   // Legacy alias (used by Dashboard.jsx)
   getDashboard: (topics = [], regions = [], force = false) =>

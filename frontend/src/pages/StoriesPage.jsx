@@ -22,6 +22,7 @@ function normalizeStory(cluster) {
     source: primarySource.source || cluster.source || cluster.ai_provider_used || '',
     url: primarySource.url || cluster.source_url || cluster.url || '',
     sourceCount: sources.length || cluster.source_count || 0,
+    imageUrl: cluster.image_url || '',
     raw: cluster,
   };
 }
@@ -115,12 +116,13 @@ export default function StoriesPage() {
         onAlerts={() => navigate('/alerts')}
         onSetFocus={() => navigate('/onboarding')}
         onSettings={() => navigate('/settings')}
+        onPipeline={() => navigate('/pipeline')}
       />
       <main className="world-pulse-main stories-main">
         <header className="ni-screen-header">
           <div>
-            <h1>Stories</h1>
-            <p>Event-backed story threads from the latest dashboard snapshot.</p>
+            <h1>Living Threads</h1>
+            <p>Signals as evolving threads — newest first, scored by pulse, not a card dump.</p>
           </div>
           <div className="ni-header-tools">
             <label className="story-search">
@@ -141,19 +143,26 @@ export default function StoriesPage() {
                 <p>Story threads appear when the backend snapshot includes ranked event clusters.</p>
               </section>
             ) : (
-              <section className="stories-grid">
-                {filteredStories.map((story) => (
-                  <button key={story.id} className="wp-card story-tile" onClick={() => openStory(story)}>
+              <section className="stories-thread">
+                {filteredStories.map((story, index) => (
+                  <button key={story.id} className={`wp-card story-thread-card tier-${String(story.tier || 'watch').toLowerCase()}`} onClick={() => openStory(story)}>
+                    <div className="story-thread-rail">
+                      <i />
+                      {index < filteredStories.length - 1 && <span />}
+                    </div>
+                    <div className="story-thread-body">
                     <div className="story-tile-top">
                       {story.category && <span>{compactLabel(story.category)}</span>}
                       {story.tier && <b>{story.tier}</b>}
+                      {story.updatedAt && <em>{formatRelativeTime(story.updatedAt)}</em>}
                     </div>
                     <h2>{story.title}</h2>
                     {story.summary && <p>{story.summary}</p>}
                     <div className="story-tile-meta">
                       {story.pulse != null && <span>Pulse {story.pulse}</span>}
                       {story.sourceCount ? <span>{story.sourceCount} sources</span> : null}
-                      {story.updatedAt && <span>{formatRelativeTime(story.updatedAt)}</span>}
+                      {story.source && <span>{story.source}</span>}
+                    </div>
                     </div>
                   </button>
                 ))}

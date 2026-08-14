@@ -43,9 +43,9 @@ export default function WhatChangedToday({ changes, selectedTopic, onSelect }) {
       <div className="wca-header">
         <div className="wca-header-left">
           <Activity size={16} className="wca-header-icon" />
-          <span className="wca-title">WHAT CHANGED TODAY</span>
+          <span className="wca-title">SHIFT BRIEF</span>
         </div>
-        <span className="wca-subtitle">Key global shifts in the last 24 hours</span>
+        <span className="wca-subtitle">Where pressure rose, cooled, or held since the last cycle</span>
       </div>
 
       {changes?.length ? (

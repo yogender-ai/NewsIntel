@@ -341,9 +341,23 @@ export default function HomePage() {
     }
     else if (!background) { setLoading(true); setPipelineDone(false); }
     try {
-      const dashResult = force
+      let dashResult = force
         ? await api.forceDashboardRefresh()
         : await api.getCachedDashboard();
+      const refreshMeta = force ? dashResult?.manual_refresh : null;
+      if (force && dashResult?.snapshot) {
+        const jobId = dashResult.job?.id;
+        if (jobId && ['queued', 'already_running'].includes(dashResult.status)) {
+          for (let attempt = 0; attempt < 24; attempt += 1) {
+            await new Promise((resolve) => window.setTimeout(resolve, 5000));
+            const job = await api.getJob(jobId).catch(() => null);
+            if (['succeeded', 'partial', 'failed', 'skipped'].includes(job?.status)) break;
+          }
+          dashResult = await api.getCachedDashboard();
+        } else {
+          dashResult = dashResult.snapshot;
+        }
+      }
       const prefs = { data: { preferred_categories: dashResult?.topics_used || [], preferred_regions: dashResult?.regions_used || [] } };
       const visibleAlerts = Array.isArray(dashResult?.alerts) ? { alerts: dashResult.alerts } : alertsRef.current;
       setPreferences(prefs);
@@ -365,12 +379,10 @@ export default function HomePage() {
       } else {
         window.setTimeout(refreshAlerts, 300);
       }
-      if (force && dashResult?.manual_refresh) {
-        const refresh = dashResult.manual_refresh;
-        const reason = refresh.error || refresh.result?.reason || refresh.enrichment?.reason;
-        const showProviderState = refresh.status !== 'success' || ['deferred', 'skipped'].includes(refresh.enrichment?.status);
-        if (showProviderState) {
-          setLockedToast(reason ? `Refresh status: ${refresh.status} (${reason})` : `Refresh status: ${refresh.status}`);
+      if (force && refreshMeta) {
+        const reason = refreshMeta.error || refreshMeta.result?.reason || refreshMeta.enrichment?.reason || refreshMeta.message;
+        if (reason || refreshMeta.status) {
+          setLockedToast(reason ? `Refresh: ${refreshMeta.status || 'queued'} (${reason})` : `Refresh: ${refreshMeta.status}`);
         }
       }
     } catch (err) {
@@ -496,6 +508,7 @@ export default function HomePage() {
         onAlerts={() => navigate('/alerts')}
         onSetFocus={() => navigate('/onboarding')}
         onSettings={() => navigate('/settings')}
+        onPipeline={() => navigate('/pipeline')}
         onAsk={() => setAskOpen(true)}
       />
       <main className="world-pulse-main">

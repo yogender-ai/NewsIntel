@@ -56,15 +56,35 @@ function nodePoint(node, index, total) {
   };
 }
 
-function OrbitGraph({ nodes, edges, showLabels, onSelect }) {
+function tierColor(node) {
+  const tier = String(node.tier || node.signal_tier || '').toUpperCase();
+  if (tier === 'CRITICAL') return '#fb7185';
+  if (tier === 'SIGNAL') return '#5eead4';
+  if (tier === 'WATCH') return '#fbbf24';
+  if (tier === 'NOISE') return '#64748b';
+  return categoryColors[node.category] || '#8da2ff';
+}
+
+function OrbitGraph({ nodes, edges, showLabels, onSelect, selectedId }) {
+  const [hovered, setHovered] = useState(null);
   const points = useMemo(() => {
     const map = new Map();
     nodes.forEach((node, index) => map.set(node.id, nodePoint(node, index, nodes.length)));
     return map;
   }, [nodes]);
+  const hotIds = useMemo(() => {
+    if (!hovered && !selectedId) return null;
+    const focus = hovered || selectedId;
+    const linked = new Set([focus]);
+    edges.forEach((edge) => {
+      if (edge.from === focus) linked.add(edge.to);
+      if (edge.to === focus) linked.add(edge.from);
+    });
+    return linked;
+  }, [hovered, selectedId, edges]);
 
   return (
-    <div className="signal-orbit-graph" style={{ position: 'relative', overflow: 'hidden', perspective: '800px' }}>
+    <div className="signal-orbit-graph intel-orbit" style={{ position: 'relative', overflow: 'hidden', perspective: '800px' }}>
       <svg viewBox="0 0 100 100" aria-label="Signal relationship orbit" style={{ transformStyle: 'preserve-3d' }}>
         {/* Multiple orbital rings */}
         <circle cx="50" cy="50" r="12" className="orbit-ring" style={{ stroke: 'rgba(94, 234, 212, 0.06)', strokeWidth: '0.15' }} />
@@ -76,6 +96,7 @@ function OrbitGraph({ nodes, edges, showLabels, onSelect }) {
           const from = points.get(edge.from);
           const to = points.get(edge.to);
           if (!from || !to) return null;
+          const active = !hotIds || hotIds.has(edge.from) && hotIds.has(edge.to);
           return (
             <line
               key={`${edge.from}-${edge.to}-${edge.type}`}
@@ -83,7 +104,9 @@ function OrbitGraph({ nodes, edges, showLabels, onSelect }) {
               className={`orbit-edge edge-${edge.type}`}
               style={{ 
                 '--edge-alpha': Math.max(0.22, Number(edge.confidence || 0.4)),
-                stroke: 'url(#edge-grad)', strokeWidth: 0.5, opacity: 0.6
+                stroke: 'url(#edge-grad)',
+                strokeWidth: active ? 0.7 : 0.25,
+                opacity: active ? 0.85 : 0.12
               }}
             />
           );
@@ -100,29 +123,38 @@ function OrbitGraph({ nodes, edges, showLabels, onSelect }) {
         backdropFilter: 'blur(8px)', border: '1px solid #8b5cf6' 
       }}>
         <Circle size={18} color="#c4b5fd" />
-        <span style={{ color: '#fff' }}>You</span>
+        <span style={{ color: '#fff' }}>Command</span>
       </button>
       {nodes.map((node, index) => {
         const point = points.get(node.id) || { x: 50, y: 50 };
-        const color = categoryColors[node.category] || '#8da2ff';
+        const color = tierColor(node);
         const Icon = categoryIcons[node.category] || Circle;
         const animDelay = `${index * 0.2}s`;
+        const pulse = Number(node.pulse || 50);
+        const size = Math.max(64, Math.min(118, (node.size || 76) * (0.7 + pulse / 200)));
+        const dimmed = hotIds && !hotIds.has(node.id);
         return (
           <button
             key={node.id}
-            className={`orbit-event-node orbit-${node.status || 'stable'} orbit-labeled-node`}
+            className={`orbit-event-node orbit-${node.status || 'stable'} orbit-labeled-node ${selectedId === node.id ? 'orbit-selected' : ''}`}
             type="button"
             onClick={() => onSelect(node)}
+            onMouseEnter={() => setHovered(node.id)}
+            onMouseLeave={() => setHovered(null)}
             style={{
               left: `${point.x}%`, top: `${point.y}%`,
-              width: `${Math.max(76, node.size || 76)}px`, height: `${Math.max(76, node.size || 76)}px`,
+              width: `${size}px`, height: `${size}px`,
               '--node-color': color,
               animation: `nodeFloat 4s ease-in-out infinite alternate`,
               animationDelay: animDelay,
-              boxShadow: `0 0 20px ${color}33`,
-              background: 'rgba(5,8,17,0.6)', backdropFilter: 'blur(4px)', border: `1px solid ${color}66`
+              opacity: dimmed ? 0.28 : 1,
+              transform: 'translate(-50%, -50%)',
+              boxShadow: `0 0 ${12 + pulse / 6}px ${color}55`,
+              background: 'rgba(5,8,17,0.72)', backdropFilter: 'blur(6px)',
+              border: `1px solid ${color}${selectedId === node.id ? 'cc' : '66'}`,
+              zIndex: selectedId === node.id || hovered === node.id ? 4 : 2,
             }}
-            title={node.label}
+            title={node.title || node.label}
           >
             <i style={{ background: `${color}22`, color: color }}><Icon size={20} /></i>
             {showLabels && (
@@ -303,12 +335,13 @@ export default function OrbitPage() {
         onAlerts={() => navigate('/alerts')}
         onSetFocus={() => navigate('/onboarding')}
         onSettings={() => navigate('/settings')}
+        onPipeline={() => navigate('/pipeline')}
       />
       <main className="world-pulse-main orbit-main">
         <header className="orbit-header ni-screen-header">
           <div>
             <h1>Signal Orbit</h1>
-            <p>Live signals orbiting around what matters to you.</p>
+            <p>Closer = higher urgency. Larger = stronger pulse. Hover a node to isolate its links.</p>
           </div>
           <div className="ni-header-tools">
             <button className="wp-icon-btn" onClick={() => setLockedToast('Orbit relationships come from backend graph edges.')}><Circle size={14} /> Data Source</button>
@@ -334,7 +367,7 @@ export default function OrbitPage() {
               </section>
             ) : (
               <section className="orbit-layout">
-                <OrbitGraph nodes={visibleNodes} edges={visibleEdges} showLabels={showLabels} onSelect={setSelected} />
+                <OrbitGraph nodes={visibleNodes} edges={visibleEdges} showLabels={showLabels} selectedId={activeNode?.id} onSelect={setSelected} />
                 <div className="orbit-list wp-card orbit-focus-panel">
                   <div className="wp-section-head"><span>{activeNode?.label || 'Visible Signals'}</span></div>
                   {activeNode && (

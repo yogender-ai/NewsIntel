@@ -9,6 +9,9 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from app.core.config import get_settings
 from app.models.base import Base
 from app.models import news  # noqa: F401
+from app.models import pipeline_run  # noqa: F401
+from app.models import signal  # noqa: F401
+from app.models import snapshot  # noqa: F401
 
 
 config = context.config

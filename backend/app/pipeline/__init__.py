@@ -1,0 +1,1 @@
+"""News-Intel core pipeline."""

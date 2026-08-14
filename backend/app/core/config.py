@@ -15,17 +15,29 @@ class Settings(BaseSettings):
         alias="DATABASE_URL",
     )
     redis_url: str = Field(default="", alias="REDIS_URL")
+    env: str = Field(default="dev", alias="ENV")
+    newsintel_require_redis_auth: bool = Field(default=False, alias="NEWSINTEL_REQUIRE_REDIS_AUTH")
+    gateway_secret: str = Field(default="", alias="GATEWAY_SECRET")
+    gateway_base_url: str = Field(
+        default="https://cloud-command.onrender.com/api/gateway",
+        alias="GATEWAY_BASE_URL",
+    )
+    ingest_secret: str = Field(default="", alias="INGEST_SECRET")
+    admin_secret: str = Field(default="", alias="ADMIN_SECRET")
+    hf_space_id: str = Field(default="YAsh213kadian/News_intel_HF_space_1", alias="HF_SPACE_URL")
     ingestion_batch_size: int = Field(default=80, alias="INGESTION_BATCH_SIZE")
-    dashboard_cache_ttl_seconds: int = Field(default=600, alias="DASHBOARD_CACHE_TTL_SECONDS")
+    dashboard_cache_ttl_seconds: int = Field(default=5400, alias="DASHBOARD_CACHE_TTL_SECONDS")
     article_duplicate_window_hours: int = Field(default=36, alias="ARTICLE_DUPLICATE_WINDOW_HOURS")
     title_similarity_threshold: float = Field(default=0.86, alias="TITLE_SIMILARITY_THRESHOLD")
     ai_enrichment_max_events_per_run: int = Field(default=10, alias="AI_ENRICHMENT_MAX_EVENTS_PER_RUN")
     ai_enrichment_stale_hours: int = Field(default=6, alias="AI_ENRICHMENT_STALE_HOURS")
     newsintel_categories: str = Field(default="tech,education,entertainment,politics", alias="NEWSINTEL_CATEGORIES")
-    newsintel_articles_per_category: int = Field(default=5, alias="NEWSINTEL_ARTICLES_PER_CATEGORY")
-    newsintel_ingest_interval_minutes: int = Field(default=10, alias="NEWSINTEL_INGEST_INTERVAL_MINUTES")
+    newsintel_articles_per_category: int = Field(default=8, alias="NEWSINTEL_ARTICLES_PER_CATEGORY")
+    newsintel_ingest_interval_minutes: int = Field(default=60, alias="NEWSINTEL_INGEST_INTERVAL_MINUTES")
     newsintel_rank_top_n: int = Field(default=15, alias="NEWSINTEL_RANK_TOP_N")
     newsintel_enrich_batch_size: int = Field(default=3, alias="NEWSINTEL_ENRICH_BATCH_SIZE")
+    newsintel_items_per_feed: int = Field(default=12, alias="NEWSINTEL_ITEMS_PER_FEED")
+    newsintel_og_image_cap: int = Field(default=20, alias="NEWSINTEL_OG_IMAGE_CAP")
     newsintel_retention_days: int = Field(default=7, alias="NEWSINTEL_RETENTION_DAYS")
     newsintel_ai_rank_max_tokens: int = Field(default=520, alias="NEWSINTEL_AI_RANK_MAX_TOKENS")
     newsintel_ai_enrich_max_tokens: int = Field(default=500, alias="NEWSINTEL_AI_ENRICH_MAX_TOKENS")
@@ -70,6 +82,21 @@ class Settings(BaseSettings):
         if self.newsintel_openrouter_model and self.newsintel_openrouter_model not in models:
             models.insert(0, self.newsintel_openrouter_model)
         return models or ["openrouter/free"]
+
+    @property
+    def gateway_root(self) -> str:
+        base = (self.gateway_base_url or "").rstrip("/")
+        if "/api/gateway" in base:
+            return f"{base.split('/api/gateway')[0].rstrip('/')}/api/gateway"
+        return base or "https://cloud-command.onrender.com/api/gateway"
+
+    @property
+    def effective_ingest_secret(self) -> str:
+        return (self.ingest_secret or self.gateway_secret or self.admin_secret or "").strip()
+
+    @property
+    def redis_required_auth(self) -> bool:
+        return self.env.strip().lower() in {"prod", "production"} or self.newsintel_require_redis_auth
 
     @property
     def async_database_url(self) -> str:

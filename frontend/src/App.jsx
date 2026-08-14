@@ -15,6 +15,7 @@ import MapPage from './pages/MapPage';
 import SimulatorPage from './pages/SimulatorPage';
 import EventDetail from './pages/EventDetail';
 import StoriesPage from './pages/StoriesPage';
+import PipelinePage from './pages/PipelinePage';
 import ThreeBackground from './components/ThreeBackground';
 import './index.css';
 
@@ -420,6 +421,7 @@ function AppRoutes() {
           <Route path="/map" element={<Protected><MapPage /></Protected>} />
           <Route path="/simulator" element={<Protected><SimulatorPage /></Protected>} />
           <Route path="/stories" element={<Protected><StoriesPage /></Protected>} />
+          <Route path="/pipeline" element={<Protected><PipelinePage /></Protected>} />
           <Route path="/onboarding" element={<Protected><Onboarding /></Protected>} />
           <Route path="/settings" element={<Protected><Settings /></Protected>} />
           <Route path="/story" element={<Protected><StoryView /></Protected>} />
