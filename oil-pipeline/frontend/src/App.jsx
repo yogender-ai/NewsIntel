@@ -188,11 +188,7 @@ export default function App() {
 
   return (
     <div className="scada">
-      <div className="live-bg" aria-hidden="true">
-        <i /><i /><i /><i />
-        <span className="scan" />
-        <span className="grid" />
-      </div>
+      <LiveWorld />
       <aside className="rail">
         <div className="brand">
           <span className="drop" />
@@ -400,7 +396,13 @@ const FlowPipes = memo(function FlowPipes() {
   return (
     <svg className="pipes" viewBox="0 0 1200 560" preserveAspectRatio="none">
       <defs>
-        <filter id="glow"><feGaussianBlur stdDeviation="3.2" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+        <filter id="glow"><feGaussianBlur stdDeviation="3.6" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+        <radialGradient id="dropGrad" cx="32%" cy="28%" r="78%">
+          <stop offset="0%" stopColor="#ffffff" />
+          <stop offset="38%" stopColor="#bae6fd" />
+          <stop offset="72%" stopColor="#22d3ee" />
+          <stop offset="100%" stopColor="#0369a1" />
+        </radialGradient>
         {SEGMENTS.map((seg) => (
           <path key={seg.id} id={`p-${seg.id}`} d={seg.d} fill="none" />
         ))}
@@ -410,7 +412,7 @@ const FlowPipes = memo(function FlowPipes() {
       ))}
       {SEGMENTS.flatMap((seg) =>
         Array.from({ length: seg.n }, (_, i) => (
-          <path key={`${seg.id}-${i}`} d="M0,-7 C3.2,-2 3.2,3.4 0,7 C-3.2,3.4 -3.2,-2 0,-7" fill={seg.color} className={`packet packet-${seg.id}`} filter="url(#glow)">
+          <path key={`${seg.id}-${i}`} d="M0,-10 C4.6,-3 4.8,4.2 0,11 C-4.8,4.2 -4.6,-3 0,-10" fill="url(#dropGrad)" className={`packet packet-${seg.id}`} filter="url(#glow)">
             <animateMotion dur={`${seg.dur}s`} begin={`${(i * seg.dur) / seg.n}s`} repeatCount="indefinite" rotate="auto">
               <mpath href={`#p-${seg.id}`} />
             </animateMotion>
@@ -435,12 +437,52 @@ function weekFill() {
   return (day * 86400 + now.getUTCHours() * 3600 + now.getUTCMinutes() * 60) / (7 * 86400)
 }
 
+const MOTES = Array.from({ length: 22 }, (_, i) => ({
+  left: `${(i * 53 + 7) % 100}%`,
+  top: `${(i * 37 + 3) % 100}%`,
+  s: 2 + (i % 6),
+  d: `${-(i * 0.65)}s`,
+  t: `${11 + (i % 9)}s`,
+}))
+
+const WORLD_BUBBLES = Array.from({ length: 16 }, (_, i) => ({
+  left: `${3 + ((i * 17) % 94)}%`,
+  s: 5 + (i % 9),
+  d: `${-(i * 0.85)}s`,
+  t: `${7 + (i % 8)}s`,
+}))
+
+function LiveWorld() {
+  return (
+    <div className="live-bg" aria-hidden="true">
+      <div className="abyss" />
+      <div className="glow-orb a" />
+      <div className="glow-orb b" />
+      <div className="glow-orb c" />
+      <div className="surface-sheet" />
+      <div className="godrays" />
+      <div className="caustic-field" />
+      <div className="motes">
+        {MOTES.map((mote, i) => (
+          <i key={i} style={{ left: mote.left, top: mote.top, width: mote.s, height: mote.s, animationDelay: mote.d, animationDuration: mote.t }} />
+        ))}
+      </div>
+      <div className="bg-bubbles">
+        {WORLD_BUBBLES.map((bubble, i) => (
+          <b key={i} style={{ left: bubble.left, width: bubble.s, height: bubble.s, animationDelay: bubble.d, animationDuration: bubble.t }} />
+        ))}
+      </div>
+      <div className="vignette" />
+    </div>
+  )
+}
+
 function Tank({ x, y, color, title, status, dropping, fault, tank, icon, small, onClick }) {
   const accepted = Number(tank?.accepted || 0)
   const rejected = Number(tank?.rejected || 0)
   const total = accepted + rejected
   const ink = fault ? 0.72 : total ? rejected / total : 0
-  const fill = tank?.window === '7d' ? weekFill() : dayFill()
+  const fill = Math.max(0.28, tank?.window === '7d' ? weekFill() : dayFill())
   return (
     <button
       type="button"
@@ -448,11 +490,23 @@ function Tank({ x, y, color, title, status, dropping, fault, tank, icon, small, 
       style={{ left: x, top: y, '--fill': fill, '--ink': ink }}
       onClick={onClick}
     >
-      <div className="water" aria-hidden="true">
-        <span className="clear" />
-        <span className="ink" />
-        <span className="meniscus" />
-        {dropping && <span className="drops"><i /><i /><i /></span>}
+      <div className="vessel" aria-hidden="true">
+        <span className="lip" />
+        <div className="glass">
+          <span className="volume" />
+          <span className="ink" />
+          <span className="caustic" />
+          <svg className="surf" viewBox="0 0 200 20" preserveAspectRatio="none">
+            <path d="M0 10 Q 25 2 50 10 T 100 10 T 150 10 T 200 10 V20 H0 Z" />
+            <path className="surf-b" d="M0 13 Q 25 7 50 13 T 100 13 T 150 13 T 200 13 V20 H0 Z" />
+          </svg>
+          <span className="sheen" />
+          <span className="air"><i /><i /><i /><i /><i /></span>
+          <span className="beads"><i /><i /><i /><i /><i /><i /></span>
+          <span className="falls"><i /><i /><i /><i /><i /><i /></span>
+          <span className="ripples"><i /><i /><i /></span>
+        </div>
+        <span className="foot" />
       </div>
       <div className="tank-ui">
         <div className="glyph">{icon === 'wifi' ? '◉' : icon === 'server' ? '▣' : icon === 'funnel' ? '▽' : icon === 'brain' ? '⌘' : icon === 'trophy' ? '▲' : icon === 'list' ? '☰' : '▣'}</div>
