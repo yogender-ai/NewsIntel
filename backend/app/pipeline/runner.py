@@ -27,6 +27,7 @@ from app.pipeline.fetch.images import filter_items_with_images
 from app.pipeline.fetch.rss import fetch_all_sources
 from app.pipeline.signals.relationships import build_edges
 from app.pipeline.signals.score import score_item
+from app.pipeline.inspect import clean_row, raw_row, signal_row, take
 from app.pipeline.snapshot.builder import build_snapshot_payload
 from app.pipeline.types import EnrichedArticle, StageStat
 from app.repositories.articles import recent_for_dedupe
@@ -159,8 +160,12 @@ async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: 
 
         publish("stage", name="fetch", status="running", run_id=str(run.id))
         raw_items, fetch_stat = await fetch_all_sources(redis)
-        run.stages.append(asdict(fetch_stat))
-        publish("stage", name="fetch", status="done", counts={"fetched": len(raw_items)}, run_id=str(run.id))
+        fetch_payload = asdict(fetch_stat)
+        fetch_payload["samples"] = take([raw_row(item) for item in raw_items])
+        run.stages.append(fetch_payload)
+        run.stats = {**(run.stats or {}), "inspect": {**((run.stats or {}).get("inspect") or {}), "fetch": fetch_payload["samples"]}}
+        await session.commit()
+        publish("stage", name="fetch", status="done", counts={"fetched": len(raw_items)}, run_id=str(run.id), samples=len(fetch_payload["samples"]))
         await redis.expire_if_owner(LOCK_KEY, token, LOCK_TTL)
 
         publish("stage", name="images", status="running", run_id=str(run.id))
@@ -174,25 +179,55 @@ async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: 
             elapsed_ms=int((finished - started).total_seconds() * 1000),
             counts={"accepted_images": len(accepted_pairs), "rejected_no_image": rejected},
         )
-        run.stages.append(asdict(image_stat))
+        image_payload = asdict(image_stat)
+        image_payload["samples"] = take(
+            [clean_row(to_clean_article(item, image_url), {"gate": "kept"}) for item, image_url in accepted_pairs]
+        )
+        rejected_rows = []
+        accepted_urls = {item.url for item, _ in accepted_pairs}
+        for item in raw_items:
+            if item.url not in accepted_urls and len(rejected_rows) < 16:
+                rejected_rows.append({**raw_row(item), "gate": "no_image"})
+        image_payload["rejected"] = rejected_rows
+        run.stages.append(image_payload)
+        inspect = {
+            **((run.stats or {}).get("inspect") or {}),
+            "images": image_payload["samples"],
+            "validate": image_payload["samples"],
+            "backend": image_payload["samples"],
+            "rejected": rejected_rows,
+        }
+        run.stats = {**(run.stats or {}), "inspect": inspect}
+        await session.commit()
         logger.info("image.done accepted=%s rejected=%s", len(accepted_pairs), rejected)
         publish("stage", name="images", status="done", counts={"accepted": len(accepted_pairs), "rejected": rejected}, run_id=str(run.id))
 
         cleaned = [to_clean_article(item, image_url) for item, image_url in accepted_pairs]
         recent = await recent_for_dedupe(session, days=settings.newsintel_retention_days)
         unique, dropped = dedupe_articles(cleaned, recent)
+        unique_urls = {item.canonical_url for item in unique}
+        dropped_rows = [clean_row(item, {"gate": "duplicate"}) for item in cleaned if item.canonical_url not in unique_urls][:16]
         publish("stage", name="dedupe", status="done", counts={"unique": len(unique), "dropped": dropped}, run_id=str(run.id))
-        run.stages.append(
-            asdict(
-                StageStat(
-                    name="dedupe",
-                    started_at=datetime.now(timezone.utc).isoformat(),
-                    finished_at=datetime.now(timezone.utc).isoformat(),
-                    elapsed_ms=0,
-                    counts={"unique": len(unique), "dropped": dropped},
-                )
+        dedupe_payload = asdict(
+            StageStat(
+                name="dedupe",
+                started_at=datetime.now(timezone.utc).isoformat(),
+                finished_at=datetime.now(timezone.utc).isoformat(),
+                elapsed_ms=0,
+                counts={"unique": len(unique), "dropped": dropped},
             )
         )
+        dedupe_payload["samples"] = take([clean_row(item, {"gate": "unique"}) for item in unique] or [clean_row(item, {"gate": "reused"}) for item in cleaned])
+        dedupe_payload["dropped"] = dropped_rows
+        run.stages.append(dedupe_payload)
+        inspect = {
+            **((run.stats or {}).get("inspect") or {}),
+            "dedupe": dedupe_payload["samples"],
+            "pre_ai": dedupe_payload["samples"],
+            "dropped": dropped_rows,
+        }
+        run.stats = {**(run.stats or {}), "inspect": inspect}
+        await session.commit()
 
         persisted: list[EnrichedArticle] = []
         now = utcnow()
@@ -382,6 +417,24 @@ async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: 
 
         category_counts = {category: len(by_cat.get(category, [])) for category in settings.mvp_categories}
         partial = any(count < 4 for count in category_counts.values())
+        after_ai = take(
+            [
+                {
+                    **signal_row(signal),
+                    "entities": (signal.entities or [])[:6],
+                    "why_it_matters": (signal.why_it_matters or "")[:220],
+                }
+                for signal in imaged
+            ]
+        )
+        inspect = {
+            **((run.stats or {}).get("inspect") or {}),
+            "hf": after_ai,
+            "llm": after_ai,
+            "signals": after_ai,
+            "snapshot": after_ai,
+            "frontend": after_ai,
+        }
         stats = {
             "fetched": len(raw_items),
             "rejected_no_image": rejected,
@@ -391,6 +444,7 @@ async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: 
             "llm_ok": llm_ok,
             "signals": len(imaged),
             "categories": category_counts,
+            "inspect": inspect,
         }
         pipeline_status = {
             "news": "live",

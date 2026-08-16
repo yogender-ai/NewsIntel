@@ -296,25 +296,43 @@ svg {
 /* World Pulse shell */
 .world-pulse-page {
   min-height: 100vh;
+  position: relative;
+}
+.world-pulse-page::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    radial-gradient(900px 480px at 12% -10%, rgba(0, 229, 160, 0.12), transparent 55%),
+    radial-gradient(700px 420px at 92% 8%, rgba(139, 92, 246, 0.14), transparent 50%),
+    radial-gradient(640px 360px at 70% 110%, rgba(6, 182, 212, 0.10), transparent 55%);
+  animation: deskAurora 18s ease-in-out infinite;
+}
+.world-pulse-page::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(circle at 50% 30%, black, transparent 78%);
+  opacity: 0.45;
+}
+@keyframes deskAurora {
+  50% { filter: hue-rotate(18deg) saturate(1.15); transform: scale(1.03); }
+}
+.world-pulse-page > * { position: relative; z-index: 1; }
+.world-pulse-page {
   height: 100vh;
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);
   overflow: hidden;
-  position: relative;
   color: var(--text);
-  /* transparent — let body nebula/starfield show through */
-}
-
-.world-pulse-page::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    radial-gradient(ellipse 70% 60% at 30% 20%, rgba(0, 229, 160, 0.04), transparent 60%),
-    radial-gradient(ellipse 50% 40% at 75% 80%, rgba(139, 92, 246, 0.035), transparent 55%),
-    radial-gradient(ellipse 40% 30% at 60% 40%, rgba(6, 182, 212, 0.02), transparent 50%);
 }
 
 .wp-sidebar {
@@ -719,6 +737,12 @@ svg {
 
 .wp-cell-changed {
   grid-column: 2;
+  height: 100%;
+}
+.wp-cell-changed .what-changed-advanced,
+.wp-cell-changed .wca-container {
+  height: 100%;
+  min-height: 100%;
 }
 
 .wp-span-main {
@@ -3295,9 +3319,14 @@ svg {
 .wca-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 10px;
   overflow-y: auto;
   padding-right: 4px;
+  flex: 1;
+}
+.wca-container .wca-row {
+  flex: 1;
+  min-height: 72px;
 }
 
 .wca-row {

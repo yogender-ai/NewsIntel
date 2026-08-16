@@ -11,6 +11,7 @@ COPY backend/ .
 
 ENV OIL_EMBED_WORKER=1
 ENV HF_SPACE_URL=YAsh213kadian/News-Intel
+ENV NEWSINTEL_API_URL=https://newsintel-xvhe.onrender.com
 
 EXPOSE 8000
 
