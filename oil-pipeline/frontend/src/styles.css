@@ -110,19 +110,24 @@ h1 { font-size: 18px; letter-spacing: 0.12em; margin: 0; }
 .pipe-body.spine { stroke-width: 16; stroke: rgba(34, 211, 238, 0.2); }
 .pipe-body.feedback { stroke-width: 3; stroke-dasharray: 10 10; stroke: rgba(34, 211, 238, 0.45); }
 .packet { opacity: 0; visibility: hidden; }
-.board.idle .packet-loop,
-.board.flow-idle .packet-loop { opacity: 0.9; visibility: visible; }
+.board.idle:not(.fault) .packet-loop,
+.board.flow-idle:not(.fault) .packet-loop { opacity: 0.9; visibility: visible; }
+.board.fault .packet { opacity: 0 !important; visibility: hidden !important; }
+.board.fault .pipe-body,
+.board.fault .pipe-body.spine,
+.board.fault .pipe-body.feedback { stroke: rgba(251, 113, 133, 0.7) !important; }
+.board.fault .valve-body { stroke: #fb7185; filter: drop-shadow(0 0 8px #fb7185); }
+.board.fault .valve-handle { transform: rotate(0deg) !important; fill: #fb7185; }
+.board.fault .valve-hub { fill: #fb7185; }
+.board.fault .node { border-color: rgba(251, 113, 133, 0.55); }
+.board.fault .node em { color: #fb7185 !important; }
 .board.flow-fetch .packet-rss-back { opacity: 1; visibility: visible; }
 .board.flow-images .packet-back-valid,
 .board.flow-images .packet-to-image { opacity: 1; visibility: visible; }
 .board.flow-dedupe .packet-to-dedupe { opacity: 1; visibility: visible; }
 .board.flow-hf .packet-valid-ai,
 .board.flow-hf .packet-to-ai { opacity: 1; visibility: visible; }
-.break-flange { fill: #0b1a26; stroke: #fb7185; stroke-width: 2; }
-.break-spark { fill: none; stroke: #fbbf24; stroke-width: 1.6; opacity: 0.85; }
-.break-label { fill: #fb7185; font-size: 9px; letter-spacing: 0.16em; }
-.board.moving .break-spark { animation: spark 0.35s linear infinite; }
-@keyframes spark { 50% { opacity: 0.2; } }
+
 .board.flow-signals .packet-ai-rank,
 .board.flow-signals .packet-to-risk,
 .board.flow-signals .packet-to-insights { opacity: 1; visibility: visible; }

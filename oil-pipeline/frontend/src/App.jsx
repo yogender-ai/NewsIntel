@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 
-const API = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+const API = (import.meta.env.VITE_API_URL || 'https://oil-pipeline.onrender.com').replace(/\/$/, '')
 
 const COLUMNS = [
   { id: 'ingest', n: '1', title: 'DATA INGESTION', sub: 'Collecting RSS in real time', color: 'cyan' },
