@@ -1726,7 +1726,7 @@ svg {
 }
 
 .what-changed-advanced {
-  min-height: 344px;
+  min-height: 0;
 }
 
 .wca-row:hover {
@@ -3096,11 +3096,11 @@ svg {
 
 .world-pulse-card,
 .wp-ring-card {
-  min-height: 390px;
+  min-height: 0;
 }
 
 .what-changed-advanced {
-  min-height: 390px;
+  min-height: 0;
 }
 
 .top-shifts-list {

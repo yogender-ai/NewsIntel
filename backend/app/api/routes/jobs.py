@@ -53,7 +53,7 @@ async def kick_pipeline(
 
 @router.post("/api/dashboard")
 async def enqueue_refresh(
-    force: bool = False,
+    force: bool = True,
     session: AsyncSession = Depends(get_session),
     redis: RedisClient = Depends(get_redis),
 ):

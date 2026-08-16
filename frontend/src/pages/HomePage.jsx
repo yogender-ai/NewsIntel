@@ -49,7 +49,7 @@ function readStoredDashboardCache() {
     const cached = JSON.parse(raw);
     const ts = Number(cached?.ts || 0);
     if (!cached?.dashboard || !Number.isFinite(ts)) return null;
-    if (Date.now() - ts > 10 * 60 * 1000) return null;
+    if (Date.now() - ts > 45 * 1000) return null;
     return cached;
   } catch {
     return null;
@@ -338,6 +338,7 @@ export default function HomePage() {
     setError('');
     if (force) {
       setRefreshing(true);
+      try { window.sessionStorage.removeItem(DASHBOARD_STORAGE_KEY); } catch {}
     }
     else if (!background) { setLoading(true); setPipelineDone(false); }
     try {
@@ -431,7 +432,10 @@ export default function HomePage() {
     source.onmessage = (event) => {
       try {
         const payload = JSON.parse(event.data || '{}');
-        if (payload.type === 'snapshot') load({ background: true });
+        if (payload.type === 'snapshot') {
+          try { window.sessionStorage.removeItem(DASHBOARD_STORAGE_KEY); } catch {}
+          load({ background: true });
+        }
       } catch {
         // ignore keepalive / malformed frames
       }

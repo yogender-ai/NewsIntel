@@ -84,9 +84,9 @@ export const api = {
 
   // POST: Force full pipeline refresh (user-triggered)
   forceDashboardRefresh: (topics = [], regions = []) =>
-    request('/api/dashboard', {
+    request('/api/dashboard?force=1', {
       method: 'POST',
-      timeoutMs: 90000,
+      timeoutMs: 120000,
       body: JSON.stringify({ topics, regions }),
     }),
 

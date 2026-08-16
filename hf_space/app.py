@@ -10,7 +10,6 @@ Deploy to: huggingface.co/spaces/<your-username>/newsintel-nlp
 
 import gradio as gr
 from transformers import pipeline
-from sentence_transformers import SentenceTransformer
 import json
 
 # ── Load Models (cached on Space startup) ────────────────────────────────────
@@ -169,6 +168,8 @@ def embed(text: str) -> str:
         return json.dumps({"error": "Text too short for embedding"})
     try:
         if embedding_model is None:
+            from sentence_transformers import SentenceTransformer
+
             embedding_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2", device="cpu")
         vector = embedding_model.encode(text[:8000], normalize_embeddings=True).tolist()
         return json.dumps({

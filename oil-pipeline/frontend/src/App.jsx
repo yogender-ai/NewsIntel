@@ -124,7 +124,6 @@ export default function App() {
           <b>OIL</b>
         </div>
         <Nav icon="flow" label="Flow Monitor" active={view === 'flow'} onClick={() => setView('flow')} />
-        <Nav icon="map" label="Pipeline Map" active={view === 'map'} onClick={() => setView('map')} />
         <Nav icon="bell" label="Alerts" active={view === 'alerts'} onClick={() => setView('alerts')} />
         <Nav icon="logs" label="Logs" active={view === 'logs'} onClick={() => setView('logs')} />
         <Nav icon="gear" label="Settings" active={view === 'settings'} onClick={() => setView('settings')} />
@@ -153,7 +152,7 @@ export default function App() {
 
         {error && <div className="fault">{error}</div>}
 
-        {(view === 'flow' || view === 'map') && (
+        {view === 'flow' && (
           <FlowBoard latest={latest} flowing={flowing} counts={counts} hf={hf} cc={cc} events={events} />
         )}
         {view === 'logs' && <Logs recent={data?.recent || []} events={events} />}
@@ -197,18 +196,18 @@ function FlowBoard({ latest, flowing, counts, hf, cc, events }) {
             <linearGradient id="gBlue" x1="0" x2="1"><stop stopColor="#38bdf8" /><stop offset="1" stopColor="#60a5fa" /></linearGradient>
             <filter id="glow"><feGaussianBlur stdDeviation="3.2" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
           </defs>
-          <Pipe d="M 150 250 H 300" grad="gCyan" on={flowing || fetchS !== 'idle'} live={liveName === 'fetch'} />
-          <Pipe d="M 420 250 H 560" grad="gGold" on={flowing || imageS !== 'idle'} live={liveName === 'images'} />
+          <Pipe d="M 150 250 H 300" grad="gCyan" on={flowing} live={liveName === 'fetch'} />
+          <Pipe d="M 420 250 H 560" grad="gGold" on={flowing} live={liveName === 'images'} />
           <Pipe d="M 560 250 C 590 250 590 120 630 120" grad="gViolet" on={flowing} live={liveName === 'images'} />
           <Pipe d="M 560 250 H 630" grad="gViolet" on={flowing} live={liveName === 'images'} />
           <Pipe d="M 560 250 C 590 250 590 380 630 380" grad="gViolet" on={flowing} live={liveName === 'dedupe'} />
-          <Pipe d="M 790 120 C 830 120 830 250 870 250" grad="gViolet" on={hfS !== 'idle' || flowing} live={liveName === 'hf'} />
-          <Pipe d="M 790 250 H 870" grad="gViolet" on={hfS !== 'idle' || flowing} live={liveName === 'hf'} />
-          <Pipe d="M 790 380 C 830 380 830 250 870 250" grad="gViolet" on={dedupeS !== 'idle' || flowing} live={liveName === 'hf'} />
-          <Pipe d="M 1010 250 H 1090" grad="gGreen" on={sigS !== 'idle' || flowing} live={liveName === 'signals'} />
-          <Pipe d="M 1010 250 C 1040 250 1040 360 1090 360" grad="gGreen" on={sigS !== 'idle' || flowing} live={liveName === 'signals'} />
-          <Pipe d="M 1230 250 H 1290" grad="gAmber" on={snapS !== 'idle' || flowing} live={liveName === 'snapshot'} />
-          <Pipe d="M 1230 360 C 1260 360 1260 250 1290 250" grad="gAmber" on={snapS !== 'idle' || flowing} live={liveName === 'snapshot'} />
+          <Pipe d="M 790 120 C 830 120 830 250 870 250" grad="gViolet" on={flowing} live={liveName === 'hf'} />
+          <Pipe d="M 790 250 H 870" grad="gViolet" on={flowing} live={liveName === 'hf'} />
+          <Pipe d="M 790 380 C 830 380 830 250 870 250" grad="gViolet" on={flowing} live={liveName === 'hf'} />
+          <Pipe d="M 1010 250 H 1090" grad="gGreen" on={flowing} live={liveName === 'signals'} />
+          <Pipe d="M 1010 250 C 1040 250 1040 360 1090 360" grad="gGreen" on={flowing} live={liveName === 'signals'} />
+          <Pipe d="M 1230 250 H 1290" grad="gAmber" on={flowing} live={liveName === 'snapshot'} />
+          <Pipe d="M 1230 360 C 1260 360 1260 250 1290 250" grad="gAmber" on={flowing} live={liveName === 'snapshot'} />
           <Pipe d="M 1360 310 C 1360 470 300 470 300 310" grad="gCyan" on={flowing} live={false} dash />
         </svg>
 
@@ -217,8 +216,8 @@ function FlowBoard({ latest, flowing, counts, hf, cc, events }) {
           <Node x="24%" y="42%" state={fetchS === 'idle' ? 'idle' : 'done'} color="gold" title="Backend Server" status="LIVE" meta="Postgres + worker" icon="server" />
           <Node x="44%" y="14%" state={imageS} color="violet" title="Image Gate" status={imageS === 'done' ? 'ACTIVE' : imageS.toUpperCase()} meta={`${counts.rejected} rejected`} icon="funnel" small />
           <Node x="44%" y="42%" state={imageS} color="violet" title="Data Validation" status={imageS === 'done' ? 'ACTIVE' : imageS.toUpperCase()} meta={`${counts.accepted} kept`} icon="funnel" small />
-          <Node x="44%" y="70%" state={dedupeS} color="violet" title="Deduplication" status={dedupeS === 'done' ? 'ACTIVE' : dedupeS.toUpperCase()} meta={`${counts.unique} unique`} icon="funnel" small />
-          <Node x="62%" y="34%" state={hfS} color="green" title="AI Model" status={hf.stage === 'RUNNING' ? 'LIVE' : (hf.stage || 'STANDBY')} meta={`HF ${counts.hf} · LLM ${counts.llm}`} icon="brain" />
+          <Node x="44%" y="70%" state={dedupeS} color="violet" title="Deduplication" status={dedupeS === 'done' ? 'ACTIVE' : dedupeS.toUpperCase()} meta={counts.unique ? `${counts.unique} new` : `${counts.accepted} reused`} icon="funnel" small />
+          <Node x="62%" y="34%" state={hf.stage === 'RUNTIME_ERROR' ? 'idle' : hfS} color="green" title="AI Model" status={hf.stage === 'RUNTIME_ERROR' ? 'FAULT' : (hf.stage === 'RUNNING' ? 'LIVE' : (hf.stage || 'STANDBY'))} meta={`HF ${counts.hf} · LLM ${counts.llm}`} icon="brain" />
           <Mini x="62%" y="58%" label="Pattern Detection" on={hfS === 'done' || llmS === 'done'} />
           <Mini x="62%" y="66%" label="Anomaly Detection" on={llmS === 'done'} />
           <Mini x="62%" y="74%" label="Risk Assessment" on={sigS === 'done'} />

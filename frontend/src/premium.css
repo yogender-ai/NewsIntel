@@ -326,7 +326,7 @@ p, span, li { color: inherit; }
 .map-controls .toggle {
   border-radius: 8px; padding: 8px 14px;
   background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.03);
-  color: #64748b; cursor: none; transition: all 0.2s ease;
+  color: #64748b; cursor: pointer; transition: all 0.2s ease;
 }
 .map-controls .toggle.active {
   background: rgba(139,92,246,0.06); border-color: rgba(139,92,246,0.15); color: #c4b5fd;
@@ -486,7 +486,7 @@ p, span, li { color: inherit; }
   color: #e2e8f0;
   font-weight: 800;
   font-size: 13px;
-  cursor: none;
+  cursor: pointer;
   transition: all 0.2s;
 }
 .orbit-story-button:hover {
@@ -513,7 +513,7 @@ p, span, li { color: inherit; }
   background: rgba(255,255,255,0.012);
   color: #e2e8f0;
   text-align: left;
-  cursor: none;
+  cursor: pointer;
   transition: all 0.2s;
 }
 .orbit-mini-list button:hover {
@@ -557,7 +557,7 @@ p, span, li { color: inherit; }
 .orbit-controls .toggle {
   border-radius: 8px; padding: 6px 14px;
   background: rgba(255,255,255,0.015); border: 1px solid rgba(255,255,255,0.03);
-  color: #64748b; cursor: none; transition: all 0.2s ease;
+  color: #64748b; cursor: pointer; transition: all 0.2s ease;
   font-weight: 800; font-size: 11px;
 }
 .orbit-controls .toggle.active {

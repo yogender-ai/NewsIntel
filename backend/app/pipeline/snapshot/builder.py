@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 
 from app.core.config import get_settings
 from app.models.signal import Signal, SignalRelationship
+from app.pipeline.snapshot.geo import countries_from_cards
 
 
 def _card(signal: Signal, rank: int, rels: list[SignalRelationship]) -> dict:
@@ -82,19 +83,7 @@ def build_snapshot_payload(
     else:
         label = "Calm"
     critical = sum(1 for card in cards if card["signal_tier"] == "CRITICAL")
-    map_rows = []
-    for category in settings.mvp_categories:
-        values = [card["pulse_score"] for card in categories.get(category, [])]
-        map_rows.append(
-            {
-                "id": f"global:{category}",
-                "name": f"Global {category.title()}",
-                "mode": "global_category",
-                "category": category,
-                "intensity": round(sum(values) / len(values), 2) if values else 0,
-                "event_count": len(values),
-            }
-        )
+    map_rows = countries_from_cards(cards)
     return {
         "lastUpdated": now.isoformat(),
         "cycleId": str(run_id) if run_id else "",
