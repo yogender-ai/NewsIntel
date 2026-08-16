@@ -192,7 +192,7 @@ export default function App() {
       <aside className="rail">
         <div className="brand">
           <span className="drop" />
-          <b>OIL</b>
+          <b>CURRENT</b>
         </div>
         <Nav label="Flow Monitor" active={view === 'flow'} onClick={() => setView('flow')} />
         <Nav label="Alerts" active={view === 'alerts'} onClick={() => setView('alerts')} />
@@ -204,7 +204,7 @@ export default function App() {
         <header className="bar">
           <div className="bar-left">
             <span className="drop" />
-            <h1>OIL PIPELINE — REAL TIME FLOW</h1>
+            <h1>CURRENT — LIVE NEWS FLOW</h1>
           </div>
           <div className="bar-right">
             <span className="sys">
