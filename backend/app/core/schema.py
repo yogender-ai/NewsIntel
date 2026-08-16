@@ -40,15 +40,22 @@ def _create_v2_tables(sync_conn) -> None:
     Base.metadata.create_all(sync_conn, tables=tables)
 
 
+def _alter_articles(sync_conn) -> None:
+    inspector = inspect(sync_conn)
+    if "articles" not in inspector.get_table_names():
+        return
+    for stmt in _ARTICLE_COLUMNS:
+        try:
+            sync_conn.execute(text(stmt))
+        except Exception as exc:
+            logger.warning("article column migrate skipped: %s (%s)", stmt, exc)
+
+
 async def ensure_core_v2_schema() -> None:
-    async with engine.begin() as conn:
-        await conn.run_sync(_create_v2_tables)
-        inspector = await conn.run_sync(inspect)
-        tables = set(inspector.get_table_names())
-        if "articles" in tables:
-            for stmt in _ARTICLE_COLUMNS:
-                try:
-                    await conn.execute(text(stmt))
-                except Exception as exc:
-                    logger.warning("article column migrate skipped: %s (%s)", stmt, exc)
-    logger.info("core-v2 schema ready")
+    try:
+        async with engine.begin() as conn:
+            await conn.run_sync(_create_v2_tables)
+            await conn.run_sync(_alter_articles)
+        logger.info("core-v2 schema ready")
+    except Exception as exc:
+        logger.warning("core-v2 schema ensure failed; continuing: %s", exc)
