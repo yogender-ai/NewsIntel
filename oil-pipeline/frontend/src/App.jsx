@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 
-const API = (import.meta.env.VITE_API_URL || 'https://oil-pipeline.onrender.com').replace(/\/$/, '')
+const API = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
 
 const COLUMNS = [
   { id: 'ingest', n: '1', title: 'DATA INGESTION', sub: 'Collecting RSS in real time', color: 'cyan' },
@@ -415,12 +415,6 @@ const FlowPipes = memo(function FlowPipes() {
       )}
       <Valve x="216" y="280" label="IN" />
       <Valve x="414" y="280" label="MID" />
-      <g className="pipe-break" transform="translate(624 280)">
-        <path d="M -28 -7 H -8 L -4 7 H -28 Z" className="break-flange" />
-        <path d="M 28 -7 H 8 L 4 7 H 28 Z" className="break-flange" />
-        <path d="M -6 -16 L 2 -4 M 4 6 L -2 16 M 0 -10 L 8 2" className="break-spark" />
-        <text y="32" textAnchor="middle" className="break-label">BREAK</text>
-      </g>
       <Valve x="1014" y="280" label="OUT" />
     </svg>
   )
