@@ -381,8 +381,7 @@ function Clock() {
 const SEGMENTS = [
   { id: 'rss-back', d: 'M 120 280 H 312', color: '#22d3ee', n: 5, dur: 1.6 },
   { id: 'back-valid', d: 'M 312 280 H 516', color: '#38bdf8', n: 5, dur: 1.6 },
-  { id: 'valid-stub', d: 'M 516 280 H 590', color: '#67e8f9', n: 3, dur: 1.1 },
-  { id: 'valid-ai', d: 'M 658 280 H 732', color: '#67e8f9', n: 4, dur: 1.4 },
+  { id: 'valid-ai', d: 'M 516 280 H 732', color: '#67e8f9', n: 5, dur: 1.6 },
   { id: 'ai-rank', d: 'M 732 280 H 924', color: '#34d399', n: 4, dur: 1.5 },
   { id: 'rank-desk', d: 'M 924 280 H 1104', color: '#38bdf8', n: 4, dur: 1.5 },
   { id: 'to-image', d: 'M 516 280 V 128', color: '#a78bfa', n: 3, dur: 1.3 },
