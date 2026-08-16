@@ -5783,3 +5783,9 @@ input[type="range"] {
     width: 100%;
   }
 }
+
+.sim-source-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+.sim-source-list li { display: grid; gap: 4px; padding-bottom: 10px; border-bottom: 1px solid rgba(125,211,252,0.12); }
+.sim-source-list b { font-size: 10px; letter-spacing: 0.12em; color: #7dd3fc; }
+.sim-source-list a { color: #e8f4ff; }
+.sim-source-list small { color: #8fb6cb; }

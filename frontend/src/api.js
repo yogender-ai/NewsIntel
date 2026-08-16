@@ -196,5 +196,6 @@ export const api = {
     request('/api/simulate', {
       method: 'POST',
       body: JSON.stringify(payload),
+      timeoutMs: 55000,
     }),
 };
