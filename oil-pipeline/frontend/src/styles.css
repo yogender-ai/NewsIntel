@@ -114,10 +114,16 @@ h1 { font-size: 18px; letter-spacing: 0.12em; margin: 0; }
 .board.flow-idle .packet-loop { opacity: 0.9; visibility: visible; }
 .board.flow-fetch .packet-rss-back { opacity: 1; visibility: visible; }
 .board.flow-images .packet-back-valid,
-.board.flow-images .packet-to-image { opacity: 1; visibility: visible; }
+.board.flow-images .packet-to-image,
+.board.flow-images .packet-valid-stub { opacity: 1; visibility: visible; }
 .board.flow-dedupe .packet-to-dedupe { opacity: 1; visibility: visible; }
 .board.flow-hf .packet-valid-ai,
 .board.flow-hf .packet-to-ai { opacity: 1; visibility: visible; }
+.break-flange { fill: #0b1a26; stroke: #fb7185; stroke-width: 2; }
+.break-spark { fill: none; stroke: #fbbf24; stroke-width: 1.6; opacity: 0.85; }
+.break-label { fill: #fb7185; font-size: 9px; letter-spacing: 0.16em; }
+.board.moving .break-spark { animation: spark 0.35s linear infinite; }
+@keyframes spark { 50% { opacity: 0.2; } }
 .board.flow-signals .packet-ai-rank,
 .board.flow-signals .packet-to-risk,
 .board.flow-signals .packet-to-insights { opacity: 1; visibility: visible; }

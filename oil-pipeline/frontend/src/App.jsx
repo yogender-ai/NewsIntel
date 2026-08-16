@@ -35,15 +35,33 @@ function stageOf(latest, name) {
   return (latest?.stages || []).find((s) => s.name === name) || null
 }
 
-function currentPhase(latest, flowing) {
+const STAGE_NEXT = {
+  fetch: 'images',
+  images: 'dedupe',
+  dedupe: 'hf',
+  hf: 'signals',
+  llm: 'signals',
+  signals: 'snapshot',
+  snapshot: 'snapshot',
+}
+
+function phaseFromName(name) {
+  if (!name) return null
+  if (name === 'llm') return 'hf'
+  if (['fetch', 'images', 'dedupe', 'hf', 'signals', 'snapshot'].includes(name)) return name
+  return null
+}
+
+function currentPhase(latest, flowing, liveStage) {
   if (!flowing) return 'idle'
-  const stages = latest?.stages || []
-  const done = (name) => stages.some((s) => s.name === name && (s.finished_at || s.counts))
-  if (!done('fetch')) return 'fetch'
-  if (!done('images')) return 'images'
-  if (!done('dedupe')) return 'dedupe'
-  if (!done('hf') && !done('llm')) return 'hf'
-  if (!done('signals')) return 'signals'
+  const fromSse = phaseFromName(liveStage)
+  if (fromSse) return fromSse
+  const names = (latest?.stages || []).map((s) => s.name)
+  if (!names.includes('fetch')) return 'fetch'
+  if (!names.includes('images')) return 'images'
+  if (!names.includes('dedupe')) return 'dedupe'
+  if (!names.includes('hf') && !names.includes('llm')) return 'hf'
+  if (!names.includes('signals')) return 'signals'
   return 'snapshot'
 }
 
@@ -67,6 +85,7 @@ export default function App() {
   const [open, setOpen] = useState(null)
   const [inspect, setInspect] = useState(null)
   const [inspecting, setInspecting] = useState(false)
+  const [liveStage, setLiveStage] = useState(null)
 
   const load = useCallback(async () => {
     try {
@@ -92,6 +111,10 @@ export default function App() {
           return
         }
         setEvents((current) => [payload, ...current].slice(0, 24))
+        if (payload.type === 'stage' && payload.name) {
+          setLiveStage(payload.status === 'done' ? (STAGE_NEXT[payload.name] || payload.name) : payload.name)
+        }
+        if (payload.type === 'snapshot') setLiveStage('snapshot')
         if (payload.type === 'stage' || payload.type === 'snapshot') load()
       } catch {
         // keepalive
@@ -120,6 +143,7 @@ export default function App() {
     setBusy(true)
     setError('')
     try {
+      setLiveStage('fetch')
       await getJson('/api/pipeline/kick', { method: 'POST' })
       await load()
     } catch (err) {
@@ -155,7 +179,10 @@ export default function App() {
   const llmS = nodeState(latest, ['llm'], flowing)
   const sigS = nodeState(latest, ['signals'], flowing)
   const snapS = nodeState(latest, ['snapshot'], flowing)
-  const phase = currentPhase(latest, flowing)
+  const phase = currentPhase(latest, flowing, liveStage)
+  useEffect(() => {
+    if (!flowing && liveStage && liveStage !== 'snapshot') setLiveStage(null)
+  }, [flowing, liveStage])
 
   return (
     <div className="scada">
@@ -354,7 +381,8 @@ function Clock() {
 const SEGMENTS = [
   { id: 'rss-back', d: 'M 120 280 H 312', color: '#22d3ee', n: 5, dur: 1.6 },
   { id: 'back-valid', d: 'M 312 280 H 516', color: '#38bdf8', n: 5, dur: 1.6 },
-  { id: 'valid-ai', d: 'M 516 280 H 732', color: '#67e8f9', n: 5, dur: 1.6 },
+  { id: 'valid-stub', d: 'M 516 280 H 590', color: '#67e8f9', n: 3, dur: 1.1 },
+  { id: 'valid-ai', d: 'M 658 280 H 732', color: '#67e8f9', n: 4, dur: 1.4 },
   { id: 'ai-rank', d: 'M 732 280 H 924', color: '#34d399', n: 4, dur: 1.5 },
   { id: 'rank-desk', d: 'M 924 280 H 1104', color: '#38bdf8', n: 4, dur: 1.5 },
   { id: 'to-image', d: 'M 516 280 V 128', color: '#a78bfa', n: 3, dur: 1.3 },
@@ -388,6 +416,12 @@ const FlowPipes = memo(function FlowPipes() {
       )}
       <Valve x="216" y="280" label="IN" />
       <Valve x="414" y="280" label="MID" />
+      <g className="pipe-break" transform="translate(624 280)">
+        <path d="M -28 -7 H -8 L -4 7 H -28 Z" className="break-flange" />
+        <path d="M 28 -7 H 8 L 4 7 H 28 Z" className="break-flange" />
+        <path d="M -6 -16 L 2 -4 M 4 6 L -2 16 M 0 -10 L 8 2" className="break-spark" />
+        <text y="32" textAnchor="middle" className="break-label">BREAK</text>
+      </g>
       <Valve x="1014" y="280" label="OUT" />
     </svg>
   )
