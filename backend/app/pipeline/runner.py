@@ -30,6 +30,7 @@ from app.pipeline.signals.score import score_item
 from app.pipeline.snapshot.builder import build_snapshot_payload
 from app.pipeline.types import EnrichedArticle, StageStat
 from app.repositories.articles import recent_for_dedupe
+from app.repositories.signals import list_live_imaged, relationships_for
 from app.services.text_fingerprint import normalize_title
 
 logger = logging.getLogger("newsintel-runner")
@@ -301,9 +302,42 @@ async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: 
         for edge in edges:
             session.add(edge)
 
+        seen_ids = {signal.id for signal in signals}
+        for existing in await list_live_imaged(session, 40):
+            if existing.id not in seen_ids and existing.image_url:
+                signals.append(existing)
+                seen_ids.add(existing.id)
+        if edges or seen_ids:
+            extra_edges = await relationships_for(session, list(seen_ids))
+            known = {(edge.source_id, edge.target_id, edge.rel_type) for edge in edges}
+            for edge in extra_edges:
+                key = (edge.source_id, edge.target_id, edge.rel_type)
+                if key not in known:
+                    edges.append(edge)
+                    known.add(key)
+
+        imaged = [signal for signal in signals if signal.image_url]
+        if not imaged:
+            run.status = "partial"
+            run.finished_at = utcnow()
+            run.stats = {
+                "fetched": len(raw_items),
+                "rejected_no_image": rejected,
+                "accepted": len(accepted_pairs),
+                "deduped": len(unique),
+                "hf_ok": hf_ok,
+                "llm_ok": llm_ok,
+                "signals": 0,
+                "kept_previous_snapshot": True,
+            }
+            await session.commit()
+            await write_job(redis, run)
+            logger.info("pipeline.end kept previous snapshot; no imaged signals this cycle")
+            return run
+
         await session.execute(update(Snapshot).where(Snapshot.active.is_(True)).values(active=False))
         by_cat: dict[str, list[float]] = {}
-        for signal in signals:
+        for signal in imaged:
             by_cat.setdefault(signal.category, []).append(signal.pulse)
         pulse_history = []
         for category, values in by_cat.items():
@@ -320,13 +354,13 @@ async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: 
             "deduped": len(unique),
             "hf_ok": hf_ok,
             "llm_ok": llm_ok,
-            "signals": len(signals),
+            "signals": len(imaged),
             "categories": category_counts,
         }
         pipeline_status = {
             "news": "live",
             "source_of_truth": "snapshots,signals",
-            "queue": {"accepted": len(unique), "signals": len(signals), "running": 0, "pending": 0},
+            "queue": {"accepted": len(unique), "signals": len(imaged), "running": 0, "pending": 0},
             "ai_circuit_open": bool(await redis.get("newsintel:circuit:ai")),
             "stages": run.stages,
             "latest_cycle": {"status": "partial" if partial else "succeeded"},
@@ -338,15 +372,15 @@ async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: 
                     started_at=datetime.now(timezone.utc).isoformat(),
                     finished_at=datetime.now(timezone.utc).isoformat(),
                     elapsed_ms=0,
-                    counts={"signals": len(signals)},
+                    counts={"signals": len(imaged)},
                 )
             )
         )
-        publish("stage", name="signals", status="done", counts={"signals": len(signals)}, run_id=str(run.id))
+        publish("stage", name="signals", status="done", counts={"signals": len(imaged)}, run_id=str(run.id))
         publish("stage", name="snapshot", status="running", run_id=str(run.id))
         payload = build_snapshot_payload(
             run_id=run.id,
-            signals=signals,
+            signals=imaged,
             relationships=edges,
             pipeline_status=pipeline_status,
             pulse_history=pulse_history,
@@ -367,7 +401,7 @@ async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: 
         publish(
             "snapshot",
             status=run.status,
-            signals=len(signals),
+            signals=len(imaged),
             fetched=len(raw_items),
             accepted=len(accepted_pairs),
             run_id=str(run.id),

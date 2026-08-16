@@ -4,6 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_redis, get_session
 from app.core.redis import RedisClient
 from app.pipeline.runner import SNAPSHOT_KEY
+from app.pipeline.snapshot.builder import build_snapshot_payload
+from app.repositories.signals import list_live_imaged, relationships_for
 from app.repositories.snapshots import latest_active
 
 router = APIRouter(tags=["snapshot"])
@@ -24,15 +26,7 @@ def only_imaged(payload: dict) -> dict:
     return cleaned
 
 
-async def load_snapshot(session: AsyncSession, redis: RedisClient) -> dict:
-    cached = await redis.get_json(SNAPSHOT_KEY)
-    if isinstance(cached, dict) and cached.get("feed") is not None:
-        return only_imaged(cached)
-    row = await latest_active(session)
-    if row and isinstance(row.payload_json, dict):
-        payload = only_imaged(row.payload_json)
-        await redis.set_json(SNAPSHOT_KEY, payload, ttl_seconds=90 * 60)
-        return payload
+def _empty() -> dict:
     return {
         "feed": [],
         "clusters": [],
@@ -40,6 +34,40 @@ async def load_snapshot(session: AsyncSession, redis: RedisClient) -> dict:
         "pipeline_status": {"news": "empty", "source_of_truth": "snapshots,signals"},
         "refresh_type": "empty",
     }
+
+
+async def rebuild_from_signals(session: AsyncSession) -> dict:
+    signals = await list_live_imaged(session, 40)
+    if not signals:
+        return _empty()
+    edges = await relationships_for(session, [item.id for item in signals])
+    return only_imaged(
+        build_snapshot_payload(
+            run_id=None,
+            signals=signals,
+            relationships=edges,
+            pipeline_status={"news": "live", "source_of_truth": "snapshots,signals"},
+            pulse_history=[],
+        )
+    )
+
+
+async def load_snapshot(session: AsyncSession, redis: RedisClient) -> dict:
+    cached = await redis.get_json(SNAPSHOT_KEY)
+    if isinstance(cached, dict) and cached.get("feed") is not None:
+        payload = only_imaged(cached)
+        if payload.get("clusters") or payload.get("feed"):
+            return payload
+    row = await latest_active(session)
+    if row and isinstance(row.payload_json, dict):
+        payload = only_imaged(row.payload_json)
+        if payload.get("clusters") or payload.get("feed"):
+            await redis.set_json(SNAPSHOT_KEY, payload, ttl_seconds=90 * 60)
+            return payload
+    payload = await rebuild_from_signals(session)
+    if payload.get("clusters") or payload.get("feed"):
+        await redis.set_json(SNAPSHOT_KEY, payload, ttl_seconds=90 * 60)
+    return payload
 
 
 @router.get("/api/home-snapshot")
