@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from urllib.parse import quote_plus
 
@@ -20,35 +21,37 @@ def _clean(value: object, limit: int = 280) -> str:
 async def _wikipedia(client: httpx.AsyncClient, query: str) -> list[dict]:
     search = await client.get(
         "https://en.wikipedia.org/w/api.php",
-        params={"action": "opensearch", "search": query, "limit": 3, "namespace": 0, "format": "json"},
+        params={"action": "opensearch", "search": query, "limit": 2, "namespace": 0, "format": "json"},
         headers=HEADERS,
-        timeout=8.0,
+        timeout=3.5,
     )
     search.raise_for_status()
     data = search.json()
     titles = data[1] if isinstance(data, list) and len(data) > 1 else []
     urls = data[3] if isinstance(data, list) and len(data) > 3 else []
-    rows = []
-    for title, url in list(zip(titles, urls))[:3]:
+    pairs = list(zip(titles, urls))[:2]
+
+    async def _summary(title: str, url: str) -> dict:
         extract = ""
         try:
             page = await client.get(
                 "https://en.wikipedia.org/api/rest_v1/page/summary/" + quote_plus(str(title).replace(" ", "_")),
                 headers=HEADERS,
-                timeout=8.0,
+                timeout=3.5,
             )
             if page.status_code == 200:
-                extract = _clean((page.json() or {}).get("extract"), 360)
+                extract = _clean((page.json() or {}).get("extract"), 280)
         except Exception:
             extract = ""
-        rows.append({
+        return {
             "origin": "web",
             "kind": "wikipedia",
             "title": str(title),
             "url": str(url),
             "snippet": extract or "Wikipedia result",
-        })
-    return rows
+        }
+
+    return list(await asyncio.gather(*[_summary(title, url) for title, url in pairs])) if pairs else []
 
 
 async def _duckduckgo(client: httpx.AsyncClient, query: str) -> list[dict]:
@@ -56,7 +59,7 @@ async def _duckduckgo(client: httpx.AsyncClient, query: str) -> list[dict]:
         "https://api.duckduckgo.com/",
         params={"q": query, "format": "json", "no_html": 1, "skip_disambig": 1},
         headers=HEADERS,
-        timeout=8.0,
+        timeout=3.5,
     )
     response.raise_for_status()
     data = response.json() if response.content else {}
@@ -95,11 +98,12 @@ async def gather_web_evidence(query: str) -> list[dict]:
     found: list[dict] = []
     seen = set()
     async with httpx.AsyncClient(follow_redirects=True) as client:
-        for fetcher in (_wikipedia, _duckduckgo):
-            try:
-                found.extend(await fetcher(client, q))
-            except Exception as exc:
-                logger.info("web evidence %s failed: %s", fetcher.__name__, exc)
+        parts = await asyncio.gather(_wikipedia(client, q), _duckduckgo(client, q), return_exceptions=True)
+        for part in parts:
+            if isinstance(part, Exception):
+                logger.info("web evidence failed: %s", part)
+                continue
+            found.extend(part)
     unique = []
     for item in found:
         key = (item.get("url") or item.get("title") or "").lower()

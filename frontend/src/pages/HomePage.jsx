@@ -272,7 +272,7 @@ function AskNewsIntelModal({
         <div className="ask-modal-head">
           <div>
             <span>Ask NewsIntel</span>
-            <small>Live Google News + stored signals</small>
+            <small>Desk signals + live web references. Same line as the simulator.</small>
           </div>
           <button type="button" className="wp-icon-btn" onClick={onClose} aria-label="Close"><X size={16} /></button>
         </div>

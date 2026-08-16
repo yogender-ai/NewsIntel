@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 
 const API = (import.meta.env.VITE_API_URL || 'https://oil-pipeline.onrender.com').replace(/\/$/, '')
+const NEWSINTEL = (import.meta.env.VITE_NEWSINTEL_URL || 'https://newsintel-xvhe.onrender.com').replace(/\/$/, '')
 
 const COLUMNS = [
   { id: 'ingest', n: '1', title: 'DATA INGESTION', sub: 'Collecting RSS in real time', color: 'cyan' },
@@ -49,6 +50,7 @@ const STAGE_NEXT = {
 function phaseFromName(name) {
   if (!name) return null
   if (name === 'llm') return 'hf'
+  if (String(name).startsWith('ask')) return 'hf'
   if (['fetch', 'images', 'dedupe', 'hf', 'signals', 'snapshot'].includes(name)) return name
   return null
 }
@@ -87,6 +89,7 @@ export default function App() {
   const [inspect, setInspect] = useState(null)
   const [inspecting, setInspecting] = useState(false)
   const [liveStage, setLiveStage] = useState(null)
+  const [askLive, setAskLive] = useState(null)
 
   const load = useCallback(async () => {
     try {
@@ -113,7 +116,15 @@ export default function App() {
         }
         setEvents((current) => [payload, ...current].slice(0, 24))
         if (payload.type === 'stage' && payload.name) {
-          setLiveStage(payload.status === 'done' ? (STAGE_NEXT[payload.name] || payload.name) : payload.name)
+          if (String(payload.name).startsWith('ask')) {
+            setAskLive(payload.name)
+            setLiveStage(payload.name)
+            if (payload.status === 'done' && payload.name === 'ask-ai') {
+              window.setTimeout(() => setAskLive(null), 4000)
+            }
+          } else {
+            setLiveStage(payload.status === 'done' ? (STAGE_NEXT[payload.name] || payload.name) : payload.name)
+          }
         }
         if (payload.type === 'snapshot') setLiveStage('snapshot')
         if (payload.type === 'stage' || payload.type === 'snapshot') load()
@@ -121,9 +132,25 @@ export default function App() {
         // keepalive
       }
     }
+    const askSource = new EventSource(`${NEWSINTEL}/api/pipeline/stream`)
+    askSource.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data || '{}')
+        if (payload.type === 'stage' && String(payload.name || '').startsWith('ask')) {
+          setAskLive(payload.name)
+          setLiveStage(payload.name)
+          if (payload.status === 'done' && payload.name === 'ask-ai') {
+            window.setTimeout(() => setAskLive(null), 4000)
+          }
+        }
+      } catch {
+        // keepalive
+      }
+    }
     const poll = setInterval(load, 12000)
     return () => {
       source.close()
+      askSource.close()
       clearInterval(poll)
     }
   }, [load])
@@ -156,7 +183,7 @@ export default function App() {
 
   const latest = data?.latest
   const stats = latest?.stats || {}
-  const flowing = latest?.status === 'running' || data?.lock
+  const flowing = latest?.status === 'running' || data?.lock || Boolean(askLive)
   const deps = data?.deps || {}
   const hf = deps.huggingface || {}
   const cc = deps.cloud_command || {}
@@ -228,7 +255,7 @@ export default function App() {
                 : phase === 'fetch' ? 'Valves open. Crude is moving RSS → backend.'
                 : phase === 'images' ? 'Image gate + validation.'
                 : phase === 'dedupe' ? 'Deduping repeats.'
-                : phase === 'hf' ? 'AI model is on this cut.'
+                : phase === 'hf' ? 'Ask / AI line: desk + web + model.'
                 : phase === 'signals' ? 'Ranking and insights.'
                 : 'Pushing the snapshot to the desk.'}
             </p>

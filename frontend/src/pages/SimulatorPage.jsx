@@ -1,122 +1,109 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { AlertTriangle, CheckCircle2, Clock, Gauge, Layers3, Play, Target, TrendingUp, X } from 'lucide-react';
-import { api } from '../api';
-import Sidebar from '../components/worldpulse/Sidebar';
-import LockedNavToast from '../components/worldpulse/LockedNavToast';
-import { normalizeDashboardData } from '../lib/dashboardAdapter';
+import React, { useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Play, X } from 'lucide-react'
+import { api } from '../api'
+import Sidebar from '../components/worldpulse/Sidebar'
+import LockedNavToast from '../components/worldpulse/LockedNavToast'
+import { normalizeDashboardData } from '../lib/dashboardAdapter'
 
-const SCENARIO_MODES = [
-  { id: 'escalation', label: 'Escalation', icon: TrendingUp },
-  { id: 'policy', label: 'Policy Response', icon: Layers3 },
-  { id: 'confidence', label: 'Confidence Shock', icon: Target },
-];
+const MODES = [
+  { id: 'escalation', label: 'Escalate' },
+  { id: 'policy', label: 'Policy' },
+  { id: 'confidence', label: 'Shock' },
+]
 
-function scenarioFromShift(shift, mode = 'escalation') {
-  const subject = shift.headline || shift.title || shift.category || 'this signal';
-  const category = shift.category ? ` in ${shift.category}` : '';
-  const pulse = Number.isFinite(Number(shift.pulse)) ? ` The current pulse score is ${Math.round(Number(shift.pulse))}.` : '';
-  if (mode === 'policy') {
-    return `What if "${subject}" triggers a policy or leadership response over the next 30 days${category}? Consider who responds first, which groups are affected, and what follow-on signals should be watched.${pulse}`;
-  }
-  if (mode === 'confidence') {
-    return `What if "${subject}" creates a confidence shock over the next 30 days${category}? Consider public trust, market reaction, source quality, and second-order effects.${pulse}`;
-  }
-  return `What if "${subject}" escalates over the next 30 days${category}? Consider public impact, source credibility, stakeholder response, and likely follow-on effects.${pulse}`;
+function seedPrompt(shift, mode) {
+  const subject = shift.headline || shift.title || 'this signal'
+  if (mode === 'policy') return `What if "${subject}" triggers a policy response in 30 days?`
+  if (mode === 'confidence') return `What if "${subject}" creates a confidence shock in 30 days?`
+  return `What if "${subject}" escalates in 30 days?`
 }
 
-function ImpactCards({ result }) {
-  const areas = result?.impact_areas || [];
+function Ring({ value, label }) {
+  const score = Math.max(0, Math.min(100, Number(value) || 0))
+  const r = 42
+  const c = 2 * Math.PI * r
+  const dash = (score / 100) * c
   return (
-    <section className="sim-impact-grid">
-      {areas.map((item) => {
-        const score = Math.max(0, Math.min(100, Number(item.score) || 0));
-        return (
-        <div className="wp-card sim-impact-card" key={item.area}>
-          <div className="sim-impact-head">
-            <span>{item.area}</span>
-            <b>{score}</b>
-          </div>
-          <div className="sim-impact-bar"><i style={{ width: `${score}%` }} /></div>
-          <small>{item.direction}</small>
-          <p>{item.explanation}</p>
-        </div>
-        );
-      })}
-    </section>
-  );
+    <div className="simx-ring">
+      <svg viewBox="0 0 108 108">
+        <circle cx="54" cy="54" r={r} className="track" />
+        <circle cx="54" cy="54" r={r} className="fill" strokeDasharray={`${dash} ${c}`} />
+      </svg>
+      <b>{score}</b>
+      <small>{label}</small>
+    </div>
+  )
 }
 
 export default function SimulatorPage() {
-  const navigate = useNavigate();
-  const [scenario, setScenario] = useState('');
-  const [assumptions, setAssumptions] = useState({ time_horizon: '30d', severity: 'medium', market_reaction: 'medium' });
-  const [dashboard, setDashboard] = useState(null);
-  const [result, setResult] = useState(null);
-  const [runMeta, setRunMeta] = useState(null);
-  const [evidence, setEvidence] = useState([]);
-  const [selectedSeed, setSelectedSeed] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [contextLoading, setContextLoading] = useState(true);
-  const [contextError, setContextError] = useState('');
-  const [error, setError] = useState('');
-  const [lockedToast, setLockedToast] = useState('');
-
-  const loadContext = useCallback(async () => {
-    setContextLoading(true);
-    setContextError('');
-    try {
-      const response = await api.getCachedDashboard();
-      setDashboard(response);
-    } catch (err) {
-      setDashboard(null);
-      setContextError((err?.message || 'Unable to load live scenario seeds.').replace(/^\d+:\s*/, '').slice(0, 180));
-    } finally {
-      setContextLoading(false);
-    }
-  }, []);
+  const navigate = useNavigate()
+  const [scenario, setScenario] = useState('')
+  const [mode, setMode] = useState('escalation')
+  const [assumptions, setAssumptions] = useState({ time_horizon: '30d', severity: 'medium', market_reaction: 'medium' })
+  const [dashboard, setDashboard] = useState(null)
+  const [result, setResult] = useState(null)
+  const [runMeta, setRunMeta] = useState(null)
+  const [evidence, setEvidence] = useState([])
+  const [selectedSeed, setSelectedSeed] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [phase, setPhase] = useState('')
+  const [contextError, setContextError] = useState('')
+  const [error, setError] = useState('')
+  const [lockedToast, setLockedToast] = useState('')
+  const [openDetail, setOpenDetail] = useState(null)
 
   useEffect(() => {
-    loadContext();
-  }, [loadContext]);
+    api.getCachedDashboard()
+      .then(setDashboard)
+      .catch((err) => setContextError((err?.message || 'No live seeds').replace(/^\d+:\s*/, '').slice(0, 140)))
+  }, [])
 
-  const normalized = useMemo(() => normalizeDashboardData({ dashboard, preferences: null, alerts: null, user: null }), [dashboard]);
-  const scenarioSeeds = useMemo(() => normalized.topShifts.slice(0, 4), [normalized.topShifts]);
+  const normalized = useMemo(() => normalizeDashboardData({ dashboard, preferences: null, alerts: null, user: null }), [dashboard])
+  const seeds = useMemo(() => normalized.topShifts.slice(0, 4), [normalized.topShifts])
+
+  const pick = (shift) => {
+    setSelectedSeed(shift)
+    setScenario(seedPrompt(shift, mode))
+  }
 
   const run = async () => {
-    setLoading(true);
-    setError('');
-    setResult(null);
-    setRunMeta(null);
+    const text = scenario.trim()
+    if (text.length < 8) return
+    setLoading(true)
+    setError('')
+    setResult(null)
+    setEvidence([])
+    setPhase('desk')
+    const tick = window.setTimeout(() => setPhase('web'), 400)
+    const tick2 = window.setTimeout(() => setPhase('model'), 900)
     try {
       const response = await api.simulate({
-        scenario,
+        scenario: text,
         base_event_id: selectedSeed?.id || null,
-        assumptions: {
-          ...assumptions,
-          seed_headline: selectedSeed?.headline || null,
-          seed_category: selectedSeed?.category || null,
-          seed_pulse: selectedSeed?.pulse ?? null,
-        },
-      });
-      setResult(response.result);
-      setEvidence(Array.isArray(response.sources) ? response.sources : []);
+        assumptions: { ...assumptions, mode, seed_headline: selectedSeed?.headline || null },
+      })
+      setResult(response.result)
+      setEvidence(Array.isArray(response.sources) ? response.sources : [])
       setRunMeta({
-        cached: Boolean(response.cached),
-        runId: response.run_id,
-        provider: response.provider_used,
         deskCount: response.desk_count ?? 0,
         webCount: response.web_count ?? 0,
-      });
+      })
     } catch (err) {
-      setError((err?.message || 'Scenario failed.').replace(/^\d+:\s*/, '').slice(0, 220));
+      setError((err?.message || 'Scenario failed.').replace(/^\d+:\s*/, '').slice(0, 180))
     } finally {
-      setLoading(false);
+      window.clearTimeout(tick)
+      window.clearTimeout(tick2)
+      setPhase('')
+      setLoading(false)
     }
-  };
+  }
+
+  const outcomes = result?.possible_outcomes || []
+  const cites = (result?.citations?.length ? result.citations : evidence).slice(0, 8)
 
   return (
-    <div className="world-pulse-page simulator-page">
+    <div className="world-pulse-page simulator-page simx">
       <Sidebar
         preferences={{ hasPreferences: Boolean(normalized.preferences?.topics?.length), topics: normalized.preferences?.topics || [], regions: normalized.preferences?.regions || [], entities: [] }}
         activeItem="simulator"
@@ -132,233 +119,136 @@ export default function SimulatorPage() {
         onSettings={() => navigate('/settings')}
       />
       <main className="world-pulse-main simulator-main">
-        <header className="orbit-header ni-screen-header">
+        <header className="simx-head">
           <div>
-            <h1>Scenario Simulator</h1>
-            <p>Desk signals plus live web references. Nothing is invented if a source is missing.</p>
+            <h1>What if</h1>
+            <p>Tap a live signal. Watch impact. Current lights up while it runs.</p>
           </div>
-          <button className="wp-icon-btn" onClick={() => setLockedToast('Scenario outputs are generated by the backend AI simulator.')}><Gauge size={16} /> How it works</button>
+          <a className="simx-current" href="https://oil-pipeline.vercel.app" target="_blank" rel="noreferrer">Open Current</a>
         </header>
 
-        <section className="simulator-layout">
-          <div className="simulator-left">
-            <div className="wp-card scenario-input-panel">
-              <div className="wp-section-head">
-                <span>What scenario do you want to explore?</span>
-                <small>{contextLoading ? 'Loading context' : `${scenarioSeeds.length} live seeds`}</small>
-              </div>
-              <textarea
-                value={scenario}
-                onChange={(event) => {
-                  setScenario(event.target.value);
-                  setSelectedSeed(null);
-                }}
-                placeholder="What if..."
-              />
-              {scenarioSeeds[0] && (
-                <div className="sim-preset-actions">
-                  {SCENARIO_MODES.map((mode) => {
-                    const Icon = mode.icon;
-                    return (
-                      <button
-                        key={mode.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedSeed(scenarioSeeds[0]);
-                          setScenario(scenarioFromShift(scenarioSeeds[0], mode.id));
-                        }}
-                      >
-                        <Icon size={14} /> {mode.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-              <div className="preset-row live-scenario-seeds">
-                {contextLoading && <span>Loading live scenario seeds...</span>}
-                {!contextLoading && contextError && <span>{contextError}</span>}
-                {!contextLoading && scenarioSeeds.map((shift) => (
-                  <button
-                    key={shift.id}
-                    className={selectedSeed?.id === shift.id ? 'active' : ''}
-                    onClick={() => {
-                      setSelectedSeed(shift);
-                      setScenario(scenarioFromShift(shift));
-                    }}
-                    title={shift.summary || shift.impactLine || shift.headline}
-                  >
-                    <span>{shift.headline}</span>
-                    <small>{shift.category || 'Live'}{Number.isFinite(Number(shift.pulse)) ? ` / Pulse ${Math.round(Number(shift.pulse))}` : ''}</small>
-                  </button>
-                ))}
-              </div>
-              <button className="orbit-story-button run-scenario" onClick={run} disabled={loading || scenario.trim().length < 12}>
-                <Play size={16} /> {loading ? 'Running...' : 'Run Scenario'}
-              </button>
-            </div>
-
-            {result && <ImpactCards result={result} />}
-
-            {(evidence.length > 0 || result?.citations?.length) && (
-              <section className="wp-card sim-sources">
-                <div className="wp-section-head">
-                  <span>Evidence</span>
-                  <small>{runMeta ? `${runMeta.deskCount} desk · ${runMeta.webCount} web` : ''}</small>
-                </div>
-                <ul className="sim-source-list">
-                  {(result?.citations?.length ? result.citations : evidence).map((item, index) => (
-                    <li key={`${item.url || item.title}-${index}`}>
-                      <b>{item.origin === 'web' ? 'WEB' : 'DESK'}</b>
-                      {item.url ? <a href={item.url} target="_blank" rel="noreferrer">{item.title}</a> : <span>{item.title}</span>}
-                      {item.snippet && <small>{item.snippet}</small>}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-
-            {result?.desk_impact?.length > 0 && (
-              <section className="wp-card sim-desk-impact">
-                <div className="wp-section-head"><span>How this would move the desk</span></div>
-                <ul className="sim-source-list">
-                  {result.desk_impact.map((item) => (
-                    <li key={item.signal_id}>
-                      <b>{item.effect}</b>
-                      <span>{item.title}</span>
-                      {item.reason && <small>{item.reason}</small>}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            )}
-
-            <div className="wp-card sim-chain-panel" style={{ minHeight: '300px', position: 'relative' }}>
-              <div className="wp-section-head"><span>Interactive Impact Chain</span></div>
-              {result?.chain_reaction?.length ? (
-                <div className="sim-chain-interactive" style={{ display: 'flex', gap: '20px', overflowX: 'auto', padding: '20px' }}>
-                  {result.chain_reaction.map((item, i) => (
-                    <div 
-                      className="sim-chain-node" 
-                      key={item.step}
-                      style={{ 
-                        flexShrink: 0, width: '220px', padding: '16px', 
-                        background: `rgba(139, 92, 246, ${0.05 + (i * 0.05)})`,
-                        border: '1px solid rgba(139, 92, 246, 0.2)',
-                        borderRadius: '12px', cursor: 'grab',
-                        transition: 'transform 0.2s',
-                        transform: `translateY(${i % 2 === 0 ? '0' : '20px'})`
-                      }}
-                      onMouseEnter={(e) => e.currentTarget.style.transform = `translateY(${i % 2 === 0 ? '-5px' : '15px'}) scale(1.05)`}
-                      onMouseLeave={(e) => e.currentTarget.style.transform = `translateY(${i % 2 === 0 ? '0' : '20px'}) scale(1)`}
-                    >
-                      <i style={{ 
-                        display: 'inline-flex', width: 24, height: 24, 
-                        background: '#8b5cf6', color: '#fff', borderRadius: '50%',
-                        alignItems: 'center', justifyContent: 'center', marginBottom: 12 
-                      }}>{item.step}</i>
-                      <b style={{ display: 'block', marginBottom: 8, color: '#c4b5fd' }}>{item.title}</b>
-                      <span style={{ fontSize: 12, color: '#94a3b8' }}>{item.description}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="empty-copy">Run a scenario to generate an interactive chain reaction.</p>
-              )}
-            </div>
-
-            <div className="wp-card sim-outcomes-panel">
-              <div className="wp-section-head"><span>Possible Outcomes</span></div>
-              <div className="sim-outcomes">
-                {result?.possible_outcomes?.map((item) => (
-                  <div className="sim-outcome" key={item.label}>
-                    <b>{item.probability}%</b>
-                    <span>{item.label}</span>
-                    <p>{item.description}</p>
-                  </div>
-                ))}
-                {!result?.possible_outcomes?.length && <p className="empty-copy">Outcome probabilities come from the AI simulator response.</p>}
-              </div>
-            </div>
+        <section className="simx-launch">
+          <div className="simx-modes">
+            {MODES.map((item) => (
+              <button key={item.id} type="button" className={mode === item.id ? 'on' : ''} onClick={() => {
+                setMode(item.id)
+                if (selectedSeed) setScenario(seedPrompt(selectedSeed, item.id))
+              }}>{item.label}</button>
+            ))}
           </div>
-
-          <aside className="wp-card simulator-side">
-            <div className="wp-section-head"><span>Scenario Summary</span></div>
-            {loading && <div className="wp-loading"><span /></div>}
-            {error && <div className="wp-error"><b>Scenario unavailable</b><span>{error}</span><button onClick={() => setError('')}><X size={14} /></button></div>}
-            {!loading && !error && !result && (
-              <div className="orbit-empty">
-                <h2>Awaiting scenario input.</h2>
-                <p>The result panel stays empty until the backend simulator returns scenario JSON.</p>
-              </div>
-            )}
-            {result && (
-              <div className="scenario-result">
-                <div className="scenario-score">
-                  <div><b>{result.impact_score}</b><span>Overall Impact</span></div>
-                  <div><b>{result.confidence}</b><span>Confidence</span></div>
-                </div>
-                <p>{result.summary}</p>
-                {runMeta && (
-                  <p className="sim-result-source">
-                    {runMeta.cached ? 'Loaded from saved scenario run.' : 'Generated from current live context.'}
-                  </p>
-                )}
-                <p className="scenario-disclaimer">{result.disclaimer}</p>
-                <section>
-                  <h3>Key Assumptions</h3>
-                  <div className="assumption-list">
-                    <div><AlertTriangle size={15} /><span>Severity</span><b>{assumptions.severity}</b></div>
-                    <div><TrendingUp size={15} /><span>Market reaction</span><b>{assumptions.market_reaction}</b></div>
-                    <div><Clock size={15} /><span>Time horizon</span><b>{assumptions.time_horizon}</b></div>
-                  </div>
-                </section>
-                <section>
-                  <h3>Recommended Actions</h3>
-                  {result.recommended_actions?.length ? result.recommended_actions.map((item) => (
-                    <p key={item}><CheckCircle2 size={14} /> {item}</p>
-                  )) : <p className="empty-copy">No recommended actions returned by the simulator.</p>}
-                </section>
-              </div>
-            )}
-            <section className="orbit-controls sim-controls" style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '16px' }}>
-              <div className="interactive-slider-group">
-                <label style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span>Time Horizon</span> <b>{assumptions.time_horizon}</b>
-                </label>
-                <input 
-                  type="range" min="0" max="2" step="1" 
-                  value={assumptions.time_horizon === '7d' ? 0 : assumptions.time_horizon === '30d' ? 1 : 2}
-                  onChange={(e) => setAssumptions({...assumptions, time_horizon: ['7d', '30d', '90d'][e.target.value]})}
-                  style={{ width: '100%', cursor: 'ew-resize' }}
-                />
-              </div>
-              <div className="interactive-slider-group">
-                <label style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span>Severity</span> <b>{assumptions.severity}</b>
-                </label>
-                <input 
-                  type="range" min="0" max="2" step="1" 
-                  value={assumptions.severity === 'low' ? 0 : assumptions.severity === 'medium' ? 1 : 2}
-                  onChange={(e) => setAssumptions({...assumptions, severity: ['low', 'medium', 'high'][e.target.value]})}
-                  style={{ width: '100%', cursor: 'ew-resize' }}
-                />
-              </div>
-              <div className="interactive-slider-group">
-                <label style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span>Market Reaction</span> <b>{assumptions.market_reaction}</b>
-                </label>
-                <input 
-                  type="range" min="0" max="2" step="1" 
-                  value={assumptions.market_reaction === 'low' ? 0 : assumptions.market_reaction === 'medium' ? 1 : 2}
-                  onChange={(e) => setAssumptions({...assumptions, market_reaction: ['low', 'medium', 'high'][e.target.value]})}
-                  style={{ width: '100%', cursor: 'ew-resize' }}
-                />
-              </div>
-            </section>
-          </aside>
+          <div className="simx-seeds">
+            {contextError && <span className="simx-warn">{contextError}</span>}
+            {seeds.map((shift) => (
+              <button key={shift.id} type="button" className={selectedSeed?.id === shift.id ? 'on' : ''} onClick={() => pick(shift)}>
+                <em>{shift.category || 'LIVE'}</em>
+                <b>{shift.headline}</b>
+                <i>{Number.isFinite(Number(shift.pulse)) ? Math.round(Number(shift.pulse)) : '—'}</i>
+              </button>
+            ))}
+          </div>
+          <div className="simx-go">
+            <input
+              value={scenario}
+              onChange={(event) => { setScenario(event.target.value); setSelectedSeed(null) }}
+              placeholder="Or type a what-if…"
+              onKeyDown={(event) => { if (event.key === 'Enter') run() }}
+            />
+            <div className="simx-dials">
+              {[['7d', '30d', '90d'], ['low', 'medium', 'high'], ['low', 'medium', 'high']].map((opts, idx) => {
+                const keys = ['time_horizon', 'severity', 'market_reaction']
+                const labels = ['Horizon', 'Heat', 'Market']
+                const key = keys[idx]
+                return (
+                  <label key={key}>
+                    <span>{labels[idx]}</span>
+                    <select value={assumptions[key]} onChange={(event) => setAssumptions({ ...assumptions, [key]: event.target.value })}>
+                      {opts.map((opt) => <option key={opt} value={opt}>{opt}</option>)}
+                    </select>
+                  </label>
+                )
+              })}
+            </div>
+            <button type="button" className="simx-run" onClick={run} disabled={loading || scenario.trim().length < 8}>
+              <Play size={16} /> {loading ? 'Live' : 'Run'}
+            </button>
+          </div>
         </section>
+
+        {loading && (
+          <ol className="simx-pipe">
+            <li className={phase === 'desk' || phase === 'web' || phase === 'model' ? 'on' : ''}>Desk</li>
+            <li className={phase === 'web' || phase === 'model' ? 'on' : ''}>Web</li>
+            <li className={phase === 'model' ? 'on' : ''}>Model</li>
+          </ol>
+        )}
+        {error && <div className="simx-error">{error} <button type="button" onClick={() => setError('')}><X size={14} /></button></div>}
+
+        {!result && !loading && (
+          <div className="simx-idle">
+            <span>No walls of text. Pick a story and read the board.</span>
+          </div>
+        )}
+
+        {result && (
+          <section className="simx-board">
+            <div className="simx-gauges">
+              <Ring value={result.impact_score} label="Impact" />
+              <Ring value={result.confidence} label="Proof" />
+              <p className="simx-blurb">{(result.summary || '').split('. ')[0]}.</p>
+            </div>
+
+            <div className="simx-areas">
+              {(result.impact_areas || []).map((item) => {
+                const score = Math.max(0, Math.min(100, Number(item.score) || 0))
+                return (
+                  <button type="button" key={item.area} className="simx-area" onClick={() => setOpenDetail(openDetail === item.area ? null : item.area)} title={item.explanation}>
+                    <span>{item.area}</span>
+                    <b>{score}</b>
+                    <i style={{ width: `${score}%` }} />
+                    {openDetail === item.area && <em>{item.explanation}</em>}
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="simx-chain">
+              {(result.chain_reaction || []).map((item, index) => (
+                <div key={item.step || index} className="simx-step">
+                  <i>{item.step || index + 1}</i>
+                  <b>{item.title}</b>
+                </div>
+              ))}
+            </div>
+
+            <div className="simx-mix">
+              {outcomes.map((item) => (
+                <div key={item.label} className="simx-out" style={{ flex: Math.max(8, Number(item.probability) || 1) }} title={item.description}>
+                  <b>{item.probability}%</b>
+                  <span>{item.label}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="simx-chips">
+              {cites.map((item, index) => (
+                item.url
+                  ? <a key={`${item.url}-${index}`} href={item.url} target="_blank" rel="noreferrer" className={item.origin === 'web' ? 'web' : 'desk'}>{item.origin === 'web' ? 'WEB' : 'DESK'} {item.title}</a>
+                  : <span key={`${item.title}-${index}`} className={item.origin === 'web' ? 'web' : 'desk'}>{item.origin === 'web' ? 'WEB' : 'DESK'} {item.title}</span>
+              ))}
+              {runMeta && <small>{runMeta.deskCount} desk · {runMeta.webCount} web</small>}
+            </div>
+
+            {(result.desk_impact || []).length > 0 && (
+              <div className="simx-moves">
+                {result.desk_impact.map((item) => (
+                  <span key={item.signal_id}><b>{item.effect}</b> {item.title}</span>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
       </main>
       <LockedNavToast message={lockedToast} />
     </div>
-  );
+  )
 }
