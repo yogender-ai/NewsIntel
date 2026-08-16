@@ -14,13 +14,45 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 logger = logging.getLogger("newsintel-worker")
 
 
-async def scheduled_tick():
+async def scheduled_tick(redis=None):
+    client = redis or redis_worker
     try:
-        await maybe_run_from_queue(redis_worker)
+        await maybe_run_from_queue(client)
     except RuntimeError as exc:
         logger.info("scheduled tick skipped: %s", exc)
     except Exception:
         logger.exception("scheduled tick failed")
+
+
+async def embed_worker(redis) -> None:
+    """Run the hourly pipeline inside the API process (oil-pipeline free-tier)."""
+    settings = get_settings()
+    scheduler = AsyncIOScheduler(timezone="UTC")
+    scheduler.add_job(
+        scheduled_tick,
+        "interval",
+        minutes=max(60, settings.newsintel_ingest_interval_minutes),
+        args=[redis],
+        id="hourly-ingest",
+        misfire_grace_time=300,
+    )
+    scheduler.start()
+    logger.info("embedded worker started interval=%sm", settings.newsintel_ingest_interval_minutes)
+    await asyncio.sleep(3)
+    try:
+        await scheduled_tick(redis)
+    except Exception:
+        logger.exception("embedded boot tick failed")
+    while True:
+        try:
+            requested = await redis.get("newsintel:refresh:requested")
+            lock = await redis.get("newsintel:lock:ingest")
+            cooldown = await redis.get("newsintel:cooldown:ingest")
+            if requested and not lock and not cooldown:
+                await run_pipeline(redis, trigger="user_refresh")
+        except Exception:
+            logger.exception("embedded refresh drain failed")
+        await asyncio.sleep(15)
 
 
 async def drain_refresh():

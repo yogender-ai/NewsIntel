@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
@@ -75,7 +76,12 @@ async def write_job(redis: RedisClient, run: PipelineRun) -> None:
 
 async def enqueue_run(session: AsyncSession, redis: RedisClient, trigger: str, *, force: bool = False) -> tuple[PipelineRun, str]:
     if not redis.available:
-        raise RuntimeError("redis_unavailable")
+        run = PipelineRun(id=uuid4(), status="queued", trigger=trigger, stats={}, stages=[])
+        session.add(run)
+        await session.commit()
+        await session.refresh(run)
+        asyncio.create_task(run_pipeline(redis, run_id=run.id, trigger=trigger))
+        return run, "queued"
     active = await redis.get(ACTIVE_KEY)
     if active:
         existing = await session.get(PipelineRun, UUID(active))
@@ -115,7 +121,7 @@ async def _stage(name: str, fn):
 async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: str = "schedule") -> PipelineRun:
     settings = get_settings()
     token = secrets.token_urlsafe(16)
-    if not await redis.set_nx(LOCK_KEY, token, LOCK_TTL):
+    if redis.available and not await redis.set_nx(LOCK_KEY, token, LOCK_TTL):
         logger.info("pipeline.skip lock_held")
         raise RuntimeError("lock_held")
 

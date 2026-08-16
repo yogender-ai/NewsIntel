@@ -18,4 +18,7 @@ COPY . .
 
 EXPOSE 8000
 
-CMD alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+# Product site uses the original FastAPI app. Alembic must never block boot
+# (DB may already be stamped with a revision this image does not apply).
+# The oil-pipeline product is a separate service — see /oil-pipeline.
+CMD (alembic upgrade head || true) && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}

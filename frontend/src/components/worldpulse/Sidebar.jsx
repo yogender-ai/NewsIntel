@@ -1,4 +1,4 @@
-import { Activity, Bell, Bookmark, Compass, Home, Map, Orbit, Pencil, Search, Settings, ShieldQuestion, Star } from 'lucide-react';
+import { Bell, Bookmark, Compass, Home, Map, Orbit, Pencil, Search, Settings, ShieldQuestion, Star } from 'lucide-react';
 import { compactLabel } from '../../lib/dashboardAdapter';
 
 function asArray(value) {
@@ -52,7 +52,6 @@ export default function Sidebar({
         <button className={activeItem === 'stories' ? 'active' : ''} onClick={() => handleNav(onStories || (() => onLocked('Open a story from any live signal card.')))}><Bookmark size={17} /> Stories</button>
         <button className={activeItem === 'map' ? 'active' : ''} onClick={() => handleNav(onMap)}><Map size={17} /> Map</button>
         <button className={activeItem === 'simulator' ? 'active' : ''} onClick={() => handleNav(onSimulator)}><ShieldQuestion size={17} /> Simulator</button>
-        <button className={activeItem === 'pipeline' ? 'active' : ''} onClick={() => handleNav(onPipeline || (() => onLocked('Pipeline monitor is opening from Home.')))}><Activity size={17} /> Pipeline</button>
         <button className={activeItem === 'watchlist' ? 'active' : ''} onClick={() => handleNav(onWatchlist)}><Star size={17} /> Watchlist</button>
         <button className={activeItem === 'alerts' ? 'active' : ''} onClick={() => handleNav(onAlerts)}><Bell size={17} /> Alerts</button>
         <button className={activeItem === 'settings' ? 'active' : ''} onClick={() => handleNav(onSettings)}><Settings size={17} /> Settings</button>

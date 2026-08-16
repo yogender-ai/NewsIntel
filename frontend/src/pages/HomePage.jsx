@@ -508,7 +508,6 @@ export default function HomePage() {
         onAlerts={() => navigate('/alerts')}
         onSetFocus={() => navigate('/onboarding')}
         onSettings={() => navigate('/settings')}
-        onPipeline={() => navigate('/pipeline')}
         onAsk={() => setAskOpen(true)}
       />
       <main className="world-pulse-main">

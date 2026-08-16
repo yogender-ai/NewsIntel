@@ -11,6 +11,9 @@ DEFAULT_ALLOWED_ORIGINS = [
     "https://yogender1.me",
     "https://www.yogender1.me",
     "https://newsintel-xvhe.onrender.com",
+    "https://oil-pipeline.vercel.app",
+    "https://newsintel-pipeline.vercel.app",
+    "https://news-intel-pipeline.vercel.app",
 ]
 
 

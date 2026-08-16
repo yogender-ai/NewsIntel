@@ -81,7 +81,7 @@ export const api = {
   forceDashboardRefresh: (topics = [], regions = []) =>
     request('/api/dashboard', {
       method: 'POST',
-      timeoutMs: 25000,
+      timeoutMs: 90000,
       body: JSON.stringify({ topics, regions }),
     }),
 
