@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useState } from 'react'
 
 const API = (import.meta.env.VITE_API_URL || 'https://oil-pipeline.onrender.com').replace(/\/$/, '')
 
@@ -50,7 +50,6 @@ export default function App() {
   const [data, setData] = useState(null)
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const [clock, setClock] = useState(() => new Date())
   const [live, setLive] = useState(false)
   const [events, setEvents] = useState([])
   const [open, setOpen] = useState(null)
@@ -67,11 +66,7 @@ export default function App() {
     }
   }, [])
 
-  useEffect(() => {
-    load()
-    const tick = setInterval(() => setClock(new Date()), 1000)
-    return () => clearInterval(tick)
-  }, [load])
+  useEffect(() => { load() }, [load])
 
   useEffect(() => {
     const source = new EventSource(`${API}/api/pipeline/stream`)
@@ -180,7 +175,7 @@ export default function App() {
               System Status:
               <b className={system === 'OPERATIONAL' ? 'ok' : system === 'FLOWING' ? 'go' : 'bad'}>● {system}</b>
             </span>
-            <time>{clock.toLocaleTimeString('en-US', { hour12: true })}</time>
+            <Clock />
             <span className={`stream ${live ? 'on' : ''}`}>{live ? 'SSE LIVE' : 'RECONNECT'}</span>
             <button className="force" disabled={busy || flowing} onClick={kick}>
               {busy ? 'Opening valve…' : flowing ? 'Flowing…' : 'Force a run'}
@@ -202,45 +197,22 @@ export default function App() {
               ))}
             </div>
 
-            <div className="diagram">
-              <svg className="pipes" viewBox="0 0 1440 520" preserveAspectRatio="none">
-                <defs>
-                  <linearGradient id="gCyan" x1="0" x2="1"><stop stopColor="#22d3ee" /><stop offset="1" stopColor="#38bdf8" /></linearGradient>
-                  <linearGradient id="gGold" x1="0" x2="1"><stop stopColor="#fbbf24" /><stop offset="1" stopColor="#f59e0b" /></linearGradient>
-                  <linearGradient id="gViolet" x1="0" x2="1"><stop stopColor="#a78bfa" /><stop offset="1" stopColor="#8b5cf6" /></linearGradient>
-                  <linearGradient id="gGreen" x1="0" x2="1"><stop stopColor="#34d399" /><stop offset="1" stopColor="#10b981" /></linearGradient>
-                  <linearGradient id="gAmber" x1="0" x2="1"><stop stopColor="#fbbf24" /><stop offset="1" stopColor="#f97316" /></linearGradient>
-                  <linearGradient id="gBlue" x1="0" x2="1"><stop stopColor="#38bdf8" /><stop offset="1" stopColor="#60a5fa" /></linearGradient>
-                  <filter id="glow"><feGaussianBlur stdDeviation="3.2" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
-                </defs>
-                <Pipe d="M 150 250 H 300" grad="gCyan" on={live || flowing} live={liveName === 'fetch' || live} />
-                <Pipe d="M 420 250 H 560" grad="gGold" on={live || flowing} live={liveName === 'images' || live} />
-                <Pipe d="M 560 250 C 590 250 590 120 630 120" grad="gViolet" on={flowing} live={liveName === 'images'} />
-                <Pipe d="M 560 250 H 630" grad="gViolet" on={flowing} live={liveName === 'images'} />
-                <Pipe d="M 560 250 C 590 250 590 380 630 380" grad="gViolet" on={flowing} live={liveName === 'dedupe'} />
-                <Pipe d="M 790 120 C 830 120 830 250 870 250" grad="gViolet" on={flowing} live={liveName === 'hf'} />
-                <Pipe d="M 790 250 H 870" grad="gViolet" on={flowing} live={liveName === 'hf'} />
-                <Pipe d="M 790 380 C 830 380 830 250 870 250" grad="gViolet" on={flowing} live={liveName === 'hf'} />
-                <Pipe d="M 1010 250 H 1090" grad="gGreen" on={flowing} live={liveName === 'signals'} />
-                <Pipe d="M 1010 250 C 1040 250 1040 360 1090 360" grad="gGreen" on={flowing} live={liveName === 'signals'} />
-                <Pipe d="M 1230 250 H 1290" grad="gAmber" on={live || flowing} live={live} />
-                <Pipe d="M 1230 360 C 1260 360 1260 250 1290 250" grad="gAmber" on={flowing} live={liveName === 'snapshot'} />
-                <Pipe d="M 1360 310 C 1360 470 300 470 300 310" grad="gCyan" on={live} live={false} dash />
-              </svg>
+            <div className="diagram tight">
+              <FlowPipes live={live} flowing={flowing} liveName={liveName} />
 
               <div className="nodes">
-                <Node x="8%" y="42%" state={live ? 'live' : fetchS} color="cyan" title="RSS / Field Feeds" status="LIVE" meta={`${counts.fetched} fetched`} icon="wifi" onClick={() => openStage('fetch')} />
-                <Node x="24%" y="42%" state={live ? 'live' : 'done'} color="gold" title="Backend Server" status="LIVE" meta="Postgres + worker" icon="server" onClick={() => openStage('backend')} />
-                <Node x="44%" y="14%" state={imageS} color="violet" title="Image Gate" status={imageS === 'done' ? 'ACTIVE' : imageS.toUpperCase()} meta={`${counts.rejected} rejected`} icon="funnel" small onClick={() => openStage('images')} />
-                <Node x="44%" y="42%" state={imageS} color="violet" title="Data Validation" status={imageS === 'done' ? 'ACTIVE' : imageS.toUpperCase()} meta={`${counts.accepted} kept`} icon="funnel" small onClick={() => openStage('validate')} />
-                <Node x="44%" y="70%" state={dedupeS} color="violet" title="Deduplication" status={dedupeS === 'done' ? 'ACTIVE' : dedupeS.toUpperCase()} meta={counts.unique ? `${counts.unique} new` : `${counts.accepted} reused`} icon="funnel" small onClick={() => openStage('dedupe')} />
-                <Node x="62%" y="34%" state={hfS} color="green" title="AI Model" status={hfFault ? 'FAULT' : (hf.stage === 'RUNNING' ? 'LIVE' : (hf.stage || 'STANDBY'))} meta={`HF ${counts.hf} · LLM ${counts.llm}`} icon="brain" onClick={() => openStage('hf')} />
-                <Mini x="62%" y="58%" label="Before AI" on={Boolean(counts.accepted)} onClick={() => openStage('pre_ai')} />
-                <Mini x="62%" y="66%" label="After AI" on={counts.hf > 0 || counts.llm > 0} onClick={() => openStage('hf')} />
-                <Mini x="62%" y="74%" label="Risk Assessment" on={sigS === 'done'} onClick={() => openStage('signals')} />
-                <Node x="79%" y="42%" state={sigS} color="amber" title="Ranking Engine" status={sigS === 'done' ? 'LIVE' : sigS.toUpperCase()} meta={`${counts.signals} signals`} icon="trophy" onClick={() => openStage('signals')} />
-                <Node x="79%" y="66%" state={sigS} color="amber" title="Prioritized Insights" status={sigS === 'done' ? 'LIVE' : sigS.toUpperCase()} meta="pulse + exposure" icon="list" small onClick={() => openStage('signals')} />
-                <Node x="93%" y="42%" state={live ? 'live' : snapS} color="blue" title="Dashboard / Frontend" status="LIVE" meta="newsintel.yogender1.me" icon="monitor" onClick={() => openStage('frontend')} />
+                <Node x="10%" y="50%" state={live ? 'live' : fetchS} color="cyan" title="RSS / Field Feeds" status="LIVE" meta={`${counts.fetched} fetched`} icon="wifi" onClick={() => openStage('fetch')} />
+                <Node x="26%" y="50%" state={live ? 'live' : 'done'} color="gold" title="Backend Server" status="LIVE" meta="Postgres + worker" icon="server" onClick={() => openStage('backend')} />
+                <Node x="43%" y="22%" state={imageS} color="violet" title="Image Gate" status={imageS === 'done' ? 'ACTIVE' : imageS.toUpperCase()} meta={`${counts.rejected} rejected`} icon="funnel" small onClick={() => openStage('images')} />
+                <Node x="43%" y="50%" state={imageS} color="violet" title="Data Validation" status={imageS === 'done' ? 'ACTIVE' : imageS.toUpperCase()} meta={`${counts.accepted} kept`} icon="funnel" small onClick={() => openStage('validate')} />
+                <Node x="43%" y="78%" state={dedupeS} color="violet" title="Deduplication" status={dedupeS === 'done' ? 'ACTIVE' : dedupeS.toUpperCase()} meta={counts.unique ? `${counts.unique} new` : `${counts.accepted} reused`} icon="funnel" small onClick={() => openStage('dedupe')} />
+                <Node x="61%" y="36%" state={hfS} color="green" title="AI Model" status={hfFault ? 'FAULT' : (hf.stage === 'RUNNING' ? 'LIVE' : (hf.stage || 'STANDBY'))} meta={`HF ${counts.hf} · LLM ${counts.llm}`} icon="brain" onClick={() => openStage('hf')} />
+                <Mini x="61%" y="60%" label="Before AI" on={Boolean(counts.accepted)} onClick={() => openStage('pre_ai')} />
+                <Mini x="61%" y="70%" label="After AI" on={counts.hf > 0 || counts.llm > 0} onClick={() => openStage('hf')} />
+                <Mini x="61%" y="80%" label="Risk Assessment" on={sigS === 'done'} onClick={() => openStage('signals')} />
+                <Node x="77%" y="42%" state={sigS} color="amber" title="Ranking Engine" status={sigS === 'done' ? 'LIVE' : sigS.toUpperCase()} meta={`${counts.signals} signals`} icon="trophy" onClick={() => openStage('signals')} />
+                <Node x="77%" y="72%" state={sigS} color="amber" title="Prioritized Insights" status={sigS === 'done' ? 'LIVE' : sigS.toUpperCase()} meta="pulse + exposure" icon="list" small onClick={() => openStage('signals')} />
+                <Node x="92%" y="50%" state={live ? 'live' : snapS} color="blue" title="Dashboard / Frontend" status="LIVE" meta="newsintel.yogender1.me" icon="monitor" onClick={() => openStage('frontend')} />
               </div>
 
               <div className="loop">
@@ -351,14 +323,45 @@ function InspectDrawer({ stage, loading, data, onClose }) {
   )
 }
 
-function Pipe({ d, grad, on, live, dash }) {
+function Clock() {
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const tick = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(tick)
+  }, [])
+  return <time>{now.toLocaleTimeString('en-US', { hour12: true })}</time>
+}
+
+const FlowPipes = memo(function FlowPipes({ live, flowing, liveName }) {
   return (
-    <g className={`pipe ${on ? 'on' : ''} ${live ? 'live' : ''} ${dash ? 'feedback' : ''}`}>
+    <svg className="pipes" viewBox="0 0 1200 560" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="gCyan" x1="0" x2="1"><stop stopColor="#22d3ee" /><stop offset="1" stopColor="#38bdf8" /></linearGradient>
+        <linearGradient id="gGold" x1="0" x2="1"><stop stopColor="#fbbf24" /><stop offset="1" stopColor="#f59e0b" /></linearGradient>
+        <linearGradient id="gViolet" x1="0" x2="1"><stop stopColor="#a78bfa" /><stop offset="1" stopColor="#8b5cf6" /></linearGradient>
+        <linearGradient id="gGreen" x1="0" x2="1"><stop stopColor="#34d399" /><stop offset="1" stopColor="#10b981" /></linearGradient>
+        <linearGradient id="gAmber" x1="0" x2="1"><stop stopColor="#fbbf24" /><stop offset="1" stopColor="#f97316" /></linearGradient>
+        <filter id="glow"><feGaussianBlur stdDeviation="2.4" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+      </defs>
+      <Pipe d="M 70 280 H 1130" grad="gCyan" on={live || flowing} live={live} spine />
+      <Pipe d="M 516 280 V 128" grad="gViolet" on={flowing} live={liveName === 'images'} />
+      <Pipe d="M 516 280 V 432" grad="gViolet" on={flowing} live={liveName === 'dedupe'} />
+      <Pipe d="M 732 280 V 206" grad="gGreen" on={flowing} live={liveName === 'hf'} />
+      <Pipe d="M 732 280 V 400" grad="gGreen" on={flowing} live={liveName === 'signals'} />
+      <Pipe d="M 924 280 V 400" grad="gAmber" on={flowing} live={liveName === 'snapshot'} />
+      <Pipe d="M 1104 300 C 1104 500 120 500 120 300" grad="gCyan" on={live} live={live} dash />
+    </svg>
+  )
+})
+
+const Pipe = memo(function Pipe({ d, grad, on, live, dash, spine }) {
+  return (
+    <g className={`pipe ${on ? 'on' : ''} ${live ? 'live' : ''} ${dash ? 'feedback' : ''} ${spine ? 'spine' : ''}`}>
       <path d={d} className="pipe-body" />
       <path d={d} className="pipe-flow" stroke={`url(#${grad})`} />
     </g>
   )
-}
+})
 
 function Node({ x, y, state, color, title, status, meta, icon, small, onClick }) {
   return (

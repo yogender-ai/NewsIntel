@@ -105,17 +105,19 @@ h1 { font-size: 18px; letter-spacing: 0.12em; margin: 0; }
 .diagram { position: relative; flex: 1; min-height: 320px; margin-top: 8px; }
 .pipes { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
 .pipe-body {
-  fill: none; stroke: #163044; stroke-width: 10; stroke-linecap: round; stroke-linejoin: round;
+  fill: none; stroke: #163044; stroke-width: 8; stroke-linecap: round; stroke-linejoin: round;
 }
+.pipe.spine .pipe-body { stroke-width: 14; stroke: #1a3a52; }
 .pipe-flow {
-  fill: none; stroke-width: 4; stroke-linecap: round; stroke-linejoin: round;
-  stroke-dasharray: 18 22; opacity: 0.18; filter: url(#glow);
+  fill: none; stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 16 16; opacity: 0.2; filter: url(#glow);
 }
-.pipe.on .pipe-flow { opacity: 0.85; animation: flow 1.4s linear infinite; }
-.pipe.live .pipe-flow { animation-duration: 0.7s; stroke-width: 5; }
-.pipe.feedback .pipe-body { stroke-dasharray: 8 10; stroke-width: 2; }
-.pipe.feedback .pipe-flow { stroke-width: 2; stroke-dasharray: 8 16; }
-@keyframes flow { to { stroke-dashoffset: -80; } }
+.pipe.on .pipe-flow { opacity: 0.9; animation: flow 0.9s linear infinite; }
+.pipe.live .pipe-flow { animation-duration: 0.55s; stroke-width: 4.5; }
+.pipe.spine .pipe-flow { stroke-width: 5; }
+.pipe.feedback .pipe-body { stroke-dasharray: 10 10; stroke-width: 2.5; }
+.pipe.feedback .pipe-flow { stroke-width: 2.5; stroke-dasharray: 10 10; animation-duration: 1.4s; }
+@keyframes flow { to { stroke-dashoffset: -32; } }
 .moving .pipe.on .pipe-body { stroke: #1d4a66; }
 
 .nodes { position: absolute; inset: 0; }
