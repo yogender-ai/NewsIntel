@@ -296,6 +296,41 @@ async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: 
             index_to_signal[index] = signal.id
         await session.flush()
 
+        seen_article_ids = {item.article_id for item in persisted if item.article_id}
+        promoted = 0
+        for clean in cleaned:
+            article = await session.scalar(select(Article).where(Article.url_hash == clean.url_hash))
+            if not article or article.id in seen_article_ids or not clean.image_url:
+                continue
+            article.last_seen_at = now
+            article.image_url = clean.image_url
+            existing = await session.scalar(select(Signal).where(Signal.article_id == article.id))
+            if existing:
+                existing.image_url = clean.image_url
+                existing.run_id = run.id
+                existing.published_at = existing.published_at or clean.published_at
+                signals.append(existing)
+                seen_article_ids.add(article.id)
+                continue
+            created = Signal(
+                article_id=article.id,
+                run_id=run.id,
+                image_url=clean.image_url,
+                source_name=clean.source_name or article.source_name or "source",
+                source_url=clean.canonical_url,
+                title=article.title or clean.title,
+                summary=article.description or clean.summary or "",
+                category=article.category or clean.category,
+                published_at=article.published_at or clean.published_at,
+            )
+            session.add(created)
+            await session.flush()
+            signals.append(created)
+            seen_article_ids.add(article.id)
+            promoted += 1
+        if promoted:
+            logger.info("pipeline.promoted existing articles into signals count=%s", promoted)
+
         edges = build_edges(persisted, index_to_signal)
         for signal in signals:
             await session.execute(delete(SignalRelationship).where(SignalRelationship.source_id == signal.id))
