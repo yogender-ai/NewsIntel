@@ -26,7 +26,8 @@ const STAGE_COPY = {
 function getJson(path, opts) {
   return fetch(`${API}${path}`, opts).then(async (res) => {
     const text = await res.text()
-    if (!res.ok && res.status !== 202) throw new Error(`${res.status} ${text}`)
+    if (!res.ok && res.status !== 202) throw new Error(`${res.status} ${text.slice(0, 160)}`)
+    if (text.trim().startsWith('<')) throw new Error('Backend link is down')
     return text ? JSON.parse(text) : {}
   })
 }
@@ -179,6 +180,7 @@ export default function App() {
   const llmS = nodeState(latest, ['llm'], flowing)
   const sigS = nodeState(latest, ['signals'], flowing)
   const snapS = nodeState(latest, ['snapshot'], flowing)
+  const tanks = data?.tanks || {}
   const phase = currentPhase(latest, flowing, liveStage)
   useEffect(() => {
     if (!flowing && liveStage && liveStage !== 'snapshot') setLiveStage(null)
@@ -224,7 +226,7 @@ export default function App() {
         {error && <div className="fault">{error}</div>}
 
         {view === 'flow' && (
-          <div className={`board ${flowing ? 'moving' : 'idle'} flow-${phase} ${live ? 'is-live' : ''}`}>
+          <div className={`board ${error ? 'fault' : flowing ? 'moving' : 'idle'} ${error ? '' : `flow-${phase}`} ${live && !error ? 'is-live' : ''}`}>
             <p className="hint">
               {phase === 'idle' ? 'Line closed. Only the desk feeds back to the backend. Force a run to open the valves.'
                 : phase === 'fetch' ? 'Valves open. Crude is moving RSS → backend.'
@@ -247,18 +249,19 @@ export default function App() {
               <FlowPipes />
 
               <div className="nodes">
-                <Node x="10%" y="50%" state={live ? 'live' : fetchS} color="cyan" title="RSS / Field Feeds" status="LIVE" meta={`${counts.fetched} fetched`} icon="wifi" onClick={() => openStage('fetch')} />
-                <Node x="26%" y="50%" state={live ? 'live' : 'done'} color="gold" title="Backend Server" status="LIVE" meta="Postgres + worker" icon="server" onClick={() => openStage('backend')} />
-                <Node x="43%" y="22%" state={imageS} color="violet" title="Image Gate" status={imageS === 'done' ? 'ACTIVE' : imageS.toUpperCase()} meta={`${counts.rejected} rejected`} icon="funnel" small onClick={() => openStage('images')} />
-                <Node x="43%" y="50%" state={imageS} color="violet" title="Data Validation" status={imageS === 'done' ? 'ACTIVE' : imageS.toUpperCase()} meta={`${counts.accepted} kept`} icon="funnel" small onClick={() => openStage('validate')} />
-                <Node x="43%" y="78%" state={dedupeS} color="violet" title="Deduplication" status={dedupeS === 'done' ? 'ACTIVE' : dedupeS.toUpperCase()} meta={counts.unique ? `${counts.unique} new` : `${counts.accepted} reused`} icon="funnel" small onClick={() => openStage('dedupe')} />
-                <Node x="61%" y="36%" state={hfS} color="green" title="AI Model" status={hfFault ? 'FAULT' : (hf.stage === 'RUNNING' ? 'LIVE' : (hf.stage || 'STANDBY'))} meta={`HF ${counts.hf} · LLM ${counts.llm}`} icon="brain" onClick={() => openStage('hf')} />
+                <Tank x="10%" y="50%" color="cyan" title="RSS / Field Feeds" status={phase === 'fetch' ? 'LIVE' : 'IDLE'} dropping={phase === 'fetch'} fault={Boolean(error)} tank={tanks.fetch} icon="wifi" onClick={() => openStage('fetch')} />
+                <Tank x="26%" y="50%" color="gold" title="Backend Server" status="LIVE" dropping={phase === 'fetch' || phase === 'images'} fault={Boolean(error)} tank={tanks.backend} icon="server" onClick={() => openStage('backend')} />
+                <Tank x="26%" y="78%" color="blue" title="Database" status="7 DAY HOLD" dropping={phase === 'images' || phase === 'snapshot'} fault={Boolean(error)} tank={tanks.database} icon="list" onClick={() => openStage('backend')} />
+                <Tank x="43%" y="22%" color="violet" title="Image Gate" status={imageS === 'done' ? 'ACTIVE' : imageS.toUpperCase()} dropping={phase === 'images'} fault={Boolean(error)} tank={tanks.images} icon="funnel" small onClick={() => openStage('images')} />
+                <Tank x="43%" y="50%" color="violet" title="Data Validation" status={imageS === 'done' ? 'ACTIVE' : imageS.toUpperCase()} dropping={phase === 'images'} fault={Boolean(error)} tank={tanks.images} icon="funnel" small onClick={() => openStage('validate')} />
+                <Tank x="43%" y="78%" color="violet" title="Deduplication" status={dedupeS === 'done' ? 'ACTIVE' : dedupeS.toUpperCase()} dropping={phase === 'dedupe'} fault={Boolean(error)} tank={tanks.backend} icon="funnel" small onClick={() => openStage('dedupe')} />
+                <Tank x="61%" y="36%" color="green" title="AI Model" status={hfFault ? 'FAULT' : (hf.stage === 'RUNNING' ? 'LIVE' : (hf.stage || 'STANDBY'))} dropping={phase === 'hf'} fault={hfFault || Boolean(error)} tank={tanks.hf} icon="brain" onClick={() => openStage('hf')} />
                 <Mini x="61%" y="60%" label="Before AI" on={Boolean(counts.accepted)} onClick={() => openStage('pre_ai')} />
                 <Mini x="61%" y="70%" label="After AI" on={counts.hf > 0 || counts.llm > 0} onClick={() => openStage('hf')} />
                 <Mini x="61%" y="80%" label="Risk Assessment" on={sigS === 'done'} onClick={() => openStage('signals')} />
-                <Node x="77%" y="42%" state={sigS} color="amber" title="Ranking Engine" status={sigS === 'done' ? 'LIVE' : sigS.toUpperCase()} meta={`${counts.signals} signals`} icon="trophy" onClick={() => openStage('signals')} />
-                <Node x="77%" y="72%" state={sigS} color="amber" title="Prioritized Insights" status={sigS === 'done' ? 'LIVE' : sigS.toUpperCase()} meta="pulse + exposure" icon="list" small onClick={() => openStage('signals')} />
-                <Node x="92%" y="50%" state={live ? 'live' : snapS} color="blue" title="Dashboard / Frontend" status="LIVE" meta="newsintel.yogender1.me" icon="monitor" onClick={() => openStage('frontend')} />
+                <Tank x="77%" y="42%" color="amber" title="Ranking Engine" status={sigS === 'done' ? 'LIVE' : sigS.toUpperCase()} dropping={phase === 'signals'} fault={Boolean(error)} tank={tanks.signals} icon="trophy" onClick={() => openStage('signals')} />
+                <Tank x="77%" y="72%" color="amber" title="Prioritized Insights" status={sigS === 'done' ? 'LIVE' : sigS.toUpperCase()} dropping={phase === 'signals'} fault={Boolean(error)} tank={tanks.signals} icon="list" small onClick={() => openStage('signals')} />
+                <Tank x="92%" y="50%" color="blue" title="Dashboard / Frontend" status="LIVE" dropping={phase === 'snapshot'} fault={Boolean(error)} tank={tanks.signals} icon="monitor" onClick={() => openStage('frontend')} />
               </div>
 
               <div className="loop">
@@ -389,7 +392,8 @@ const SEGMENTS = [
   { id: 'to-ai', d: 'M 732 280 V 206', color: '#34d399', n: 3, dur: 1.2 },
   { id: 'to-risk', d: 'M 732 280 V 400', color: '#34d399', n: 3, dur: 1.2 },
   { id: 'to-insights', d: 'M 924 280 V 400', color: '#f59e0b', n: 3, dur: 1.2 },
-  { id: 'loop', d: 'M 1104 300 C 1104 500 120 500 120 300', color: '#22d3ee', n: 6, dur: 3.2 },
+  { id: 'to-db', d: 'M 312 280 V 432', color: '#67e8f9', n: 3, dur: 1.4 },
+  { id: 'loop', d: 'M 1104 300 C 1104 500 120 500 120 300', color: '#7dd3fc', n: 6, dur: 3.2 },
 ]
 
 const FlowPipes = memo(function FlowPipes() {
@@ -406,11 +410,11 @@ const FlowPipes = memo(function FlowPipes() {
       ))}
       {SEGMENTS.flatMap((seg) =>
         Array.from({ length: seg.n }, (_, i) => (
-          <circle key={`${seg.id}-${i}`} r={seg.id === 'loop' ? 4 : 6} fill={seg.color} className={`packet packet-${seg.id}`} filter="url(#glow)">
-            <animateMotion dur={`${seg.dur}s`} begin={`${(i * seg.dur) / seg.n}s`} repeatCount="indefinite">
+          <path key={`${seg.id}-${i}`} d="M0,-7 C3.2,-2 3.2,3.4 0,7 C-3.2,3.4 -3.2,-2 0,-7" fill={seg.color} className={`packet packet-${seg.id}`} filter="url(#glow)">
+            <animateMotion dur={`${seg.dur}s`} begin={`${(i * seg.dur) / seg.n}s`} repeatCount="indefinite" rotate="auto">
               <mpath href={`#p-${seg.id}`} />
             </animateMotion>
-          </circle>
+          </path>
         ))
       )}
       <Valve x="216" y="280" label="IN" />
@@ -419,6 +423,53 @@ const FlowPipes = memo(function FlowPipes() {
     </svg>
   )
 }, () => true)
+
+function dayFill() {
+  const now = new Date()
+  return (now.getUTCHours() * 3600 + now.getUTCMinutes() * 60 + now.getUTCSeconds()) / 86400
+}
+
+function weekFill() {
+  const now = new Date()
+  const day = (now.getUTCDay() + 6) % 7
+  return (day * 86400 + now.getUTCHours() * 3600 + now.getUTCMinutes() * 60) / (7 * 86400)
+}
+
+function Tank({ x, y, color, title, status, dropping, fault, tank, icon, small, onClick }) {
+  const accepted = Number(tank?.accepted || 0)
+  const rejected = Number(tank?.rejected || 0)
+  const total = accepted + rejected
+  const ink = fault ? 0.72 : total ? rejected / total : 0
+  const fill = tank?.window === '7d' ? weekFill() : dayFill()
+  return (
+    <button
+      type="button"
+      className={`node tank ${color} ${fault ? 'fault' : ''} ${dropping ? 'dropping' : ''} ${small ? 'small' : ''}`}
+      style={{ left: x, top: y, '--fill': fill, '--ink': ink }}
+      onClick={onClick}
+    >
+      <div className="water" aria-hidden="true">
+        <span className="clear" />
+        <span className="ink" />
+        <span className="meniscus" />
+        {dropping && <span className="drops"><i /><i /><i /></span>}
+      </div>
+      <div className="tank-ui">
+        <div className="glyph">{icon === 'wifi' ? '◉' : icon === 'server' ? '▣' : icon === 'funnel' ? '▽' : icon === 'brain' ? '⌘' : icon === 'trophy' ? '▲' : icon === 'list' ? '☰' : '▣'}</div>
+        <strong>{title}</strong>
+        <em>{status}</em>
+        <small>{tank?.window === '7d' ? '7 day cistern' : '24h cistern'}</small>
+      </div>
+      <div className="tip">
+        <b>{title}</b>
+        <span>Kept {accepted}</span>
+        <span>Rejected {rejected}</span>
+        <span>Window {tank?.window === '7d' ? '7 days' : 'today UTC'}</span>
+        <span>Fill {Math.round(fill * 100)}%</span>
+      </div>
+    </button>
+  )
+}
 
 function Valve({ x, y, label }) {
   return (

@@ -4,6 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_redis, get_session
 from app.core.config import get_settings
+from datetime import datetime, timedelta, timezone
+
 from app.repositories.runs import latest_run, recent_runs
 
 router = APIRouter(tags=["monitor"])
@@ -50,7 +52,25 @@ async def probe_dependencies() -> dict:
 @router.get("/api/pipeline/monitor")
 async def pipeline_monitor(session: AsyncSession = Depends(get_session), redis=Depends(get_redis)):
     latest = await latest_run(session)
-    recent = await recent_runs(session, 12)
+    recent = await recent_runs(session, 48)
+    now = datetime.now(timezone.utc)
+    day = [run for run in recent if run.started_at and run.started_at >= now - timedelta(days=1)]
+    week = [run for run in recent if run.started_at and run.started_at >= now - timedelta(days=7)]
+
+    def roll(runs, ok_key, bad_key=None):
+        ok = sum(int((run.stats or {}).get(ok_key) or 0) for run in runs)
+        bad = sum(int((run.stats or {}).get(bad_key) or 0) for run in runs) if bad_key else 0
+        failed = sum(1 for run in runs if run.status == "failed")
+        return {"accepted": ok, "rejected": bad, "failed_runs": failed}
+
+    tanks = {
+        "fetch": {**roll(day, "fetched", "rejected_no_image"), "window": "24h"},
+        "backend": {**roll(day, "accepted", "rejected_no_image"), "window": "24h"},
+        "images": {**roll(day, "accepted", "rejected_no_image"), "window": "24h"},
+        "hf": {**roll(day, "hf_ok"), "rejected": sum(max(int((r.stats or {}).get("deduped") or 0) - int((r.stats or {}).get("hf_ok") or 0), 0) for r in day), "window": "24h"},
+        "signals": {**roll(day, "signals"), "window": "24h"},
+        "database": {**roll(week, "accepted", "rejected_no_image"), "window": "7d"},
+    }
     return {
         "lock": bool(await redis.get("newsintel:lock:ingest")),
         "cooldown": bool(await redis.get("newsintel:cooldown:ingest")),
@@ -90,4 +110,5 @@ async def pipeline_monitor(session: AsyncSession = Depends(get_session), redis=D
             {"id": "snapshot", "label": "SNAPSHOT"},
         ],
         "deps": await probe_dependencies(),
+        "tanks": tanks,
     }
