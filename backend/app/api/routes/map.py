@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_redis, get_session
 from app.api.routes.snapshot import load_snapshot
-from app.pipeline.snapshot.geo import countries_from_cards
+from app.pipeline.snapshot.geo import COUNTRIES, countries_from_cards
 
 router = APIRouter(tags=["map"])
 

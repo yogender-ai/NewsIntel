@@ -12,11 +12,8 @@ import gradio as gr
 from transformers import pipeline
 import json
 
-# ── Load Models (cached on Space startup) ────────────────────────────────────
-print("Loading summarization model...")
-summarizer = pipeline("summarization", model="sshleifer/distilbart-cnn-12-6", device=-1)
-print("✓ Summarization ready")
-
+# Load only the models News-Intel actually calls at ingest time.
+# Summarization is not a task on some transformers builds — keep it lazy/optional.
 print("Loading sentiment model...")
 sentiment_analyzer = pipeline(
     "sentiment-analysis",
@@ -35,11 +32,14 @@ ner_extractor = pipeline(
 )
 print("✓ NER ready")
 
+summarizer = None
+
 
 # ── Endpoint Functions ───────────────────────────────────────────────────────
 
 def summarize(text: str) -> str:
     """Summarize input text using distilbart-cnn-12-6"""
+    global summarizer
     if not text or len(text.strip()) < 30:
         return json.dumps({"error": "Text too short for summarization", "min_length": 30})
 
@@ -48,6 +48,11 @@ def summarize(text: str) -> str:
     truncated = text[:3000]
 
     try:
+        if summarizer is None:
+            try:
+                summarizer = pipeline("summarization", model="sshleifer/distilbart-cnn-12-6", device=-1)
+            except Exception as exc:
+                return json.dumps({"error": f"summarization unavailable: {exc}", "summary": truncated[:400]})
         result = summarizer(
             truncated,
             max_length=150,
