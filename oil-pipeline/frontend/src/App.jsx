@@ -330,37 +330,55 @@ function Clock() {
   return <time>{now.toLocaleTimeString('en-US', { hour12: true })}</time>
 }
 
+const SEGMENTS = [
+  { id: 'rss-back', d: 'M 120 280 H 312', color: '#22d3ee', n: 5, dur: 1.6 },
+  { id: 'back-valid', d: 'M 312 280 H 516', color: '#38bdf8', n: 5, dur: 1.6 },
+  { id: 'valid-ai', d: 'M 516 280 H 732', color: '#67e8f9', n: 5, dur: 1.6 },
+  { id: 'ai-rank', d: 'M 732 280 H 924', color: '#34d399', n: 4, dur: 1.5 },
+  { id: 'rank-desk', d: 'M 924 280 H 1104', color: '#38bdf8', n: 4, dur: 1.5 },
+  { id: 'to-image', d: 'M 516 280 V 128', color: '#a78bfa', n: 3, dur: 1.3 },
+  { id: 'to-dedupe', d: 'M 516 280 V 432', color: '#a78bfa', n: 3, dur: 1.3 },
+  { id: 'to-ai', d: 'M 732 280 V 206', color: '#34d399', n: 3, dur: 1.2 },
+  { id: 'to-risk', d: 'M 732 280 V 400', color: '#34d399', n: 3, dur: 1.2 },
+  { id: 'to-insights', d: 'M 924 280 V 400', color: '#f59e0b', n: 3, dur: 1.2 },
+  { id: 'loop', d: 'M 1104 300 C 1104 500 120 500 120 300', color: '#22d3ee', n: 6, dur: 3.2 },
+]
+
 const FlowPipes = memo(function FlowPipes() {
   return (
     <svg className="pipes" viewBox="0 0 1200 560" preserveAspectRatio="none">
       <defs>
-        <linearGradient id="gCyan" x1="0" x2="1"><stop stopColor="#67e8f9" /><stop offset="1" stopColor="#22d3ee" /></linearGradient>
-        <linearGradient id="gViolet" x1="0" x2="0" y1="0" y2="1"><stop stopColor="#c4b5fd" /><stop offset="1" stopColor="#8b5cf6" /></linearGradient>
-        <linearGradient id="gGreen" x1="0" x2="0" y1="0" y2="1"><stop stopColor="#6ee7b7" /><stop offset="1" stopColor="#34d399" /></linearGradient>
-        <linearGradient id="gAmber" x1="0" x2="0" y1="0" y2="1"><stop stopColor="#fcd34d" /><stop offset="1" stopColor="#f59e0b" /></linearGradient>
-        <filter id="glow"><feGaussianBlur stdDeviation="2.8" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+        <filter id="glow"><feGaussianBlur stdDeviation="3.2" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+        {SEGMENTS.map((seg) => (
+          <path key={seg.id} id={`p-${seg.id}`} d={seg.d} fill="none" />
+        ))}
       </defs>
-      <Pipe d="M 70 280 H 1130" stroke="url(#gCyan)" spine />
-      <Pipe d="M 516 280 V 128" stroke="url(#gViolet)" />
-      <Pipe d="M 516 280 V 432" stroke="url(#gViolet)" />
-      <Pipe d="M 732 280 V 206" stroke="url(#gGreen)" />
-      <Pipe d="M 732 280 V 400" stroke="url(#gGreen)" />
-      <Pipe d="M 924 280 V 400" stroke="url(#gAmber)" />
-      <Pipe d="M 1104 300 C 1104 500 120 500 120 300" stroke="url(#gCyan)" dash />
+      {SEGMENTS.map((seg) => (
+        <path key={`${seg.id}-body`} d={seg.d} className={`pipe-body ${seg.id === 'loop' ? 'feedback' : ''} ${seg.id.startsWith('rss') || seg.id === 'back-valid' || seg.id === 'valid-ai' || seg.id === 'ai-rank' || seg.id === 'rank-desk' ? 'spine' : ''}`} />
+      ))}
+      {SEGMENTS.flatMap((seg) =>
+        Array.from({ length: seg.n }, (_, i) => (
+          <circle key={`${seg.id}-${i}`} r={seg.id === 'loop' ? 4 : 6} fill={seg.color} className="packet" filter="url(#glow)">
+            <animateMotion dur={`${seg.dur}s`} begin={`${(i * seg.dur) / seg.n}s`} repeatCount="indefinite">
+              <mpath href={`#p-${seg.id}`} />
+            </animateMotion>
+          </circle>
+        ))
+      )}
+      <Valve x="216" y="280" label="IN" />
+      <Valve x="414" y="280" label="MID" />
+      <Valve x="1014" y="280" label="OUT" />
     </svg>
   )
 }, () => true)
 
-function Pipe({ d, stroke, dash, spine }) {
+function Valve({ x, y, label }) {
   return (
-    <g className={`pipe on ${dash ? 'feedback' : ''} ${spine ? 'spine' : ''}`}>
-      <path d={d} className="pipe-body" />
-      <path d={d} className="pipe-flow" stroke={stroke} pathLength="100">
-        <animate attributeName="stroke-dashoffset" from="0" to="-24" dur="0.7s" repeatCount="indefinite" />
-      </path>
-      <path d={d} className="pipe-flow pipe-flow-slow" stroke={stroke} pathLength="100">
-        <animate attributeName="stroke-dashoffset" from="12" to="-12" dur="1.1s" repeatCount="indefinite" />
-      </path>
+    <g className="valve" transform={`translate(${x} ${y})`}>
+      <circle r="15" className="valve-body" />
+      <rect className="valve-handle" x="-2.2" y="-17" width="4.4" height="34" rx="2" />
+      <circle r="4.5" className="valve-hub" />
+      <text y="28" textAnchor="middle" className="valve-label">{label}</text>
     </g>
   )
 }
