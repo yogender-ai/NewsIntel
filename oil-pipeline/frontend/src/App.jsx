@@ -143,8 +143,6 @@ export default function App() {
   const llmS = nodeState(latest, ['llm'], flowing)
   const sigS = nodeState(latest, ['signals'], flowing)
   const snapS = nodeState(latest, ['snapshot'], flowing)
-  const current = (latest?.stages || []).length
-  const liveName = flowing ? (['fetch', 'images', 'dedupe', 'hf', 'llm', 'signals', 'snapshot'][current] || 'fetch') : ''
 
   return (
     <div className="scada">
@@ -186,7 +184,7 @@ export default function App() {
         {error && <div className="fault">{error}</div>}
 
         {view === 'flow' && (
-          <div className={`board ${flowing ? 'moving' : ''}`}>
+          <div className={`board ${flowing ? 'moving' : ''} ${live ? 'is-live' : ''}`}>
             <p className="hint">Click a unit to see the stories sitting there. Force a run also syncs the NewsIntel desk.</p>
             <div className="cols">
               {COLUMNS.map((col) => (
@@ -198,7 +196,7 @@ export default function App() {
             </div>
 
             <div className="diagram tight">
-              <FlowPipes live={live} flowing={flowing} liveName={liveName} />
+              <FlowPipes />
 
               <div className="nodes">
                 <Node x="10%" y="50%" state={live ? 'live' : fetchS} color="cyan" title="RSS / Field Feeds" status="LIVE" meta={`${counts.fetched} fetched`} icon="wifi" onClick={() => openStage('fetch')} />
@@ -332,36 +330,40 @@ function Clock() {
   return <time>{now.toLocaleTimeString('en-US', { hour12: true })}</time>
 }
 
-const FlowPipes = memo(function FlowPipes({ live, flowing, liveName }) {
+const FlowPipes = memo(function FlowPipes() {
   return (
     <svg className="pipes" viewBox="0 0 1200 560" preserveAspectRatio="none">
       <defs>
-        <linearGradient id="gCyan" x1="0" x2="1"><stop stopColor="#22d3ee" /><stop offset="1" stopColor="#38bdf8" /></linearGradient>
-        <linearGradient id="gGold" x1="0" x2="1"><stop stopColor="#fbbf24" /><stop offset="1" stopColor="#f59e0b" /></linearGradient>
-        <linearGradient id="gViolet" x1="0" x2="1"><stop stopColor="#a78bfa" /><stop offset="1" stopColor="#8b5cf6" /></linearGradient>
-        <linearGradient id="gGreen" x1="0" x2="1"><stop stopColor="#34d399" /><stop offset="1" stopColor="#10b981" /></linearGradient>
-        <linearGradient id="gAmber" x1="0" x2="1"><stop stopColor="#fbbf24" /><stop offset="1" stopColor="#f97316" /></linearGradient>
-        <filter id="glow"><feGaussianBlur stdDeviation="2.4" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
+        <linearGradient id="gCyan" x1="0" x2="1"><stop stopColor="#67e8f9" /><stop offset="1" stopColor="#22d3ee" /></linearGradient>
+        <linearGradient id="gViolet" x1="0" x2="0" y1="0" y2="1"><stop stopColor="#c4b5fd" /><stop offset="1" stopColor="#8b5cf6" /></linearGradient>
+        <linearGradient id="gGreen" x1="0" x2="0" y1="0" y2="1"><stop stopColor="#6ee7b7" /><stop offset="1" stopColor="#34d399" /></linearGradient>
+        <linearGradient id="gAmber" x1="0" x2="0" y1="0" y2="1"><stop stopColor="#fcd34d" /><stop offset="1" stopColor="#f59e0b" /></linearGradient>
+        <filter id="glow"><feGaussianBlur stdDeviation="2.8" result="b" /><feMerge><feMergeNode in="b" /><feMergeNode in="SourceGraphic" /></feMerge></filter>
       </defs>
-      <Pipe d="M 70 280 H 1130" grad="gCyan" on={live || flowing} live={live} spine />
-      <Pipe d="M 516 280 V 128" grad="gViolet" on={flowing} live={liveName === 'images'} />
-      <Pipe d="M 516 280 V 432" grad="gViolet" on={flowing} live={liveName === 'dedupe'} />
-      <Pipe d="M 732 280 V 206" grad="gGreen" on={flowing} live={liveName === 'hf'} />
-      <Pipe d="M 732 280 V 400" grad="gGreen" on={flowing} live={liveName === 'signals'} />
-      <Pipe d="M 924 280 V 400" grad="gAmber" on={flowing} live={liveName === 'snapshot'} />
-      <Pipe d="M 1104 300 C 1104 500 120 500 120 300" grad="gCyan" on={live} live={live} dash />
+      <Pipe d="M 70 280 H 1130" stroke="url(#gCyan)" spine />
+      <Pipe d="M 516 280 V 128" stroke="url(#gViolet)" />
+      <Pipe d="M 516 280 V 432" stroke="url(#gViolet)" />
+      <Pipe d="M 732 280 V 206" stroke="url(#gGreen)" />
+      <Pipe d="M 732 280 V 400" stroke="url(#gGreen)" />
+      <Pipe d="M 924 280 V 400" stroke="url(#gAmber)" />
+      <Pipe d="M 1104 300 C 1104 500 120 500 120 300" stroke="url(#gCyan)" dash />
     </svg>
   )
-})
+}, () => true)
 
-const Pipe = memo(function Pipe({ d, grad, on, live, dash, spine }) {
+function Pipe({ d, stroke, dash, spine }) {
   return (
-    <g className={`pipe ${on ? 'on' : ''} ${live ? 'live' : ''} ${dash ? 'feedback' : ''} ${spine ? 'spine' : ''}`}>
+    <g className={`pipe on ${dash ? 'feedback' : ''} ${spine ? 'spine' : ''}`}>
       <path d={d} className="pipe-body" />
-      <path d={d} className="pipe-flow" stroke={`url(#${grad})`} />
+      <path d={d} className="pipe-flow" stroke={stroke} pathLength="100">
+        <animate attributeName="stroke-dashoffset" from="0" to="-24" dur="0.7s" repeatCount="indefinite" />
+      </path>
+      <path d={d} className="pipe-flow pipe-flow-slow" stroke={stroke} pathLength="100">
+        <animate attributeName="stroke-dashoffset" from="12" to="-12" dur="1.1s" repeatCount="indefinite" />
+      </path>
     </g>
   )
-})
+}
 
 function Node({ x, y, state, color, title, status, meta, icon, small, onClick }) {
   return (
