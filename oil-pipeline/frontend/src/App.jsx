@@ -155,6 +155,8 @@ export default function App() {
     <div className="scada">
       <div className="live-bg" aria-hidden="true">
         <i /><i /><i /><i />
+        <span className="scan" />
+        <span className="grid" />
       </div>
       <aside className="rail">
         <div className="brand">
@@ -287,15 +289,27 @@ function InspectDrawer({ stage, loading, data, onClose }) {
   const items = data?.items || []
   const rejected = data?.rejected || []
   const dropped = data?.dropped || []
+  const dive = stage === 'fetch' || stage === 'rss'
+  useEffect(() => {
+    const onKey = (event) => { if (event.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
   return (
-    <aside className="drawer">
+    <div className={`inspect-overlay ${dive ? 'dive-rss' : ''}`} onMouseDown={onClose}>
+      {dive && (
+        <div className="dive-tunnel" aria-hidden="true">
+          <span /><span /><span /><span />
+        </div>
+      )}
+      <aside className="drawer" onMouseDown={(event) => event.stopPropagation()}>
       <header>
         <div>
-          <small>STAGE INSPECT</small>
+          <small>{dive ? 'ENTERING RSS FIELD' : 'STAGE INSPECT'}</small>
           <h2>{copy.title}</h2>
           <p>{copy.blurb}</p>
         </div>
-        <button onClick={onClose}>Close</button>
+        <button type="button" className="drawer-close" onClick={onClose} aria-label="Close">×</button>
       </header>
       {loading && <p className="empty">Reading the line…</p>}
       {data?.error && <p className="fault">{data.error}</p>}
@@ -333,6 +347,7 @@ function InspectDrawer({ stage, loading, data, onClose }) {
         </>
       )}
     </aside>
+    </div>
   )
 }
 
