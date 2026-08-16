@@ -35,6 +35,18 @@ function stageOf(latest, name) {
   return (latest?.stages || []).find((s) => s.name === name) || null
 }
 
+function currentPhase(latest, flowing) {
+  if (!flowing) return 'idle'
+  const stages = latest?.stages || []
+  const done = (name) => stages.some((s) => s.name === name && (s.finished_at || s.counts))
+  if (!done('fetch')) return 'fetch'
+  if (!done('images')) return 'images'
+  if (!done('dedupe')) return 'dedupe'
+  if (!done('hf') && !done('llm')) return 'hf'
+  if (!done('signals')) return 'signals'
+  return 'snapshot'
+}
+
 function nodeState(latest, names, flowing) {
   const found = names.map((name) => stageOf(latest, name)).filter(Boolean)
   if (latest?.status === 'failed' && names.some((n) => ['hf', 'llm'].includes(n))) return 'fault'
@@ -143,6 +155,7 @@ export default function App() {
   const llmS = nodeState(latest, ['llm'], flowing)
   const sigS = nodeState(latest, ['signals'], flowing)
   const snapS = nodeState(latest, ['snapshot'], flowing)
+  const phase = currentPhase(latest, flowing)
 
   return (
     <div className="scada">
@@ -184,8 +197,16 @@ export default function App() {
         {error && <div className="fault">{error}</div>}
 
         {view === 'flow' && (
-          <div className={`board ${flowing ? 'moving' : ''} ${live ? 'is-live' : ''}`}>
-            <p className="hint">Click a unit to see the stories sitting there. Force a run also syncs the NewsIntel desk.</p>
+          <div className={`board ${flowing ? 'moving' : 'idle'} flow-${phase} ${live ? 'is-live' : ''}`}>
+            <p className="hint">
+              {phase === 'idle' ? 'Line closed. Only the desk feeds back to the backend. Force a run to open the valves.'
+                : phase === 'fetch' ? 'Valves open. Crude is moving RSS → backend.'
+                : phase === 'images' ? 'Image gate + validation.'
+                : phase === 'dedupe' ? 'Deduping repeats.'
+                : phase === 'hf' ? 'AI model is on this cut.'
+                : phase === 'signals' ? 'Ranking and insights.'
+                : 'Pushing the snapshot to the desk.'}
+            </p>
             <div className="cols">
               {COLUMNS.map((col) => (
                 <div key={col.id} className={`col col-${col.color}`}>
@@ -358,7 +379,7 @@ const FlowPipes = memo(function FlowPipes() {
       ))}
       {SEGMENTS.flatMap((seg) =>
         Array.from({ length: seg.n }, (_, i) => (
-          <circle key={`${seg.id}-${i}`} r={seg.id === 'loop' ? 4 : 6} fill={seg.color} className="packet" filter="url(#glow)">
+          <circle key={`${seg.id}-${i}`} r={seg.id === 'loop' ? 4 : 6} fill={seg.color} className={`packet packet-${seg.id}`} filter="url(#glow)">
             <animateMotion dur={`${seg.dur}s`} begin={`${(i * seg.dur) / seg.n}s`} repeatCount="indefinite">
               <mpath href={`#p-${seg.id}`} />
             </animateMotion>
