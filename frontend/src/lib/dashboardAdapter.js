@@ -47,11 +47,7 @@ const isGoogleNewsUrl = (value) => {
 const sourcePreviewImage = (cluster) => {
   const directImage = cluster.image_url || cluster.thumbnail_url;
   if (directImage && !isGoogleNewsUrl(directImage)) return directImage;
-  const sourceUrl = [cluster.source_url, ...(cluster.sources || []).map((source) => source?.url)]
-    .find((url) => url && !isGoogleNewsUrl(url));
-  if (!sourceUrl) return null;
-  const encoded = encodeURIComponent(sourceUrl);
-  return `https://api.microlink.io/?url=${encoded}&embed=image.url`;
+  return null;
 };
 
 const normalizeShift = (cluster, index) => {
@@ -96,7 +92,11 @@ const normalizeShift = (cluster, index) => {
 
 export function normalizeDashboardData({ dashboard, preferences, alerts, user }) {
   const clusters = Array.isArray(dashboard?.clusters) ? dashboard.clusters : [];
-  const activeSignals = clusters.filter((cluster) => !cluster.dismissed);
+  const activeSignals = clusters.filter((cluster) => {
+    if (cluster.dismissed) return false;
+    const image = cluster.image_url || cluster.thumbnail_url;
+    return Boolean(image) && !isGoogleNewsUrl(image);
+  });
   const sortedSignals = [...activeSignals].sort((a, b) => {
     const tierWeight = { CRITICAL: 4, SIGNAL: 3, WATCH: 2, NOISE: 1 };
     return (

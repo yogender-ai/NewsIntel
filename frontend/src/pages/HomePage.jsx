@@ -426,6 +426,24 @@ export default function HomePage() {
   }, [user, load, hasCached]);
 
   useEffect(() => {
+    if (!user) return undefined;
+    const source = new EventSource(api.streamUrl());
+    source.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data || '{}');
+        if (payload.type === 'snapshot') load({ background: true });
+      } catch {
+        // ignore keepalive / malformed frames
+      }
+    };
+    const poll = window.setInterval(() => load({ background: true }), 60000);
+    return () => {
+      source.close();
+      window.clearInterval(poll);
+    };
+  }, [user, load]);
+
+  useEffect(() => {
     if (initialCache && !dashboardCache) setDashboardCache(initialCache);
   }, [dashboardCache, initialCache, setDashboardCache]);
 
@@ -447,9 +465,10 @@ export default function HomePage() {
     }
   }, [data.worldPulse?.value, setWorldPulseValue]);
 
-  const topShifts = selectedTopic
+  const topShifts = (selectedTopic
     ? data.topShifts.filter((shift) => shift.raw?.matched_preferences?.some((item) => item.id === selectedTopic || item.label === selectedTopic))
-    : data.topShifts;
+    : data.topShifts
+  ).filter((shift) => Boolean(shift.imageUrl));
 
   const articleIndex = useMemo(() => {
     const index = new Map();

@@ -57,7 +57,11 @@ def build_snapshot_payload(
     settings = get_settings()
     now = datetime.now(timezone.utc)
     ranked = sorted(signals, key=lambda item: item.pulse, reverse=True)
-    cards = [_card(signal, index + 1, relationships) for index, signal in enumerate(ranked)]
+    cards = [
+        _card(signal, index + 1, relationships)
+        for index, signal in enumerate(ranked)
+        if signal.image_url
+    ]
     categories = {category: [] for category in settings.mvp_categories}
     for card in cards:
         categories.setdefault(card["category"], []).append(card)

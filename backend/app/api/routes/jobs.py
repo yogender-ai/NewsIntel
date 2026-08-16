@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
 from uuid import UUID
-from types import SimpleNamespace
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse
@@ -42,12 +41,6 @@ async def enqueue_refresh(
     redis: RedisClient = Depends(get_redis),
 ):
     snapshot = await load_snapshot(session, redis)
-    if not redis.available:
-        dummy = SimpleNamespace(id="0", status="error", trigger="user_refresh", started_at=None)
-        return JSONResponse(
-            status_code=503,
-            content=_envelope("error", dummy, snapshot, "Redis is down; cannot enqueue."),
-        )
     try:
         run, status = await enqueue_run(session, redis, "user_refresh", force=force)
     except Exception as exc:

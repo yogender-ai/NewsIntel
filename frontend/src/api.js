@@ -1,6 +1,9 @@
 import { auth } from './firebase';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000';
+const API_BASE = (
+  import.meta.env.VITE_API_URL ||
+  (import.meta.env.PROD ? 'https://newsintel-xvhe.onrender.com' : 'http://127.0.0.1:8000')
+).replace(/\/$/, '');
 
 function getHeaders() {
   const headers = { 'Content-Type': 'application/json' };
@@ -70,6 +73,8 @@ async function request(path, options = {}, retries = 2) {
 }
 
 export const api = {
+  streamUrl: () => `${API_BASE}/api/pipeline/stream`,
+
   // GET: Serve cached intelligence, personalized per user via X-User-Id header
   getCachedDashboard: () =>
     request('/api/home-snapshot', { method: 'GET' }),

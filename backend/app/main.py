@@ -20,7 +20,8 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         print(f"redis connect skipped: {exc}")
     worker_task = None
-    if os.getenv("OIL_EMBED_WORKER") == "1":
+    embed = os.getenv("EMBED_WORKER", os.getenv("OIL_EMBED_WORKER", "1"))
+    if embed == "1":
         from app.worker import embed_worker
 
         worker_task = asyncio.create_task(embed_worker(redis_api))

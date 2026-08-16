@@ -9,14 +9,30 @@ from app.repositories.snapshots import latest_active
 router = APIRouter(tags=["snapshot"])
 
 
+def _has_image(card: dict) -> bool:
+    url = card.get("image_url") or card.get("thumbnail_url")
+    return bool(url) and "news.google.com" not in str(url)
+
+
+def only_imaged(payload: dict) -> dict:
+    """Never send a card without a real image to the dashboard."""
+    cleaned = dict(payload)
+    for key in ("feed", "clusters", "topStories"):
+        rows = cleaned.get(key)
+        if isinstance(rows, list):
+            cleaned[key] = [card for card in rows if isinstance(card, dict) and _has_image(card)]
+    return cleaned
+
+
 async def load_snapshot(session: AsyncSession, redis: RedisClient) -> dict:
     cached = await redis.get_json(SNAPSHOT_KEY)
     if isinstance(cached, dict) and cached.get("feed") is not None:
-        return cached
+        return only_imaged(cached)
     row = await latest_active(session)
     if row and isinstance(row.payload_json, dict):
-        await redis.set_json(SNAPSHOT_KEY, row.payload_json, ttl_seconds=90 * 60)
-        return row.payload_json
+        payload = only_imaged(row.payload_json)
+        await redis.set_json(SNAPSHOT_KEY, payload, ttl_seconds=90 * 60)
+        return payload
     return {
         "feed": [],
         "clusters": [],

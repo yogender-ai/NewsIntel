@@ -11,6 +11,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.core.events import publish
 from app.core.database import AsyncSessionLocal
 from app.core.redis import RedisClient
 from app.models.base import utcnow
@@ -41,6 +42,19 @@ LATEST_KEY = "newsintel:job:latest"
 SNAPSHOT_KEY = "newsintel:snapshot:home"
 LOCK_TTL = 600
 COOLDOWN_TTL = 55 * 60
+
+
+def _spawn_pipeline(redis: RedisClient, run_id: UUID, trigger: str) -> None:
+    async def _run() -> None:
+        try:
+            await run_pipeline(redis, run_id=run_id, trigger=trigger)
+        except RuntimeError as exc:
+            if str(exc) != "lock_held":
+                logger.exception("pipeline kick failed")
+        except Exception:
+            logger.exception("pipeline kick failed")
+
+    asyncio.create_task(_run())
 
 
 def _job_payload(run: PipelineRun) -> dict:
@@ -81,7 +95,7 @@ async def enqueue_run(session: AsyncSession, redis: RedisClient, trigger: str, *
         session.add(run)
         await session.commit()
         await session.refresh(run)
-        asyncio.create_task(run_pipeline(redis, run_id=run.id, trigger=trigger))
+        _spawn_pipeline(redis, run.id, trigger)
         return run, "queued"
     active = await redis.get(ACTIVE_KEY)
     if active:
@@ -100,6 +114,7 @@ async def enqueue_run(session: AsyncSession, redis: RedisClient, trigger: str, *
     await session.refresh(run)
     await redis.set(REFRESH_KEY, str(run.id), ttl_seconds=15 * 60)
     await write_job(redis, run)
+    _spawn_pipeline(redis, run.id, trigger)
     return run, "queued"
 
 
@@ -141,10 +156,13 @@ async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: 
         await write_job(redis, run)
         await redis.expire_if_owner(LOCK_KEY, token, LOCK_TTL)
 
+        publish("stage", name="fetch", status="running", run_id=str(run.id))
         raw_items, fetch_stat = await fetch_all_sources(redis)
         run.stages.append(asdict(fetch_stat))
+        publish("stage", name="fetch", status="done", counts={"fetched": len(raw_items)}, run_id=str(run.id))
         await redis.expire_if_owner(LOCK_KEY, token, LOCK_TTL)
 
+        publish("stage", name="images", status="running", run_id=str(run.id))
         started = datetime.now(timezone.utc)
         accepted_pairs, rejected = await filter_items_with_images(raw_items, redis)
         finished = datetime.now(timezone.utc)
@@ -157,10 +175,12 @@ async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: 
         )
         run.stages.append(asdict(image_stat))
         logger.info("image.done accepted=%s rejected=%s", len(accepted_pairs), rejected)
+        publish("stage", name="images", status="done", counts={"accepted": len(accepted_pairs), "rejected": rejected}, run_id=str(run.id))
 
         cleaned = [to_clean_article(item, image_url) for item, image_url in accepted_pairs]
         recent = await recent_for_dedupe(session, days=settings.newsintel_retention_days)
         unique, dropped = dedupe_articles(cleaned, recent)
+        publish("stage", name="dedupe", status="done", counts={"unique": len(unique), "dropped": dropped}, run_id=str(run.id))
         run.stages.append(
             asdict(
                 StageStat(
@@ -211,14 +231,19 @@ async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: 
             persisted.append(EnrichedArticle(article=clean, article_id=article.id, display_title=clean.title, llm_summary=clean.summary))
         await session.commit()
 
+        publish("stage", name="hf", status="running", run_id=str(run.id))
         await enrich_hf(persisted, redis)
         hf_ok = sum(1 for item in persisted if item.hf_status == "ok")
+        publish("stage", name="hf", status="done", counts={"hf_ok": hf_ok}, run_id=str(run.id))
         run.stages.append({"name": "hf", "counts": {"hf_ok": hf_ok, "hf_failed": len(persisted) - hf_ok}})
         await redis.expire_if_owner(LOCK_KEY, token, LOCK_TTL)
 
+        publish("stage", name="llm", status="running", run_id=str(run.id))
         await enrich_llm(persisted, redis)
         llm_ok = sum(1 for item in persisted if item.llm_status == "ok")
+        publish("stage", name="llm", status="done", counts={"llm_ok": llm_ok}, run_id=str(run.id))
         run.stages.append({"name": "llm", "counts": {"llm_ok": llm_ok, "llm_failed": len(persisted) - llm_ok}})
+        publish("stage", name="signals", status="running", run_id=str(run.id))
         await redis.expire_if_owner(LOCK_KEY, token, LOCK_TTL)
 
         signals: list[Signal] = []
@@ -299,12 +324,26 @@ async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: 
             "categories": category_counts,
         }
         pipeline_status = {
-            "news": "cached_core_v2_snapshot",
+            "news": "live",
             "source_of_truth": "snapshots,signals",
-            "queue": {"accepted": len(unique), "signals": len(signals)},
+            "queue": {"accepted": len(unique), "signals": len(signals), "running": 0, "pending": 0},
             "ai_circuit_open": bool(await redis.get("newsintel:circuit:ai")),
             "stages": run.stages,
+            "latest_cycle": {"status": "partial" if partial else "succeeded"},
         }
+        run.stages.append(
+            asdict(
+                StageStat(
+                    name="signals",
+                    started_at=datetime.now(timezone.utc).isoformat(),
+                    finished_at=datetime.now(timezone.utc).isoformat(),
+                    elapsed_ms=0,
+                    counts={"signals": len(signals)},
+                )
+            )
+        )
+        publish("stage", name="signals", status="done", counts={"signals": len(signals)}, run_id=str(run.id))
+        publish("stage", name="snapshot", status="running", run_id=str(run.id))
         payload = build_snapshot_payload(
             run_id=run.id,
             signals=signals,
@@ -325,6 +364,14 @@ async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: 
         run.stats = stats
         await session.commit()
         await redis.set_json(SNAPSHOT_KEY, payload, ttl_seconds=settings.dashboard_cache_ttl_seconds)
+        publish(
+            "snapshot",
+            status=run.status,
+            signals=len(signals),
+            fetched=len(raw_items),
+            accepted=len(accepted_pairs),
+            run_id=str(run.id),
+        )
         await redis.set(COOLDOWN_KEY, str(run.id), ttl_seconds=COOLDOWN_TTL)
         await redis.delete(REFRESH_KEY)
         await write_job(redis, run)

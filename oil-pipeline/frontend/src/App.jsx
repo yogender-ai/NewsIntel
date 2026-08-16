@@ -1,14 +1,14 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 
-const API = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+const API = (import.meta.env.VITE_API_URL || 'https://oil-pipeline.onrender.com').replace(/\/$/, '')
 const STAGES = [
-  { id: 'fetch', label: 'WELLHEAD', sub: 'RSS intake' },
-  { id: 'images', label: 'SEPARATOR', sub: 'image gate' },
-  { id: 'dedupe', label: 'STILL', sub: 'dedupe crude' },
-  { id: 'hf', label: 'TREATER', sub: 'NER + sentiment' },
-  { id: 'llm', label: 'CRACKER', sub: 'LLM refine' },
-  { id: 'signals', label: 'BLEND', sub: 'pulse score' },
-  { id: 'snapshot', label: 'TANK FARM', sub: 'snapshot' },
+  { id: 'fetch', label: 'INGEST', sub: 'RSS intake' },
+  { id: 'images', label: 'IMAGE GATE', sub: 'keep only imaged news' },
+  { id: 'dedupe', label: 'DEDUPE', sub: 'drop repeats' },
+  { id: 'hf', label: 'NER + SENTIMENT', sub: 'Hugging Face' },
+  { id: 'llm', label: 'LLM INTEL', sub: 'title + why it matters' },
+  { id: 'signals', label: 'SIGNALS', sub: 'pulse score' },
+  { id: 'snapshot', label: 'SNAPSHOT', sub: 'push to the desk' },
 ]
 
 async function getJson(path, opts) {
@@ -32,6 +32,8 @@ export default function App() {
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [clock, setClock] = useState(() => new Date())
+  const [live, setLive] = useState(false)
+  const [events, setEvents] = useState([])
 
   const load = useCallback(async () => {
     try {
@@ -45,11 +47,31 @@ export default function App() {
 
   useEffect(() => {
     load()
-    const poll = setInterval(load, 4000)
     const tick = setInterval(() => setClock(new Date()), 1000)
+    return () => clearInterval(tick)
+  }, [load])
+
+  useEffect(() => {
+    const source = new EventSource(`${API}/api/pipeline/stream`)
+    source.onopen = () => setLive(true)
+    source.onerror = () => setLive(false)
+    source.onmessage = (event) => {
+      try {
+        const payload = JSON.parse(event.data || '{}')
+        if (payload.type === 'hello') {
+          setLive(true)
+          return
+        }
+        setEvents((current) => [{ at: payload.at, type: payload.type, name: payload.name, status: payload.status, counts: payload.counts }, ...current].slice(0, 12))
+        if (payload.type === 'stage' || payload.type === 'snapshot') load()
+      } catch {
+        // ignore keepalive
+      }
+    }
+    const poll = setInterval(load, 15000)
     return () => {
+      source.close()
       clearInterval(poll)
-      clearInterval(tick)
     }
   }, [load])
 
@@ -73,28 +95,25 @@ export default function App() {
   const stats = latest?.stats || {}
   const flowing = latest?.status === 'running' || data?.lock
 
-  const pressure = useMemo(() => {
-    if (!stats.fetched) return 12
-    return Math.min(96, Math.round((stats.signals || 0) / Math.max(stats.fetched, 1) * 100) + 20)
-  }, [stats])
-
   return (
-    <div className={`yard ${flowing ? 'flowing' : ''}`}>
-      <div className="flare" />
+    <div className="shell">
       <header className="top">
         <div>
-          <p className="eyebrow">NEWSINTEL // CRUDE LINE</p>
+          <p className="eyebrow">NEWSINTEL // LIVE LINE</p>
           <h1>Oil pipeline</h1>
-          <p className="lede">Live intake from wellhead to tank farm. This site is only the line — not the news desk.</p>
+          <p className="lede">
+            Watch a story move from RSS to the NewsIntel desk in real time.
+            Cards without images never leave the gate.
+          </p>
         </div>
         <div className="top-right">
           <div className="readout">
-            <span>UTC {clock.toISOString().slice(11, 19)}</span>
-            <b className={data?.circuit_ai ? 'bad' : 'ok'}>{data?.circuit_ai ? 'AI CIRCUIT OPEN' : 'CIRCUIT CLOSED'}</b>
-            <b>{data?.lock ? 'VALVE LOCKED' : 'VALVE OPEN'}</b>
-            <b>{data?.cooldown ? 'COOLING' : 'READY'}</b>
+            <span className="pill">UTC {clock.toISOString().slice(11, 19)}</span>
+            <b className={`pill ${live ? 'live' : ''}`}>{live ? 'STREAM LIVE' : 'RECONNECTING'}</b>
+            <b className={`pill ${data?.circuit_ai ? 'bad' : 'ok'}`}>{data?.circuit_ai ? 'AI OPEN' : 'AI READY'}</b>
+            <b className="pill">{data?.lock || flowing ? 'RUNNING' : 'IDLE'}</b>
           </div>
-          <button disabled={busy} onClick={kick}>{busy ? 'Opening valve…' : 'Force a run'}</button>
+          <button disabled={busy} onClick={kick}>{busy ? 'Starting…' : 'Force a run'}</button>
         </div>
       </header>
 
@@ -102,10 +121,10 @@ export default function App() {
 
       <section className="gauges">
         <Gauge label="Fetched" value={stats.fetched ?? '—'} />
-        <Gauge label="Image pass" value={stats.accepted ?? '—'} />
+        <Gauge label="Image pass" value={stats.accepted ?? '—'} hot />
         <Gauge label="Rejected" value={stats.rejected_no_image ?? '—'} />
         <Gauge label="Signals" value={stats.signals ?? '—'} />
-        <Gauge label="Line pressure" value={`${pressure}%`} hot />
+        <Gauge label="HF ok" value={stats.hf_ok ?? '—'} />
         <Gauge label="Last status" value={(latest?.status || 'idle').toUpperCase()} />
       </section>
 
@@ -116,26 +135,20 @@ export default function App() {
           const counts = found.counts || {}
           return (
             <div key={stage.id} className={`unit ${state}`}>
-              {index > 0 && <div className="pipe"><i /></div>}
-              <div className="tower">
-                <div className="flame" />
-                <div className="tank">
-                  <span className="level" />
-                </div>
-                <strong>{stage.label}</strong>
-                <small>{stage.sub}</small>
-                <em>{found.elapsed_ms ? `${found.elapsed_ms} ms` : state === 'live' ? 'flowing' : 'standby'}</em>
-                <p>{Object.entries(counts).map(([k, v]) => `${k} ${v}`).join(' · ') || 'no cut yet'}</p>
-              </div>
+              <div className="dot" />
+              <strong>{stage.label}</strong>
+              <small>{stage.sub}</small>
+              <em>{found.elapsed_ms ? `${found.elapsed_ms} ms` : state === 'live' ? 'running' : 'standby'}</em>
+              <p>{Object.entries(counts).map(([k, v]) => `${k} ${v}`).join(' · ') || 'waiting'}</p>
             </div>
           )
         })}
       </section>
 
       <section className="log">
-        <h2>Run tickets</h2>
+        <h2>Recent runs</h2>
         <div className="tickets">
-          {(data?.recent || []).length === 0 && <p className="empty">No crude has moved yet. Force a run or wait for the hourly pump.</p>}
+          {(data?.recent || []).length === 0 && <p className="empty">No run yet. Force one or wait for the hourly tick.</p>}
           {(data?.recent || []).map((run) => (
             <article key={run.id}>
               <header>
@@ -150,6 +163,14 @@ export default function App() {
             </article>
           ))}
         </div>
+        <ul className="events">
+          {events.length === 0 && <li>Waiting for live stage events…</li>}
+          {events.map((item, index) => (
+            <li key={`${item.at}-${index}`}>
+              <b>{item.type}</b> {item.name || ''} {item.status || ''} {item.counts ? JSON.stringify(item.counts) : ''}
+            </li>
+          ))}
+        </ul>
       </section>
     </div>
   )

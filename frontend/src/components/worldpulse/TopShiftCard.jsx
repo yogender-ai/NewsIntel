@@ -13,7 +13,8 @@ export default function TopShiftCard({ shift, onOpen, index }) {
   const [isHovered, setIsHovered] = useState(false);
   const [isViewed, setIsViewed] = useState(false);
   const cardRef = useRef(null);
-  const showImage = shift.imageUrl && !imageUnavailable;
+  const showImage = Boolean(shift.imageUrl) && !imageUnavailable;
+  if (!shift.imageUrl) return null;
 
   // Intersection observer for entrance animation
   useEffect(() => {
