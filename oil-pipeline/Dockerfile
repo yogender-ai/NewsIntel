@@ -10,6 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ .
 
 ENV OIL_EMBED_WORKER=1
+ENV HF_SPACE_URL=YAsh213kadian/News-Intel
 
 EXPOSE 8000
 

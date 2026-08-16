@@ -34,6 +34,23 @@ def _envelope(status: str, run, snapshot: dict, message: str) -> dict:
     }
 
 
+@router.post("/api/pipeline/kick")
+async def kick_pipeline(
+    session: AsyncSession = Depends(get_session),
+    redis: RedisClient = Depends(get_redis),
+):
+    """Oil-pipeline control room. No secret — the site is the valve."""
+    snapshot = await load_snapshot(session, redis)
+    try:
+        run, status = await enqueue_run(session, redis, "oil_force", force=True)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return JSONResponse(
+        status_code=202,
+        content=_envelope(status, run, snapshot, "Force run accepted" if status == "queued" else status),
+    )
+
+
 @router.post("/api/dashboard")
 async def enqueue_refresh(
     force: bool = False,

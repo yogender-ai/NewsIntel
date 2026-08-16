@@ -17,6 +17,7 @@ RUN python -c "import nltk; nltk.download('punkt_tab', quiet=True)"
 COPY . .
 
 ENV EMBED_WORKER=1
+ENV HF_SPACE_URL=YAsh213kadian/News-Intel
 
 EXPOSE 8000
 

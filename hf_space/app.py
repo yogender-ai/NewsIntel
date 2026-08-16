@@ -205,33 +205,33 @@ with gr.Blocks(title="News-Intel NLP Pipeline") as demo:
         sum_input = gr.Textbox(label="Input Text", lines=8, placeholder="Paste news article text here...")
         sum_output = gr.Textbox(label="Result (JSON)", lines=6)
         sum_btn = gr.Button("Summarize", variant="primary")
-        sum_btn.click(fn=summarize, inputs=sum_input, outputs=sum_output)
+        sum_btn.click(fn=summarize, inputs=sum_input, outputs=sum_output, api_name="summarize")
 
     with gr.Tab("Sentiment"):
         gr.Markdown("### Analyze sentiment using RoBERTa")
         sent_input = gr.Textbox(label="Input Text", lines=5, placeholder="Enter text to analyze sentiment...")
         sent_output = gr.Textbox(label="Result (JSON)", lines=6)
         sent_btn = gr.Button("Analyze Sentiment", variant="primary")
-        sent_btn.click(fn=analyze_sentiment, inputs=sent_input, outputs=sent_output)
+        sent_btn.click(fn=analyze_sentiment, inputs=sent_input, outputs=sent_output, api_name="analyze_sentiment")
 
     with gr.Tab("NER"):
         gr.Markdown("### Extract entities using BERT-NER")
         ner_input = gr.Textbox(label="Input Text", lines=5, placeholder="Enter text to extract entities...")
         ner_output = gr.Textbox(label="Result (JSON)", lines=8)
         ner_btn = gr.Button("Extract Entities", variant="primary")
-        ner_btn.click(fn=extract_entities, inputs=ner_input, outputs=ner_output)
+        ner_btn.click(fn=extract_entities, inputs=ner_input, outputs=ner_output, api_name="extract_entities")
 
     with gr.Tab("Embeddings"):
         gr.Markdown("### Create semantic embeddings using all-MiniLM-L6-v2")
         embed_input = gr.Textbox(label="Input Text", lines=5, placeholder="Enter text to embed...")
         embed_output = gr.Textbox(label="Result (JSON)", lines=8)
         embed_btn = gr.Button("Embed", variant="primary")
-        embed_btn.click(fn=embed, inputs=embed_input, outputs=embed_output)
+        embed_btn.click(fn=embed, inputs=embed_input, outputs=embed_output, api_name="embed")
 
     with gr.Tab("Health"):
         gr.Markdown("### System Health Check")
         health_output = gr.Textbox(label="Status", lines=6)
         health_btn = gr.Button("Check Health")
-        health_btn.click(fn=health_check, outputs=health_output)
+        health_btn.click(fn=health_check, outputs=health_output, api_name="health_check")
 
 demo.launch()
