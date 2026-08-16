@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import secrets
+from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
@@ -141,7 +142,7 @@ async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: 
         await redis.expire_if_owner(LOCK_KEY, token, LOCK_TTL)
 
         raw_items, fetch_stat = await fetch_all_sources(redis)
-        run.stages.append(fetch_stat.__dict__)
+        run.stages.append(asdict(fetch_stat))
         await redis.expire_if_owner(LOCK_KEY, token, LOCK_TTL)
 
         started = datetime.now(timezone.utc)
@@ -154,20 +155,22 @@ async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: 
             elapsed_ms=int((finished - started).total_seconds() * 1000),
             counts={"accepted_images": len(accepted_pairs), "rejected_no_image": rejected},
         )
-        run.stages.append(image_stat.__dict__)
+        run.stages.append(asdict(image_stat))
         logger.info("image.done accepted=%s rejected=%s", len(accepted_pairs), rejected)
 
         cleaned = [to_clean_article(item, image_url) for item, image_url in accepted_pairs]
         recent = await recent_for_dedupe(session, days=settings.newsintel_retention_days)
         unique, dropped = dedupe_articles(cleaned, recent)
         run.stages.append(
-            StageStat(
-                name="dedupe",
-                started_at=datetime.now(timezone.utc).isoformat(),
-                finished_at=datetime.now(timezone.utc).isoformat(),
-                elapsed_ms=0,
-                counts={"unique": len(unique), "dropped": dropped},
-            ).__dict__
+            asdict(
+                StageStat(
+                    name="dedupe",
+                    started_at=datetime.now(timezone.utc).isoformat(),
+                    finished_at=datetime.now(timezone.utc).isoformat(),
+                    elapsed_ms=0,
+                    counts={"unique": len(unique), "dropped": dropped},
+                )
+            )
         )
 
         persisted: list[EnrichedArticle] = []
