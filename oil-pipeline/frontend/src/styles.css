@@ -19,10 +19,10 @@ html, body, #root { height: 100%; height: 100dvh; margin: 0; background: #01080e
 body {
   font-family: "Instrument Sans", "Segoe UI", sans-serif;
   background:
-    radial-gradient(ellipse 90% 46% at 50% -10%, rgba(125, 211, 252, 0.42), transparent 54%),
-    radial-gradient(ellipse 50% 42% at 6% 88%, rgba(14, 116, 144, 0.32), transparent 62%),
-    radial-gradient(ellipse 48% 38% at 94% 72%, rgba(56, 189, 248, 0.18), transparent 64%),
-    linear-gradient(180deg, #0b4660 0%, #073044 16%, #031820 46%, #01080e 100%);
+    radial-gradient(ellipse 80% 38% at 50% -6%, rgba(125, 211, 252, 0.28), transparent 58%),
+    radial-gradient(ellipse 46% 38% at 8% 90%, rgba(14, 116, 144, 0.26), transparent 64%),
+    radial-gradient(ellipse 42% 34% at 92% 74%, rgba(56, 189, 248, 0.14), transparent 66%),
+    linear-gradient(180deg, #08364a 0%, #062838 18%, #03151e 48%, #01080e 100%);
 }
 
 .live-bg { position: fixed; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
@@ -40,34 +40,19 @@ body {
 .live-bg .glow-orb.b { width: 420px; height: 420px; right: -80px; top: 18%; background: rgba(34, 211, 238, 0.16); animation-delay: -5s; }
 .live-bg .glow-orb.c { width: 380px; height: 380px; left: 28%; bottom: -120px; background: rgba(14, 116, 144, 0.26); animation-delay: -9s; }
 .live-bg .surface-sheet {
-  position: absolute; left: -8%; right: -8%; top: -10%; height: 32%;
+  position: absolute; left: -8%; right: -8%; top: -12%; height: 26%;
   background:
-    linear-gradient(180deg, rgba(224, 242, 254, 0.22), rgba(56, 189, 248, 0.06) 48%, transparent),
-    radial-gradient(ellipse 80% 50% at 50% 0%, rgba(255, 255, 255, 0.2), transparent 72%);
-  filter: blur(0.6px);
-  animation: surfaceBreathe 7s ease-in-out infinite;
-}
-.live-bg .godrays {
-  position: absolute; inset: -12% 0 18%;
-  background: repeating-conic-gradient(
-    from 6deg at 50% -8%,
-    transparent 0deg,
-    rgba(186, 230, 253, 0.055) 1.6deg,
-    transparent 3.4deg,
-    transparent 11deg
-  );
-  mask-image: linear-gradient(180deg, rgba(0,0,0,0.9), transparent 74%);
-  animation: rayDrift 32s linear infinite;
-  mix-blend-mode: screen;
+    linear-gradient(180deg, rgba(186, 230, 253, 0.14), rgba(56, 189, 248, 0.04) 52%, transparent),
+    radial-gradient(ellipse 70% 48% at 50% 0%, rgba(255, 255, 255, 0.12), transparent 74%);
+  animation: surfaceBreathe 8s ease-in-out infinite;
 }
 .live-bg .caustic-field {
   position: absolute; inset: 0;
   background:
-    radial-gradient(ellipse 220px 70px at 18% 28%, rgba(186,230,253,0.16), transparent 62%),
-    radial-gradient(ellipse 260px 80px at 72% 52%, rgba(103,232,249,0.12), transparent 64%),
-    radial-gradient(ellipse 200px 64px at 46% 82%, rgba(56,189,248,0.1), transparent 62%),
-    radial-gradient(ellipse 180px 50px at 88% 22%, rgba(224,242,254,0.1), transparent 60%);
-  animation: causticWorld 10s ease-in-out infinite alternate;
+    radial-gradient(ellipse 280px 90px at 20% 30%, rgba(186,230,253,0.08), transparent 68%),
+    radial-gradient(ellipse 320px 100px at 74% 54%, rgba(103,232,249,0.06), transparent 70%),
+    radial-gradient(ellipse 240px 80px at 48% 84%, rgba(56,189,248,0.05), transparent 68%);
+  animation: causticWorld 14s ease-in-out infinite alternate;
   mix-blend-mode: screen;
 }
 .live-bg .motes i, .live-bg .bg-bubbles b {
@@ -88,12 +73,11 @@ body {
 }
 .live-bg .vignette {
   position: absolute; inset: 0;
-  background: radial-gradient(ellipse at 50% 45%, transparent 42%, rgba(0, 6, 12, 0.55) 100%);
+  background: radial-gradient(ellipse at 50% 46%, transparent 48%, rgba(0, 6, 12, 0.42) 100%);
 }
-@keyframes drift { 50% { transform: translate3d(40px, -32px, 0) scale(1.08); } }
-@keyframes surfaceBreathe { 50% { transform: translateY(10px); opacity: 0.85; } }
-@keyframes rayDrift { to { transform: translateX(6%) rotate(3deg); } }
-@keyframes causticWorld { to { transform: translate3d(-30px, 18px, 0) scale(1.08); } }
+@keyframes drift { 50% { transform: translate3d(28px, -22px, 0) scale(1.05); } }
+@keyframes surfaceBreathe { 50% { transform: translateY(8px); opacity: 0.88; } }
+@keyframes causticWorld { to { transform: translate3d(-18px, 12px, 0) scale(1.04); } }
 @keyframes moteDrift {
   0% { transform: translate3d(0, 0, 0); opacity: 0.15; }
   40% { opacity: 0.8; }
@@ -143,8 +127,9 @@ h1 { font-size: 18px; letter-spacing: 0.12em; margin: 0; }
 .stream { font-family: "IBM Plex Mono", monospace; font-size: 11px; }
 .stream.on { color: var(--cyan); }
 .force {
-  border: 0; background: linear-gradient(135deg, #22d3ee, #38bdf8); color: #04212a;
-  font-weight: 800; padding: 9px 14px; border-radius: 999px; cursor: pointer;
+  border: 0; background: linear-gradient(135deg, #67e8f9, #22d3ee 46%, #38bdf8); color: #04212a;
+  font-weight: 800; padding: 9px 16px; border-radius: 999px; cursor: pointer;
+  box-shadow: 0 0 18px rgba(34, 211, 238, 0.35);
 }
 .force:disabled { opacity: 0.55; cursor: wait; }
 .fault { margin: 10px 22px 0; color: var(--bad); font-family: "IBM Plex Mono", monospace; font-size: 12px; }
@@ -229,10 +214,10 @@ h1 { font-size: 18px; letter-spacing: 0.12em; margin: 0; }
   position: absolute; left: 8px; right: 8px; top: 4px; height: 16px;
   border-radius: 50%;
   background:
-    radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.55), transparent 55%),
-    linear-gradient(180deg, rgba(226,232,240,0.4), rgba(100,116,139,0.18) 55%, rgba(15,23,42,0.35));
-  border: 1px solid rgba(226, 232, 240, 0.42);
-  box-shadow: 0 6px 14px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.45);
+    radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.62), transparent 55%),
+    linear-gradient(180deg, rgba(236,244,252,0.5), rgba(100,116,139,0.2) 55%, rgba(15,23,42,0.4));
+  border: 1px solid rgba(236, 244, 252, 0.5);
+  box-shadow: 0 6px 14px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.55);
   z-index: 5;
 }
 .tank .glass {
@@ -240,15 +225,15 @@ h1 { font-size: 18px; letter-spacing: 0.12em; margin: 0; }
   border-radius: 10px 10px 22px 22px;
   overflow: hidden;
   background:
-    linear-gradient(90deg, rgba(255,255,255,0.14), transparent 14%, transparent 84%, rgba(8,20,36,0.28)),
-    linear-gradient(180deg, rgba(186,230,253,0.08), rgba(8,20,36,0.18));
-  border: 1.5px solid rgba(186, 230, 253, 0.42);
+    linear-gradient(90deg, rgba(255,255,255,0.18), transparent 16%, transparent 82%, rgba(8,20,36,0.32)),
+    linear-gradient(180deg, rgba(186,230,253,0.1), rgba(8,20,36,0.16));
+  border: 1.5px solid rgba(186, 230, 253, 0.5);
   box-shadow:
-    inset 0 0 0 1px rgba(255,255,255,0.12),
-    inset 14px 0 20px -12px rgba(255,255,255,0.38),
+    inset 0 0 0 1px rgba(255,255,255,0.16),
+    inset 14px 0 22px -12px rgba(255,255,255,0.42),
     inset -12px 0 18px -12px rgba(2, 16, 28, 0.55),
-    0 18px 36px rgba(0,0,0,0.4),
-    0 0 28px rgba(56, 189, 248, 0.16);
+    0 18px 36px rgba(0,0,0,0.42),
+    0 0 32px rgba(56, 189, 248, 0.18);
   backdrop-filter: blur(10px);
 }
 .tank .foot {
@@ -262,14 +247,14 @@ h1 { font-size: 18px; letter-spacing: 0.12em; margin: 0; }
   height: calc(var(--fill, 0.32) * 92%);
   background:
     linear-gradient(180deg,
-      rgba(255,255,255,0.42) 0%,
-      rgba(165,243,252,0.5) 10%,
-      rgba(34,211,238,0.42) 32%,
-      rgba(14,165,233,0.52) 64%,
-      rgba(8,47,73,0.78) 100%);
+      rgba(255,255,255,0.5) 0%,
+      rgba(186,230,253,0.58) 8%,
+      rgba(56,189,248,0.46) 28%,
+      rgba(14,165,233,0.54) 62%,
+      rgba(8,47,73,0.8) 100%);
   box-shadow:
-    inset 0 10px 18px rgba(255,255,255,0.28),
-    inset 0 -18px 26px rgba(8,47,73,0.4);
+    inset 0 12px 20px rgba(255,255,255,0.32),
+    inset 0 -18px 26px rgba(8,47,73,0.42);
   transition: height 1.4s ease;
 }
 .tank .ink {
@@ -290,14 +275,14 @@ h1 { font-size: 18px; letter-spacing: 0.12em; margin: 0; }
   mix-blend-mode: screen;
 }
 .tank .surf {
-  position: absolute; left: -10%; width: 120%; height: 18px;
-  top: calc((1 - var(--fill, 0.32)) * 92% + 8px);
+  position: absolute; left: -10%; width: 120%; height: 20px;
+  top: calc((1 - var(--fill, 0.32)) * 92% + 6px);
   overflow: visible;
   transition: top 1.4s ease;
-  filter: drop-shadow(0 0 6px rgba(186,230,253,0.55));
+  filter: drop-shadow(0 1px 8px rgba(186,230,253,0.7));
 }
-.tank .surf path { fill: rgba(224, 242, 254, 0.55); animation: waveSlide 3.2s ease-in-out infinite; }
-.tank .surf .surf-b { fill: rgba(56, 189, 248, 0.28); animation-duration: 4.4s; animation-delay: -1.2s; }
+.tank .surf path { fill: rgba(240, 249, 255, 0.62); animation: waveSlide 3.4s ease-in-out infinite; }
+.tank .surf .surf-b { fill: rgba(125, 211, 252, 0.32); animation-duration: 4.6s; animation-delay: -1.2s; }
 .tank .sheen {
   position: absolute; inset: 0;
   background: linear-gradient(105deg, rgba(255,255,255,0.28) 0 8%, transparent 18%, transparent 78%, rgba(255,255,255,0.08) 100%);
@@ -398,9 +383,12 @@ h1 { font-size: 18px; letter-spacing: 0.12em; margin: 0; }
 .tank-ui {
   position: relative; z-index: 3;
   padding: 16px 12px 10px;
-  background: linear-gradient(180deg, rgba(2,10,18,0.28), transparent 72%);
-  text-shadow: 0 1px 8px rgba(0,8,16,0.85);
+  background: linear-gradient(180deg, rgba(2,10,18,0.22), transparent 68%);
+  text-shadow: 0 1px 10px rgba(0,8,16,0.9);
 }
+.tank strong { color: #f4fbff; letter-spacing: 0.01em; }
+.tank em { color: #c7e6f5 !important; }
+.tank small { color: #8fb6cb !important; }
 .tank .tip {
   display: none; position: absolute; left: 50%; bottom: calc(100% + 12px); transform: translateX(-50%);
   min-width: 188px; padding: 10px 12px; border-radius: 12px;
@@ -410,7 +398,14 @@ h1 { font-size: 18px; letter-spacing: 0.12em; margin: 0; }
   text-align: left; z-index: 8;
 }
 .tank:hover .tip { display: grid; gap: 3px; }
-.tank:hover .glass { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.16), 0 18px 36px rgba(0,0,0,0.4), 0 0 36px rgba(125,211,252,0.35); }
+.tank:hover .glass {
+  box-shadow:
+    inset 0 0 0 1px rgba(255,255,255,0.2),
+    inset 14px 0 22px -12px rgba(255,255,255,0.46),
+    0 18px 36px rgba(0,0,0,0.42),
+    0 0 40px rgba(125,211,252,0.4);
+}
+.tank:hover .lip { border-color: rgba(255,255,255,0.7); }
 .tank .tip b { font-size: 12px; }
 .tank .tip span { display: block; color: var(--muted); font-size: 11px; }
 .node.cyan { border-color: rgba(34, 211, 238, 0.45); }
@@ -542,7 +537,7 @@ pre { background: #071018; padding: 16px; border-radius: 12px; overflow: auto; c
   .drawer { width: min(560px, 100vw); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .live-bg .glow-orb, .live-bg .godrays, .live-bg .caustic-field, .live-bg .surface-sheet,
+  .live-bg .glow-orb, .live-bg .caustic-field, .live-bg .surface-sheet,
   .live-bg .motes i, .live-bg .bg-bubbles b,
   .tank .caustic, .tank .surf path, .tank .air i, .tank .falls i, .tank .ripples i {
     animation: none !important;

@@ -460,7 +460,6 @@ function LiveWorld() {
       <div className="glow-orb b" />
       <div className="glow-orb c" />
       <div className="surface-sheet" />
-      <div className="godrays" />
       <div className="caustic-field" />
       <div className="motes">
         {MOTES.map((mote, i) => (
