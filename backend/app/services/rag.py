@@ -35,6 +35,7 @@ from app.core.config import get_settings
 from app.models.account import AccountProfile
 from app.models.rag import SignalChunk
 from app.models.signal import Signal
+from app.services.web_evidence import gather_web_evidence
 
 logger = logging.getLogger("newsintel-rag")
 
@@ -339,6 +340,8 @@ def _fuse(vector_rows: list[dict], lexical_rows: list[dict]) -> list[Candidate]:
 ANSWER_SYSTEM = (
     "You are NewsIntel's analyst. Answer strictly from the numbered sources given. "
     "Cite every factual claim with [S#] matching the source number. "
+    "Sources marked 'web background' are reference material, not reporting — use them "
+    "only to explain terms or give context, never as evidence that something happened. "
     "If the sources do not answer the question, say so plainly and name what is missing — "
     "never fill the gap with outside knowledge. Be specific and concise: 3-6 sentences."
 )
@@ -356,6 +359,7 @@ async def answer_question(
     profile: AccountProfile | None = None,
     days: int | None = 14,
     max_sources: int | None = None,
+    include_web: bool = True,
 ) -> dict[str, Any]:
     """Answer a question over the indexed corpus and return answer + trace."""
     settings = get_settings()
@@ -514,11 +518,39 @@ async def answer_question(
                 "trace": trace.as_dict(),
             }
 
-        # 7 ── generate
+        # 7 ── optional web evidence, numbered after the archive passages so the
+        # model can cite both in one [S#] sequence. Background context (Wikipedia,
+        # DuckDuckGo) explains terms the archive assumes you already know.
+        web: list[dict] = []
+        if include_web:
+            started = time.perf_counter()
+            # Search the web with the question's meaningful terms, not the raw
+            # sentence: Wikipedia's relevance ranking on a full question drifts to
+            # generic articles ("Purchasing", "Ships of ancient Rome").
+            web_query = " ".join(build_tsquery(question).split(" | ")[:6]) or question
+            try:
+                web = await gather_web_evidence(web_query)
+            except Exception as exc:  # noqa: BLE001 - supplementary, never fatal
+                logger.info("rag.web evidence failed: %s", exc)
+                web = []
+            trace.step(
+                "web_evidence",
+                ms=int((time.perf_counter() - started) * 1000),
+                query=web_query,
+                found=len(web),
+                kinds=sorted({str(item.get("kind")) for item in web}) or None,
+            )
+
+        # 8 ── generate
         blocks = [
             f"[S{i}] {c.title}\nsource: {c.source_name}\npublished: {c.published_at or 'unknown'}\n{c.content}"
             for i, c in enumerate(kept, start=1)
         ]
+        for offset, item in enumerate(web, start=len(kept) + 1):
+            blocks.append(
+                f"[S{offset}] {item.get('title')}\nsource: {item.get('kind')} (web background)\n"
+                f"{item.get('snippet') or item.get('extract') or ''}"
+            )
         prompt = f"Question: {question}\n\nSources:\n\n" + "\n\n".join(blocks)
         system = ANSWER_SYSTEM
         profile_text = profile.profile_text() if profile else ""
@@ -539,7 +571,9 @@ async def answer_question(
             ms=int((time.perf_counter() - started) * 1000),
             model=settings.cloudflare_chat_model,
             ok=answer.ok,
-            sources_in_context=len(kept),
+            sources_in_context=len(kept) + len(web),
+            archive_passages=len(kept),
+            web_items=len(web),
             context_chars=len(prompt),
             personalized=bool(profile_text),
         )
@@ -565,7 +599,7 @@ async def answer_question(
         "question": question,
         "answer": body,
         "personal_impact": personal_note,
-        "sources": _source_payload(kept),
+        "sources": _source_payload(kept) + _web_source_payload(web, len(kept)),
         "cited": extract_citations(body),
         "trace": trace.as_dict(),
     }
@@ -590,6 +624,25 @@ def _source_payload(candidates: list[Candidate]) -> list[dict]:
             },
         }
         for index, c in enumerate(candidates, start=1)
+    ]
+
+
+def _web_source_payload(web: list[dict], offset: int) -> list[dict]:
+    """Web results shaped like archive sources so the UI renders one list."""
+    return [
+        {
+            "n": offset + index,
+            "signal_id": None,
+            "title": item.get("title") or "",
+            "source": item.get("kind") or "web",
+            "url": item.get("url") or "",
+            "published": None,
+            "passage": item.get("snippet") or item.get("extract") or "",
+            "section": "web",
+            "origin": "web",
+            "scores": {"vector": None, "lexical": None, "fused": None, "rerank": None},
+        }
+        for index, item in enumerate(web, start=1)
     ]
 
 

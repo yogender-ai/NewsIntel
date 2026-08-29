@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     )
     ingest_secret: str = Field(default="", alias="INGEST_SECRET")
     admin_secret: str = Field(default="", alias="ADMIN_SECRET")
-    hf_space_id: str = Field(default="YAsh213kadian/News_intel_HF_space_1", alias="HF_SPACE_URL")
+    hf_space_id: str = Field(default="YAsh213kadian/News-Intel", alias="HF_SPACE_URL")
     ingestion_batch_size: int = Field(default=80, alias="INGESTION_BATCH_SIZE")
     dashboard_cache_ttl_seconds: int = Field(default=5400, alias="DASHBOARD_CACHE_TTL_SECONDS")
     article_duplicate_window_hours: int = Field(default=36, alias="ARTICLE_DUPLICATE_WINDOW_HOURS")

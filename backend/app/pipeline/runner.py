@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import secrets
+from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
@@ -9,6 +11,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import get_settings
+from app.core.events import publish
 from app.core.database import AsyncSessionLocal
 from app.core.redis import RedisClient
 from app.models.base import utcnow
@@ -23,11 +26,13 @@ from app.pipeline.enrich.llm import enrich_llm
 from app.pipeline.fetch.images import filter_items_with_images
 from app.pipeline.fetch.rss import fetch_all_sources
 from app.pipeline.signals.relationships import build_edges
+from app.services.rag import index_signals
 from app.pipeline.signals.score import score_item
+from app.pipeline.inspect import clean_row, raw_row, signal_row, take
 from app.pipeline.snapshot.builder import build_snapshot_payload
 from app.pipeline.types import EnrichedArticle, StageStat
 from app.repositories.articles import recent_for_dedupe
-from app.services.rag import index_signals
+from app.repositories.signals import list_live_imaged, relationships_for
 from app.services.text_fingerprint import normalize_title
 
 logger = logging.getLogger("newsintel-runner")
@@ -40,6 +45,19 @@ LATEST_KEY = "newsintel:job:latest"
 SNAPSHOT_KEY = "newsintel:snapshot:home"
 LOCK_TTL = 600
 COOLDOWN_TTL = 55 * 60
+
+
+def _spawn_pipeline(redis: RedisClient, run_id: UUID, trigger: str) -> None:
+    async def _run() -> None:
+        try:
+            await run_pipeline(redis, run_id=run_id, trigger=trigger)
+        except RuntimeError as exc:
+            if str(exc) != "lock_held":
+                logger.exception("pipeline kick failed")
+        except Exception:
+            logger.exception("pipeline kick failed")
+
+    asyncio.create_task(_run())
 
 
 def _job_payload(run: PipelineRun) -> dict:
@@ -76,7 +94,12 @@ async def write_job(redis: RedisClient, run: PipelineRun) -> None:
 
 async def enqueue_run(session: AsyncSession, redis: RedisClient, trigger: str, *, force: bool = False) -> tuple[PipelineRun, str]:
     if not redis.available:
-        raise RuntimeError("redis_unavailable")
+        run = PipelineRun(id=uuid4(), status="queued", trigger=trigger, stats={}, stages=[])
+        session.add(run)
+        await session.commit()
+        await session.refresh(run)
+        _spawn_pipeline(redis, run.id, trigger)
+        return run, "queued"
     active = await redis.get(ACTIVE_KEY)
     if active:
         existing = await session.get(PipelineRun, UUID(active))
@@ -94,6 +117,7 @@ async def enqueue_run(session: AsyncSession, redis: RedisClient, trigger: str, *
     await session.refresh(run)
     await redis.set(REFRESH_KEY, str(run.id), ttl_seconds=15 * 60)
     await write_job(redis, run)
+    _spawn_pipeline(redis, run.id, trigger)
     return run, "queued"
 
 
@@ -116,7 +140,7 @@ async def _stage(name: str, fn):
 async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: str = "schedule") -> PipelineRun:
     settings = get_settings()
     token = secrets.token_urlsafe(16)
-    if not await redis.set_nx(LOCK_KEY, token, LOCK_TTL):
+    if redis.available and not await redis.set_nx(LOCK_KEY, token, LOCK_TTL):
         logger.info("pipeline.skip lock_held")
         raise RuntimeError("lock_held")
 
@@ -135,10 +159,17 @@ async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: 
         await write_job(redis, run)
         await redis.expire_if_owner(LOCK_KEY, token, LOCK_TTL)
 
+        publish("stage", name="fetch", status="running", run_id=str(run.id))
         raw_items, fetch_stat = await fetch_all_sources(redis)
-        run.stages.append(fetch_stat.__dict__)
+        fetch_payload = asdict(fetch_stat)
+        fetch_payload["samples"] = take([raw_row(item) for item in raw_items])
+        run.stages.append(fetch_payload)
+        run.stats = {**(run.stats or {}), "inspect": {**((run.stats or {}).get("inspect") or {}), "fetch": fetch_payload["samples"]}}
+        await session.commit()
+        publish("stage", name="fetch", status="done", counts={"fetched": len(raw_items)}, run_id=str(run.id), samples=len(fetch_payload["samples"]))
         await redis.expire_if_owner(LOCK_KEY, token, LOCK_TTL)
 
+        publish("stage", name="images", status="running", run_id=str(run.id))
         started = datetime.now(timezone.utc)
         accepted_pairs, rejected = await filter_items_with_images(raw_items, redis)
         finished = datetime.now(timezone.utc)
@@ -149,28 +180,55 @@ async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: 
             elapsed_ms=int((finished - started).total_seconds() * 1000),
             counts={"accepted_images": len(accepted_pairs), "rejected_no_image": rejected},
         )
-        run.stages.append(image_stat.__dict__)
+        image_payload = asdict(image_stat)
+        image_payload["samples"] = take(
+            [clean_row(to_clean_article(item, image_url), {"gate": "kept"}) for item, image_url in accepted_pairs]
+        )
+        rejected_rows = []
+        accepted_urls = {item.url for item, _ in accepted_pairs}
+        for item in raw_items:
+            if item.url not in accepted_urls and len(rejected_rows) < 16:
+                rejected_rows.append({**raw_row(item), "gate": "no_image"})
+        image_payload["rejected"] = rejected_rows
+        run.stages.append(image_payload)
+        inspect = {
+            **((run.stats or {}).get("inspect") or {}),
+            "images": image_payload["samples"],
+            "validate": image_payload["samples"],
+            "backend": image_payload["samples"],
+            "rejected": rejected_rows,
+        }
+        run.stats = {**(run.stats or {}), "inspect": inspect}
+        await session.commit()
         logger.info("image.done accepted=%s rejected=%s", len(accepted_pairs), rejected)
+        publish("stage", name="images", status="done", counts={"accepted": len(accepted_pairs), "rejected": rejected}, run_id=str(run.id))
 
-        dedupe_started = datetime.now(timezone.utc)
         cleaned = [to_clean_article(item, image_url) for item, image_url in accepted_pairs]
         recent = await recent_for_dedupe(session, days=settings.newsintel_retention_days)
         unique, dropped = dedupe_articles(cleaned, recent)
-        dedupe_finished = datetime.now(timezone.utc)
-        run.stages.append(
+        unique_urls = {item.canonical_url for item in unique}
+        dropped_rows = [clean_row(item, {"gate": "duplicate"}) for item in cleaned if item.canonical_url not in unique_urls][:16]
+        publish("stage", name="dedupe", status="done", counts={"unique": len(unique), "dropped": dropped}, run_id=str(run.id))
+        dedupe_payload = asdict(
             StageStat(
                 name="dedupe",
-                started_at=dedupe_started.isoformat(),
-                finished_at=dedupe_finished.isoformat(),
-                elapsed_ms=int((dedupe_finished - dedupe_started).total_seconds() * 1000),
-                counts={
-                    "in": len(cleaned),
-                    "unique": len(unique),
-                    "dropped": dropped,
-                    "compared_against": len(recent),
-                },
-            ).__dict__
+                started_at=datetime.now(timezone.utc).isoformat(),
+                finished_at=datetime.now(timezone.utc).isoformat(),
+                elapsed_ms=0,
+                counts={"unique": len(unique), "dropped": dropped},
+            )
         )
+        dedupe_payload["samples"] = take([clean_row(item, {"gate": "unique"}) for item in unique] or [clean_row(item, {"gate": "reused"}) for item in cleaned])
+        dedupe_payload["dropped"] = dropped_rows
+        run.stages.append(dedupe_payload)
+        inspect = {
+            **((run.stats or {}).get("inspect") or {}),
+            "dedupe": dedupe_payload["samples"],
+            "pre_ai": dedupe_payload["samples"],
+            "dropped": dropped_rows,
+        }
+        run.stats = {**(run.stats or {}), "inspect": inspect}
+        await session.commit()
 
         persisted: list[EnrichedArticle] = []
         now = utcnow()
@@ -210,34 +268,19 @@ async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: 
             persisted.append(EnrichedArticle(article=clean, article_id=article.id, display_title=clean.title, llm_summary=clean.summary))
         await session.commit()
 
-        hf_started = datetime.now(timezone.utc)
+        publish("stage", name="hf", status="running", run_id=str(run.id))
         await enrich_hf(persisted, redis)
-        hf_finished = datetime.now(timezone.utc)
         hf_ok = sum(1 for item in persisted if item.hf_status == "ok")
-        run.stages.append(
-            StageStat(
-                name="hf",
-                started_at=hf_started.isoformat(),
-                finished_at=hf_finished.isoformat(),
-                elapsed_ms=int((hf_finished - hf_started).total_seconds() * 1000),
-                counts={"hf_ok": hf_ok, "hf_failed": len(persisted) - hf_ok, "in": len(persisted)},
-            ).__dict__
-        )
+        publish("stage", name="hf", status="done", counts={"hf_ok": hf_ok}, run_id=str(run.id))
+        run.stages.append({"name": "hf", "counts": {"hf_ok": hf_ok, "hf_failed": len(persisted) - hf_ok}})
         await redis.expire_if_owner(LOCK_KEY, token, LOCK_TTL)
 
-        llm_started = datetime.now(timezone.utc)
+        publish("stage", name="llm", status="running", run_id=str(run.id))
         await enrich_llm(persisted, redis)
-        llm_finished = datetime.now(timezone.utc)
         llm_ok = sum(1 for item in persisted if item.llm_status == "ok")
-        run.stages.append(
-            StageStat(
-                name="llm",
-                started_at=llm_started.isoformat(),
-                finished_at=llm_finished.isoformat(),
-                elapsed_ms=int((llm_finished - llm_started).total_seconds() * 1000),
-                counts={"llm_ok": llm_ok, "llm_failed": len(persisted) - llm_ok, "in": len(persisted)},
-            ).__dict__
-        )
+        publish("stage", name="llm", status="done", counts={"llm_ok": llm_ok}, run_id=str(run.id))
+        run.stages.append({"name": "llm", "counts": {"llm_ok": llm_ok, "llm_failed": len(persisted) - llm_ok}})
+        publish("stage", name="signals", status="running", run_id=str(run.id))
         await redis.expire_if_owner(LOCK_KEY, token, LOCK_TTL)
 
         signals: list[Signal] = []
@@ -289,36 +332,40 @@ async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: 
             index_to_signal[index] = signal.id
         await session.flush()
 
-        # Index the new signals into the RAG corpus. Without this stage Ask has an
-        # empty index and silently answers from nothing, so failures are recorded on
-        # the run rather than swallowed — but they must not abort the pipeline, since
-        # the dashboard snapshot is still perfectly valid without fresh embeddings.
-        rag_started = datetime.now(timezone.utc)
-        rag_error = ""
-        rag_chunks = 0
-        rag_neurons = 0.0
-        try:
-            rag_chunks, rag_calls = await index_signals(session, signals)
-            rag_neurons = round(sum(call.neurons for call in rag_calls), 4)
-        except Exception as exc:  # noqa: BLE001 - stage must degrade, not abort
-            rag_error = str(exc)[:300]
-            logger.warning("rag.index stage failed: %s", rag_error)
-        rag_finished = datetime.now(timezone.utc)
-        run.stages.append(
-            StageStat(
-                name="rag_index",
-                started_at=rag_started.isoformat(),
-                finished_at=rag_finished.isoformat(),
-                elapsed_ms=int((rag_finished - rag_started).total_seconds() * 1000),
-                counts={
-                    "chunks_indexed": rag_chunks,
-                    "signals_in": len(signals),
-                    "neurons": rag_neurons,
-                    **({"error": rag_error} if rag_error else {}),
-                },
-            ).__dict__
-        )
-        await redis.expire_if_owner(LOCK_KEY, token, LOCK_TTL)
+        seen_article_ids = {item.article_id for item in persisted if item.article_id}
+        promoted = 0
+        for clean in cleaned:
+            article = await session.scalar(select(Article).where(Article.url_hash == clean.url_hash))
+            if not article or article.id in seen_article_ids or not clean.image_url:
+                continue
+            article.last_seen_at = now
+            article.image_url = clean.image_url
+            existing = await session.scalar(select(Signal).where(Signal.article_id == article.id))
+            if existing:
+                existing.image_url = clean.image_url
+                existing.run_id = run.id
+                existing.published_at = existing.published_at or clean.published_at
+                signals.append(existing)
+                seen_article_ids.add(article.id)
+                continue
+            created = Signal(
+                article_id=article.id,
+                run_id=run.id,
+                image_url=clean.image_url,
+                source_name=clean.source_name or article.source_name or "source",
+                source_url=clean.canonical_url,
+                title=article.title or clean.title,
+                summary=article.description or clean.summary or "",
+                category=article.category or clean.category,
+                published_at=article.published_at or clean.published_at,
+            )
+            session.add(created)
+            await session.flush()
+            signals.append(created)
+            seen_article_ids.add(article.id)
+            promoted += 1
+        if promoted:
+            logger.info("pipeline.promoted existing articles into signals count=%s", promoted)
 
         edges = build_edges(persisted, index_to_signal)
         for signal in signals:
@@ -326,9 +373,42 @@ async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: 
         for edge in edges:
             session.add(edge)
 
+        seen_ids = {signal.id for signal in signals}
+        for existing in await list_live_imaged(session, 40):
+            if existing.id not in seen_ids and existing.image_url:
+                signals.append(existing)
+                seen_ids.add(existing.id)
+        if edges or seen_ids:
+            extra_edges = await relationships_for(session, list(seen_ids))
+            known = {(edge.source_id, edge.target_id, edge.rel_type) for edge in edges}
+            for edge in extra_edges:
+                key = (edge.source_id, edge.target_id, edge.rel_type)
+                if key not in known:
+                    edges.append(edge)
+                    known.add(key)
+
+        imaged = [signal for signal in signals if signal.image_url]
+        if not imaged:
+            run.status = "partial"
+            run.finished_at = utcnow()
+            run.stats = {
+                "fetched": len(raw_items),
+                "rejected_no_image": rejected,
+                "accepted": len(accepted_pairs),
+                "deduped": len(unique),
+                "hf_ok": hf_ok,
+                "llm_ok": llm_ok,
+                "signals": 0,
+                "kept_previous_snapshot": True,
+            }
+            await session.commit()
+            await write_job(redis, run)
+            logger.info("pipeline.end kept previous snapshot; no imaged signals this cycle")
+            return run
+
         await session.execute(update(Snapshot).where(Snapshot.active.is_(True)).values(active=False))
         by_cat: dict[str, list[float]] = {}
-        for signal in signals:
+        for signal in imaged:
             by_cat.setdefault(signal.category, []).append(signal.pulse)
         pulse_history = []
         for category, values in by_cat.items():
@@ -338,6 +418,24 @@ async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: 
 
         category_counts = {category: len(by_cat.get(category, [])) for category in settings.mvp_categories}
         partial = any(count < 4 for count in category_counts.values())
+        after_ai = take(
+            [
+                {
+                    **signal_row(signal),
+                    "entities": (signal.entities or [])[:6],
+                    "why_it_matters": (signal.why_it_matters or "")[:220],
+                }
+                for signal in imaged
+            ]
+        )
+        inspect = {
+            **((run.stats or {}).get("inspect") or {}),
+            "hf": after_ai,
+            "llm": after_ai,
+            "signals": after_ai,
+            "snapshot": after_ai,
+            "frontend": after_ai,
+        }
         stats = {
             "fetched": len(raw_items),
             "rejected_no_image": rejected,
@@ -345,20 +443,76 @@ async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: 
             "deduped": len(unique),
             "hf_ok": hf_ok,
             "llm_ok": llm_ok,
-            "signals": len(signals),
-            "rag_chunks": rag_chunks,
+            "signals": len(imaged),
             "categories": category_counts,
+            "inspect": inspect,
         }
         pipeline_status = {
-            "news": "cached_core_v2_snapshot",
+            "news": "live",
             "source_of_truth": "snapshots,signals",
-            "queue": {"accepted": len(unique), "signals": len(signals)},
+            "queue": {"accepted": len(unique), "signals": len(imaged), "running": 0, "pending": 0},
             "ai_circuit_open": bool(await redis.get("newsintel:circuit:ai")),
             "stages": run.stages,
+            "latest_cycle": {"status": "partial" if partial else "succeeded"},
         }
+        run.stages.append(
+            asdict(
+                StageStat(
+                    name="signals",
+                    started_at=datetime.now(timezone.utc).isoformat(),
+                    finished_at=datetime.now(timezone.utc).isoformat(),
+                    elapsed_ms=0,
+                    counts={"signals": len(imaged)},
+                )
+            )
+        )
+        publish("stage", name="signals", status="done", counts={"signals": len(imaged)}, run_id=str(run.id))
+
+        # Index the new signals into the RAG corpus so Ask has something to search.
+        # Failures are recorded on the run but never abort it: the dashboard snapshot
+        # is still valid without fresh embeddings.
+        publish("stage", name="rag_index", status="running", run_id=str(run.id))
+        rag_started = datetime.now(timezone.utc)
+        rag_chunks = 0
+        rag_neurons = 0.0
+        rag_error = ""
+        try:
+            rag_chunks, rag_calls = await index_signals(session, imaged)
+            rag_neurons = round(sum(call.neurons for call in rag_calls), 4)
+        except Exception as exc:  # noqa: BLE001 - stage degrades, never aborts
+            rag_error = str(exc)[:300]
+            logger.warning("rag.index stage failed: %s", rag_error)
+        rag_finished = datetime.now(timezone.utc)
+        run.stages.append(
+            asdict(
+                StageStat(
+                    name="rag_index",
+                    started_at=rag_started.isoformat(),
+                    finished_at=rag_finished.isoformat(),
+                    elapsed_ms=int((rag_finished - rag_started).total_seconds() * 1000),
+                    counts={
+                        "chunks_indexed": rag_chunks,
+                        "signals_in": len(imaged),
+                        "neurons": rag_neurons,
+                        **({"error": rag_error} if rag_error else {}),
+                    },
+                )
+            )
+        )
+        stats["rag_chunks"] = rag_chunks
+        publish(
+            "stage",
+            name="rag_index",
+            status="done",
+            counts={"chunks_indexed": rag_chunks},
+            run_id=str(run.id),
+        )
+        await redis.expire_if_owner(LOCK_KEY, token, LOCK_TTL)
+
+        publish("stage", name="snapshot", status="running", run_id=str(run.id))
         payload = build_snapshot_payload(
             run_id=run.id,
-            signals=signals,
+            signals=imaged,
             relationships=edges,
             pipeline_status=pipeline_status,
             pulse_history=pulse_history,
@@ -376,6 +530,14 @@ async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: 
         run.stats = stats
         await session.commit()
         await redis.set_json(SNAPSHOT_KEY, payload, ttl_seconds=settings.dashboard_cache_ttl_seconds)
+        publish(
+            "snapshot",
+            status=run.status,
+            signals=len(imaged),
+            fetched=len(raw_items),
+            accepted=len(accepted_pairs),
+            run_id=str(run.id),
+        )
         await redis.set(COOLDOWN_KEY, str(run.id), ttl_seconds=COOLDOWN_TTL)
         await redis.delete(REFRESH_KEY)
         await write_job(redis, run)

@@ -1,8 +1,10 @@
-"""Ask NewsIntel — hybrid RAG over the indexed signal corpus.
+"""Ask NewsIntel — hybrid RAG over the indexed signal corpus, plus web background.
 
-Replaces the previous implementation, which ranked stories by counting how many
-question words appeared in the title. See app/services/rag.py for the retrieval
-pipeline; every response carries a step-by-step trace of how the answer was reached.
+Retrieval (app/services/rag.py) runs vector + lexical search over NewsIntel's own
+archive, fuses and reranks the candidates, then optionally adds Wikipedia/DuckDuckGo
+background so the model can explain terms the archive assumes you already know.
+Archive passages and web items share one [S#] citation sequence, and every response
+carries a step-by-step trace of how the answer was reached.
 """
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -23,6 +25,7 @@ class AskRequest(BaseModel):
     # None searches the whole corpus; the default keeps answers current.
     days: int | None = Field(default=14, ge=1, le=90)
     personalize: bool = True
+    include_web: bool = True
 
 
 @router.post("/api/ask")
@@ -47,6 +50,7 @@ async def ask_newsintel(
         profile=profile,
         days=payload.days,
         max_sources=payload.max_sources,
+        include_web=payload.include_web,
     )
     if result.get("status") == "error":
         raise HTTPException(status_code=503, detail=result.get("error") or "Ask is unavailable.")

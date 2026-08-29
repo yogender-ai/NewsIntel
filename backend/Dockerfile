@@ -16,6 +16,11 @@ RUN python -c "import nltk; nltk.download('punkt_tab', quiet=True)"
 
 COPY . .
 
+ENV EMBED_WORKER=1
+ENV HF_SPACE_URL=YAsh213kadian/News-Intel
+
 EXPOSE 8000
 
-CMD alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}
+# `main:app` re-exports the clean router app in app/main.py.
+# Alembic must never block boot if the image and DB revision diverge.
+CMD (alembic upgrade head || true) && uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}

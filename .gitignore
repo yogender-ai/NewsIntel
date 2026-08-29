@@ -32,3 +32,5 @@ install_log.txt
 hf_deploy_1/
 hf_deploy_2/
 News-Intel_HF_space_2/
+.vercel
+.env*

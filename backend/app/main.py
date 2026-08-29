@@ -1,3 +1,5 @@
+import asyncio
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -13,8 +15,19 @@ from app.core.schema import ensure_core_v2_schema
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await ensure_core_v2_schema()
-    await redis_api.connect()
+    try:
+        await redis_api.connect()
+    except Exception as exc:
+        print(f"redis connect skipped: {exc}")
+    worker_task = None
+    embed = os.getenv("EMBED_WORKER", os.getenv("OIL_EMBED_WORKER", "1"))
+    if embed == "1":
+        from app.worker import embed_worker
+
+        worker_task = asyncio.create_task(embed_worker(redis_api))
     yield
+    if worker_task:
+        worker_task.cancel()
     await redis_api.close()
     await engine.dispose()
 

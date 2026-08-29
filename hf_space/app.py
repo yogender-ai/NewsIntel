@@ -10,14 +10,10 @@ Deploy to: huggingface.co/spaces/<your-username>/newsintel-nlp
 
 import gradio as gr
 from transformers import pipeline
-from sentence_transformers import SentenceTransformer
 import json
 
-# ── Load Models (cached on Space startup) ────────────────────────────────────
-print("Loading summarization model...")
-summarizer = pipeline("summarization", model="sshleifer/distilbart-cnn-12-6", device=-1)
-print("✓ Summarization ready")
-
+# Load only the models News-Intel actually calls at ingest time.
+# Summarization is not a task on some transformers builds — keep it lazy/optional.
 print("Loading sentiment model...")
 sentiment_analyzer = pipeline(
     "sentiment-analysis",
@@ -36,11 +32,14 @@ ner_extractor = pipeline(
 )
 print("✓ NER ready")
 
+summarizer = None
+
 
 # ── Endpoint Functions ───────────────────────────────────────────────────────
 
 def summarize(text: str) -> str:
     """Summarize input text using distilbart-cnn-12-6"""
+    global summarizer
     if not text or len(text.strip()) < 30:
         return json.dumps({"error": "Text too short for summarization", "min_length": 30})
 
@@ -49,6 +48,11 @@ def summarize(text: str) -> str:
     truncated = text[:3000]
 
     try:
+        if summarizer is None:
+            try:
+                summarizer = pipeline("summarization", model="sshleifer/distilbart-cnn-12-6", device=-1)
+            except Exception as exc:
+                return json.dumps({"error": f"summarization unavailable: {exc}", "summary": truncated[:400]})
         result = summarizer(
             truncated,
             max_length=150,
@@ -169,6 +173,8 @@ def embed(text: str) -> str:
         return json.dumps({"error": "Text too short for embedding"})
     try:
         if embedding_model is None:
+            from sentence_transformers import SentenceTransformer
+
             embedding_model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2", device="cpu")
         vector = embedding_model.encode(text[:8000], normalize_embeddings=True).tolist()
         return json.dumps({
@@ -205,33 +211,33 @@ with gr.Blocks(title="News-Intel NLP Pipeline") as demo:
         sum_input = gr.Textbox(label="Input Text", lines=8, placeholder="Paste news article text here...")
         sum_output = gr.Textbox(label="Result (JSON)", lines=6)
         sum_btn = gr.Button("Summarize", variant="primary")
-        sum_btn.click(fn=summarize, inputs=sum_input, outputs=sum_output)
+        sum_btn.click(fn=summarize, inputs=sum_input, outputs=sum_output, api_name="summarize")
 
     with gr.Tab("Sentiment"):
         gr.Markdown("### Analyze sentiment using RoBERTa")
         sent_input = gr.Textbox(label="Input Text", lines=5, placeholder="Enter text to analyze sentiment...")
         sent_output = gr.Textbox(label="Result (JSON)", lines=6)
         sent_btn = gr.Button("Analyze Sentiment", variant="primary")
-        sent_btn.click(fn=analyze_sentiment, inputs=sent_input, outputs=sent_output)
+        sent_btn.click(fn=analyze_sentiment, inputs=sent_input, outputs=sent_output, api_name="analyze_sentiment")
 
     with gr.Tab("NER"):
         gr.Markdown("### Extract entities using BERT-NER")
         ner_input = gr.Textbox(label="Input Text", lines=5, placeholder="Enter text to extract entities...")
         ner_output = gr.Textbox(label="Result (JSON)", lines=8)
         ner_btn = gr.Button("Extract Entities", variant="primary")
-        ner_btn.click(fn=extract_entities, inputs=ner_input, outputs=ner_output)
+        ner_btn.click(fn=extract_entities, inputs=ner_input, outputs=ner_output, api_name="extract_entities")
 
     with gr.Tab("Embeddings"):
         gr.Markdown("### Create semantic embeddings using all-MiniLM-L6-v2")
         embed_input = gr.Textbox(label="Input Text", lines=5, placeholder="Enter text to embed...")
         embed_output = gr.Textbox(label="Result (JSON)", lines=8)
         embed_btn = gr.Button("Embed", variant="primary")
-        embed_btn.click(fn=embed, inputs=embed_input, outputs=embed_output)
+        embed_btn.click(fn=embed, inputs=embed_input, outputs=embed_output, api_name="embed")
 
     with gr.Tab("Health"):
         gr.Markdown("### System Health Check")
         health_output = gr.Textbox(label="Status", lines=6)
         health_btn = gr.Button("Check Health")
-        health_btn.click(fn=health_check, outputs=health_output)
+        health_btn.click(fn=health_check, outputs=health_output, api_name="health_check")
 
 demo.launch()

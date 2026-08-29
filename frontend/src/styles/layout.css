@@ -318,3 +318,13 @@
   .ask-input { min-width: 0; }
   .chip-grid { grid-template-columns: 1fr; }
 }
+
+/* ── Simulator meters ───────────────────────────────────────────── */
+.meter { display: flex; flex-direction: column; gap: 6px; }
+.meter-track {
+  height: 8px; border-radius: 999px; background: var(--surface-3); overflow: hidden;
+}
+.meter-fill {
+  height: 100%; border-radius: 999px; background: var(--accent);
+  transition: width .4s var(--ease);
+}

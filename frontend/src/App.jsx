@@ -10,6 +10,7 @@ import Today from './pages/Today';
 import Ask from './pages/Ask';
 import Connections from './pages/Connections';
 import Pipeline from './pages/Pipeline';
+import Simulator from './pages/Simulator';
 import Settings from './pages/Settings';
 import './styles/theme.css';
 import './styles/layout.css';
@@ -49,6 +50,7 @@ function AppRoutes() {
       <Route path="/ask" element={<Private><Ask /></Private>} />
       <Route path="/connections" element={<Private><Connections /></Private>} />
       <Route path="/pipeline" element={<Private><Pipeline /></Private>} />
+      <Route path="/simulator" element={<Private><Simulator /></Private>} />
       <Route path="/settings" element={<Private allowUnonboarded><Settings /></Private>} />
       <Route path="/" element={<Navigate to="/today" replace />} />
       <Route path="*" element={<Navigate to="/today" replace />} />

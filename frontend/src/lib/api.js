@@ -154,6 +154,14 @@ export const api = {
   orbit: () => request('/api/orbit'),
   pipelineMonitor: () => request('/api/pipeline/monitor'),
 
+  /* ── simulator ── */
+  simulate: (scenario, assumptions = {}, base_event_id = null) =>
+    request('/api/simulate', {
+      method: 'POST',
+      body: { scenario, assumptions, base_event_id },
+      timeoutMs: 120000,
+    }),
+
   /* ── ask (RAG) ── */
   ask: (question, { days = 14, max_sources = 8, personalize = true } = {}) =>
     request('/api/ask', {
