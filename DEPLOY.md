@@ -49,6 +49,11 @@ array) and cannot reach Vectorize. That is expected — vectors live in Neon.
 
 ## 3. Render — API
 
+The live service is **`newsintel-3igw`** in the `yogender.aiml@gmail.com` workspace.
+`newsintel-xvhe` (the other workspace) is **suspended** and must not be used — it was
+what the old `vercel.json` proxied to, which is why the frontend saw 503s.
+
+
 Set these environment variables on `newsintel-api`:
 
 | Variable | Value |
@@ -80,7 +85,7 @@ Or connect the GitHub repo in the Cloudflare dashboard:
 - **Build command:** `npm run build`
 - **Build output directory:** `dist`
 - **Root directory:** `frontend`
-- **Environment variable:** `VITE_API_URL=https://newsintel-xvhe.onrender.com`
+- **Environment variable:** `VITE_API_URL=https://newsintel-3igw.onrender.com`
 
 `VITE_API_URL` is read at **build time**, not runtime — changing it requires a
 rebuild, not just a restart.
@@ -93,7 +98,7 @@ rebuild, not just a restart.
 The Ask page is empty until the pipeline has indexed something. Trigger a run:
 
 ```bash
-curl -X POST https://newsintel-xvhe.onrender.com/api/admin/ingest-now \
+curl -X POST https://newsintel-3igw.onrender.com/api/admin/ingest-now \
   -H "X-Ingest-Secret: $INGEST_SECRET"
 ```
 
