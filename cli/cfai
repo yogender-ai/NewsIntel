@@ -1,0 +1,240 @@
+#!/usr/bin/env python3
+"""cfai — talk to Cloudflare Workers AI from the terminal.
+
+    cfai "explain pgvector HNSW indexes"      one-shot question
+    cfai                                       interactive REPL
+    echo "$CODE" | cfai "review this"          reads piped stdin as context
+    cfai -m llama "..."                        pick a model by substring
+    cfai --models                              list available models
+
+Credentials come from CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN, falling
+back to ~/.config/cfai/config.json, then to the News-Intel backend/.env so an
+existing checkout works with no extra setup.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import pathlib
+import sys
+import urllib.error
+import urllib.request
+
+API = "https://api.cloudflare.com/client/v4"
+CONFIG = pathlib.Path.home() / ".config" / "cfai" / "config.json"
+HISTORY = pathlib.Path.home() / ".config" / "cfai" / "history.json"
+
+MODELS = {
+    "gpt-oss": "@cf/openai/gpt-oss-120b",
+    "gpt-oss-20b": "@cf/openai/gpt-oss-20b",
+    "llama": "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    "coder": "@cf/qwen/qwen2.5-coder-32b-instruct",
+    "mistral": "@cf/mistralai/mistral-small-3.1-24b-instruct",
+}
+DEFAULT = "gpt-oss"
+
+# gpt-oss spends tokens on hidden reasoning before any visible output, so a small
+# budget comes back empty with finish_reason=length.
+REASONING_MIN_TOKENS = 400
+
+C = {
+    "dim": "\033[2m", "bold": "\033[1m", "green": "\033[32m",
+    "cyan": "\033[36m", "red": "\033[31m", "off": "\033[0m",
+}
+
+
+def color(name: str, text: str) -> str:
+    if not sys.stdout.isatty() or os.getenv("NO_COLOR"):
+        return text
+    return f"{C[name]}{text}{C['off']}"
+
+
+def _from_env_file(path: pathlib.Path) -> dict:
+    found = {}
+    try:
+        for line in path.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            key = key.strip()
+            if key in ("CLOUDFLARE_ACCOUNT_ID", "CLOUDFLARE_API_TOKEN"):
+                found[key] = value.strip().strip('"').strip("'")
+    except OSError:
+        pass
+    return found
+
+
+def credentials() -> tuple[str, str]:
+    account = os.getenv("CLOUDFLARE_ACCOUNT_ID", "")
+    token = os.getenv("CLOUDFLARE_API_TOKEN", "")
+    if account and token:
+        return account, token
+
+    if CONFIG.exists():
+        try:
+            data = json.loads(CONFIG.read_text())
+            account = account or data.get("account_id", "")
+            token = token or data.get("api_token", "")
+        except (OSError, json.JSONDecodeError):
+            pass
+    if account and token:
+        return account, token
+
+    # Fall back to a News-Intel checkout so this works out of the box there.
+    for candidate in (
+        pathlib.Path(__file__).resolve().parent.parent / "backend" / ".env",
+        pathlib.Path.cwd() / "backend" / ".env",
+        pathlib.Path.cwd() / ".env",
+    ):
+        if candidate.exists():
+            found = _from_env_file(candidate)
+            account = account or found.get("CLOUDFLARE_ACCOUNT_ID", "")
+            token = token or found.get("CLOUDFLARE_API_TOKEN", "")
+            if account and token:
+                return account, token
+
+    sys.exit(
+        color("red", "No Cloudflare credentials.\n")
+        + "Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN, or run:\n"
+        + color("dim", "  cfai --login\n")
+    )
+
+
+def resolve_model(name: str | None) -> str:
+    if not name:
+        return MODELS[DEFAULT]
+    if name.startswith("@cf/"):
+        return name
+    for key, full in MODELS.items():
+        if name.lower() in key:
+            return full
+    sys.exit(color("red", f"Unknown model '{name}'. Try: {', '.join(MODELS)}"))
+
+
+def stream_chat(account: str, token: str, model: str, messages: list[dict], max_tokens: int) -> str:
+    if "gpt-oss" in model:
+        max_tokens = max(max_tokens, REASONING_MIN_TOKENS)
+    body = json.dumps({
+        "model": model, "messages": messages,
+        "max_tokens": max_tokens, "temperature": 0.7, "stream": True,
+    }).encode()
+    request = urllib.request.Request(
+        f"{API}/accounts/{account}/ai/v1/chat/completions",
+        data=body,
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+    )
+    out = []
+    try:
+        with urllib.request.urlopen(request, timeout=180) as response:
+            for raw in response:
+                line = raw.decode("utf-8", "replace").strip()
+                if not line.startswith("data: "):
+                    continue
+                chunk = line[6:]
+                if chunk == "[DONE]":
+                    break
+                try:
+                    parsed = json.loads(chunk)
+                except json.JSONDecodeError:
+                    continue
+                delta = (parsed.get("choices") or [{}])[0].get("delta") or {}
+                text = delta.get("content")
+                if text:
+                    out.append(text)
+                    sys.stdout.write(text)
+                    sys.stdout.flush()
+    except urllib.error.HTTPError as exc:
+        detail = exc.read().decode("utf-8", "replace")[:300]
+        sys.exit(color("red", f"\nHTTP {exc.code}: {detail}"))
+    except urllib.error.URLError as exc:
+        sys.exit(color("red", f"\nNetwork error: {exc.reason}"))
+    except KeyboardInterrupt:
+        print()
+    print()
+    return "".join(out)
+
+
+def do_login() -> None:
+    CONFIG.parent.mkdir(parents=True, exist_ok=True)
+    account = input("Cloudflare account id: ").strip()
+    token = input("Workers AI API token: ").strip()
+    CONFIG.write_text(json.dumps({"account_id": account, "api_token": token}, indent=2))
+    CONFIG.chmod(0o600)
+    print(color("green", f"Saved to {CONFIG} (mode 600)"))
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(prog="cfai", add_help=True,
+                                     description="Chat with Cloudflare Workers AI from the terminal.")
+    parser.add_argument("prompt", nargs="*", help="your question; omit for an interactive session")
+    parser.add_argument("-m", "--model", help=f"model name or substring ({', '.join(MODELS)})")
+    parser.add_argument("-t", "--max-tokens", type=int, default=1200)
+    parser.add_argument("-s", "--system", help="system prompt")
+    parser.add_argument("--models", action="store_true", help="list models and exit")
+    parser.add_argument("--login", action="store_true", help="save credentials")
+    args = parser.parse_args()
+
+    if args.login:
+        do_login()
+        return
+    if args.models:
+        for key, full in MODELS.items():
+            mark = " (default)" if key == DEFAULT else ""
+            print(f"  {color('cyan', key):<22} {full}{mark}")
+        return
+
+    account, token = credentials()
+    model = resolve_model(args.model)
+
+    messages: list[dict] = []
+    if args.system:
+        messages.append({"role": "system", "content": args.system})
+
+    # Piped stdin becomes context for the prompt: `cat main.py | cfai "find bugs"`.
+    piped = ""
+    if not sys.stdin.isatty():
+        piped = sys.stdin.read().strip()
+
+    prompt = " ".join(args.prompt).strip()
+
+    if prompt or piped:
+        content = f"{prompt}\n\n{piped}" if (prompt and piped) else (prompt or piped)
+        messages.append({"role": "user", "content": content})
+        stream_chat(account, token, model, messages, args.max_tokens)
+        return
+
+    # Interactive session.
+    print(color("dim", f"cfai · {model}"))
+    print(color("dim", "Ctrl-C to interrupt a reply, Ctrl-D to exit, /reset to clear, /model <name> to switch.\n"))
+    while True:
+        try:
+            line = input(color("green", "› ")).strip()
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return
+        if not line:
+            continue
+        if line in ("/exit", "/quit"):
+            return
+        if line == "/reset":
+            messages = [m for m in messages if m["role"] == "system"]
+            print(color("dim", "context cleared\n"))
+            continue
+        if line.startswith("/model"):
+            parts = line.split(maxsplit=1)
+            if len(parts) == 2:
+                model = resolve_model(parts[1])
+                print(color("dim", f"switched to {model}\n"))
+            continue
+
+        messages.append({"role": "user", "content": line})
+        reply = stream_chat(account, token, model, messages, args.max_tokens)
+        messages.append({"role": "assistant", "content": reply})
+        print()
+
+
+if __name__ == "__main__":
+    main()

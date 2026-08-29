@@ -94,7 +94,24 @@ async function refreshAccessToken() {
   return refreshInFlight;
 }
 
-async function request(path, { method = 'GET', body, timeoutMs = 30000, auth = true, retryOn401 = true } = {}) {
+/* The API sleeps on Render's free tier and can take 60-90s to boot. A single
+   attempt with a short deadline reports "timed out" on what is really a cold
+   start, so requests get a generous deadline and one automatic retry. */
+export const WAKE_HINT = 'The server was asleep and is starting up. This can take up to a minute.';
+
+let wakePromise = null;
+
+export function wakeServer() {
+  if (!wakePromise) {
+    wakePromise = fetch(`${API_BASE}/health`, { method: 'GET' })
+      .then(() => true)
+      .catch(() => false)
+      .finally(() => { wakePromise = null; });
+  }
+  return wakePromise;
+}
+
+async function request(path, { method = 'GET', body, timeoutMs = 90000, auth = true, retryOn401 = true, retryOnTimeout = true } = {}) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   const headers = {};
@@ -112,10 +129,16 @@ async function request(path, { method = 'GET', body, timeoutMs = 30000, auth = t
     });
   } catch (err) {
     clearTimeout(timer);
-    if (err.name === 'AbortError') {
-      throw new ApiError('The request timed out. The server may be waking up.', 0, null);
+    // A cold start refuses or drops the first connection; wait for the server to
+    // come up and try once more before surfacing an error.
+    if (retryOnTimeout) {
+      await wakeServer();
+      return request(path, { method, body, timeoutMs, auth, retryOn401, retryOnTimeout: false });
     }
-    throw new ApiError('Could not reach the server. Check your connection.', 0, null);
+    if (err.name === 'AbortError') {
+      throw new ApiError(`Timed out. ${WAKE_HINT}`, 0, null);
+    }
+    throw new ApiError('Could not reach the server. Check your connection and try again.', 0, null);
   }
   clearTimeout(timer);
 
@@ -153,6 +176,45 @@ export const api = {
   story: (id) => request(`/api/story/${encodeURIComponent(id)}`),
   orbit: () => request('/api/orbit'),
   pipelineMonitor: () => request('/api/pipeline/monitor'),
+
+  /* ── chat (open assistant on Workers AI) ── */
+  chatModels: () => request('/api/chat/models', { auth: false }),
+
+  /* Streams tokens over SSE. onDelta receives each fragment; resolves when done. */
+  chatStream: async (messages, { model, onDelta, signal, temperature = 0.7 } = {}) => {
+    const res = await fetch(`${API_BASE}/api/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(tokens.access() ? { Authorization: `Bearer ${tokens.access()}` } : {}),
+      },
+      body: JSON.stringify({ messages, model, temperature, stream: true }),
+      signal,
+    });
+    if (!res.ok) throw await toError(res);
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let full = '';
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      // SSE frames are separated by a blank line; keep any partial frame buffered.
+      const frames = buffer.split('\n\n');
+      buffer = frames.pop() ?? '';
+      for (const frame of frames) {
+        const line = frame.split('\n').find((l) => l.startsWith('data: '));
+        if (!line) continue;
+        let evt;
+        try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+        if (evt.error) throw new ApiError(evt.error, 502, null);
+        if (evt.delta) { full += evt.delta; onDelta?.(evt.delta, full); }
+      }
+    }
+    return full;
+  },
 
   /* ── simulator ── */
   simulate: (scenario, assumptions = {}, base_event_id = null) =>

@@ -4,6 +4,7 @@ from app.api.routes import (
     admin,
     ask,
     auth,
+    chat,
     health,
     jobs,
     legacy,
@@ -24,6 +25,7 @@ api_router.include_router(stories.router)
 api_router.include_router(jobs.router)
 api_router.include_router(admin.router)
 api_router.include_router(ask.router)
+api_router.include_router(chat.router)
 api_router.include_router(map.router)
 api_router.include_router(orbit.router)
 api_router.include_router(monitor.router)

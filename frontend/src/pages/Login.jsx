@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/auth-context';
+import { wakeServer } from '../lib/api';
 
 export default function Login() {
   const { login, isAuthed, loading } = useAuth();
@@ -9,6 +10,10 @@ export default function Login() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
+
+  // The API sleeps on the free tier. Start it booting while the reader types,
+  // so the wait is absorbed instead of landing on the submit button.
+  useEffect(() => { wakeServer(); }, []);
 
   if (loading) return <div className="auth-page" />;
   if (isAuthed) return <Navigate to="/today" replace />;

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
-  Activity, Compass, FlaskConical, LayoutGrid, LogOut, Menu, MessageSquareText,
+  Activity, Compass, FlaskConical, LayoutGrid, LogOut, Menu, MessageSquareText, Sparkles,
   Moon, Settings, Sun, Monitor, X,
 } from 'lucide-react';
 import { useAuth } from '../context/auth-context';
@@ -10,6 +10,7 @@ import { useTheme } from '../context/theme-context';
 const NAV = [
   { to: '/today', label: 'Today', icon: LayoutGrid, blurb: 'What matters now' },
   { to: '/ask', label: 'Ask', icon: MessageSquareText, blurb: 'Question the news' },
+  { to: '/chat', label: 'Assistant', icon: Sparkles, blurb: 'Open AI chat' },
   { to: '/connections', label: 'Connections', icon: Compass, blurb: 'How stories link' },
   { to: '/simulator', label: 'What if', icon: FlaskConical, blurb: 'Test a scenario' },
   { to: '/pipeline', label: 'Pipeline', icon: Activity, blurb: 'How news gets here' },

@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/auth-context';
+import { wakeServer } from '../lib/api';
 
 export default function Signup() {
   const { signup, isAuthed, loading } = useAuth();
@@ -8,6 +9,10 @@ export default function Signup() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
+
+  // The API sleeps on the free tier. Start it booting while the reader types,
+  // so the wait is absorbed instead of landing on the submit button.
+  useEffect(() => { wakeServer(); }, []);
 
   if (loading) return <div className="auth-page" />;
   if (isAuthed) return <Navigate to="/today" replace />;
@@ -68,7 +73,7 @@ export default function Signup() {
           {error && <p className="form-error" role="alert">{error}</p>}
 
           <button className="btn btn-primary" type="submit" disabled={busy || weak || noMix}>
-            {busy ? 'Creating…' : 'Create account'}
+            {busy ? 'Creating your account…' : 'Create account'}
           </button>
         </form>
 

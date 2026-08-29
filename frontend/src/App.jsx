@@ -8,6 +8,7 @@ import Signup from './pages/Signup';
 import Onboarding from './pages/Onboarding';
 import Today from './pages/Today';
 import Ask from './pages/Ask';
+import Chat from './pages/Chat';
 import Connections from './pages/Connections';
 import Pipeline from './pages/Pipeline';
 import Simulator from './pages/Simulator';
@@ -48,6 +49,7 @@ function AppRoutes() {
       />
       <Route path="/today" element={<Private><Today /></Private>} />
       <Route path="/ask" element={<Private><Ask /></Private>} />
+      <Route path="/chat" element={<Private><Chat /></Private>} />
       <Route path="/connections" element={<Private><Connections /></Private>} />
       <Route path="/pipeline" element={<Private><Pipeline /></Private>} />
       <Route path="/simulator" element={<Private><Simulator /></Private>} />
