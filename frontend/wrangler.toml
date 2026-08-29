@@ -1,0 +1,5 @@
+# Cloudflare Pages project config.
+# Deploy with:  npx wrangler pages deploy dist --project-name=newsintel
+name = "newsintel"
+pages_build_output_dir = "dist"
+compatibility_date = "2026-08-30"

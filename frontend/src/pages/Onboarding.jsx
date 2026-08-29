@@ -1,151 +1,220 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { api } from '../api';
-import { useAuth } from '../context/AuthContext';
+import { useMemo, useState } from 'react';
+import { Navigate, useNavigate } from 'react-router-dom';
+import { ArrowLeft, ArrowRight, Check } from 'lucide-react';
+import { useAuth } from '../context/auth-context';
+import { REGIONS, SENIORITY, TOPICS } from '../lib/taxonomy';
 
-const TOPICS = [
-  { id: 'tech', label: 'Technology', icon: '⚡' },
-  { id: 'politics', label: 'Geopolitics', icon: '🌐' },
-  { id: 'markets', label: 'Markets & Finance', icon: '📈' },
-  { id: 'ai', label: 'AI & ML', icon: '🧠' },
-  { id: 'climate', label: 'Climate & Energy', icon: '🌍' },
-  { id: 'healthcare', label: 'Healthcare & Pharma', icon: '🏥' },
-  { id: 'defense', label: 'Defense & Security', icon: '🛡' },
-  { id: 'crypto', label: 'Crypto & Web3', icon: '₿' },
-  { id: 'space', label: 'Space & Aerospace', icon: '🚀' },
-  { id: 'trade', label: 'Supply Chain & Trade', icon: '🚢' },
-  { id: 'auto', label: 'Automotive & EVs', icon: '🚗' },
-  { id: 'telecom', label: 'Telecom & 5G', icon: '📡' },
-  { id: 'real-estate', label: 'Real Estate', icon: '🏗' },
-  { id: 'media', label: 'Media & Entertainment', icon: '🎬' },
-  { id: 'education', label: 'Education & EdTech', icon: '🎓' },
-  { id: 'legal', label: 'Legal & Regulation', icon: '⚖️' },
-];
-
-const REGIONS = [
-  { id: 'global', label: 'Global (All)', flag: '🌍' },
-  { id: 'us', label: 'United States', flag: '🇺🇸' },
-  { id: 'china', label: 'China', flag: '🇨🇳' },
-  { id: 'india', label: 'India', flag: '🇮🇳' },
-  { id: 'europe', label: 'Europe', flag: '🇪🇺' },
-  { id: 'middle-east', label: 'Middle East', flag: '🌙' },
-  { id: 'russia', label: 'Russia & CIS', flag: '🇷🇺' },
-  { id: 'japan-korea', label: 'Japan & Korea', flag: '🇯🇵' },
-  { id: 'latam', label: 'Latin America', flag: '🌎' },
-  { id: 'africa', label: 'Africa', flag: '🌍' },
-  { id: 'southeast-asia', label: 'SE Asia', flag: '🇸🇬' },
-  { id: 'uk', label: 'United Kingdom', flag: '🇬🇧' },
-  { id: 'canada', label: 'Canada', flag: '🇨🇦' },
-  { id: 'australia', label: 'Australia & NZ', flag: '🇦🇺' },
-];
+const STEPS = ['Interests', 'Where', 'About you'];
 
 export default function Onboarding() {
-  const { user } = useAuth();
-  const [step, setStep] = useState(1);
-  const [topics, setTopics] = useState([]);
-  const [regions, setRegions] = useState([]);
-  const [saving, setSaving] = useState(false);
+  const { account, profile, saveProfile, loading } = useAuth();
   const navigate = useNavigate();
+  const [step, setStep] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
 
-  const toggle = (item, list, set) => {
-    // Special: if "global" is selected, deselect all others; if selecting a region while global is on, deselect global
-    if (item === 'global' && list !== topics) {
-      set(['global']);
+  const [topics, setTopics] = useState(profile?.topics ?? []);
+  const [regions, setRegions] = useState(profile?.regions ?? []);
+  const [about, setAbout] = useState({
+    occupation: profile?.occupation ?? '',
+    role_title: profile?.role_title ?? '',
+    industry: profile?.industry ?? '',
+    seniority: profile?.seniority ?? '',
+    country: profile?.country ?? '',
+    self_description: profile?.self_description ?? '',
+  });
+
+  const preview = useMemo(() => {
+    const bits = [about.seniority, about.role_title || about.occupation].filter(Boolean).join(' ');
+    const where = about.country ? ` in ${about.country}` : '';
+    const field = about.industry ? `, working in ${about.industry}` : '';
+    return bits ? `${bits}${where}${field}.` : '';
+  }, [about]);
+
+  if (loading) return null;
+  if (!account) return <Navigate to="/login" replace />;
+
+  const toggle = (list, setList, id, { exclusive } = {}) => {
+    if (exclusive && id === 'global') {
+      setList(list.includes('global') ? [] : ['global']);
       return;
     }
-    if (list.includes('global') && item !== 'global' && list !== topics) {
-      set([item]);
-      return;
-    }
-    set(list.includes(item) ? list.filter(i => i !== item) : [...list, item]);
+    const next = list.includes(id) ? list.filter((x) => x !== id) : [...list.filter((x) => x !== 'global'), id];
+    setList(next);
   };
 
-  const handleComplete = async () => {
-    setSaving(true);
+  const canNext = step === 0 ? topics.length >= 2 : step === 1 ? regions.length >= 1 : true;
+
+  const finish = async () => {
+    setBusy(true);
+    setError('');
     try {
-      await api.savePreferences({
-        display_name: user?.displayName || '',
-        email: user?.email || '',
-        photo_url: user?.photoURL || '',
-        preferred_categories: topics, preferred_regions: regions,
-        youtube_channels: [], onboarded: true,
+      await saveProfile({
+        topics, regions, ...about,
+        onboarded: true, onboarding_step: STEPS.length,
       });
-      // Warm the personalized dashboard cache without blocking the launch.
-      api.forceDashboardRefresh(topics, regions).catch(err => console.warn('Dashboard warmup failed', err));
-    } catch (e) { console.error(e); }
-    setSaving(false);
-    navigate('/dashboard');
+      navigate('/today', { replace: true });
+    } catch (err) {
+      setError(err.message || 'Could not save your preferences.');
+      setBusy(false);
+    }
   };
 
   return (
-    <div style={{ maxWidth: 580, margin: '60px auto 0' }}>
-
-      {/* Progress bar */}
-      <div style={{ display: 'flex', gap: 6, marginBottom: 48 }}>
-        {[1, 2].map(s => (
-          <div key={s} style={{
-            flex: 1, height: 2, borderRadius: 1,
-            background: step >= s ? 'var(--accent)' : 'var(--bg-elevated)',
-            transition: 'background 0.4s var(--ease)',
-            boxShadow: step >= s ? '0 0 8px var(--accent-glow)' : 'none',
-          }} />
+    <div className="onboard">
+      <ol className="onboard-steps" aria-label="Progress">
+        {STEPS.map((label, i) => (
+          <li key={label} className={i === step ? 'is-current' : i < step ? 'is-done' : ''}>
+            <span className="onboard-dot">{i < step ? <Check size={12} /> : i + 1}</span>
+            {label}
+          </li>
         ))}
-      </div>
+      </ol>
 
-      {step === 1 && (
-        <div className="fin">
-          <span className="mono-label" style={{ marginBottom: 12, display: 'block' }}>STEP 01 · INTELLIGENCE INTERESTS</span>
-          <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 8 }}>
-            What intelligence do you need?
-          </h1>
-          <p style={{ color: 'var(--text-2)', fontSize: 14, marginBottom: 32, lineHeight: 1.6 }}>
-            Select topics to track. Your feed will prioritize stories matching these interests.
+      {step === 0 && (
+        <section className="onboard-panel">
+          <h1>What should we watch for you?</h1>
+          <p className="onboard-lead">
+            Pick at least two. These decide which newsrooms we read on your behalf —
+            you can change them any time.
           </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 40 }}>
-            {TOPICS.map(t => (
-              <button key={t.id}
-                className={`chip ${topics.includes(t.id) ? 'chip-sel' : ''}`}
-                onClick={() => toggle(t.id, topics, setTopics)}
-              >{t.icon} {t.label}</button>
+          <div className="chip-grid">
+            {TOPICS.map((t) => (
+              <button
+                key={t.id} type="button" className="chip chip-lg"
+                aria-pressed={topics.includes(t.id)}
+                onClick={() => toggle(topics, setTopics, t.id)}
+              >
+                <span className="chip-lg-text">
+                  <strong>{t.label}</strong>
+                  <small>{t.blurb}</small>
+                </span>
+              </button>
             ))}
           </div>
-          <button className="btn btn-primary" style={{ width: '100%', padding: 14, fontSize: 14 }}
-            onClick={() => setStep(2)} disabled={topics.length < 2}>
-            Continue →
-          </button>
-          {topics.length < 2 && (
-            <p style={{ fontSize: 10, color: 'var(--text-3)', textAlign: 'center', marginTop: 8 }}>Select at least 2 topics</p>
-          )}
-        </div>
+        </section>
+      )}
+
+      {step === 1 && (
+        <section className="onboard-panel">
+          <h1>Anywhere in particular?</h1>
+          <p className="onboard-lead">
+            We’ll weight stories from these places more heavily. Choose “Everywhere” if
+            you don’t want a regional bias.
+          </p>
+          <div className="chip-row">
+            {REGIONS.map((r) => (
+              <button
+                key={r.id} type="button" className="chip"
+                aria-pressed={regions.includes(r.id)}
+                onClick={() => toggle(regions, setRegions, r.id, { exclusive: true })}
+              >
+                {r.label}
+              </button>
+            ))}
+          </div>
+        </section>
       )}
 
       {step === 2 && (
-        <div className="fin">
-          <span className="mono-label" style={{ marginBottom: 12, display: 'block' }}>STEP 02 · REGIONS</span>
-          <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: '-0.5px', marginBottom: 8 }}>
-            Where in the world?
-          </h1>
-          <p style={{ color: 'var(--text-2)', fontSize: 14, marginBottom: 32, lineHeight: 1.6 }}>
-            We track tension levels and surface intelligence from these regions.
-            Select <strong style={{ color: 'var(--accent)' }}>Global</strong> for worldwide coverage.
+        <section className="onboard-panel">
+          <h1>Who are you?</h1>
+          <p className="onboard-lead">
+            This is the part that makes NewsIntel different. Knowing what you do lets us
+            explain <em>how a story affects you specifically</em> — not just what happened.
+            Everything here is optional, but the more you say, the sharper that gets.
           </p>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 40 }}>
-            {REGIONS.map(r => (
-              <button key={r.id}
-                className={`chip ${regions.includes(r.id) ? 'chip-sel' : ''}`}
-                onClick={() => toggle(r.id, regions, setRegions)}
-                style={r.id === 'global' ? { borderColor: regions.includes('global') ? 'var(--accent)' : 'var(--accent-border)', fontWeight: 700 } : {}}
-              >{r.flag} {r.label}</button>
-            ))}
+
+          <div className="form-grid">
+            <div>
+              <label className="label" htmlFor="occupation">What do you do?</label>
+              <input
+                id="occupation" className="input" placeholder="Supply chain manager"
+                value={about.occupation}
+                onChange={(e) => setAbout({ ...about, occupation: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="industry">Industry</label>
+              <input
+                id="industry" className="input" placeholder="Consumer electronics"
+                value={about.industry}
+                onChange={(e) => setAbout({ ...about, industry: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="role">Job title</label>
+              <input
+                id="role" className="input" placeholder="Head of Logistics"
+                value={about.role_title}
+                onChange={(e) => setAbout({ ...about, role_title: e.target.value })}
+              />
+            </div>
+            <div>
+              <label className="label" htmlFor="seniority">Level</label>
+              <select
+                id="seniority" className="select" value={about.seniority}
+                onChange={(e) => setAbout({ ...about, seniority: e.target.value })}
+              >
+                <option value="">Prefer not to say</option>
+                {SENIORITY.map((s) => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label" htmlFor="country">Country</label>
+              <input
+                id="country" className="input" placeholder="India"
+                value={about.country}
+                onChange={(e) => setAbout({ ...about, country: e.target.value })}
+              />
+            </div>
           </div>
-          <div style={{ display: 'flex', gap: 12 }}>
-            <button className="btn" onClick={() => setStep(1)}>← Back</button>
-            <button className="btn btn-primary" style={{ flex: 1, padding: 14, fontSize: 14 }}
-              onClick={handleComplete} disabled={regions.length < 1 || saving}>
-              {saving ? 'Launching...' : 'Launch Dashboard →'}
-            </button>
+
+          <div style={{ marginTop: 18 }}>
+            <label className="label" htmlFor="self">In your own words</label>
+            <textarea
+              id="self" className="textarea"
+              placeholder="I import electronics components from Asia into the EU and plan freight budgets each quarter."
+              value={about.self_description}
+              onChange={(e) => setAbout({ ...about, self_description: e.target.value })}
+              aria-describedby="self-hint"
+            />
+            <p className="hint" id="self-hint">
+              One or two sentences about your work and what you worry about. This is the
+              single strongest signal we have for matching news to you.
+            </p>
           </div>
-        </div>
+
+          {preview && (
+            <p className="onboard-preview">
+              We’ll read the news as: <strong>{preview}</strong>
+            </p>
+          )}
+        </section>
+      )}
+
+      {error && <p className="form-error" role="alert">{error}</p>}
+
+      <div className="onboard-actions">
+        {step > 0 && (
+          <button className="btn" onClick={() => setStep((s) => s - 1)} disabled={busy}>
+            <ArrowLeft size={15} aria-hidden="true" /> Back
+          </button>
+        )}
+        <div className="grow" />
+        {step < STEPS.length - 1 ? (
+          <button className="btn btn-primary" onClick={() => setStep((s) => s + 1)} disabled={!canNext}>
+            Continue <ArrowRight size={15} aria-hidden="true" />
+          </button>
+        ) : (
+          <button className="btn btn-primary" onClick={finish} disabled={busy}>
+            {busy ? 'Setting up…' : 'Open my briefing'}
+          </button>
+        )}
+      </div>
+
+      {step === 0 && topics.length < 2 && (
+        <p className="hint onboard-req">Choose at least two topics to continue.</p>
       )}
     </div>
   );

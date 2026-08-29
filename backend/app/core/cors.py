@@ -6,6 +6,8 @@ DEFAULT_ALLOWED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:5173",
     "http://127.0.0.1:3000",
+    "http://localhost:5180",
+    "http://127.0.0.1:5180",
     "https://newsintel.yogender1.me",
     "https://www.newsintel.yogender1.me",
     "https://yogender1.me",
@@ -23,5 +25,9 @@ def allowed_origins() -> list[str]:
     return sorted(set(DEFAULT_ALLOWED_ORIGINS + extra))
 
 
-# Match any subdomain of yogender1.me, vercel.app, or onrender.com
-ALLOWED_ORIGIN_REGEX = r"https://.*(\.yogender1\.me|\.vercel\.app|\.onrender\.com)$"
+# Match any subdomain of yogender1.me, plus the preview/production domains of the
+# hosts we deploy to. pages.dev is Cloudflare Pages, where the frontend now lives —
+# without it the deployed site is blocked by CORS on every API call.
+ALLOWED_ORIGIN_REGEX = (
+    r"https://.*(\.yogender1\.me|\.pages\.dev|\.vercel\.app|\.onrender\.com)$"
+)

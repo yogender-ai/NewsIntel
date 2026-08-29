@@ -1,208 +1,164 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api } from '../api';
-import { useAuth } from '../context/AuthContext';
-import Sidebar from '../components/worldpulse/Sidebar';
-import LockedNavToast from '../components/worldpulse/LockedNavToast';
-import { Pencil, Shield, Trash2, User, Info, ChevronRight } from 'lucide-react';
+import { useAuth } from '../context/auth-context';
+import { api } from '../lib/api';
+import { REGIONS, SENIORITY, TOPICS } from '../lib/taxonomy';
+import { useTheme } from '../context/theme-context';
 
 export default function Settings() {
-  const { user, logout } = useAuth();
+  const { account, profile, saveProfile, logout } = useAuth();
+  const { theme, setTheme } = useTheme();
   const navigate = useNavigate();
-  const [prefs, setPrefs] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [deleting, setDeleting] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [showMethodology, setShowMethodology] = useState(false);
-  const [lockedToast, setLockedToast] = useState('');
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const res = await api.getPreferences();
-        if (res.status === 'success' && res.data) setPrefs(res.data);
-      } catch (e) { console.error(e); }
-      setLoading(false);
-    })();
-  }, []);
+  const [form, setForm] = useState({
+    topics: profile?.topics ?? [],
+    regions: profile?.regions ?? [],
+    occupation: profile?.occupation ?? '',
+    role_title: profile?.role_title ?? '',
+    industry: profile?.industry ?? '',
+    seniority: profile?.seniority ?? '',
+    country: profile?.country ?? '',
+    self_description: profile?.self_description ?? '',
+  });
 
-  useEffect(() => {
-    if (!lockedToast) return;
-    const t = setTimeout(() => setLockedToast(''), 2200);
-    return () => clearTimeout(t);
-  }, [lockedToast]);
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }));
+  const toggle = (key, id) =>
+    setForm((f) => ({
+      ...f,
+      [key]: f[key].includes(id) ? f[key].filter((x) => x !== id) : [...f[key], id],
+    }));
 
-  const handleDelete = async () => {
-    setDeleting(true);
+  const save = async () => {
+    setBusy(true);
+    setError('');
+    try {
+      await saveProfile(form);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (err) {
+      setError(err.message || 'Could not save.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const destroy = async () => {
     try {
       await api.deleteAccount();
       await logout();
-      navigate('/login');
-    } catch (e) {
-      console.error(e);
-      setLockedToast('Failed to delete account data. Try again.');
+      navigate('/signup', { replace: true });
+    } catch (err) {
+      setError(err.message || 'Could not delete the account.');
     }
-    setDeleting(false);
   };
 
-  const cats = useMemo(() => {
-    const raw = prefs?.preferred_categories;
-    if (Array.isArray(raw)) return raw;
-    if (typeof raw === 'string') try { return JSON.parse(raw); } catch { return []; }
-    return [];
-  }, [prefs]);
-
-  const regs = useMemo(() => {
-    const raw = prefs?.preferred_regions;
-    if (Array.isArray(raw)) return raw;
-    if (typeof raw === 'string') try { return JSON.parse(raw); } catch { return []; }
-    return [];
-  }, [prefs]);
-
   return (
-    <div className="world-pulse-page settings-wp-page">
-      <Sidebar
-        preferences={{ hasPreferences: Boolean(cats.length || regs.length), topics: cats, regions: regs, entities: [] }}
-        activeItem="settings"
-        onHome={() => navigate('/dashboard')}
-        onOrbit={() => navigate('/orbit')}
-        onStories={() => navigate('/stories')}
-        onMap={() => navigate('/map')}
-        onSimulator={() => navigate('/simulator')}
-        onLocked={setLockedToast}
-        onWatchlist={() => navigate('/watchlist')}
-        onAlerts={() => navigate('/alerts')}
-        onSetFocus={() => navigate('/onboarding')}
-        onSettings={() => {}}
-      />
-      <main className="world-pulse-main settings-main">
-        <header className="ni-screen-header">
-          <div>
-            <h1>Account Settings</h1>
-            <p>Manage your intelligence profile, preferences, and account data.</p>
-          </div>
-        </header>
-
-        <section className="settings-status-strip">
-          <div className="wp-card settings-status-card">
-            <span>Topics Tracked</span>
-            <b>{cats.length}</b>
-          </div>
-          <div className="wp-card settings-status-card">
-            <span>Regions Tracked</span>
-            <b>{regs.length}</b>
-          </div>
-          <div className="wp-card settings-status-card">
-            <span>Profile State</span>
-            <b>{cats.length || regs.length ? 'Active' : 'Not Set'}</b>
-          </div>
-        </section>
-
-        <div className="settings-grid">
-          {/* User Info */}
-          {user && (
-            <section className="wp-card settings-section">
-              <div className="settings-section-head"><User size={16} /> <span>Account</span></div>
-              <div className="settings-user-row">
-                {user.photoURL && (
-                  <img src={user.photoURL} alt="" className="settings-avatar" />
-                )}
-                <div>
-                  <div className="settings-name">{user.displayName}</div>
-                  <div className="settings-email">{user.email}</div>
-                  {user.uid && <div className="settings-uid">Account ID: {user.uid}</div>}
-                </div>
-              </div>
-            </section>
-          )}
-
-          {/* Intelligence Profile */}
-          <section className="wp-card settings-section">
-            <div className="settings-section-head">
-              <Shield size={16} /> <span>Intelligence Profile</span>
-              <button className="wp-icon-btn" onClick={() => navigate('/onboarding')}><Pencil size={13} /> Edit</button>
-            </div>
-            {loading ? (
-              <div className="settings-loading">Loading profile...</div>
-            ) : prefs ? (
-              <>
-                <div className="settings-pref-block">
-                  <span className="settings-pref-label">Tracked Topics</span>
-                  <div className="settings-chips">
-                    {cats.length > 0 ? cats.map(c => (
-                      <span key={c} className="settings-chip">{c}</span>
-                    )) : <span className="settings-empty-text">None set</span>}
-                  </div>
-                </div>
-                <div className="settings-pref-block">
-                  <span className="settings-pref-label">Tracked Regions</span>
-                  <div className="settings-chips">
-                    {regs.length > 0 ? regs.map(r => (
-                      <span key={r} className="settings-chip">{r}</span>
-                    )) : <span className="settings-empty-text">None set</span>}
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="settings-no-prefs">
-                <p>No intelligence profile is saved yet.</p>
-                <button className="orbit-story-button" onClick={() => navigate('/onboarding')}>
-                  Configure Profile <ChevronRight size={14} />
-                </button>
-              </div>
-            )}
-          </section>
-
-          {/* How Scores Work */}
-          <section className="wp-card settings-section">
-            <div className="settings-section-head">
-              <Info size={16} /> <span>How Scores Work</span>
-              <button className="wp-icon-btn" onClick={() => setShowMethodology(v => !v)}>
-                {showMethodology ? 'Hide' : 'Show'}
-              </button>
-            </div>
-            <p className="settings-desc">Transparent methodology for Delta, Pulse, Exposure, and Signal Tiers.</p>
-            {showMethodology && (
-              <div className="settings-methodology">
-                {[
-                  ['Daily Delta', 'Current Pulse minus the previous 24h baseline. Shows topic movement once enough history exists.'],
-                  ['Pulse Score', '0-100 intensity score using velocity, source count, sentiment, entity impact, and user relevance.'],
-                  ['Exposure Score', 'How much a signal may affect you based on topics, entities, regions, and interaction history.'],
-                  ['Signal Tier', 'Critical, Signal, Watch, and Noise thresholds turn scores into action priority.'],
-                ].map(([title, body]) => (
-                  <div key={title} className="settings-method-card">
-                    <div className="settings-method-title">{title}</div>
-                    <div className="settings-method-body">{body}</div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section className="wp-card settings-section settings-danger">
-            <div className="settings-section-head danger">
-              <Trash2 size={16} /> <span>Account Data</span>
-            </div>
-            <p className="settings-desc">
-              This will permanently delete your saved preferences and log you out.
-              You will need to configure your intelligence profile again on the next login.
-            </p>
-            {!confirmDelete ? (
-              <button className="wp-icon-btn danger" onClick={() => setConfirmDelete(true)}>
-                <Trash2 size={14} /> Delete Account Data
-              </button>
-            ) : (
-              <div className="settings-confirm-row">
-                <button className="wp-icon-btn danger-fill" onClick={handleDelete} disabled={deleting}>
-                  {deleting ? 'Deleting...' : 'Confirm Deletion'}
-                </button>
-                <button className="wp-icon-btn" onClick={() => setConfirmDelete(false)}>Cancel</button>
-              </div>
-            )}
-          </section>
+    <div className="page page-narrow">
+      <header className="page-head">
+        <div>
+          <h1>Settings</h1>
+          <p className="page-sub">Signed in as {account?.email}</p>
         </div>
-      </main>
-      <LockedNavToast message={lockedToast} />
+      </header>
+
+      <section className="card settings-block">
+        <h2>Appearance</h2>
+        <div className="chip-row">
+          {['light', 'dark', 'system'].map((t) => (
+            <button key={t} className="chip" aria-pressed={theme === t} onClick={() => setTheme(t)}>
+              {t[0].toUpperCase() + t.slice(1)}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="card settings-block">
+        <h2>Topics</h2>
+        <p className="hint">What we read on your behalf.</p>
+        <div className="chip-row">
+          {TOPICS.map((t) => (
+            <button key={t.id} className="chip" aria-pressed={form.topics.includes(t.id)}
+              onClick={() => toggle('topics', t.id)}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="card settings-block">
+        <h2>Regions</h2>
+        <div className="chip-row">
+          {REGIONS.map((r) => (
+            <button key={r.id} className="chip" aria-pressed={form.regions.includes(r.id)}
+              onClick={() => toggle('regions', r.id)}>
+              {r.label}
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <section className="card settings-block">
+        <h2>About you</h2>
+        <p className="hint">
+          Used to explain how each story affects your work. The more specific, the better
+          the “what this means for you” lines get.
+        </p>
+        <div className="form-grid">
+          <div>
+            <label className="label" htmlFor="s-occ">Occupation</label>
+            <input id="s-occ" className="input" value={form.occupation} onChange={set('occupation')} />
+          </div>
+          <div>
+            <label className="label" htmlFor="s-ind">Industry</label>
+            <input id="s-ind" className="input" value={form.industry} onChange={set('industry')} />
+          </div>
+          <div>
+            <label className="label" htmlFor="s-role">Job title</label>
+            <input id="s-role" className="input" value={form.role_title} onChange={set('role_title')} />
+          </div>
+          <div>
+            <label className="label" htmlFor="s-sen">Level</label>
+            <select id="s-sen" className="select" value={form.seniority} onChange={set('seniority')}>
+              <option value="">Prefer not to say</option>
+              {SENIORITY.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="label" htmlFor="s-country">Country</label>
+            <input id="s-country" className="input" value={form.country} onChange={set('country')} />
+          </div>
+        </div>
+        <div style={{ marginTop: 14 }}>
+          <label className="label" htmlFor="s-desc">In your own words</label>
+          <textarea id="s-desc" className="textarea" value={form.self_description} onChange={set('self_description')} />
+        </div>
+      </section>
+
+      {error && <p className="form-error" role="alert">{error}</p>}
+
+      <div className="row gap-3">
+        <button className="btn btn-primary" onClick={save} disabled={busy}>
+          {busy ? 'Saving…' : 'Save changes'}
+        </button>
+        {saved && <span className="hint" role="status">Saved.</span>}
+      </div>
+
+      <section className="card settings-block danger">
+        <h2>Delete account</h2>
+        <p className="hint">Removes your profile, preferences and sessions. This cannot be undone.</p>
+        {confirmDelete ? (
+          <div className="row gap-2">
+            <button className="btn btn-danger" onClick={destroy}>Yes, delete everything</button>
+            <button className="btn" onClick={() => setConfirmDelete(false)}>Cancel</button>
+          </div>
+        ) : (
+          <button className="btn" onClick={() => setConfirmDelete(true)}>Delete my account</button>
+        )}
+      </section>
     </div>
   );
 }

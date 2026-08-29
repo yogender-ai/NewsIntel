@@ -43,8 +43,10 @@ def _create_v2_tables(sync_conn) -> None:
 async def ensure_core_v2_schema() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(_create_v2_tables)
-        inspector = await conn.run_sync(inspect)
-        tables = set(inspector.get_table_names())
+        # Reflection must happen entirely inside run_sync. Returning the Inspector
+        # and calling get_table_names() out here runs sync IO on the async
+        # connection, which raises MissingGreenlet and kills startup.
+        tables = set(await conn.run_sync(lambda sync_conn: inspect(sync_conn).get_table_names()))
         if "articles" in tables:
             for stmt in _ARTICLE_COLUMNS:
                 try:
