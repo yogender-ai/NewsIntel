@@ -31,7 +31,8 @@ class Settings(BaseSettings):
     title_similarity_threshold: float = Field(default=0.86, alias="TITLE_SIMILARITY_THRESHOLD")
     ai_enrichment_max_events_per_run: int = Field(default=10, alias="AI_ENRICHMENT_MAX_EVENTS_PER_RUN")
     ai_enrichment_stale_hours: int = Field(default=6, alias="AI_ENRICHMENT_STALE_HOURS")
-    newsintel_categories: str = Field(default="tech,education,entertainment,politics", alias="NEWSINTEL_CATEGORIES")
+    # Empty means "every category that has a feed" — see Settings.mvp_categories.
+    newsintel_categories: str = Field(default="", alias="NEWSINTEL_CATEGORIES")
     newsintel_articles_per_category: int = Field(default=8, alias="NEWSINTEL_ARTICLES_PER_CATEGORY")
     newsintel_ingest_interval_minutes: int = Field(default=60, alias="NEWSINTEL_INGEST_INTERVAL_MINUTES")
     newsintel_rank_top_n: int = Field(default=15, alias="NEWSINTEL_RANK_TOP_N")
@@ -54,6 +55,42 @@ class Settings(BaseSettings):
         alias="NEWSINTEL_OPENROUTER_MODELS",
     )
     ai_circuit_breaker_cooldown_minutes: int = Field(default=10, alias="AI_CIRCUIT_BREAKER_COOLDOWN_MINUTES")
+
+    # ── Cloudflare Workers AI ──
+    # Primary inference provider: chat (gpt-oss-120b), embeddings (bge-m3),
+    # and cross-encoder reranking (bge-reranker-base).
+    cloudflare_account_id: str = Field(default="", alias="CLOUDFLARE_ACCOUNT_ID")
+    cloudflare_api_token: str = Field(default="", alias="CLOUDFLARE_API_TOKEN")
+    cloudflare_api_base: str = Field(default="https://api.cloudflare.com/client/v4", alias="CLOUDFLARE_API_BASE")
+    cloudflare_chat_model: str = Field(default="@cf/openai/gpt-oss-120b", alias="CLOUDFLARE_CHAT_MODEL")
+    cloudflare_fast_chat_model: str = Field(default="@cf/openai/gpt-oss-20b", alias="CLOUDFLARE_FAST_CHAT_MODEL")
+    cloudflare_embed_model: str = Field(default="@cf/baai/bge-m3", alias="CLOUDFLARE_EMBED_MODEL")
+    cloudflare_embed_dimensions: int = Field(default=1024, alias="CLOUDFLARE_EMBED_DIMENSIONS")
+    cloudflare_rerank_model: str = Field(default="@cf/baai/bge-reranker-base", alias="CLOUDFLARE_RERANK_MODEL")
+    cloudflare_chat_timeout_seconds: float = Field(default=90.0, alias="CLOUDFLARE_CHAT_TIMEOUT_SECONDS")
+    cloudflare_embed_timeout_seconds: float = Field(default=45.0, alias="CLOUDFLARE_EMBED_TIMEOUT_SECONDS")
+    cloudflare_rerank_timeout_seconds: float = Field(default=30.0, alias="CLOUDFLARE_RERANK_TIMEOUT_SECONDS")
+    cloudflare_embed_char_limit: int = Field(default=4000, alias="CLOUDFLARE_EMBED_CHAR_LIMIT")
+    cloudflare_rerank_char_limit: int = Field(default=1800, alias="CLOUDFLARE_RERANK_CHAR_LIMIT")
+    ai_provider: str = Field(default="cloudflare", alias="AI_PROVIDER")
+
+    # ── Auth (own JWT, replaces Firebase) ──
+    jwt_secret: str = Field(default="", alias="JWT_SECRET")
+    jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
+    access_token_ttl_minutes: int = Field(default=30, alias="ACCESS_TOKEN_TTL_MINUTES")
+    refresh_token_ttl_days: int = Field(default=30, alias="REFRESH_TOKEN_TTL_DAYS")
+    google_client_id: str = Field(default="", alias="GOOGLE_CLIENT_ID")
+
+    # ── RAG ──
+    rag_chunk_chars: int = Field(default=900, alias="RAG_CHUNK_CHARS")
+    rag_chunk_overlap: int = Field(default=150, alias="RAG_CHUNK_OVERLAP")
+    rag_vector_candidates: int = Field(default=40, alias="RAG_VECTOR_CANDIDATES")
+    rag_keyword_candidates: int = Field(default=20, alias="RAG_KEYWORD_CANDIDATES")
+    rag_rerank_keep: int = Field(default=8, alias="RAG_RERANK_KEEP")
+    rag_min_rerank_score: float = Field(default=0.001, alias="RAG_MIN_RERANK_SCORE")
+    # Keep passages scoring within this fraction of the best hit.
+    rag_relative_cutoff: float = Field(default=0.15, alias="RAG_RELATIVE_CUTOFF")
+    rag_min_sources: int = Field(default=3, alias="RAG_MIN_SOURCES")
     enable_heavy_ingestion: bool = Field(default=False, alias="ENABLE_HEAVY_INGESTION")
     enable_personalization: bool = Field(default=False, alias="ENABLE_PERSONALIZATION")
     enable_watchlist: bool = Field(default=False, alias="ENABLE_WATCHLIST")
@@ -63,14 +100,22 @@ class Settings(BaseSettings):
 
     @property
     def mvp_categories(self) -> list[str]:
-        allowed = {"tech", "education", "entertainment", "politics"}
+        """Categories the pipeline ingests.
+
+        Previously this hard-filtered to four categories, so twelve of the sixteen
+        topics onboarding offers were silently discarded. Now any category backed by
+        a real feed is accepted, and an unset/empty config means "ingest everything".
+        """
+        from app.pipeline.fetch.sources import ALL_CATEGORIES
+
+        allowed = set(ALL_CATEGORIES)
         categories = [
             item.strip().lower()
             for item in self.newsintel_categories.split(",")
             if item.strip()
         ]
         filtered = [item for item in categories if item in allowed]
-        return filtered or ["tech", "education", "entertainment", "politics"]
+        return filtered or list(ALL_CATEGORIES)
 
     @property
     def openrouter_model_chain(self) -> list[str]:

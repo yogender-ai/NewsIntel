@@ -17,3 +17,9 @@ psycopg2-binary>=2.9.9
 apscheduler>=3.10.4
 redis>=5.2.0
 pytest>=8.3.0
+
+# Auth + RAG (Cloudflare Workers AI stack)
+pgvector>=0.3.6
+PyJWT>=2.10.0
+argon2-cffi>=23.1.0
+email-validator>=2.2.0

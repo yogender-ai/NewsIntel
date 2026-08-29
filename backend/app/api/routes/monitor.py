@@ -47,6 +47,7 @@ async def pipeline_monitor(session: AsyncSession = Depends(get_session), redis=D
             {"id": "hf", "label": "NER + SENTIMENT"},
             {"id": "llm", "label": "LLM INTEL"},
             {"id": "signals", "label": "SIGNAL SCORE"},
+            {"id": "rag_index", "label": "RAG INDEX"},
             {"id": "snapshot", "label": "SNAPSHOT"},
         ],
     }

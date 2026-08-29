@@ -1,9 +1,23 @@
 from fastapi import APIRouter
 
-from app.api.routes import admin, ask, health, jobs, legacy, map, monitor, orbit, simulate, snapshot, stories
+from app.api.routes import (
+    admin,
+    ask,
+    auth,
+    health,
+    jobs,
+    legacy,
+    map,
+    monitor,
+    orbit,
+    simulate,
+    snapshot,
+    stories,
+)
 
 api_router = APIRouter()
 api_router.include_router(health.router)
+api_router.include_router(auth.router)
 api_router.include_router(snapshot.router)
 api_router.include_router(stories.router)
 api_router.include_router(jobs.router)

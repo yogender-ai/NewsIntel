@@ -27,6 +27,7 @@ from app.pipeline.signals.score import score_item
 from app.pipeline.snapshot.builder import build_snapshot_payload
 from app.pipeline.types import EnrichedArticle, StageStat
 from app.repositories.articles import recent_for_dedupe
+from app.services.rag import index_signals
 from app.services.text_fingerprint import normalize_title
 
 logger = logging.getLogger("newsintel-runner")
@@ -151,16 +152,23 @@ async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: 
         run.stages.append(image_stat.__dict__)
         logger.info("image.done accepted=%s rejected=%s", len(accepted_pairs), rejected)
 
+        dedupe_started = datetime.now(timezone.utc)
         cleaned = [to_clean_article(item, image_url) for item, image_url in accepted_pairs]
         recent = await recent_for_dedupe(session, days=settings.newsintel_retention_days)
         unique, dropped = dedupe_articles(cleaned, recent)
+        dedupe_finished = datetime.now(timezone.utc)
         run.stages.append(
             StageStat(
                 name="dedupe",
-                started_at=datetime.now(timezone.utc).isoformat(),
-                finished_at=datetime.now(timezone.utc).isoformat(),
-                elapsed_ms=0,
-                counts={"unique": len(unique), "dropped": dropped},
+                started_at=dedupe_started.isoformat(),
+                finished_at=dedupe_finished.isoformat(),
+                elapsed_ms=int((dedupe_finished - dedupe_started).total_seconds() * 1000),
+                counts={
+                    "in": len(cleaned),
+                    "unique": len(unique),
+                    "dropped": dropped,
+                    "compared_against": len(recent),
+                },
             ).__dict__
         )
 
@@ -202,14 +210,34 @@ async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: 
             persisted.append(EnrichedArticle(article=clean, article_id=article.id, display_title=clean.title, llm_summary=clean.summary))
         await session.commit()
 
+        hf_started = datetime.now(timezone.utc)
         await enrich_hf(persisted, redis)
+        hf_finished = datetime.now(timezone.utc)
         hf_ok = sum(1 for item in persisted if item.hf_status == "ok")
-        run.stages.append({"name": "hf", "counts": {"hf_ok": hf_ok, "hf_failed": len(persisted) - hf_ok}})
+        run.stages.append(
+            StageStat(
+                name="hf",
+                started_at=hf_started.isoformat(),
+                finished_at=hf_finished.isoformat(),
+                elapsed_ms=int((hf_finished - hf_started).total_seconds() * 1000),
+                counts={"hf_ok": hf_ok, "hf_failed": len(persisted) - hf_ok, "in": len(persisted)},
+            ).__dict__
+        )
         await redis.expire_if_owner(LOCK_KEY, token, LOCK_TTL)
 
+        llm_started = datetime.now(timezone.utc)
         await enrich_llm(persisted, redis)
+        llm_finished = datetime.now(timezone.utc)
         llm_ok = sum(1 for item in persisted if item.llm_status == "ok")
-        run.stages.append({"name": "llm", "counts": {"llm_ok": llm_ok, "llm_failed": len(persisted) - llm_ok}})
+        run.stages.append(
+            StageStat(
+                name="llm",
+                started_at=llm_started.isoformat(),
+                finished_at=llm_finished.isoformat(),
+                elapsed_ms=int((llm_finished - llm_started).total_seconds() * 1000),
+                counts={"llm_ok": llm_ok, "llm_failed": len(persisted) - llm_ok, "in": len(persisted)},
+            ).__dict__
+        )
         await redis.expire_if_owner(LOCK_KEY, token, LOCK_TTL)
 
         signals: list[Signal] = []
@@ -261,6 +289,37 @@ async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: 
             index_to_signal[index] = signal.id
         await session.flush()
 
+        # Index the new signals into the RAG corpus. Without this stage Ask has an
+        # empty index and silently answers from nothing, so failures are recorded on
+        # the run rather than swallowed — but they must not abort the pipeline, since
+        # the dashboard snapshot is still perfectly valid without fresh embeddings.
+        rag_started = datetime.now(timezone.utc)
+        rag_error = ""
+        rag_chunks = 0
+        rag_neurons = 0.0
+        try:
+            rag_chunks, rag_calls = await index_signals(session, signals)
+            rag_neurons = round(sum(call.neurons for call in rag_calls), 4)
+        except Exception as exc:  # noqa: BLE001 - stage must degrade, not abort
+            rag_error = str(exc)[:300]
+            logger.warning("rag.index stage failed: %s", rag_error)
+        rag_finished = datetime.now(timezone.utc)
+        run.stages.append(
+            StageStat(
+                name="rag_index",
+                started_at=rag_started.isoformat(),
+                finished_at=rag_finished.isoformat(),
+                elapsed_ms=int((rag_finished - rag_started).total_seconds() * 1000),
+                counts={
+                    "chunks_indexed": rag_chunks,
+                    "signals_in": len(signals),
+                    "neurons": rag_neurons,
+                    **({"error": rag_error} if rag_error else {}),
+                },
+            ).__dict__
+        )
+        await redis.expire_if_owner(LOCK_KEY, token, LOCK_TTL)
+
         edges = build_edges(persisted, index_to_signal)
         for signal in signals:
             await session.execute(delete(SignalRelationship).where(SignalRelationship.source_id == signal.id))
@@ -287,6 +346,7 @@ async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: 
             "hf_ok": hf_ok,
             "llm_ok": llm_ok,
             "signals": len(signals),
+            "rag_chunks": rag_chunks,
             "categories": category_counts,
         }
         pipeline_status = {
