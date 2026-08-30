@@ -546,8 +546,14 @@ async def run_pipeline(redis: RedisClient, run_id: UUID | None = None, trigger: 
     except Exception as exc:
         logger.exception("pipeline.fail")
         if session and run:
+            # Many transport errors (httpx timeouts, cancelled tasks) stringify to
+            # "", which used to leave the run marked failed with no reason at all.
+            # Keep the type name and the last stage that started so the failure is
+            # readable from /api/pipeline/monitor alone.
+            detail = str(exc).strip() or repr(exc)
+            last_stage = (run.stages[-1] or {}).get("name", "?") if run.stages else "start"
             run.status = "failed"
-            run.error = str(exc)[:1000]
+            run.error = f"after stage '{last_stage}': {type(exc).__name__}: {detail}"[:1000]
             run.finished_at = utcnow()
             await session.commit()
             await write_job(redis, run)
