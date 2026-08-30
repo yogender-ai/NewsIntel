@@ -41,6 +41,22 @@ def _has_password(redis_url: str) -> bool:
     return bool(parts.password)
 
 
+def _is_private_host(redis_url: str) -> bool:
+    """True for hosts only reachable from inside the private network.
+
+    Render's internal service DNS is a bare label with no dots
+    (``red-da9tn6qjnfac73etgi20``) and is not routable from the internet, so
+    those instances are issued without a password. Demanding one there would
+    rule out the private address and force the store to be published to the
+    internet instead, which is the weaker position of the two.
+    """
+
+    host = (urlsplit(redis_url or "").hostname or "").lower()
+    if not host:
+        return False
+    return "." not in host or host in {"localhost", "127.0.0.1", "::1"}
+
+
 class RedisClient:
     def __init__(self, *, require: bool):
         self.require = require
@@ -49,7 +65,7 @@ class RedisClient:
 
     async def connect(self) -> None:
         url = (self.settings.redis_url or "").strip()
-        if self.settings.redis_required_auth and url and not _has_password(url):
+        if self.settings.redis_required_auth and url and not _has_password(url) and not _is_private_host(url):
             raise RuntimeError("REDIS_URL must include a password in production")
         if not url:
             if self.require:
