@@ -373,3 +373,35 @@
   .chat-page { height: calc(100vh - 130px); }
   .chat-head { flex-direction: column; gap: 10px; }
 }
+
+/* ── Pending state for auth submits ────────────────────────────── */
+/* The free-tier API cold-starts, so a submit can take a minute. These give the
+   wait visible motion instead of a button that looks broken. */
+.btn-spinner { margin-right: 7px; vertical-align: -2px; }
+.btn .btn-spinner { color: currentColor; }
+
+.pending { margin: -6px 0 0; }
+.pending-bar {
+  height: 3px; border-radius: 999px; overflow: hidden;
+  background: var(--surface-3);
+}
+.pending-bar span {
+  display: block; height: 100%; width: 40%; border-radius: 999px;
+  background: var(--accent);
+  animation: pendingSweep 1.3s var(--ease) infinite;
+}
+@keyframes pendingSweep {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(250%); }
+}
+.pending-text {
+  margin: 8px 0 0; font-size: .78rem; line-height: 1.45; color: var(--text-2);
+}
+.pending-clock {
+  font-family: var(--mono); font-size: .72rem; color: var(--text-3);
+  white-space: nowrap;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pending-bar span { animation: none; width: 100%; opacity: .5; }
+  .btn-spinner { animation: none; }
+}
